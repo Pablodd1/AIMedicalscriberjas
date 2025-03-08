@@ -1,13 +1,13 @@
 import { useAuth } from "@/hooks/use-auth";
 import Sidebar from "@/components/layout/sidebar";
 import { Route, Switch } from "wouter";
-import Dashboard from "./dashboard";
-import Patients from "./patients";
-import Appointments from "./appointments";
-import Notes from "./notes";
-import Analytics from "./analytics";
-import Billing from "./billing";
-import Telemedicine from "./telemedicine";
+import Dashboard from "@/pages/dashboard";
+import Patients from "@/pages/patients";
+import Appointments from "@/pages/appointments";
+import Notes from "@/pages/notes";
+import Analytics from "@/pages/analytics";
+import Billing from "@/pages/billing";
+import Telemedicine from "@/pages/telemedicine";
 
 export default function HomePage() {
   const { user } = useAuth();
