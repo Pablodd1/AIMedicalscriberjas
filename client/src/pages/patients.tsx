@@ -18,7 +18,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Filter, FileText } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertPatientSchema } from "@shared/schema";
@@ -26,11 +26,20 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import PatientDetails from "./patients/patient-details";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
 
 export default function Patients() {
   const [search, setSearch] = useState("");
+  const [selectedPatient, setSelectedPatient] = useState<number | null>(null);
   const { toast } = useToast();
-  
+
   const { data: patients, isLoading } = useQuery<Patient[]>({
     queryKey: ["/api/patients"],
   });
@@ -76,7 +85,10 @@ export default function Patients() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Patients</h1>
+        <div>
+          <h1 className="text-3xl font-bold">Patients</h1>
+          <p className="text-muted-foreground">Manage your patient records and information</p>
+        </div>
         <Dialog>
           <DialogTrigger asChild>
             <Button>
@@ -84,7 +96,7 @@ export default function Patients() {
               Add Patient
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="sm:max-w-[550px]">
             <DialogHeader>
               <DialogTitle>Add New Patient</DialogTitle>
             </DialogHeader>
@@ -103,32 +115,34 @@ export default function Patients() {
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input type="email" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="phone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Phone</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input type="email" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="phone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Phone</FormLabel>
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
                 <FormField
                   control={form.control}
                   name="dateOfBirth"
@@ -177,14 +191,29 @@ export default function Patients() {
         </Dialog>
       </div>
 
-      <div className="flex items-center border rounded-md px-3 max-w-sm">
-        <Search className="h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search patients..."
-          className="border-0 focus-visible:ring-0"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      <div className="flex items-center gap-4">
+        <div className="flex items-center border rounded-md px-3 flex-1 max-w-sm">
+          <Search className="h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search patients..."
+            className="border-0 focus-visible:ring-0"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline">
+              <Filter className="h-4 w-4 mr-2" />
+              Filter
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem>Recent Patients</DropdownMenuItem>
+            <DropdownMenuItem>Upcoming Appointments</DropdownMenuItem>
+            <DropdownMenuItem>Pending Follow-ups</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <div className="border rounded-lg">
@@ -192,25 +221,45 @@ export default function Patients() {
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Phone</TableHead>
               <TableHead>Date of Birth</TableHead>
-              <TableHead>Address</TableHead>
+              <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredPatients?.map((patient) => (
-              <TableRow key={patient.id}>
+              <TableRow key={patient.id} className="cursor-pointer hover:bg-muted/50">
                 <TableCell className="font-medium">{patient.name}</TableCell>
+                <TableCell>
+                  <Badge variant="secondary">Active</Badge>
+                </TableCell>
                 <TableCell>{patient.email}</TableCell>
                 <TableCell>{patient.phone}</TableCell>
                 <TableCell>{patient.dateOfBirth}</TableCell>
-                <TableCell>{patient.address}</TableCell>
+                <TableCell>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setSelectedPatient(patient.id)}
+                  >
+                    <FileText className="h-4 w-4" />
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </div>
+
+      {selectedPatient && (
+        <Dialog open={!!selectedPatient} onOpenChange={() => setSelectedPatient(null)}>
+          <DialogContent className="max-w-4xl h-[80vh]">
+            <PatientDetails patientId={selectedPatient} />
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

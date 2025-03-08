@@ -14,6 +14,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(patients);
   });
 
+  app.get("/api/patients/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const patient = await storage.getPatient(parseInt(req.params.id));
+    if (!patient) return res.sendStatus(404);
+    if (patient.createdBy !== req.user.id) return res.sendStatus(403);
+    res.json(patient);
+  });
+
   app.post("/api/patients", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const validation = insertPatientSchema.safeParse(req.body);

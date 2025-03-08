@@ -4,13 +4,12 @@ import createMemoryStore from "memorystore";
 
 const MemoryStore = createMemoryStore(session);
 
-// modify the interface with any CRUD methods
-// you might need
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   getPatients(doctorId: number): Promise<Patient[]>;
+  getPatient(id: number): Promise<Patient | undefined>;
   createPatient(patient: InsertPatient & { createdBy: number }): Promise<Patient>;
   getAppointments(doctorId: number): Promise<Appointment[]>;
   createAppointment(appointment: InsertAppointment): Promise<Appointment>;
@@ -59,6 +58,10 @@ export class MemStorage implements IStorage {
     return Array.from(this.patients.values()).filter(
       (patient) => patient.createdBy === doctorId
     );
+  }
+
+  async getPatient(id: number): Promise<Patient | undefined> {
+    return this.patients.get(id);
   }
 
   async createPatient(patient: InsertPatient & { createdBy: number }): Promise<Patient> {
