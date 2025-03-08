@@ -1,9 +1,13 @@
 import { useAuth } from "@/hooks/use-auth";
 import Sidebar from "@/components/layout/sidebar";
-import { Outlet, Route, Switch } from "wouter";
+import { Route, Switch } from "wouter";
 import Dashboard from "./dashboard";
 import Patients from "./patients";
 import Appointments from "./appointments";
+import Notes from "./notes";
+import Analytics from "./analytics";
+import Billing from "./billing";
+import Telemedicine from "./telemedicine";
 
 export default function HomePage() {
   const { user } = useAuth();
@@ -17,6 +21,10 @@ export default function HomePage() {
             <Route path="/" component={Dashboard} />
             <Route path="/patients" component={Patients} />
             <Route path="/appointments" component={Appointments} />
+            <Route path="/notes" component={Notes} />
+            <Route path="/analytics" component={Analytics} />
+            <Route path="/billing" component={Billing} />
+            <Route path="/telemedicine" component={Telemedicine} />
           </Switch>
         </div>
       </main>

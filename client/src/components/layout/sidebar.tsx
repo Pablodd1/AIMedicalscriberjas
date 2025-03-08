@@ -8,7 +8,11 @@ import {
   Calendar,
   LogOut,
   Menu,
-  Stethoscope
+  Stethoscope,
+  FileText,
+  LineChart,
+  CreditCard,
+  Video
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useState } from "react";
@@ -18,6 +22,10 @@ const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Patients", href: "/patients", icon: Users },
   { name: "Appointments", href: "/appointments", icon: Calendar },
+  { name: "Medical Notes", href: "/notes", icon: FileText },
+  { name: "Analytics", href: "/analytics", icon: LineChart },
+  { name: "Billing", href: "/billing", icon: CreditCard },
+  { name: "Telemedicine", href: "/telemedicine", icon: Video },
 ];
 
 export default function Sidebar() {
