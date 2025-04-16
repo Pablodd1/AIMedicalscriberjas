@@ -1,6 +1,6 @@
 import { useAuth } from "@/hooks/use-auth";
 import Sidebar from "@/components/layout/sidebar";
-import { Route, Switch } from "wouter";
+import { useLocation } from "wouter";
 import Dashboard from "@/pages/dashboard";
 import Patients from "@/pages/patients";
 import Appointments from "@/pages/appointments";
@@ -11,21 +11,37 @@ import Telemedicine from "@/pages/telemedicine";
 
 export default function HomePage() {
   const { user } = useAuth();
+  const [location] = useLocation();
+
+  // Determine which component to render based on the current location
+  const renderContent = () => {
+    switch (location) {
+      case "/":
+      case "/dashboard":
+        return <Dashboard />;
+      case "/patients":
+        return <Patients />;
+      case "/appointments":
+        return <Appointments />;
+      case "/notes":
+        return <Notes />;
+      case "/analytics":
+        return <Analytics />;
+      case "/billing":
+        return <Billing />;
+      case "/telemedicine":
+        return <Telemedicine />;
+      default:
+        return <Dashboard />;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background flex">
       <Sidebar />
       <main className="flex-1 p-8 overflow-auto">
         <div className="max-w-6xl mx-auto">
-          <Switch>
-            <Route path="/" component={Dashboard} />
-            <Route path="/patients" component={Patients} />
-            <Route path="/appointments" component={Appointments} />
-            <Route path="/notes" component={Notes} />
-            <Route path="/analytics" component={Analytics} />
-            <Route path="/billing" component={Billing} />
-            <Route path="/telemedicine" component={Telemedicine} />
-          </Switch>
+          {renderContent()}
         </div>
       </main>
     </div>

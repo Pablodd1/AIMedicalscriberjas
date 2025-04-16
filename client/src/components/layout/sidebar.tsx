@@ -19,7 +19,7 @@ import { useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const navigation = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
+  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Patients", href: "/patients", icon: Users },
   { name: "Appointments", href: "/appointments", icon: Calendar },
   { name: "Medical Notes", href: "/notes", icon: FileText },
@@ -35,10 +35,12 @@ export default function Sidebar() {
 
   const SidebarContent = () => (
     <>
-      <div className="flex items-center gap-2 px-3 h-16">
-        <Stethoscope className="h-6 w-6 text-primary" />
-        <span className="font-bold text-lg">Medical Platform</span>
-      </div>
+      <Link href="/dashboard">
+        <div className="flex items-center gap-2 px-3 h-16 cursor-pointer">
+          <Stethoscope className="h-6 w-6 text-primary" />
+          <span className="font-bold text-lg">Medical Platform</span>
+        </div>
+      </Link>
 
       <div className="flex-1 px-3 py-4 space-y-1">
         {navigation.map((item) => {
