@@ -1,3 +1,4 @@
+
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -13,11 +14,14 @@ import {
   LineChart,
   CreditCard,
   Video,
-  Settings
+  Settings,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -34,21 +38,16 @@ export default function Sidebar() {
   const [location] = useLocation();
   const { user, logoutMutation } = useAuth();
   const [open, setOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
-  const SidebarContent = () => (
-    <>
-      <Link href="/dashboard">
-        <div className="flex items-center gap-2 px-3 h-16 cursor-pointer">
-          <Stethoscope className="h-6 w-6 text-primary" />
-          <span className="font-bold text-lg">Medical Platform</span>
-        </div>
-      </Link>
-
-      <div className="flex-1 px-3 py-4 space-y-1">
-        {navigation.map((item) => {
-          const isActive = location === item.href;
-          return (
-            <Link key={item.name} href={item.href}>
+  const SidebarLink = ({ item, isCollapsed }) => {
+    const isActive = location === item.href;
+    
+    return (
+      <TooltipProvider delayDuration={0}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Link href={item.href}>
               <Button
                 variant={isActive ? "secondary" : "ghost"}
                 className={cn("w-full justify-start gap-2", {
@@ -56,30 +55,62 @@ export default function Sidebar() {
                 })}
               >
                 <item.icon className="h-5 w-5" />
-                {item.name}
+                {!isCollapsed && item.name}
               </Button>
             </Link>
-          );
-        })}
+          </TooltipTrigger>
+          {isCollapsed && <TooltipContent side="right">{item.name}</TooltipContent>}
+        </Tooltip>
+      </TooltipProvider>
+    );
+  };
+
+  const SidebarContent = () => (
+    <>
+      <div className="flex items-center justify-between px-3 h-16">
+        <Link href="/dashboard">
+          <div className="flex items-center gap-2 cursor-pointer">
+            <Stethoscope className="h-6 w-6 text-primary" />
+            {!isCollapsed && <span className="font-bold text-lg">Medical Platform</span>}
+          </div>
+        </Link>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="hidden lg:flex"
+          onClick={() => setIsCollapsed(!isCollapsed)}
+        >
+          {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+        </Button>
       </div>
 
-      <div className="px-3 py-4 border-t">
+      <div className="flex-1 px-3 py-4 space-y-1">
+        {navigation.map((item) => (
+          <SidebarLink key={item.name} item={item} isCollapsed={isCollapsed} />
+        ))}
+      </div>
+
+      <div className={cn("px-3 py-4 border-t", { "text-center": isCollapsed })}>
         <div className="flex items-center gap-3 mb-4">
           <Avatar>
             <AvatarFallback>{user?.name[0]}</AvatarFallback>
           </Avatar>
-          <div>
-            <p className="font-medium">{user?.name}</p>
-            <p className="text-sm text-muted-foreground">{user?.email}</p>
-          </div>
+          {!isCollapsed && (
+            <div>
+              <p className="font-medium">{user?.name}</p>
+              <p className="text-sm text-muted-foreground">{user?.email}</p>
+            </div>
+          )}
         </div>
         <Button
           variant="outline"
-          className="w-full justify-start gap-2"
+          className={cn("w-full justify-start gap-2", {
+            "justify-center": isCollapsed,
+          })}
           onClick={() => logoutMutation.mutate()}
         >
           <LogOut className="h-5 w-5" />
-          Logout
+          {!isCollapsed && "Logout"}
         </Button>
       </div>
     </>
@@ -98,7 +129,10 @@ export default function Sidebar() {
         </SheetContent>
       </Sheet>
 
-      <div className="hidden lg:flex flex-col w-64 border-r bg-card">
+      <div className={cn("hidden lg:flex flex-col border-r bg-card transition-all duration-300", {
+        "w-64": !isCollapsed,
+        "w-16": isCollapsed,
+      })}>
         <SidebarContent />
       </div>
     </>
