@@ -117,12 +117,14 @@ export const usersRelations = relations(users, ({ many }) => ({
   appointments: many(appointments),
   medicalNotes: many(medicalNotes),
   consultationNotes: many(consultationNotes),
+  invoices: many(invoices),
 }));
 
 export const patientsRelations = relations(patients, ({ many }) => ({
   appointments: many(appointments),
   medicalNotes: many(medicalNotes),
   consultationNotes: many(consultationNotes),
+  invoices: many(invoices),
 }));
 
 export const medicalNotesRelations = relations(medicalNotes, ({ one }) => ({
@@ -152,6 +154,9 @@ export const consultationNotesRelations = relations(consultationNotes, ({ one, m
   medicalNotes: many(medicalNotes),
 }));
 
+// Define the payment status as an enum
+export const paymentStatusEnum = pgEnum('payment_status', ['paid', 'partial', 'unpaid', 'overdue']);
+
 // Settings table for application configuration
 export const settings = pgTable("settings", {
   id: serial("id").primaryKey(),
@@ -169,3 +174,45 @@ export const emailTemplates = pgTable("email_templates", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+// Define the invoices table
+export const invoices = pgTable("invoices", {
+  id: serial("id").primaryKey(),
+  patientId: integer("patient_id").references(() => patients.id, { onDelete: 'cascade' }).notNull(),
+  doctorId: integer("doctor_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  amount: integer("amount").notNull(), // Stored in cents (e.g. $10.00 = 1000)
+  amountPaid: integer("amount_paid").default(0).notNull(), // Stored in cents
+  status: paymentStatusEnum("status").default('unpaid').notNull(),
+  dueDate: timestamp("due_date").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  description: text("description").notNull(),
+  invoiceNumber: text("invoice_number").notNull(),
+});
+
+// Invoice insert schema
+export const insertInvoiceSchema = createInsertSchema(invoices).pick({
+  patientId: true,
+  doctorId: true,
+  amount: true,
+  amountPaid: true,
+  status: true,
+  dueDate: true,
+  description: true,
+  invoiceNumber: true,
+});
+
+export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
+export type Invoice = typeof invoices.$inferSelect;
+
+// Invoice relations
+export const invoiceRelations = relations(invoices, ({ one }) => ({
+  patient: one(patients, {
+    fields: [invoices.patientId],
+    references: [patients.id],
+  }),
+  doctor: one(users, {
+    fields: [invoices.doctorId],
+    references: [users.id],
+  }),
+}));
