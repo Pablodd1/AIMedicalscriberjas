@@ -3,7 +3,12 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { aiRouter } from "./routes/ai";
-import { insertPatientSchema, insertAppointmentSchema, insertMedicalNoteSchema } from "@shared/schema";
+import { 
+  insertPatientSchema, 
+  insertAppointmentSchema, 
+  insertMedicalNoteSchema,
+  insertConsultationNoteSchema 
+} from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   setupAuth(app);
@@ -95,6 +100,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
     
     res.status(201).json(note);
+  });
+
+  // Consultation Notes routes
+  app.get("/api/consultation-notes", async (req, res) => {
+    const notes = await storage.getConsultationNotes(MOCK_DOCTOR_ID);
+    res.json(notes);
+  });
+  
+  app.get("/api/patients/:patientId/consultation-notes", async (req, res) => {
+    const patientId = parseInt(req.params.patientId);
+    const patient = await storage.getPatient(patientId);
+    if (!patient) return res.sendStatus(404);
+    
+    const notes = await storage.getConsultationNotesByPatient(patientId);
+    res.json(notes);
+  });
+  
+  app.get("/api/consultation-notes/:id", async (req, res) => {
+    const note = await storage.getConsultationNote(parseInt(req.params.id));
+    if (!note) return res.sendStatus(404);
+    res.json(note);
+  });
+  
+  app.post("/api/consultation-notes", async (req, res) => {
+    const validation = insertConsultationNoteSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json(validation.error);
+    }
+    
+    // Verify patient exists
+    const patient = await storage.getPatient(validation.data.patientId);
+    if (!patient) {
+      return res.status(404).json({ message: "Patient not found" });
+    }
+    
+    const note = await storage.createConsultationNote({
+      ...validation.data,
+      doctorId: MOCK_DOCTOR_ID,
+    });
+    
+    res.status(201).json(note);
+  });
+  
+  // Create medical note from consultation
+  app.post("/api/medical-notes/from-consultation", async (req, res) => {
+    // Extract required fields from request
+    const { consultationId, patientId, content, type, title } = req.body;
+    
+    // Basic validation
+    if (!consultationId || !patientId || !content || !title) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+    
+    try {
+      // Create a medical note linked to the consultation
+      const medicalNote = await storage.createMedicalNoteFromConsultation(
+        {
+          patientId,
+          doctorId: MOCK_DOCTOR_ID,
+          content,
+          type: type || 'soap',
+          title
+        },
+        consultationId
+      );
+      
+      res.status(201).json(medicalNote);
+    } catch (error) {
+      console.error("Error creating medical note from consultation:", error);
+      res.status(500).json({ message: "Failed to create medical note from consultation" });
+    }
   });
 
   const httpServer = createServer(app);

@@ -174,5 +174,77 @@ export async function generateSoapNotes(transcript: string, patientInfo: any): P
   }
 }
 
+// Save a consultation note to the database
+export async function saveConsultationNote(
+  patientId: number,
+  doctorId: number,
+  transcript: string,
+  recordingMethod: string,
+  title: string
+): Promise<any> {
+  try {
+    const response = await apiRequest("POST", "/api/consultation-notes", {
+      patientId,
+      doctorId,
+      transcript,
+      recordingMethod,
+      title
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to save consultation note');
+    }
+    
+    const data = await response.json();
+    
+    // Invalidate any related queries
+    queryClient.invalidateQueries({ queryKey: ['/api/consultation-notes'] });
+    queryClient.invalidateQueries({ queryKey: ['/api/consultation-notes', patientId] });
+    
+    return data;
+  } catch (error) {
+    console.error("Error saving consultation note:", error);
+    notify("Failed to save consultation note", "error");
+    throw error;
+  }
+}
+
+// Create a medical note from consultation
+export async function createMedicalNoteFromConsultation(
+  consultationId: number,
+  patientId: number,
+  doctorId: number,
+  content: string,
+  type: 'soap' | 'progress' | 'procedure' | 'consultation',
+  title: string
+): Promise<any> {
+  try {
+    const response = await apiRequest("POST", "/api/medical-notes/from-consultation", {
+      consultationId,
+      patientId,
+      doctorId,
+      content,
+      type,
+      title
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to create medical note from consultation');
+    }
+    
+    const data = await response.json();
+    
+    // Invalidate any related queries
+    queryClient.invalidateQueries({ queryKey: ['/api/medical-notes'] });
+    queryClient.invalidateQueries({ queryKey: ['/api/medical-notes', patientId] });
+    
+    return data;
+  } catch (error) {
+    console.error("Error creating medical note from consultation:", error);
+    notify("Failed to create medical note from consultation", "error");
+    throw error;
+  }
+}
+
 // Export singleton instance of recording service
 export const recordingService = new BrowserRecordingService();
