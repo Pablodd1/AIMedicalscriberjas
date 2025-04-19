@@ -1,4 +1,14 @@
-import { users, type User, type InsertUser, type Patient, type InsertPatient, type Appointment, type InsertAppointment } from "@shared/schema";
+import { 
+  users, 
+  type User, 
+  type InsertUser, 
+  type Patient, 
+  type InsertPatient, 
+  type Appointment, 
+  type InsertAppointment,
+  type MedicalNote,
+  type InsertMedicalNote
+} from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
 
@@ -13,6 +23,10 @@ export interface IStorage {
   createPatient(patient: InsertPatient & { createdBy: number }): Promise<Patient>;
   getAppointments(doctorId: number): Promise<Appointment[]>;
   createAppointment(appointment: InsertAppointment): Promise<Appointment>;
+  getMedicalNotes(doctorId: number): Promise<MedicalNote[]>;
+  getMedicalNotesByPatient(patientId: number): Promise<MedicalNote[]>;
+  getMedicalNote(id: number): Promise<MedicalNote | undefined>;
+  createMedicalNote(note: InsertMedicalNote): Promise<MedicalNote>;
   sessionStore: session.Store;
 }
 
@@ -20,18 +34,22 @@ export class MemStorage implements IStorage {
   private users: Map<number, User>;
   private patients: Map<number, Patient>;
   private appointments: Map<number, Appointment>;
+  private medicalNotes: Map<number, MedicalNote>;
   public sessionStore: session.Store;
   currentId: number;
   currentPatientId: number;
   currentAppointmentId: number;
+  currentMedicalNoteId: number;
 
   constructor() {
     this.users = new Map();
     this.patients = new Map();
     this.appointments = new Map();
+    this.medicalNotes = new Map();
     this.currentId = 1;
     this.currentPatientId = 1;
     this.currentAppointmentId = 1;
+    this.currentMedicalNoteId = 1;
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000, // prune expired entries every 24h
     });
@@ -66,7 +84,11 @@ export class MemStorage implements IStorage {
 
   async createPatient(patient: InsertPatient & { createdBy: number }): Promise<Patient> {
     const id = this.currentPatientId++;
-    const newPatient: Patient = { ...patient, id };
+    const newPatient: Patient = { 
+      ...patient, 
+      id,
+      medicalHistory: patient.medicalHistory || null 
+    };
     this.patients.set(id, newPatient);
     return newPatient;
   }
@@ -82,10 +104,39 @@ export class MemStorage implements IStorage {
     const newAppointment: Appointment = { 
       ...appointment, 
       id,
-      status: "scheduled" 
+      status: "scheduled",
+      notes: appointment.notes || null
     };
     this.appointments.set(id, newAppointment);
     return newAppointment;
+  }
+
+  async getMedicalNotes(doctorId: number): Promise<MedicalNote[]> {
+    return Array.from(this.medicalNotes.values()).filter(
+      (note) => note.doctorId === doctorId
+    );
+  }
+
+  async getMedicalNotesByPatient(patientId: number): Promise<MedicalNote[]> {
+    return Array.from(this.medicalNotes.values()).filter(
+      (note) => note.patientId === patientId
+    );
+  }
+
+  async getMedicalNote(id: number): Promise<MedicalNote | undefined> {
+    return this.medicalNotes.get(id);
+  }
+
+  async createMedicalNote(note: InsertMedicalNote): Promise<MedicalNote> {
+    const id = this.currentMedicalNoteId++;
+    const newNote: MedicalNote = { 
+      ...note, 
+      id,
+      type: note.type || "soap",
+      createdAt: new Date() 
+    };
+    this.medicalNotes.set(id, newNote);
+    return newNote;
   }
 }
 

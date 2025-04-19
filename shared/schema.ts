@@ -31,6 +31,16 @@ export const appointments = pgTable("appointments", {
   notes: text("notes"),
 });
 
+export const medicalNotes = pgTable("medical_notes", {
+  id: serial("id").primaryKey(),
+  patientId: integer("patient_id").notNull(),
+  doctorId: integer("doctor_id").notNull(),
+  content: text("content").notNull(),
+  type: text("type").notNull().default("soap"), // soap, progress, procedure, etc.
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  title: text("title").notNull(),
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
@@ -54,9 +64,19 @@ export const insertAppointmentSchema = createInsertSchema(appointments).pick({
   notes: true,
 });
 
+export const insertMedicalNoteSchema = createInsertSchema(medicalNotes).pick({
+  patientId: true,
+  doctorId: true,
+  content: true,
+  type: true,
+  title: true,
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertPatient = z.infer<typeof insertPatientSchema>;
 export type InsertAppointment = z.infer<typeof insertAppointmentSchema>;
+export type InsertMedicalNote = z.infer<typeof insertMedicalNoteSchema>;
 export type User = typeof users.$inferSelect;
 export type Patient = typeof patients.$inferSelect;
 export type Appointment = typeof appointments.$inferSelect;
+export type MedicalNote = typeof medicalNotes.$inferSelect;
