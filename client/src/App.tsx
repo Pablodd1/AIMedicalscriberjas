@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
 import HomePage from "@/pages/home-page";
+import PatientJoin from "@/pages/patient-join";
 import { AuthProvider } from "@/hooks/use-auth";
 
 function Router() {
@@ -18,6 +19,7 @@ function Router() {
       <Route path="/billing" component={HomePage} />
       <Route path="/telemedicine" component={HomePage} />
       <Route path="/settings" component={HomePage} />
+      <Route path="/patient-join" component={PatientJoin} />
       <Route component={NotFound} />
     </Switch>
   );

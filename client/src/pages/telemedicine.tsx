@@ -54,6 +54,9 @@ interface VideoConsultationProps {
 }
 
 function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps) {
+  // For patient join URL
+  const patientJoinUrl = `${window.location.origin}/patient-join`;
+  
   const { user } = useAuth();
   const { toast } = useToast();
   const [connected, setConnected] = useState(false);
@@ -418,18 +421,26 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             <p className="text-xs text-muted-foreground">Video Consultation</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button 
-            onClick={() => setChatOpen(!chatOpen)} 
-            variant="outline" 
-            size="icon"
-            className={chatOpen ? "bg-primary text-primary-foreground" : ""}
-          >
-            <MessageCircle className="h-4 w-4" />
-          </Button>
-          <Button variant="destructive" size="icon" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
+        <div className="flex flex-col items-end gap-2">
+          <div className="text-sm bg-muted p-2 rounded-md">
+            <span className="font-semibold">Patient Join URL:</span> {patientJoinUrl}
+          </div>
+          <div className="text-sm bg-muted p-2 rounded-md">
+            <span className="font-semibold">Room ID:</span> {roomId}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button 
+              onClick={() => setChatOpen(!chatOpen)} 
+              variant="outline" 
+              size="icon"
+              className={chatOpen ? "bg-primary text-primary-foreground" : ""}
+            >
+              <MessageCircle className="h-4 w-4" />
+            </Button>
+            <Button variant="destructive" size="icon" onClick={onClose}>
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
       
