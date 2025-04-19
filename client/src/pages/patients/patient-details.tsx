@@ -262,59 +262,18 @@ export default function PatientDetails({ patientId }: PatientDetailsProps) {
                 
                 <div className="mt-8">
                   <h3 className="text-lg font-medium mb-4">Medical Notes</h3>
-                  <div className="space-y-4">
-                    {/* Fetch and display medical notes for the patient */}
-                    {(() => {
-                      const { data: medicalNotes, isLoading } = useQuery({
-                        queryKey: [`/api/patients/${patientId}/medical-notes`],
-                      });
-                      
-                      if (isLoading) {
-                        return (
-                          <div className="flex items-center justify-center p-8">
-                            <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                            <span>Loading medical notes...</span>
-                          </div>
-                        );
-                      }
-                      
-                      if (!medicalNotes || medicalNotes.length === 0) {
-                        return (
-                          <div className="text-center p-8 text-muted-foreground">
-                            <FileText className="h-10 w-10 mx-auto mb-2 text-muted-foreground" />
-                            <p>No medical notes found for this patient</p>
-                            <Button 
-                              variant="outline" 
-                              className="mt-2"
-                              onClick={() => window.location.href = "/notes"}
-                            >
-                              Create New Note
-                            </Button>
-                          </div>
-                        );
-                      }
-                      
-                      return medicalNotes.map((note: any) => (
-                        <div key={note.id} className="border rounded-lg p-4">
-                          <div className="flex justify-between items-start mb-2">
-                            <div>
-                              <h4 className="font-medium">{note.title}</h4>
-                              <p className="text-sm text-muted-foreground">
-                                Created: {format(new Date(note.createdAt), "PPP")}
-                              </p>
-                            </div>
-                            <Badge>{note.type.toUpperCase()}</Badge>
-                          </div>
-                          <div className="mt-2 bg-muted/50 p-3 rounded text-sm whitespace-pre-wrap">
-                            {note.content.substring(0, 200)}
-                            {note.content.length > 200 ? "..." : ""}
-                          </div>
-                          <Button variant="ghost" className="mt-2" size="sm">
-                            View Full Note
-                          </Button>
-                        </div>
-                      ));
-                    })()}
+                  
+                  {/* Patient Notes Section */}
+                  <div className="text-center p-8 text-muted-foreground border rounded-lg">
+                    <FileText className="h-10 w-10 mx-auto mb-2 text-muted-foreground" />
+                    <p>Medical notes are available in the Notes section</p>
+                    <Button 
+                      variant="outline" 
+                      className="mt-2"
+                      onClick={() => window.location.href = "/notes"}
+                    >
+                      Go to Notes
+                    </Button>
                   </div>
                 </div>
               </CardContent>
