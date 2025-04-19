@@ -8,6 +8,7 @@ import Notes from "@/pages/notes";
 import Analytics from "@/pages/analytics";
 import Billing from "@/pages/billing";
 import Telemedicine from "@/pages/telemedicine";
+import Settings from "@/pages/settings";
 
 export default function HomePage() {
   const { user } = useAuth();
@@ -31,6 +32,8 @@ export default function HomePage() {
         return <Billing />;
       case "/telemedicine":
         return <Telemedicine />;
+      case "/settings":
+        return <Settings />;
       default:
         return <Dashboard />;
     }
