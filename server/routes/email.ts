@@ -10,11 +10,7 @@ import nodemailer from 'nodemailer';
 const emailSettingsSchema = z.object({
   senderEmail: z.string().email(),
   senderName: z.string().min(2),
-  smtpHost: z.string().min(1),
-  smtpPort: z.coerce.number().int().min(1).max(65535),
-  smtpUser: z.string().min(1),
-  smtpPassword: z.string().min(1),
-  smtpSecure: z.boolean().default(true)
+  appPassword: z.string().min(1),
 });
 
 // Email templates schema
@@ -30,25 +26,19 @@ async function initNodemailer() {
   const settings = await storage.getSettings([
     'senderEmail', 
     'senderName', 
-    'smtpHost', 
-    'smtpPort', 
-    'smtpUser', 
-    'smtpPassword', 
-    'smtpSecure'
+    'appPassword'
   ]);
 
-  if (!settings.senderEmail || !settings.smtpHost || !settings.smtpUser || !settings.smtpPassword) {
+  if (!settings.senderEmail || !settings.appPassword) {
     throw new Error("Email settings not configured properly");
   }
 
-  // Create reusable transporter object using SMTP
+  // Create reusable transporter object using Gmail SMTP
   const transporter = nodemailer.createTransport({
-    host: settings.smtpHost,
-    port: parseInt(settings.smtpPort || '587', 10),
-    secure: settings.smtpSecure === 'true',
+    service: 'gmail',
     auth: {
-      user: settings.smtpUser,
-      pass: settings.smtpPassword,
+      user: settings.senderEmail,
+      pass: settings.appPassword,
     },
   });
   

@@ -25,11 +25,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 const emailSettingsSchema = z.object({
   senderEmail: z.string().email({ message: "Invalid email address" }),
   senderName: z.string().min(2, { message: "Sender name is required" }),
-  smtpHost: z.string().min(1, { message: "SMTP host is required" }),
-  smtpPort: z.coerce.number().int().min(1).max(65535, { message: "Port must be between 1 and 65535" }),
-  smtpUser: z.string().min(1, { message: "SMTP username is required" }),
-  smtpPassword: z.string().min(1, { message: "SMTP password is required" }),
-  smtpSecure: z.boolean().default(true),
+  appPassword: z.string().min(1, { message: "App password is required" }),
 });
 
 // Email template form schema
@@ -53,11 +49,7 @@ export default function Settings() {
     defaultValues: {
       senderEmail: "",
       senderName: "",
-      smtpHost: "",
-      smtpPort: 587,
-      smtpUser: "",
-      smtpPassword: "",
-      smtpSecure: false,
+      appPassword: "",
     }
   });
 
@@ -80,18 +72,10 @@ export default function Settings() {
         const res = await apiRequest("GET", "/api/settings/email");
         const data = await res.json();
         if (data) {
-          // Convert string values to appropriate types
-          const smtpPort = data.smtpPort ? parseInt(data.smtpPort, 10) : 587;
-          const smtpSecure = data.smtpSecure === 'true';
-          
           emailSettingsForm.reset({
             senderEmail: data.senderEmail || "",
             senderName: data.senderName || "",
-            smtpHost: data.smtpHost || "",
-            smtpPort: smtpPort,
-            smtpUser: data.smtpUser || "",
-            smtpPassword: data.smtpPassword || "",
-            smtpSecure: smtpSecure,
+            appPassword: data.appPassword || "",
           });
         }
         return data;
@@ -266,99 +250,21 @@ export default function Settings() {
 
                   <FormField
                     control={emailSettingsForm.control}
-                    name="smtpHost"
+                    name="appPassword"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>SMTP Host</FormLabel>
-                        <FormControl>
-                          <Input placeholder="smtp.gmail.com" {...field} />
-                        </FormControl>
-                        <FormDescription>
-                          The hostname of your SMTP mail server (e.g., smtp.gmail.com)
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={emailSettingsForm.control}
-                    name="smtpPort"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>SMTP Port</FormLabel>
+                        <FormLabel>App Password</FormLabel>
                         <FormControl>
                           <Input 
-                            type="number" 
-                            placeholder="587" 
-                            min={1}
-                            max={65535}
-                            {...field} 
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          Common ports are 25, 465 (SSL) or 587 (TLS)
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={emailSettingsForm.control}
-                    name="smtpUser"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>SMTP Username</FormLabel>
-                        <FormControl>
-                          <Input placeholder="your.email@gmail.com" {...field} />
-                        </FormControl>
-                        <FormDescription>
-                          Usually your full email address
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={emailSettingsForm.control}
-                    name="smtpPassword"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>SMTP Password / App Password</FormLabel>
-                        <FormControl>
-                          <Input 
-                            placeholder="yourapppassword" 
+                            placeholder="Your app password" 
                             type="password" 
                             {...field} 
                           />
                         </FormControl>
                         <FormDescription>
-                          For Gmail, generate an App Password in your Google Account security settings
+                          Enter the app password for your email account. For Gmail, generate an App Password in your Google Account security settings.
                         </FormDescription>
                         <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={emailSettingsForm.control}
-                    name="smtpSecure"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                        <div className="space-y-1 leading-none">
-                          <FormLabel>Use Secure Connection (SSL/TLS)</FormLabel>
-                          <FormDescription>
-                            Enable for SSL/TLS (port 465). Disable for STARTTLS (port 587).
-                          </FormDescription>
-                        </div>
                       </FormItem>
                     )}
                   />
@@ -375,9 +281,8 @@ export default function Settings() {
                       variant="outline" 
                       onClick={handleSendTestEmail}
                       disabled={sendTestEmailMutation.isPending || 
-                        !emailSettingsForm.getValues().smtpHost || 
-                        !emailSettingsForm.getValues().smtpUser || 
-                        !emailSettingsForm.getValues().smtpPassword}
+                        !emailSettingsForm.getValues().senderEmail || 
+                        !emailSettingsForm.getValues().appPassword}
                     >
                       {sendTestEmailMutation.isPending ? "Sending..." : "Send Test Email"}
                     </Button>
