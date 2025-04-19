@@ -249,21 +249,12 @@ Plan:
             </SelectContent>
           </Select>
           <Button
-            variant={isRecording ? "destructive" : "outline"}
-            onClick={handleStartRecording}
+            variant="outline"
+            onClick={handleStartConsultation}
             disabled={!selectedPatientId}
           >
-            {isRecording ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Recording...
-              </>
-            ) : (
-              <>
-                <Mic className="h-4 w-4 mr-2" />
-                Start Recording
-              </>
-            )}
+            <MessageSquare className="h-4 w-4 mr-2" />
+            Start Consultation
           </Button>
           <Button 
             onClick={handleGenerateNotes} 
@@ -569,6 +560,14 @@ Plan:
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Consultation Modal */}
+      <ConsultationModal
+        isOpen={showConsultationModal}
+        onClose={() => setShowConsultationModal(false)}
+        onGeneratedNotes={handleGeneratedNotesFromConsultation}
+        patientInfo={selectedPatient}
+      />
     </div>
   );
 }

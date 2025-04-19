@@ -1,11 +1,5 @@
-import { toast } from "@/hooks/use-toast";
-import OpenAI from "openai";
-
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: import.meta.env.VITE_OPENAI_API_KEY,
-  dangerouslyAllowBrowser: true // Note: In production, API calls should go through your backend
-});
+import { toast as showToast } from "@/hooks/use-toast";
+import { apiRequest } from "./queryClient";
 
 // Define interface for recording service
 interface RecordingServiceInterface {
@@ -44,13 +38,13 @@ class BrowserRecordingService implements RecordingServiceInterface {
       this.mediaRecorder.start();
       this._isRecording = true;
       
-      toast({
+      showToast({
         title: "Recording started",
         description: "Speak clearly into your microphone"
       });
     } catch (error) {
       console.error("Error starting recording:", error);
-      toast({
+      showToast({
         title: "Recording Error",
         description: "Could not start recording. Please check microphone permissions.",
         variant: "destructive" 
@@ -104,7 +98,7 @@ class BrowserRecordingService implements RecordingServiceInterface {
       return this.transcriptText;
     } catch (error) {
       console.error("Error processing audio file:", error);
-      toast({
+      showToast({
         title: "Processing Error",
         description: "Failed to process audio file",
         variant: "destructive"
@@ -120,19 +114,23 @@ class BrowserRecordingService implements RecordingServiceInterface {
       
       // Convert to form data for API
       const formData = new FormData();
-      formData.append("file", file);
-      formData.append("model", "whisper-1");
+      formData.append("audio", file);
       
-      // Use OpenAI API to transcribe
-      const response = await openai.audio.transcriptions.create({
-        file,
-        model: "whisper-1",
+      // Call our backend API to transcribe
+      const response = await fetch('/api/ai/transcribe', {
+        method: 'POST',
+        body: formData,
       });
       
-      return response.text;
+      if (!response.ok) {
+        throw new Error('Failed to transcribe audio');
+      }
+      
+      const data = await response.json();
+      return data.transcript;
     } catch (error) {
       console.error("Transcription error:", error);
-      toast({
+      showToast({
         title: "Transcription Error",
         description: "Failed to convert speech to text",
         variant: "destructive"
@@ -145,31 +143,27 @@ class BrowserRecordingService implements RecordingServiceInterface {
 // Generate SOAP notes from transcript using AI
 export async function generateSoapNotes(transcript: string, patientInfo: any): Promise<string> {
   try {
-    // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: `You are a medical documentation assistant. Create a detailed SOAP note from a clinical transcript.
-          Format it properly with Subjective, Objective, Assessment, and Plan sections.
-          Include all relevant medical information from the transcript.
-          Be concise but thorough.
-          Patient information: ${JSON.stringify(patientInfo)}`
-        },
-        {
-          role: "user",
-          content: transcript
-        }
-      ],
-      temperature: 0.7,
-      max_tokens: 1500
+    // Call our backend API to generate SOAP notes
+    const response = await fetch('/api/ai/generate-soap', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        transcript,
+        patientInfo,
+      }),
     });
     
-    return response.choices[0].message.content || "Error generating notes";
+    if (!response.ok) {
+      throw new Error('Failed to generate SOAP notes');
+    }
+    
+    const data = await response.json();
+    return data.soap || "Error generating notes";
   } catch (error) {
     console.error("Error generating SOAP notes:", error);
-    toast({
+    showToast({
       title: "Generation Error",
       description: "Failed to generate SOAP notes",
       variant: "destructive"
