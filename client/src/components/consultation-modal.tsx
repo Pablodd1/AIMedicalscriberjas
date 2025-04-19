@@ -11,7 +11,12 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { recordingService, generateSoapNotes } from "@/lib/recording-service";
+import { 
+  recordingService, 
+  generateSoapNotes, 
+  saveConsultationNote,
+  createMedicalNoteFromConsultation 
+} from "@/lib/recording-service";
 import {
   Mic,
   StopCircle,
@@ -107,9 +112,95 @@ export function ConsultationModal({
     setTranscript(e.target.value);
   };
 
-  const handleUseNotes = () => {
-    onGeneratedNotes(notes);
-    onClose();
+  const [isSaving, setIsSaving] = useState(false);
+  const [consultationId, setConsultationId] = useState<number | null>(null);
+
+  // Save transcript to database
+  const saveTranscriptToDatabase = async () => {
+    if (!transcript || !patientInfo) return;
+
+    try {
+      setIsSaving(true);
+
+      // Get the current recording method based on active tab
+      const recordingMethod = activeTab;
+
+      // Create a title for the consultation note based on patient info and timestamp
+      const title = `Consultation with ${patientInfo.name} - ${new Date().toLocaleString()}`;
+
+      // Save transcript to database as consultation note
+      const savedNote = await saveConsultationNote(
+        patientInfo.id,
+        1, // Using mock doctor ID
+        transcript,
+        recordingMethod,
+        title
+      );
+
+      // Store the consultation ID for potential linking to medical notes
+      setConsultationId(savedNote.id);
+
+      toast({
+        title: "Saved",
+        description: "Consultation transcript saved to database",
+      });
+
+      return savedNote;
+    } catch (error) {
+      console.error("Failed to save transcript:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save consultation transcript",
+        variant: "destructive",
+      });
+      return null;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Handle using the generated notes
+  const handleUseNotes = async () => {
+    if (!transcript || !notes) return;
+
+    try {
+      // First save the transcript if not already saved
+      let consultId = consultationId;
+      if (!consultId) {
+        const savedConsultation = await saveTranscriptToDatabase();
+        if (savedConsultation) {
+          consultId = savedConsultation.id;
+        }
+      }
+
+      // Create a title for the medical note
+      const title = `SOAP Note for ${patientInfo.name} - ${new Date().toLocaleString()}`;
+
+      // If we have a consultation ID, create a medical note linked to it
+      if (consultId) {
+        await createMedicalNoteFromConsultation(
+          consultId,
+          patientInfo.id,
+          1, // Using mock doctor ID
+          notes,
+          'soap',
+          title
+        );
+      }
+
+      // Call the callback to use the notes
+      onGeneratedNotes(notes);
+      
+      // Close the modal
+      onClose();
+    } catch (error) {
+      console.error("Failed to use notes:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save medical note",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -161,7 +252,26 @@ export function ConsultationModal({
 
             {transcript && (
               <div className="space-y-2">
-                <h3 className="text-lg font-medium">Transcript</h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-medium">Transcript</h3>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={saveTranscriptToDatabase}
+                    disabled={isSaving || !patientInfo}
+                  >
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        Save Transcript
+                      </>
+                    )}
+                  </Button>
+                </div>
                 <div className="p-4 border rounded-md bg-muted/50">
                   <p className="whitespace-pre-wrap">{transcript}</p>
                 </div>
@@ -199,7 +309,26 @@ export function ConsultationModal({
 
             {transcript && (
               <div className="space-y-2">
-                <h3 className="text-lg font-medium">Transcript</h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-medium">Transcript</h3>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={saveTranscriptToDatabase}
+                    disabled={isSaving || !patientInfo}
+                  >
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        Save Transcript
+                      </>
+                    )}
+                  </Button>
+                </div>
                 <div className="p-4 border rounded-md bg-muted/50">
                   <p className="whitespace-pre-wrap">{transcript}</p>
                 </div>
@@ -209,7 +338,28 @@ export function ConsultationModal({
 
           <TabsContent value="text-paste" className="space-y-4 mt-4">
             <div className="space-y-2">
-              <h3 className="text-lg font-medium">Paste Consultation Text</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-medium">Paste Consultation Text</h3>
+                {transcript.trim() && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={saveTranscriptToDatabase}
+                    disabled={isSaving || !patientInfo}
+                  >
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        Save Transcript
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
               <Textarea
                 placeholder="Paste or type the consultation text here..."
                 className="min-h-[200px]"
