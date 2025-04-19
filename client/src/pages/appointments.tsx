@@ -9,7 +9,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -17,7 +17,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
+import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, isWithinInterval, getDay } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -30,9 +30,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function Appointments() {
   const { toast } = useToast();
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   
   const { data: appointments } = useQuery<Appointment[]>({
     queryKey: ["/api/appointments"],
@@ -66,6 +70,37 @@ export default function Appointments() {
   });
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  // Helper functions for calendar view
+  const navigateMonth = (direction: 'next' | 'prev') => {
+    setCurrentMonth(direction === 'next' 
+      ? addMonths(currentMonth, 1) 
+      : subMonths(currentMonth, 1)
+    );
+  };
+
+  const getDaysInMonth = () => {
+    const monthStart = startOfMonth(currentMonth);
+    const monthEnd = endOfMonth(currentMonth);
+    const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
+    
+    // Get appointments for selected date
+    const getAppointmentsForDate = (date: Date) => {
+      if (!appointments) return [];
+      return appointments.filter(appointment => {
+        const appointmentDate = new Date(appointment.date);
+        return isSameDay(appointmentDate, date);
+      });
+    };
+    
+    return days.map(day => ({
+      date: day,
+      isToday: isToday(day),
+      appointments: getAppointmentsForDate(day)
+    }));
+  };
+  
+  const days = getDaysInMonth();
 
   const createAppointmentMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -218,29 +253,120 @@ export default function Appointments() {
         </Dialog>
       </div>
 
-      <div className="grid gap-4">
-        {appointments?.map((appointment) => (
-          <div
-            key={appointment.id}
-            className="flex items-center justify-between p-4 border rounded-lg"
-          >
-            <div className="space-y-1">
-              <p className="font-medium">
-                {patients?.find(p => p.id === appointment.patientId)?.name}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {format(new Date(appointment.date), "PPP p")}
-              </p>
-              {appointment.notes && (
-                <p className="text-sm text-muted-foreground">{appointment.notes}</p>
-              )}
-            </div>
-            <Badge variant={appointment.status === "scheduled" ? "default" : "secondary"}>
-              {appointment.status}
-            </Badge>
+      <Tabs defaultValue="list" className="w-full" onValueChange={(value) => setViewMode(value as "list" | "calendar")}>
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="list">List View</TabsTrigger>
+          <TabsTrigger value="calendar">Calendar View</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="list" className="mt-4">
+          <div className="grid gap-4">
+            {appointments?.length === 0 ? (
+              <div className="text-center p-6 border rounded-lg">
+                <p className="text-muted-foreground">No appointments scheduled.</p>
+              </div>
+            ) : (
+              appointments?.map((appointment) => (
+                <div
+                  key={appointment.id}
+                  className="flex items-center justify-between p-4 border rounded-lg"
+                >
+                  <div className="space-y-1">
+                    <p className="font-medium">
+                      {patients?.find(p => p.id === appointment.patientId)?.name}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {format(new Date(appointment.date), "PPP p")}
+                    </p>
+                    {appointment.notes && (
+                      <p className="text-sm text-muted-foreground">{appointment.notes}</p>
+                    )}
+                  </div>
+                  <Badge variant={appointment.status === "scheduled" ? "default" : "secondary"}>
+                    {appointment.status}
+                  </Badge>
+                </div>
+              ))
+            )}
           </div>
-        ))}
-      </div>
+        </TabsContent>
+        
+        <TabsContent value="calendar" className="mt-4">
+          <div className="bg-white border rounded-lg overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="font-medium">{format(currentMonth, 'MMMM yyyy')}</h3>
+              <div className="flex space-x-2">
+                <Button variant="outline" size="icon" onClick={() => navigateMonth('prev')}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="icon" onClick={() => navigateMonth('next')}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-7 text-center">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                <div key={day} className="py-2 font-medium text-xs">
+                  {day}
+                </div>
+              ))}
+            </div>
+            
+            <div className="grid grid-cols-7">
+              {Array.from({ length: getDay(days[0].date) }).map((_, index) => (
+                <div key={`empty-${index}`} className="h-24 border-t border-r p-1 bg-gray-50"></div>
+              ))}
+              
+              {days.map((day, index) => (
+                <div
+                  key={index}
+                  className={cn(
+                    "h-24 border-t border-r p-1",
+                    day.isToday && "bg-blue-50",
+                    selectedDate && isSameDay(day.date, selectedDate) && "ring-2 ring-blue-500",
+                    "relative overflow-hidden"
+                  )}
+                  onClick={() => setSelectedDate(day.date)}
+                >
+                  <div className="flex justify-between items-start">
+                    <span
+                      className={cn(
+                        "text-sm font-medium",
+                        day.isToday && "text-blue-600 bg-blue-100 rounded-full w-6 h-6 flex items-center justify-center"
+                      )}
+                    >
+                      {format(day.date, 'd')}
+                    </span>
+                    {day.appointments.length > 0 && (
+                      <Badge variant="default" className="text-[10px]">
+                        {day.appointments.length}
+                      </Badge>
+                    )}
+                  </div>
+                  
+                  <div className="mt-1 overflow-y-auto max-h-16">
+                    {day.appointments.slice(0, 2).map((appointment, i) => (
+                      <div
+                        key={i}
+                        className="text-xs p-1 mb-1 bg-blue-500 text-white rounded truncate"
+                        title={`${patients?.find(p => p.id === appointment.patientId)?.name} - ${format(new Date(appointment.date), 'p')}`}
+                      >
+                        {format(new Date(appointment.date), 'p')} - {patients?.find(p => p.id === appointment.patientId)?.name}
+                      </div>
+                    ))}
+                    {day.appointments.length > 2 && (
+                      <div className="text-xs text-muted-foreground">
+                        +{day.appointments.length - 2} more
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
