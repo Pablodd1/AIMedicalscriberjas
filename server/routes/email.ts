@@ -52,21 +52,17 @@ export const emailRouter = Router();
 // Get email settings
 emailRouter.get("/email", async (req, res) => {
   try {
-    // Get the SMTP settings from database
+    // Get the email settings from database
     const emailSettings = await storage.getSettings([
       'senderEmail', 
       'senderName', 
-      'smtpHost', 
-      'smtpPort', 
-      'smtpUser',
-      'smtpPassword',
-      'smtpSecure'
+      'appPassword'
     ]);
     
     // Return masked password for security
-    if (emailSettings.smtpPassword) {
-      const lastFourChars = emailSettings.smtpPassword.slice(-4);
-      emailSettings.smtpPassword = `••••••••••••${lastFourChars}`;
+    if (emailSettings.appPassword) {
+      const lastFourChars = emailSettings.appPassword.slice(-4);
+      emailSettings.appPassword = `••••••••••••${lastFourChars}`;
     }
     
     res.json(emailSettings);
@@ -88,22 +84,14 @@ emailRouter.post("/email", async (req, res) => {
     const { 
       senderEmail, 
       senderName, 
-      smtpHost, 
-      smtpPort, 
-      smtpUser, 
-      smtpPassword,
-      smtpSecure
+      appPassword
     } = validation.data;
     
     // Save each setting individually
     await Promise.all([
       storage.saveSetting('senderEmail', senderEmail),
       storage.saveSetting('senderName', senderName),
-      storage.saveSetting('smtpHost', smtpHost),
-      storage.saveSetting('smtpPort', smtpPort.toString()),
-      storage.saveSetting('smtpUser', smtpUser),
-      storage.saveSetting('smtpPassword', smtpPassword),
-      storage.saveSetting('smtpSecure', smtpSecure.toString()),
+      storage.saveSetting('appPassword', appPassword),
     ]);
     
     res.json({ success: true });
