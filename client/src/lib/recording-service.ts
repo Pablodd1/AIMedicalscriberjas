@@ -1,5 +1,10 @@
-import { toast as showToast } from "@/hooks/use-toast";
 import { apiRequest } from "./queryClient";
+
+// Simple notification function (will be replaced with actual toast in the UI components)
+function notify(message: string, type: 'success' | 'error' = 'success') {
+  console.log(`[${type.toUpperCase()}]: ${message}`);
+  return message;
+}
 
 // Define interface for recording service
 interface RecordingServiceInterface {
@@ -38,17 +43,10 @@ class BrowserRecordingService implements RecordingServiceInterface {
       this.mediaRecorder.start();
       this._isRecording = true;
       
-      showToast({
-        title: "Recording started",
-        description: "Speak clearly into your microphone"
-      });
+      notify("Recording started. Speak clearly into your microphone");
     } catch (error) {
       console.error("Error starting recording:", error);
-      showToast({
-        title: "Recording Error",
-        description: "Could not start recording. Please check microphone permissions.",
-        variant: "destructive" 
-      });
+      notify("Could not start recording. Please check microphone permissions.", "error");
       throw error;
     }
   }
@@ -98,11 +96,7 @@ class BrowserRecordingService implements RecordingServiceInterface {
       return this.transcriptText;
     } catch (error) {
       console.error("Error processing audio file:", error);
-      showToast({
-        title: "Processing Error",
-        description: "Failed to process audio file",
-        variant: "destructive"
-      });
+      notify("Failed to process audio file", "error");
       throw error;
     }
   }
@@ -130,11 +124,7 @@ class BrowserRecordingService implements RecordingServiceInterface {
       return data.transcript;
     } catch (error) {
       console.error("Transcription error:", error);
-      showToast({
-        title: "Transcription Error",
-        description: "Failed to convert speech to text",
-        variant: "destructive"
-      });
+      notify("Failed to convert speech to text", "error");
       throw error;
     }
   }
@@ -163,11 +153,7 @@ export async function generateSoapNotes(transcript: string, patientInfo: any): P
     return data.soap || "Error generating notes";
   } catch (error) {
     console.error("Error generating SOAP notes:", error);
-    showToast({
-      title: "Generation Error",
-      description: "Failed to generate SOAP notes",
-      variant: "destructive"
-    });
+    notify("Failed to generate SOAP notes", "error");
     throw error;
   }
 }

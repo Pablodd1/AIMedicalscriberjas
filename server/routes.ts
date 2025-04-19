@@ -2,14 +2,14 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
-import aiRoutes from "./routes/ai";
+import { aiRouter } from "./routes/ai";
 import { insertPatientSchema, insertAppointmentSchema, insertMedicalNoteSchema } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   setupAuth(app);
   
   // Register AI routes
-  app.use('/api/ai', aiRoutes);
+  app.use('/api/ai', aiRouter);
 
   // For development purposes, we're using a fixed doctorId of 1
   const MOCK_DOCTOR_ID = 1;

@@ -1,96 +1,96 @@
-import express from 'express';
-import OpenAI from 'openai';
-import multer from 'multer';
-import fs from 'fs';
-import path from 'path';
-import { promisify } from 'util';
+import { Router, Request, Response } from "express";
+import multer from "multer";
+import { OpenAI } from "openai";
+import fs from "fs";
+import path from "path";
+import os from "os";
 
-const unlinkAsync = promisify(fs.unlink);
-const router = express.Router();
+// Create OpenAI client
+if (!process.env.OPENAI_API_KEY) {
+  console.error("Warning: OPENAI_API_KEY environment variable is not set");
+}
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// Configure multer for file upload
+// Configure multer for handling file uploads
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const tempDir = path.join(__dirname, '../temp');
-    if (!fs.existsSync(tempDir)) {
-      fs.mkdirSync(tempDir, { recursive: true });
+  destination: function (_req, _file, cb) {
+    // Create temp directory for uploads if it doesn't exist
+    const uploadDir = path.join(os.tmpdir(), 'medapp-uploads');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
     }
-    cb(null, tempDir);
+    cb(null, uploadDir);
   },
-  filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${file.originalname}`);
+  filename: function (_req, file, cb) {
+    // Generate unique filenames
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
   }
 });
 
-const upload = multer({ 
-  storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
-  fileFilter: (req, file, cb) => {
-    // Accept only audio files
-    if (file.mimetype.startsWith('audio/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only audio files are allowed'));
-    }
-  }
-});
+const upload = multer({ storage });
 
-// Initialize OpenAI
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Create router
+export const aiRouter = Router();
 
-// Transcribe audio to text
-router.post('/transcribe', upload.single('audio'), async (req, res) => {
+// Audio transcription endpoint
+aiRouter.post('/transcribe', upload.single('audio'), async (req: Request, res: Response) => {
   try {
+    // Check if file was provided
     if (!req.file) {
-      return res.status(400).json({ error: 'No audio file uploaded' });
+      return res.status(400).json({ error: 'No audio file provided' });
     }
 
-    const filePath = req.file.path;
-    
-    // Read the file
-    const audioFile = fs.createReadStream(filePath);
-    
-    // Transcribe with OpenAI Whisper
+    // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+    // Transcribe the audio
     const transcription = await openai.audio.transcriptions.create({
-      file: audioFile,
-      model: 'whisper-1',
+      file: fs.createReadStream(req.file.path),
+      model: "whisper-1",
     });
 
     // Clean up the temporary file
-    await unlinkAsync(filePath);
-    
+    fs.unlink(req.file.path, (err) => {
+      if (err) console.error('Error deleting temporary file:', err);
+    });
+
     res.json({ transcript: transcription.text });
   } catch (error) {
     console.error('Transcription error:', error);
+    if (error instanceof Error) {
+      // Check for common OpenAI API errors
+      if (error.message.includes('API key')) {
+        return res.status(500).json({ error: 'OpenAI API key error. Please contact your administrator.' });
+      } else if (error.message.includes('Rate limit')) {
+        return res.status(429).json({ error: 'OpenAI API rate limit exceeded. Please try again later.' });
+      }
+    }
     res.status(500).json({ error: 'Failed to transcribe audio' });
   }
 });
 
-// Generate SOAP notes from transcript
-router.post('/generate-soap', async (req, res) => {
+// SOAP note generation endpoint
+aiRouter.post('/generate-soap', async (req: Request, res: Response) => {
   try {
     const { transcript, patientInfo } = req.body;
-    
+
     if (!transcript) {
-      return res.status(400).json({ error: 'Transcript is required' });
+      return res.status(400).json({ error: 'No transcript provided' });
     }
 
     // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: "gpt-4o",
       messages: [
         {
-          role: 'system',
+          role: "system",
           content: `You are a medical documentation assistant. Create a detailed SOAP note from a clinical transcript.
           Format it properly with Subjective, Objective, Assessment, and Plan sections.
           Include all relevant medical information from the transcript.
           Be concise but thorough.
-          Patient information: ${JSON.stringify(patientInfo || {})}`
+          Patient information: ${JSON.stringify(patientInfo)}`
         },
         {
-          role: 'user',
+          role: "user",
           content: transcript
         }
       ],
@@ -100,9 +100,17 @@ router.post('/generate-soap', async (req, res) => {
     
     res.json({ soap: response.choices[0].message.content });
   } catch (error) {
-    console.error('SOAP generation error:', error);
+    console.error('SOAP note generation error:', error);
+    if (error instanceof Error) {
+      // Check for common OpenAI API errors
+      if (error.message.includes('API key')) {
+        return res.status(500).json({ error: 'OpenAI API key error. Please contact your administrator.' });
+      } else if (error.message.includes('Rate limit')) {
+        return res.status(429).json({ error: 'OpenAI API rate limit exceeded. Please try again later.' });
+      } else if (error.message.includes('context length')) {
+        return res.status(413).json({ error: 'Transcript is too long. Please upload a shorter consultation.' });
+      }
+    }
     res.status(500).json({ error: 'Failed to generate SOAP notes' });
   }
 });
-
-export default router;
