@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { WebSocketServer, WebSocket } from 'ws';
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { aiRouter } from "./routes/ai";
@@ -215,6 +216,194 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Telemedicine routes
+  // Store active video consultation rooms
+  interface VideoChatRoom {
+    id: string;
+    participants: { 
+      id: string;
+      socket: WebSocket;
+      name: string;
+      isDoctor: boolean;
+    }[];
+  }
+  
+  const activeRooms: Map<string, VideoChatRoom> = new Map();
+  
+  app.get('/api/telemedicine/rooms', (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+    
+    // Convert activeRooms to array of room objects (without socket objects for serialization)
+    const rooms = Array.from(activeRooms.entries()).map(([id, room]) => ({
+      id,
+      participants: room.participants.map(p => ({
+        id: p.id,
+        name: p.name,
+        isDoctor: p.isDoctor
+      }))
+    }));
+    
+    res.json(rooms);
+  });
+  
+  app.post('/api/telemedicine/rooms', (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+    
+    const { patientId, patientName } = req.body;
+    
+    if (!patientId || !patientName) {
+      return res.status(400).json({ message: 'Missing required fields' });
+    }
+    
+    // Generate room ID
+    const roomId = `room_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    
+    // Create new room
+    activeRooms.set(roomId, {
+      id: roomId,
+      participants: []
+    });
+    
+    res.status(201).json({ roomId });
+  });
+  
   const httpServer = createServer(app);
+  
+  // Create WebSocket server on the same HTTP server but with a distinct path
+  const wss = new WebSocketServer({ 
+    server: httpServer, 
+    path: '/ws/telemedicine'
+  });
+  
+  wss.on('connection', (socket: any) => {
+    console.log('New WebSocket connection established');
+    
+    // Initialize participant data
+    let participantId: string | null = null;
+    let roomId: string | null = null;
+    
+    socket.on('message', (message: any) => {
+      try {
+        const data = JSON.parse(message.toString());
+        
+        switch (data.type) {
+          case 'join':
+            // User joining a room
+            roomId = data.roomId;
+            participantId = data.userId;
+            const room = activeRooms.get(roomId as string);
+            
+            if (!room) {
+              socket.send(JSON.stringify({
+                type: 'error',
+                message: 'Room not found'
+              }));
+              return;
+            }
+            
+            // Add participant to room
+            room.participants.push({
+              id: data.userId,
+              socket,
+              name: data.name,
+              isDoctor: data.isDoctor
+            });
+            
+            // Notify other participants in the room about the new participant
+            room.participants.forEach(participant => {
+              if (participant.id !== data.userId) {
+                participant.socket.send(JSON.stringify({
+                  type: 'user-joined',
+                  userId: data.userId,
+                  name: data.name,
+                  isDoctor: data.isDoctor
+                }));
+              }
+            });
+            
+            // Send the list of existing participants to the new participant
+            socket.send(JSON.stringify({
+              type: 'room-users',
+              users: room.participants.map(p => ({
+                id: p.id,
+                name: p.name,
+                isDoctor: p.isDoctor
+              }))
+            }));
+            
+            break;
+            
+          case 'offer':
+          case 'answer':
+          case 'ice-candidate':
+            // Handle WebRTC signaling
+            if (!roomId) {
+              socket.send(JSON.stringify({
+                type: 'error',
+                message: 'Not joined to any room'
+              }));
+              return;
+            }
+            
+            const targetRoom = activeRooms.get(roomId as string);
+            if (!targetRoom) {
+              socket.send(JSON.stringify({
+                type: 'error',
+                message: 'Room not found'
+              }));
+              return;
+            }
+            
+            // Find the target participant
+            const targetParticipant = targetRoom.participants.find(p => p.id === data.target);
+            if (targetParticipant) {
+              // Forward the WebRTC signaling message
+              targetParticipant.socket.send(JSON.stringify({
+                type: data.type,
+                sender: data.sender,
+                data: data.data
+              }));
+            }
+            break;
+            
+          default:
+            console.log('Unknown message type:', data.type);
+        }
+      } catch (error) {
+        console.error('Error processing WebSocket message:', error);
+      }
+    });
+    
+    socket.on('close', () => {
+      console.log('WebSocket connection closed');
+      
+      // Remove participant from room when they disconnect
+      if (roomId && participantId) {
+        const room = activeRooms.get(roomId as string);
+        if (room) {
+          // Remove participant
+          room.participants = room.participants.filter(p => p.id !== participantId);
+          
+          // Notify other participants
+          room.participants.forEach(participant => {
+            participant.socket.send(JSON.stringify({
+              type: 'user-left',
+              userId: participantId
+            }));
+          });
+          
+          // If room is empty, delete it
+          if (room.participants.length === 0) {
+            activeRooms.delete(roomId);
+          }
+        }
+      }
+    });
+  });
+
   return httpServer;
 }
