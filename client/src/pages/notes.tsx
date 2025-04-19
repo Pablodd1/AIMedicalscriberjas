@@ -13,7 +13,8 @@ import {
   Check, 
   UserPlus,
   Stethoscope,
-  ClipboardList
+  ClipboardList,
+  MessageSquare
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
@@ -28,6 +29,7 @@ import { Label } from "@/components/ui/label";
 import { Patient, InsertMedicalNote } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
+import { ConsultationModal } from "@/components/consultation-modal";
 import {
   Dialog,
   DialogContent,
@@ -49,6 +51,7 @@ export default function Notes() {
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
   const [showNoteSuccess, setShowNoteSuccess] = useState(false);
   const [noteTitle, setNoteTitle] = useState("");
+  const [showConsultationModal, setShowConsultationModal] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -112,22 +115,22 @@ Plan:
     },
   });
 
-  const handleStartRecording = () => {
+  const handleStartConsultation = () => {
     if (!selectedPatientId) {
       toast({
         title: "Patient Required",
-        description: "Please select a patient before recording",
+        description: "Please select a patient before starting consultation",
         variant: "destructive",
       });
       return;
     }
     
-    setIsRecording(true);
-    toast({
-      title: "Coming Soon",
-      description: "Voice recording feature will be available soon",
-    });
-    setIsRecording(false);
+    setShowConsultationModal(true);
+  };
+  
+  const handleGeneratedNotesFromConsultation = (notes: string) => {
+    setNoteText(notes);
+    setNoteTitle(`${selectedPatient?.name || ""} - Consultation Notes ${format(new Date(), "yyyy-MM-dd")}`);
   };
 
   const handleGenerateNotes = () => {
