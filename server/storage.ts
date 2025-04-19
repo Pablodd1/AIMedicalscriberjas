@@ -6,6 +6,7 @@ import {
   consultationNotes,
   settings,
   emailTemplates,
+  invoices,
   type User, 
   type InsertUser, 
   type Patient, 
@@ -16,6 +17,8 @@ import {
   type InsertMedicalNote,
   type ConsultationNote,
   type InsertConsultationNote,
+  type Invoice,
+  type InsertInvoice,
   type Setting,
   type EmailTemplate
 } from "@shared/schema";
@@ -46,6 +49,13 @@ export interface IStorage {
   getConsultationNote(id: number): Promise<ConsultationNote | undefined>;
   createConsultationNote(note: InsertConsultationNote): Promise<ConsultationNote>;
   createMedicalNoteFromConsultation(note: InsertMedicalNote, consultationId: number): Promise<MedicalNote>;
+  // Invoice methods
+  getInvoices(doctorId: number): Promise<Invoice[]>;
+  getInvoicesByPatient(patientId: number): Promise<Invoice[]>;
+  getInvoice(id: number): Promise<Invoice | undefined>;
+  createInvoice(invoice: InsertInvoice): Promise<Invoice>;
+  updateInvoiceStatus(id: number, status: string): Promise<Invoice | undefined>;
+  updateInvoicePayment(id: number, amountPaid: number): Promise<Invoice | undefined>;
   // Settings methods
   getSetting(key: string): Promise<string | null>;
   getSettings(keys: string[]): Promise<Record<string, string>>;
@@ -290,6 +300,97 @@ export class DatabaseStorage implements IStorage {
       
       return newTemplate;
     }
+  }
+
+  // Invoice methods
+  async getInvoices(doctorId: number): Promise<Invoice[]> {
+    return db.select({
+      invoice: invoices,
+      patient: {
+        id: patients.id,
+        name: patients.name,
+        email: patients.email
+      }
+    })
+    .from(invoices)
+    .where(eq(invoices.doctorId, doctorId))
+    .innerJoin(patients, eq(invoices.patientId, patients.id))
+    .then(results => results.map(({ invoice, patient }) => ({
+      ...invoice,
+      patient
+    })));
+  }
+
+  async getInvoicesByPatient(patientId: number): Promise<Invoice[]> {
+    return db.select().from(invoices).where(eq(invoices.patientId, patientId));
+  }
+
+  async getInvoice(id: number): Promise<Invoice | undefined> {
+    const [invoice] = await db.select().from(invoices).where(eq(invoices.id, id));
+    return invoice;
+  }
+
+  async createInvoice(invoice: InsertInvoice): Promise<Invoice> {
+    // Generate invoice number if not provided
+    const invoiceData = { ...invoice };
+    if (!invoiceData.invoiceNumber) {
+      // Format: INV-{YYYYMMDD}-{RANDOM4DIGITS}
+      const now = new Date();
+      const datePart = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+      const randomPart = Math.floor(1000 + Math.random() * 9000).toString();
+      invoiceData.invoiceNumber = `INV-${datePart}-${randomPart}`;
+    }
+
+    const [newInvoice] = await db
+      .insert(invoices)
+      .values(invoiceData)
+      .returning();
+    return newInvoice;
+  }
+
+  async updateInvoiceStatus(id: number, status: string): Promise<Invoice | undefined> {
+    const [updatedInvoice] = await db
+      .update(invoices)
+      .set({ 
+        status: status as any, // Cast to satisfy TypeScript
+        updatedAt: new Date() 
+      })
+      .where(eq(invoices.id, id))
+      .returning();
+    return updatedInvoice;
+  }
+
+  async updateInvoicePayment(id: number, amountPaid: number): Promise<Invoice | undefined> {
+    // Get the current invoice
+    const [currentInvoice] = await db
+      .select()
+      .from(invoices)
+      .where(eq(invoices.id, id));
+    
+    if (!currentInvoice) return undefined;
+    
+    // Calculate the new status based on the amount paid
+    let newStatus = currentInvoice.status;
+    if (amountPaid >= currentInvoice.amount) {
+      newStatus = 'paid';
+    } else if (amountPaid > 0) {
+      newStatus = 'partial';
+    } else {
+      newStatus = 'unpaid';
+    }
+    
+    // Update the invoice
+    const [updatedInvoice] = await db
+      .update(invoices)
+      .set({ 
+        amountPaid, 
+        status: newStatus as any, // Cast to satisfy TypeScript
+        updatedAt: new Date() 
+      })
+      .where(eq(invoices.id, id))
+      .returning();
+    
+    return updatedInvoice;
   }
 }
 

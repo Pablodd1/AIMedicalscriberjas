@@ -9,7 +9,8 @@ import {
   insertPatientSchema, 
   insertAppointmentSchema, 
   insertMedicalNoteSchema,
-  insertConsultationNoteSchema 
+  insertConsultationNoteSchema,
+  insertInvoiceSchema
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -230,6 +231,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   const activeRooms: Map<string, VideoChatRoom> = new Map();
   
+  // Invoice routes
+  app.get("/api/invoices", async (req, res) => {
+    try {
+      const invoices = await storage.getInvoices(MOCK_DOCTOR_ID);
+      res.json(invoices);
+    } catch (error) {
+      console.error("Error fetching invoices:", error);
+      res.status(500).json({ message: "Failed to fetch invoices" });
+    }
+  });
+
+  app.get("/api/invoices/patient/:patientId", async (req, res) => {
+    try {
+      const patientId = parseInt(req.params.patientId);
+      const invoices = await storage.getInvoicesByPatient(patientId);
+      res.json(invoices);
+    } catch (error) {
+      console.error("Error fetching patient invoices:", error);
+      res.status(500).json({ message: "Failed to fetch patient invoices" });
+    }
+  });
+
+  app.get("/api/invoices/:id", async (req, res) => {
+    try {
+      const invoiceId = parseInt(req.params.id);
+      const invoice = await storage.getInvoice(invoiceId);
+      
+      if (!invoice) {
+        return res.status(404).json({ message: "Invoice not found" });
+      }
+      
+      res.json(invoice);
+    } catch (error) {
+      console.error("Error fetching invoice:", error);
+      res.status(500).json({ message: "Failed to fetch invoice" });
+    }
+  });
+
+  app.post("/api/invoices", async (req, res) => {
+    try {
+      const validation = insertInvoiceSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json(validation.error);
+      }
+      
+      const invoice = await storage.createInvoice({
+        ...validation.data,
+        doctorId: MOCK_DOCTOR_ID,
+      });
+      res.status(201).json(invoice);
+    } catch (error) {
+      console.error("Error creating invoice:", error);
+      res.status(500).json({ message: "Failed to create invoice" });
+    }
+  });
+
+  app.patch("/api/invoices/:id/status", async (req, res) => {
+    try {
+      const invoiceId = parseInt(req.params.id);
+      const { status } = req.body;
+      
+      const invoice = await storage.updateInvoiceStatus(invoiceId, status);
+      
+      if (!invoice) {
+        return res.status(404).json({ message: "Invoice not found" });
+      }
+      
+      res.json(invoice);
+    } catch (error) {
+      console.error("Error updating invoice status:", error);
+      res.status(500).json({ message: "Failed to update invoice status" });
+    }
+  });
+
+  app.patch("/api/invoices/:id/payment", async (req, res) => {
+    try {
+      const invoiceId = parseInt(req.params.id);
+      const { amountPaid } = req.body;
+      
+      const invoice = await storage.updateInvoicePayment(invoiceId, amountPaid);
+      
+      if (!invoice) {
+        return res.status(404).json({ message: "Invoice not found" });
+      }
+      
+      res.json(invoice);
+    } catch (error) {
+      console.error("Error updating invoice payment:", error);
+      res.status(500).json({ message: "Failed to update invoice payment" });
+    }
+  });
+
   app.get('/api/telemedicine/rooms', (req, res) => {
     // For development, we're not requiring authentication
     // This would be required in production: if (!req.isAuthenticated()) {
