@@ -62,13 +62,21 @@ export const emailRouter = Router();
 // Get email settings
 emailRouter.get("/email", async (req, res) => {
   try {
-    // Get the settings from database
-    const emailSettings = await storage.getSettings(['senderEmail', 'senderName', 'apiKey']);
+    // Get the SMTP settings from database
+    const emailSettings = await storage.getSettings([
+      'senderEmail', 
+      'senderName', 
+      'smtpHost', 
+      'smtpPort', 
+      'smtpUser',
+      'smtpPassword',
+      'smtpSecure'
+    ]);
     
-    // Return masked API key for security
-    if (emailSettings.apiKey) {
-      const lastFourChars = emailSettings.apiKey.slice(-4);
-      emailSettings.apiKey = `••••••••••••${lastFourChars}`;
+    // Return masked password for security
+    if (emailSettings.smtpPassword) {
+      const lastFourChars = emailSettings.smtpPassword.slice(-4);
+      emailSettings.smtpPassword = `••••••••••••${lastFourChars}`;
     }
     
     res.json(emailSettings);
@@ -87,13 +95,25 @@ emailRouter.post("/email", async (req, res) => {
       return res.status(400).json(validation.error);
     }
     
-    const { senderEmail, senderName, apiKey } = validation.data;
+    const { 
+      senderEmail, 
+      senderName, 
+      smtpHost, 
+      smtpPort, 
+      smtpUser, 
+      smtpPassword,
+      smtpSecure
+    } = validation.data;
     
     // Save each setting individually
     await Promise.all([
       storage.saveSetting('senderEmail', senderEmail),
       storage.saveSetting('senderName', senderName),
-      storage.saveSetting('apiKey', apiKey),
+      storage.saveSetting('smtpHost', smtpHost),
+      storage.saveSetting('smtpPort', smtpPort.toString()),
+      storage.saveSetting('smtpUser', smtpUser),
+      storage.saveSetting('smtpPassword', smtpPassword),
+      storage.saveSetting('smtpSecure', smtpSecure.toString()),
     ]);
     
     res.json({ success: true });
@@ -166,9 +186,9 @@ emailRouter.post("/test-email", async (req, res) => {
       return res.status(400).json({ message: "Test email address is required" });
     }
     
-    const { mailService, from } = await initSendGrid();
+    const { transporter, from } = await initNodemailer();
     
-    await mailService.send({
+    await transporter.sendMail({
       to: testEmail,
       from,
       subject: "Test Email from Medical Platform",
@@ -191,8 +211,8 @@ export const sendPatientEmail = async (
   data: Record<string, string>
 ) => {
   try {
-    // Initialize SendGrid
-    const { mailService, from } = await initSendGrid();
+    // Initialize Nodemailer
+    const { transporter, from } = await initNodemailer();
     
     // Get template
     const template = await storage.getEmailTemplate(templateType);
@@ -222,10 +242,10 @@ export const sendPatientEmail = async (
     }
     
     // Send email
-    await mailService.send({
+    await transporter.sendMail({
       to: {
-        email: patientEmail,
-        name: patientName
+        name: patientName,
+        address: patientEmail
       },
       from,
       subject,
