@@ -1,5 +1,9 @@
 import { 
   users, 
+  patients, 
+  appointments, 
+  medicalNotes,
+  consultationNotes,
   type User, 
   type InsertUser, 
   type Patient, 
@@ -7,12 +11,18 @@ import {
   type Appointment, 
   type InsertAppointment,
   type MedicalNote,
-  type InsertMedicalNote
+  type InsertMedicalNote,
+  type ConsultationNote,
+  type InsertConsultationNote
 } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
+import connectPg from "connect-pg-simple";
+import { db, pool } from "./db";
+import { eq, and } from "drizzle-orm";
 
 const MemoryStore = createMemoryStore(session);
+const PostgresSessionStore = connectPg(session);
 
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
@@ -27,6 +37,11 @@ export interface IStorage {
   getMedicalNotesByPatient(patientId: number): Promise<MedicalNote[]>;
   getMedicalNote(id: number): Promise<MedicalNote | undefined>;
   createMedicalNote(note: InsertMedicalNote): Promise<MedicalNote>;
+  getConsultationNotes(doctorId: number): Promise<ConsultationNote[]>;
+  getConsultationNotesByPatient(patientId: number): Promise<ConsultationNote[]>;
+  getConsultationNote(id: number): Promise<ConsultationNote | undefined>;
+  createConsultationNote(note: InsertConsultationNote): Promise<ConsultationNote>;
+  createMedicalNoteFromConsultation(note: InsertMedicalNote, consultationId: number): Promise<MedicalNote>;
   sessionStore: session.Store;
 }
 
