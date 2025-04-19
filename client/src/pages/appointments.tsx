@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import React, { useState } from "react";
 import { Appointment, Patient } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,14 +42,24 @@ export default function Appointments() {
     queryKey: ["/api/patients"],
   });
 
+  const validationSchema = insertAppointmentSchema.extend({
+    patientId: insertAppointmentSchema.shape.patientId.refine(
+      (value) => value > 0, 
+      { message: "Please select a patient" }
+    ),
+  });
+
   const form = useForm({
-    resolver: zodResolver(insertAppointmentSchema),
+    resolver: zodResolver(validationSchema),
     defaultValues: {
       patientId: 0,
+      doctorId: 1, // Using a default doctor ID for now
       date: new Date().toISOString(),
       notes: "",
     },
   });
+
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const createAppointmentMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -65,6 +76,14 @@ export default function Appointments() {
         title: "Success",
         description: "Appointment created successfully",
       });
+      // Close the dialog and reset form
+      setIsDialogOpen(false);
+      form.reset({
+        patientId: 0,
+        doctorId: 1,
+        date: new Date().toISOString(),
+        notes: "",
+      });
     },
     onError: (error: Error) => {
       toast({
@@ -79,7 +98,7 @@ export default function Appointments() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Appointments</h1>
-        <Dialog>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 w-4 mr-2" />
