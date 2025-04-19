@@ -32,6 +32,7 @@ export interface IStorage {
   createPatient(patient: InsertPatient & { createdBy: number }): Promise<Patient>;
   getAppointments(doctorId: number): Promise<Appointment[]>;
   createAppointment(appointment: InsertAppointment): Promise<Appointment>;
+  updateAppointmentStatus(id: number, status: string): Promise<Appointment | undefined>;
   getMedicalNotes(doctorId: number): Promise<MedicalNote[]>;
   getMedicalNotesByPatient(patientId: number): Promise<MedicalNote[]>;
   getMedicalNote(id: number): Promise<MedicalNote | undefined>;
@@ -100,6 +101,15 @@ export class DatabaseStorage implements IStorage {
       .values({ ...appointment, status: "scheduled" })
       .returning();
     return newAppointment;
+  }
+
+  async updateAppointmentStatus(id: number, status: string): Promise<Appointment | undefined> {
+    const [updatedAppointment] = await db
+      .update(appointments)
+      .set({ status })
+      .where(eq(appointments.id, id))
+      .returning();
+    return updatedAppointment;
   }
 
   async getMedicalNotes(doctorId: number): Promise<MedicalNote[]> {

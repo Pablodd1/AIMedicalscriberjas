@@ -76,6 +76,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update appointment status
+  app.patch("/api/appointments/:id", async (req, res) => {
+    try {
+      const appointmentId = parseInt(req.params.id);
+      const { status } = req.body;
+      
+      if (!status) {
+        return res.status(400).json({ message: "Status is required" });
+      }
+      
+      const updatedAppointment = await storage.updateAppointmentStatus(appointmentId, status);
+      
+      if (!updatedAppointment) {
+        return res.status(404).json({ message: "Appointment not found" });
+      }
+      
+      res.json(updatedAppointment);
+    } catch (error) {
+      console.error("Error updating appointment status:", error);
+      res.status(500).json({ message: "Failed to update appointment status" });
+    }
+  });
+
   // Medical Notes routes
   app.get("/api/medical-notes", async (req, res) => {
     const notes = await storage.getMedicalNotes(MOCK_DOCTOR_ID);

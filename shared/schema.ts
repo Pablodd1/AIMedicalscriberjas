@@ -108,6 +108,8 @@ export const insertConsultationNoteSchema = createInsertSchema(consultationNotes
 });
 
 export type InsertConsultationNote = z.infer<typeof insertConsultationNoteSchema>;
+export type Setting = typeof settings.$inferSelect;
+export type EmailTemplate = typeof emailTemplates.$inferSelect;
 
 // Define relations
 export const usersRelations = relations(users, ({ many }) => ({
@@ -149,3 +151,21 @@ export const consultationNotesRelations = relations(consultationNotes, ({ one, m
   }),
   medicalNotes: many(medicalNotes),
 }));
+
+// Settings table for application configuration
+export const settings = pgTable("settings", {
+  id: serial("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  value: text("value").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Email templates table
+export const emailTemplates = pgTable("email_templates", {
+  id: serial("id").primaryKey(),
+  type: text("type").notNull().unique(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
