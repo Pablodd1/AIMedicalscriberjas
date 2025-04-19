@@ -14,7 +14,10 @@ import {
   X,
   MessageCircle,
   PlusCircle,
-  Send
+  Send,
+  Circle,
+  Square,
+  FileText
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -66,12 +69,18 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
   const [chatOpen, setChatOpen] = useState(false);
   const [messages, setMessages] = useState<{sender: string, text: string}[]>([]);
   const [messageText, setMessageText] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordedTime, setRecordedTime] = useState(0);
+  const [transcription, setTranscription] = useState("");
   
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const recordingIntervalRef = useRef<number | null>(null);
   
   // WebRTC configuration
   const configuration = {
@@ -79,6 +88,233 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
     ]
+  };
+
+  // Recording functions
+  const startRecording = () => {
+    if (!remoteVideoRef.current || !remoteVideoRef.current.srcObject) {
+      toast({
+        title: "Recording Error",
+        description: "Cannot start recording. No remote stream available.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      // Reset recording state
+      recordedChunksRef.current = [];
+      setRecordedTime(0);
+      
+      // Create a mixed audio stream from both local and remote audio
+      const audioContext = new AudioContext();
+      
+      // Get audio from remote stream (patient's voice)
+      const remoteStream = remoteVideoRef.current.srcObject as MediaStream;
+      const remoteAudio = audioContext.createMediaStreamSource(remoteStream);
+      
+      // Get audio from local stream (doctor's voice)
+      let localAudio = null;
+      if (localStreamRef.current) {
+        localAudio = audioContext.createMediaStreamSource(localStreamRef.current);
+      }
+      
+      // Create a destination for the mixed audio
+      const destination = audioContext.createMediaStreamDestination();
+      
+      // Connect the audio sources to the destination
+      remoteAudio.connect(destination);
+      if (localAudio) {
+        localAudio.connect(destination);
+      }
+      
+      // Create a MediaRecorder with the mixed audio
+      const options = { mimeType: 'audio/webm' };
+      const mediaRecorder = new MediaRecorder(destination.stream, options);
+      
+      mediaRecorderRef.current = mediaRecorder;
+      
+      // Handle dataavailable event
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+      
+      // Start recording
+      mediaRecorder.start(1000); // Collect data every second
+      setIsRecording(true);
+      
+      // Update recorded time every second
+      recordingIntervalRef.current = window.setInterval(() => {
+        setRecordedTime(prev => prev + 1);
+      }, 1000);
+      
+      toast({
+        title: "Recording Started",
+        description: "Consultation recording has started.",
+      });
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      toast({
+        title: "Recording Error",
+        description: "Failed to start recording. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+  
+  const stopRecording = async () => {
+    if (!mediaRecorderRef.current) {
+      return;
+    }
+    
+    return new Promise<void>((resolve) => {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        // Stop the timer
+        if (recordingIntervalRef.current) {
+          clearInterval(recordingIntervalRef.current);
+          recordingIntervalRef.current = null;
+        }
+        
+        // Set up the ondataavailable and onstop event handlers
+        mediaRecorderRef.current.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            recordedChunksRef.current.push(event.data);
+          }
+        };
+        
+        mediaRecorderRef.current.onstop = async () => {
+          setIsRecording(false);
+          
+          // Generate the audio blob
+          const audioBlob = new Blob(recordedChunksRef.current, { type: 'audio/webm' });
+          
+          toast({
+            title: "Transcribing Audio",
+            description: "Processing the recorded consultation...",
+          });
+          
+          try {
+            // Send the audio to the backend for transcription
+            const formData = new FormData();
+            formData.append('audio', audioBlob, 'consultation.webm');
+            
+            const response = await fetch('/api/ai/transcribe', {
+              method: 'POST',
+              body: formData,
+            });
+            
+            if (!response.ok) {
+              throw new Error(`Transcription failed: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            setTranscription(data.text);
+            
+            toast({
+              title: "Transcription Complete",
+              description: "Consultation has been recorded and transcribed.",
+            });
+          } catch (error) {
+            console.error('Error transcribing audio:', error);
+            toast({
+              title: "Transcription Error",
+              description: "Failed to transcribe the consultation recording.",
+              variant: "destructive"
+            });
+          }
+          
+          resolve();
+        };
+        
+        // Stop recording
+        mediaRecorderRef.current.stop();
+      } else {
+        resolve();
+      }
+    });
+  };
+  
+  const createMedicalNote = async () => {
+    if (!transcription) {
+      toast({
+        title: "No Transcription",
+        description: "Please record and transcribe the consultation first.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    try {
+      // Generate SOAP notes from the transcription
+      const response = await fetch('/api/ai/generate-soap', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          transcript: transcription,
+          patientInfo: patient
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Note generation failed: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Save the consultation note
+      const consultationResponse = await fetch('/api/consultation-notes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          patientId: patient.id,
+          content: transcription,
+          title: `Consultation with ${patient.name} - ${new Date().toLocaleDateString()}`
+        }),
+      });
+      
+      if (!consultationResponse.ok) {
+        throw new Error(`Failed to save consultation: ${consultationResponse.status}`);
+      }
+      
+      const consultationData = await consultationResponse.json();
+      
+      // Save the medical note
+      const medicalNoteResponse = await fetch('/api/medical-notes/from-consultation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          consultationId: consultationData.id,
+          patientId: patient.id,
+          content: data.notes,
+          title: `SOAP Notes: ${patient.name} - ${new Date().toLocaleDateString()}`,
+          type: 'soap'
+        }),
+      });
+      
+      if (!medicalNoteResponse.ok) {
+        throw new Error(`Failed to save medical note: ${medicalNoteResponse.status}`);
+      }
+      
+      toast({
+        title: "Note Created",
+        description: "Medical note has been generated and saved from the consultation.",
+      });
+    } catch (error) {
+      console.error('Error creating medical note:', error);
+      toast({
+        title: "Note Creation Error",
+        description: "Failed to generate and save the medical note.",
+        variant: "destructive"
+      });
+    }
   };
 
   useEffect(() => {
@@ -184,6 +420,18 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
     
     // Cleanup function
     return () => {
+      // Stop recording if it's in progress
+      if (isRecording) {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+        }
+        
+        if (recordingIntervalRef.current) {
+          clearInterval(recordingIntervalRef.current);
+          recordingIntervalRef.current = null;
+        }
+      }
+      
       // Close WebSocket
       if (wsRef.current) {
         wsRef.current.close();
@@ -467,24 +715,68 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             </div>
           </div>
           
-          <div className="p-4 flex justify-center gap-2 bg-background">
-            <Button 
-              onClick={toggleAudio} 
-              variant={audioEnabled ? "outline" : "destructive"}
-              size="icon"
-            >
-              {audioEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
-            </Button>
-            <Button 
-              onClick={toggleVideo} 
-              variant={videoEnabled ? "outline" : "destructive"}
-              size="icon"
-            >
-              {videoEnabled ? <Video className="h-4 w-4" /> : <VideoOff className="h-4 w-4" />}
-            </Button>
-            <Button variant="destructive" onClick={onClose}>
-              End Call
-            </Button>
+          <div className="p-2 bg-background">
+            {transcription ? (
+              <div className="mb-4 p-4 bg-muted rounded-lg">
+                <h4 className="font-medium mb-2">Consultation Transcription</h4>
+                <ScrollArea className="h-[200px]">
+                  <p className="text-sm whitespace-pre-wrap">{transcription}</p>
+                </ScrollArea>
+                <div className="flex justify-end mt-4">
+                  <Button onClick={createMedicalNote}>
+                    <FileText className="h-4 w-4 mr-2" />
+                    Create SOAP Note
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="border rounded-lg p-4 mb-4">
+                <div className="flex justify-between items-center mb-2">
+                  <h4 className="font-medium">Recording Controls</h4>
+                  {isRecording && (
+                    <div className="flex items-center">
+                      <span className="animate-pulse h-2 w-2 rounded-full bg-red-500 mr-2"></span>
+                      <span className="text-sm text-muted-foreground">
+                        {Math.floor(recordedTime / 60)}:{(recordedTime % 60).toString().padStart(2, '0')}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  {isRecording ? (
+                    <Button variant="outline" onClick={stopRecording}>
+                      <Square className="h-4 w-4 mr-2" />
+                      Stop Recording
+                    </Button>
+                  ) : (
+                    <Button variant="outline" onClick={startRecording}>
+                      <Circle className="h-4 w-4 mr-2 fill-red-500" />
+                      Start Recording
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            <div className="flex justify-center gap-2">
+              <Button 
+                onClick={toggleAudio} 
+                variant={audioEnabled ? "outline" : "destructive"}
+                size="icon"
+              >
+                {audioEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+              </Button>
+              <Button 
+                onClick={toggleVideo} 
+                variant={videoEnabled ? "outline" : "destructive"}
+                size="icon"
+              >
+                {videoEnabled ? <Video className="h-4 w-4" /> : <VideoOff className="h-4 w-4" />}
+              </Button>
+              <Button variant="destructive" onClick={onClose}>
+                End Call
+              </Button>
+            </div>
           </div>
         </div>
         
