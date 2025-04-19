@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import React, { useState } from "react";
-import { Appointment, Patient } from "@shared/schema";
+import { Appointment, Patient, insertAppointmentSchema } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,7 +12,7 @@ import {
 import { Plus } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertAppointmentSchema } from "@shared/schema";
+import { z } from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -47,6 +47,12 @@ export default function Appointments() {
       (value) => value > 0, 
       { message: "Please select a patient" }
     ),
+    // Allow the date to be a number (timestamp)
+    date: z.union([
+      z.date(),
+      z.string().transform((str) => new Date(str)),
+      z.number().transform((num) => new Date(num))
+    ])
   });
 
   const form = useForm({
@@ -54,7 +60,7 @@ export default function Appointments() {
     defaultValues: {
       patientId: 0,
       doctorId: 1, // Using a default doctor ID for now
-      date: new Date().toISOString(),
+      date: new Date().getTime(), // Using timestamp for consistency
       notes: "",
     },
   });
@@ -86,7 +92,7 @@ export default function Appointments() {
       form.reset({
         patientId: 0,
         doctorId: 1,
-        date: new Date().toISOString(),
+        date: new Date().getTime(), // Using timestamp for consistency
         notes: "",
       });
     },
@@ -168,8 +174,13 @@ export default function Appointments() {
                         <PopoverContent className="w-auto p-0" align="start">
                           <Calendar
                             mode="single"
-                            selected={new Date(field.value)}
-                            onSelect={(date) => field.onChange(date?.toISOString())}
+                            selected={field.value ? new Date(field.value) : undefined}
+                            onSelect={(date) => {
+                              if (date) {
+                                // Use timestamp for consistency
+                                field.onChange(date.getTime());
+                              }
+                            }}
                             disabled={(date) =>
                               date < new Date() || date < new Date("1900-01-01")
                             }
