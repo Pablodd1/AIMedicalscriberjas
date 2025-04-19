@@ -4,6 +4,8 @@ import {
   appointments, 
   medicalNotes,
   consultationNotes,
+  settings,
+  emailTemplates,
   type User, 
   type InsertUser, 
   type Patient, 
@@ -13,7 +15,9 @@ import {
   type MedicalNote,
   type InsertMedicalNote,
   type ConsultationNote,
-  type InsertConsultationNote
+  type InsertConsultationNote,
+  type Setting,
+  type EmailTemplate
 } from "@shared/schema";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
@@ -42,6 +46,14 @@ export interface IStorage {
   getConsultationNote(id: number): Promise<ConsultationNote | undefined>;
   createConsultationNote(note: InsertConsultationNote): Promise<ConsultationNote>;
   createMedicalNoteFromConsultation(note: InsertMedicalNote, consultationId: number): Promise<MedicalNote>;
+  // Settings methods
+  getSetting(key: string): Promise<string | null>;
+  getSettings(keys: string[]): Promise<Record<string, string>>;
+  saveSetting(key: string, value: string): Promise<Setting>;
+  // Email template methods
+  getEmailTemplate(type: string): Promise<EmailTemplate | undefined>;
+  getEmailTemplates(): Promise<EmailTemplate[]>;
+  saveEmailTemplate(type: string, content: string): Promise<EmailTemplate>;
   sessionStore: session.Store;
 }
 
@@ -178,6 +190,106 @@ export class DatabaseStorage implements IStorage {
       .returning();
     
     return newNote;
+  }
+
+  // Settings methods
+  async getSetting(key: string): Promise<string | null> {
+    const [setting] = await db
+      .select()
+      .from(settings)
+      .where(eq(settings.key, key));
+    
+    return setting ? setting.value : null;
+  }
+
+  async getSettings(keys: string[]): Promise<Record<string, string>> {
+    // If we have specific keys, fetch them individually
+    if (keys.length > 0) {
+      const result: Record<string, string> = {};
+      for (const key of keys) {
+        const value = await this.getSetting(key);
+        if (value !== null) {
+          result[key] = value;
+        }
+      }
+      return result;
+    }
+    
+    // Otherwise fetch all settings
+    const settingsList = await db.select().from(settings);
+    
+    return settingsList.reduce<Record<string, string>>((acc, setting) => {
+      acc[setting.key] = setting.value;
+      return acc;
+    }, {});
+  }
+
+  async saveSetting(key: string, value: string): Promise<Setting> {
+    // Check if setting already exists
+    const [existingSetting] = await db
+      .select()
+      .from(settings)
+      .where(eq(settings.key, key));
+    
+    if (existingSetting) {
+      // Update existing setting
+      const [updatedSetting] = await db
+        .update(settings)
+        .set({ value, updatedAt: new Date() })
+        .where(eq(settings.id, existingSetting.id))
+        .returning();
+      
+      return updatedSetting;
+    } else {
+      // Create new setting
+      const [newSetting] = await db
+        .insert(settings)
+        .values({ key, value })
+        .returning();
+      
+      return newSetting;
+    }
+  }
+
+  // Email template methods
+  async getEmailTemplate(type: string): Promise<EmailTemplate | undefined> {
+    const [template] = await db
+      .select()
+      .from(emailTemplates)
+      .where(eq(emailTemplates.type, type));
+    
+    return template;
+  }
+
+  async getEmailTemplates(): Promise<EmailTemplate[]> {
+    return db.select().from(emailTemplates);
+  }
+
+  async saveEmailTemplate(type: string, content: string): Promise<EmailTemplate> {
+    // Check if template already exists
+    const [existingTemplate] = await db
+      .select()
+      .from(emailTemplates)
+      .where(eq(emailTemplates.type, type));
+    
+    if (existingTemplate) {
+      // Update existing template
+      const [updatedTemplate] = await db
+        .update(emailTemplates)
+        .set({ content, updatedAt: new Date() })
+        .where(eq(emailTemplates.id, existingTemplate.id))
+        .returning();
+      
+      return updatedTemplate;
+    } else {
+      // Create new template
+      const [newTemplate] = await db
+        .insert(emailTemplates)
+        .values({ type, content })
+        .returning();
+      
+      return newTemplate;
+    }
   }
 }
 

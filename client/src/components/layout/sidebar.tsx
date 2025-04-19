@@ -12,7 +12,8 @@ import {
   FileText,
   LineChart,
   CreditCard,
-  Video
+  Video,
+  Settings
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useState } from "react";
@@ -26,6 +27,7 @@ const navigation = [
   { name: "Analytics", href: "/analytics", icon: LineChart },
   { name: "Billing", href: "/billing", icon: CreditCard },
   { name: "Telemedicine", href: "/telemedicine", icon: Video },
+  { name: "Settings", href: "/settings", icon: Settings },
 ];
 
 export default function Sidebar() {

@@ -1,20 +1,23 @@
 import { Router } from "express";
-import { z } from "zod";
-import { MailService } from "@sendgrid/mail";
 import { db } from "../db";
+import { storage } from "../storage";
 import { settings, emailTemplates } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
+import nodemailer from 'nodemailer';
 
-export const emailRouter = Router();
-
-// Define validation schemas for email settings
+// Email settings schema for SMTP
 const emailSettingsSchema = z.object({
   senderEmail: z.string().email(),
   senderName: z.string().min(2),
-  apiKey: z.string().min(5),
+  smtpHost: z.string().min(1),
+  smtpPort: z.coerce.number().int().min(1).max(65535),
+  smtpUser: z.string().min(1),
+  smtpPassword: z.string().min(1),
+  smtpSecure: z.boolean().default(true)
 });
 
-// Define validation schema for email templates
+// Email templates schema
 const emailTemplatesSchema = z.object({
   appointmentConfirmation: z.string().min(10),
   appointmentReminder: z.string().min(10),
@@ -22,53 +25,50 @@ const emailTemplatesSchema = z.object({
   appointmentRescheduled: z.string().min(10),
 });
 
-// Helper function to initialize SendGrid with API key
-const initSendGrid = async () => {
-  try {
-    // Get API key from database
-    const [storedSettings] = await db.select().from(settings).where(eq(settings.key, 'email'));
-    
-    if (!storedSettings || !storedSettings.value) {
-      throw new Error("SendGrid API key not configured");
-    }
-    
-    const emailSettings = JSON.parse(storedSettings.value);
-    
-    if (!emailSettings.apiKey) {
-      throw new Error("SendGrid API key not found in settings");
-    }
-    
-    const mailService = new MailService();
-    mailService.setApiKey(emailSettings.apiKey);
-    
-    return { 
-      mailService, 
-      from: {
-        email: emailSettings.senderEmail,
-        name: emailSettings.senderName
-      }
-    };
-  } catch (error) {
-    console.error("Failed to initialize SendGrid:", error);
-    throw error;
+// Initialize Nodemailer with stored SMTP settings
+async function initNodemailer() {
+  const settings = await storage.getSettings([
+    'senderEmail', 
+    'senderName', 
+    'smtpHost', 
+    'smtpPort', 
+    'smtpUser', 
+    'smtpPassword', 
+    'smtpSecure'
+  ]);
+
+  if (!settings.senderEmail || !settings.smtpHost || !settings.smtpUser || !settings.smtpPassword) {
+    throw new Error("Email settings not configured properly");
   }
-};
+
+  // Create reusable transporter object using SMTP
+  const transporter = nodemailer.createTransport({
+    host: settings.smtpHost,
+    port: parseInt(settings.smtpPort || '587', 10),
+    secure: settings.smtpSecure === 'true',
+    auth: {
+      user: settings.smtpUser,
+      pass: settings.smtpPassword,
+    },
+  });
+  
+  const from = `"${settings.senderName || 'Medical Platform'}" <${settings.senderEmail}>`;
+  
+  return { transporter, from };
+}
+
+export const emailRouter = Router();
 
 // Get email settings
 emailRouter.get("/email", async (req, res) => {
   try {
-    const [storedSettings] = await db.select().from(settings).where(eq(settings.key, 'email'));
+    // Get the settings from database
+    const emailSettings = await storage.getSettings(['senderEmail', 'senderName', 'apiKey']);
     
-    if (!storedSettings || !storedSettings.value) {
-      return res.status(404).json({ message: "Email settings not found" });
-    }
-    
-    const emailSettings = JSON.parse(storedSettings.value);
-    
-    // Don't return full API key for security reasons
+    // Return masked API key for security
     if (emailSettings.apiKey) {
-      const lastFour = emailSettings.apiKey.slice(-4);
-      emailSettings.apiKey = `*****************${lastFour}`;
+      const lastFourChars = emailSettings.apiKey.slice(-4);
+      emailSettings.apiKey = `••••••••••••${lastFourChars}`;
     }
     
     res.json(emailSettings);
@@ -87,26 +87,14 @@ emailRouter.post("/email", async (req, res) => {
       return res.status(400).json(validation.error);
     }
     
-    const emailSettings = validation.data;
+    const { senderEmail, senderName, apiKey } = validation.data;
     
-    // Check if settings already exist
-    const [existingSettings] = await db.select().from(settings).where(eq(settings.key, 'email'));
-    
-    if (existingSettings) {
-      // Update existing settings
-      await db
-        .update(settings)
-        .set({ value: JSON.stringify(emailSettings) })
-        .where(eq(settings.key, 'email'));
-    } else {
-      // Create new settings
-      await db
-        .insert(settings)
-        .values({ 
-          key: 'email',
-          value: JSON.stringify(emailSettings)
-        });
-    }
+    // Save each setting individually
+    await Promise.all([
+      storage.saveSetting('senderEmail', senderEmail),
+      storage.saveSetting('senderName', senderName),
+      storage.saveSetting('apiKey', apiKey),
+    ]);
     
     res.json({ success: true });
   } catch (error) {
@@ -118,7 +106,8 @@ emailRouter.post("/email", async (req, res) => {
 // Get email templates
 emailRouter.get("/email-templates", async (req, res) => {
   try {
-    const storedTemplates = await db.select().from(emailTemplates);
+    // Get all templates from database
+    const storedTemplates = await storage.getEmailTemplates();
     
     if (!storedTemplates || storedTemplates.length === 0) {
       return res.status(404).json({ message: "Email templates not found" });
@@ -150,24 +139,8 @@ emailRouter.post("/email-templates", async (req, res) => {
     
     // For each template in the request
     for (const [type, content] of Object.entries(templates)) {
-      // Check if template already exists
-      const [existingTemplate] = await db
-        .select()
-        .from(emailTemplates)
-        .where(eq(emailTemplates.type, type));
-      
-      if (existingTemplate) {
-        // Update existing template
-        await db
-          .update(emailTemplates)
-          .set({ content })
-          .where(eq(emailTemplates.type, type));
-      } else {
-        // Create new template
-        await db
-          .insert(emailTemplates)
-          .values({ type, content });
-      }
+      // Save template
+      await storage.saveEmailTemplate(type, content);
     }
     
     res.json({ success: true });
@@ -222,10 +195,7 @@ export const sendPatientEmail = async (
     const { mailService, from } = await initSendGrid();
     
     // Get template
-    const [template] = await db
-      .select()
-      .from(emailTemplates)
-      .where(eq(emailTemplates.type, templateType));
+    const template = await storage.getEmailTemplate(templateType);
     
     if (!template || !template.content) {
       throw new Error(`Email template for '${templateType}' not found`);
