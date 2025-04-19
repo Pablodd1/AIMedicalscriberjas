@@ -39,7 +39,7 @@ export default function Appointments() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [customStatus, setCustomStatus] = useState("");
-  
+
   const { data: appointments } = useQuery<Appointment[]>({
     queryKey: ["/api/appointments"],
   });
@@ -85,7 +85,7 @@ export default function Appointments() {
     const monthStart = startOfMonth(currentMonth);
     const monthEnd = endOfMonth(currentMonth);
     const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
-    
+
     // Get appointments for selected date
     const getAppointmentsForDate = (date: Date) => {
       if (!appointments) return [];
@@ -94,14 +94,14 @@ export default function Appointments() {
         return isSameDay(appointmentDate, date);
       });
     };
-    
+
     return days.map(day => ({
       date: day,
       isToday: isToday(day),
       appointments: getAppointmentsForDate(day)
     }));
   };
-  
+
   const days = getDaysInMonth();
 
   const updateAppointmentStatusMutation = useMutation({
@@ -133,13 +133,13 @@ export default function Appointments() {
     mutationFn: async (data: any) => {
       // First convert the date string to a Date object if it's not already
       const dateObj = typeof data.date === 'string' ? new Date(data.date) : data.date;
-      
+
       // Convert the date to a timestamp (number)
       const formattedData = {
         ...data,
         date: dateObj.getTime(),
       };
-      
+
       const res = await apiRequest("POST", "/api/appointments", formattedData);
       return res.json();
     },
@@ -285,7 +285,7 @@ export default function Appointments() {
           <TabsTrigger value="list">List View</TabsTrigger>
           <TabsTrigger value="calendar">Calendar View</TabsTrigger>
         </TabsList>
-        
+
         <TabsContent value="list" className="mt-4">
           <div className="grid gap-4">
             {appointments?.length === 0 ? (
@@ -393,7 +393,7 @@ export default function Appointments() {
             )}
           </div>
         </TabsContent>
-        
+
         <TabsContent value="calendar" className="mt-4">
           <div className="bg-white border rounded-lg overflow-hidden">
             <div className="flex items-center justify-between p-4 border-b">
@@ -407,7 +407,7 @@ export default function Appointments() {
                 </Button>
               </div>
             </div>
-            
+
             <div className="grid grid-cols-7 text-center">
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
                 <div key={day} className="py-2 font-medium text-xs">
@@ -415,12 +415,12 @@ export default function Appointments() {
                 </div>
               ))}
             </div>
-            
+
             <div className="grid grid-cols-7">
               {Array.from({ length: getDay(days[0].date) }).map((_, index) => (
                 <div key={`empty-${index}`} className="h-24 border-t border-r p-1 bg-gray-50"></div>
               ))}
-              
+
               {days.map((day, index) => (
                 <div
                   key={index}
@@ -447,7 +447,7 @@ export default function Appointments() {
                       </Badge>
                     )}
                   </div>
-                  
+
                   <div className="mt-1 overflow-y-auto max-h-16">
                     {day.appointments.slice(0, 2).map((appointment, i) => (
                       <div
