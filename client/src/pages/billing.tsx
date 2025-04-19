@@ -308,7 +308,7 @@ export default function Billing() {
                     return (
                       <TableRow key={invoice.id}>
                         <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
-                        <TableCell>{invoice.patient?.name || `Patient #${invoice.patientId}`}</TableCell>
+                        <TableCell>{`Patient #${invoice.patientId}`}</TableCell>
                         <TableCell>${(invoice.amount / 100).toFixed(2)}</TableCell>
                         <TableCell>${(invoice.amountPaid / 100).toFixed(2)}</TableCell>
                         <TableCell>${(remaining / 100).toFixed(2)}</TableCell>
@@ -504,7 +504,7 @@ export default function Billing() {
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div>
                       <p className="text-muted-foreground">Patient:</p>
-                      <p>{selectedInvoice.patient?.name || `Patient #${selectedInvoice.patientId}`}</p>
+                      <p>{`Patient #${selectedInvoice.patientId}`}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Total Amount:</p>

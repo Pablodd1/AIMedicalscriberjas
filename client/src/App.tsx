@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
 import HomePage from "@/pages/home-page";
 import PatientJoin from "@/pages/patient-join";
+import Billing from "@/pages/billing";
 import { AuthProvider } from "@/hooks/use-auth";
 
 function Router() {
@@ -16,7 +17,7 @@ function Router() {
       <Route path="/appointments" component={HomePage} />
       <Route path="/notes" component={HomePage} />
       <Route path="/analytics" component={HomePage} />
-      <Route path="/billing" component={HomePage} />
+      <Route path="/billing" component={Billing} />
       <Route path="/telemedicine" component={HomePage} />
       <Route path="/settings" component={HomePage} />
       <Route path="/patient-join" component={PatientJoin} />
