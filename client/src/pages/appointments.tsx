@@ -45,14 +45,18 @@ export default function Appointments() {
     resolver: zodResolver(insertAppointmentSchema),
     defaultValues: {
       patientId: 0,
-      date: new Date(),
+      date: new Date().toISOString(),
       notes: "",
     },
   });
 
   const createAppointmentMutation = useMutation({
     mutationFn: async (data: any) => {
-      const res = await apiRequest("POST", "/api/appointments", data);
+      const formattedData = {
+        ...data,
+        date: new Date(data.date).toISOString(),
+      };
+      const res = await apiRequest("POST", "/api/appointments", formattedData);
       return res.json();
     },
     onSuccess: () => {
