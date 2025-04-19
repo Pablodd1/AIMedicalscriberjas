@@ -31,12 +31,14 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
 
 export default function Appointments() {
   const { toast } = useToast();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
+  const [customStatus, setCustomStatus] = useState("");
   
   const { data: appointments } = useQuery<Appointment[]>({
     queryKey: ["/api/appointments"],
@@ -101,6 +103,31 @@ export default function Appointments() {
   };
   
   const days = getDaysInMonth();
+
+  const updateAppointmentStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: number, status: string }) => {
+      const res = await apiRequest("PATCH", `/api/appointments/${id}`, { status });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
+      toast({
+        title: "Success",
+        description: "Appointment status updated",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to update status",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateAppointmentStatus = (id: number, status: string) => {
+    updateAppointmentStatusMutation.mutate({ id, status });
+  };
 
   const createAppointmentMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -282,9 +309,85 @@ export default function Appointments() {
                       <p className="text-sm text-muted-foreground">{appointment.notes}</p>
                     )}
                   </div>
-                  <Badge variant={appointment.status === "scheduled" ? "default" : "secondary"}>
-                    {appointment.status}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <Badge variant={
+                            appointment.status === "scheduled" ? "default" : 
+                            appointment.status === "completed" ? "success" : 
+                            appointment.status === "cancelled" ? "destructive" : 
+                            "secondary"
+                          } className="mr-2">
+                            {appointment.status}
+                          </Badge>
+                          Update
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-80" align="end">
+                        <div className="space-y-4">
+                          <h4 className="font-medium">Update Appointment Status</h4>
+                          <div className="grid grid-cols-2 gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              className="justify-start" 
+                              onClick={() => updateAppointmentStatus(appointment.id, "scheduled")}
+                            >
+                              Scheduled
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              className="justify-start" 
+                              onClick={() => updateAppointmentStatus(appointment.id, "completed")}
+                            >
+                              Completed
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              className="justify-start" 
+                              onClick={() => updateAppointmentStatus(appointment.id, "cancelled")}
+                            >
+                              Cancelled
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              className="justify-start" 
+                              onClick={() => updateAppointmentStatus(appointment.id, "rescheduled")}
+                            >
+                              Rescheduled
+                            </Button>
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium">Custom Status:</label>
+                            <div className="flex mt-1 gap-2">
+                              <Input 
+                                placeholder="Enter custom status"
+                                value={customStatus}
+                                onChange={(e) => setCustomStatus(e.target.value)}
+                                className="h-8"
+                              />
+                              <Button 
+                                size="sm"
+                                disabled={!customStatus}
+                                onClick={() => {
+                                  if (customStatus) {
+                                    updateAppointmentStatus(appointment.id, customStatus);
+                                    setCustomStatus("");
+                                  }
+                                }}
+                              >
+                                Apply
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                 </div>
               ))
             )}
