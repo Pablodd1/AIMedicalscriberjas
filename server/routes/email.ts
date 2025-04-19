@@ -125,7 +125,7 @@ emailRouter.get("/email-templates", async (req, res) => {
     }
     
     // Convert array of template records to object
-    const templates = storedTemplates.reduce((acc, template) => {
+    const templates = storedTemplates.reduce<Record<string, string>>((acc, template) => {
       acc[template.type] = template.content;
       return acc;
     }, {});
@@ -204,9 +204,9 @@ emailRouter.post("/test-email", async (req, res) => {
     });
     
     res.json({ success: true });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error sending test email:", error);
-    res.status(500).json({ message: "Failed to send test email: " + error.message });
+    res.status(500).json({ message: "Failed to send test email: " + (error.message || 'Unknown error') });
   }
 });
 

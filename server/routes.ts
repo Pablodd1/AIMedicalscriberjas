@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { aiRouter } from "./routes/ai";
+import { emailRouter } from "./routes/email";
 import { 
   insertPatientSchema, 
   insertAppointmentSchema, 
@@ -15,6 +16,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Register AI routes
   app.use('/api/ai', aiRouter);
+  
+  // Register Email settings routes
+  app.use('/api/settings', emailRouter);
 
   // For development purposes, we're using a fixed doctorId of 1
   const MOCK_DOCTOR_ID = 1;

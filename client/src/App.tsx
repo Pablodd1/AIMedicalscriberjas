@@ -11,19 +11,21 @@ import Notes from "@/pages/notes";
 import Analytics from "@/pages/analytics";
 import Billing from "@/pages/billing";
 import Telemedicine from "@/pages/telemedicine";
+import Settings from "@/pages/settings";
 import { AuthProvider } from "@/hooks/use-auth";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={HomePage} />
-      <Route path="/dashboard" component={HomePage} />
-      <Route path="/patients" component={HomePage} />
-      <Route path="/appointments" component={HomePage} />
-      <Route path="/notes" component={HomePage} />
-      <Route path="/analytics" component={HomePage} />
-      <Route path="/billing" component={HomePage} />
-      <Route path="/telemedicine" component={HomePage} />
+      <Route path="/dashboard" component={Dashboard} />
+      <Route path="/patients" component={Patients} />
+      <Route path="/appointments" component={Appointments} />
+      <Route path="/notes" component={Notes} />
+      <Route path="/analytics" component={Analytics} />
+      <Route path="/billing" component={Billing} />
+      <Route path="/telemedicine" component={Telemedicine} />
+      <Route path="/settings" component={Settings} />
       <Route component={NotFound} />
     </Switch>
   );
