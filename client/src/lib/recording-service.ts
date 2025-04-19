@@ -1,8 +1,24 @@
-import { apiRequest } from "./queryClient";
+import { apiRequest, queryClient } from "./queryClient";
+import { toast } from "@/hooks/use-toast";
+import { InsertConsultationNote, InsertMedicalNote } from "@shared/schema";
 
-// Simple notification function (will be replaced with actual toast in the UI components)
+// Simple notification function using toast
 function notify(message: string, type: 'success' | 'error' = 'success') {
   console.log(`[${type.toUpperCase()}]: ${message}`);
+  
+  if (type === 'error') {
+    toast({
+      title: "Error",
+      description: message,
+      variant: "destructive",
+    });
+  } else {
+    toast({
+      title: "Success",
+      description: message,
+    });
+  }
+  
   return message;
 }
 
