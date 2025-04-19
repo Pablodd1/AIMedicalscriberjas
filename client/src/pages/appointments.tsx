@@ -45,7 +45,7 @@ export default function Appointments() {
     resolver: zodResolver(insertAppointmentSchema),
     defaultValues: {
       patientId: 0,
-      date: new Date().toISOString(),
+      date: new Date(),
       notes: "",
     },
   });
@@ -141,7 +141,7 @@ export default function Appointments() {
                           <Calendar
                             mode="single"
                             selected={new Date(field.value)}
-                            onSelect={(date) => field.onChange(date?.toISOString())}
+                            onSelect={(date) => field.onChange(date)}
                             disabled={(date) =>
                               date < new Date() || date < new Date("1900-01-01")
                             }
