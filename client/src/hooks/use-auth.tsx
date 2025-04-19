@@ -22,19 +22,32 @@ type LoginData = Pick<InsertUser, "username" | "password">;
 export const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
+  
+  // For development purposes, we're using a mock user
+  const mockUser: SelectUser = {
+    id: 1,
+    username: "doctor",
+    password: "",
+    name: "Dr. John Smith",
+    role: "doctor",
+    email: "doctor@example.com"
+  };
+  
+  // Always return the mock user instead of querying the API
   const {
     data: user,
     error,
     isLoading,
   } = useQuery<SelectUser | undefined, Error>({
     queryKey: ["/api/user"],
-    queryFn: getQueryFn({ on401: "returnNull" }),
+    queryFn: () => Promise.resolve(mockUser),
+    initialData: mockUser
   });
 
+  // Mock login mutation
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
-      const res = await apiRequest("POST", "/api/login", credentials);
-      return await res.json();
+      return mockUser;
     },
     onSuccess: (user: SelectUser) => {
       queryClient.setQueryData(["/api/user"], user);
@@ -48,10 +61,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
+  // Mock register mutation
   const registerMutation = useMutation({
     mutationFn: async (credentials: InsertUser) => {
-      const res = await apiRequest("POST", "/api/register", credentials);
-      return await res.json();
+      return mockUser;
     },
     onSuccess: (user: SelectUser) => {
       queryClient.setQueryData(["/api/user"], user);
@@ -65,12 +78,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
+  // Mock logout mutation
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("POST", "/api/logout");
+      return;
     },
     onSuccess: () => {
-      queryClient.setQueryData(["/api/user"], null);
+      // We don't actually log out in development mode
+      toast({
+        title: "Development Mode",
+        description: "Logout is disabled in development mode",
+      });
     },
     onError: (error: Error) => {
       toast({
