@@ -23,22 +23,23 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { 
   Dialog, 
+  DialogClose,
   DialogContent, 
+  DialogDescription,
+  DialogFooter,
   DialogHeader, 
   DialogTitle,
-  DialogFooter,
-  DialogDescription,
-  DialogClose
+  DialogTrigger
 } from "@/components/ui/dialog";
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetDescription,
+  SheetFooter,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
-  SheetClose,
-  SheetFooter,
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -659,7 +660,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex justify-between items-center p-4 border-b">
+      <div className="flex justify-between items-center p-2 border-b">
         <div className="flex items-center gap-2">
           <Avatar>
             <AvatarFallback>{patient.name[0]}</AvatarFallback>
@@ -668,27 +669,77 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             <h3 className="font-medium">{patient.name}</h3>
             <p className="text-xs text-muted-foreground">Video Consultation</p>
           </div>
+          
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" className="ml-2">
+                <Users className="h-4 w-4 mr-1" />
+                Share Info
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Share Consultation</DialogTitle>
+                <DialogDescription>
+                  Share this information with patients to join the consultation
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <div className="text-sm font-semibold">Patient Join URL</div>
+                  <div className="flex items-center gap-2">
+                    <Input value={patientJoinUrl} readOnly />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(patientJoinUrl);
+                        toast({
+                          title: "URL Copied",
+                          description: "Patient join URL copied to clipboard",
+                        });
+                      }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="text-sm font-semibold">Room ID</div>
+                  <div className="flex items-center gap-2">
+                    <Input value={roomId} readOnly />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(roomId);
+                        toast({
+                          title: "ID Copied",
+                          description: "Room ID copied to clipboard",
+                        });
+                      }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
-        <div className="flex flex-col items-end gap-2">
-          <div className="text-sm bg-muted p-2 rounded-md">
-            <span className="font-semibold">Patient Join URL:</span> {patientJoinUrl}
-          </div>
-          <div className="text-sm bg-muted p-2 rounded-md">
-            <span className="font-semibold">Room ID:</span> {roomId}
-          </div>
-          <div className="flex items-center gap-2">
-            <Button 
-              onClick={() => setChatOpen(!chatOpen)} 
-              variant="outline" 
-              size="icon"
-              className={chatOpen ? "bg-primary text-primary-foreground" : ""}
-            >
-              <MessageCircle className="h-4 w-4" />
-            </Button>
-            <Button variant="destructive" size="icon" onClick={onClose}>
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
+        
+        <div className="flex items-center gap-2">
+          <Button 
+            onClick={() => setChatOpen(!chatOpen)} 
+            variant="outline" 
+            size="icon"
+            className={chatOpen ? "bg-primary text-primary-foreground" : ""}
+          >
+            <MessageCircle className="h-4 w-4" />
+          </Button>
+          <Button variant="destructive" size="icon" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
         </div>
       </div>
       
@@ -716,47 +767,62 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           </div>
           
           <div className="p-2 bg-background">
-            {transcription ? (
-              <div className="mb-4 p-4 bg-muted rounded-lg">
-                <h4 className="font-medium mb-2">Consultation Transcription</h4>
-                <ScrollArea className="h-[200px]">
-                  <p className="text-sm whitespace-pre-wrap">{transcription}</p>
-                </ScrollArea>
-                <div className="flex justify-end mt-4">
+            <Sheet>
+              <div className="flex items-center justify-between mb-4">
+                {transcription ? (
+                  <SheetTrigger asChild>
+                    <Button variant="outline" className="mr-auto">
+                      <FileText className="h-4 w-4 mr-2" />
+                      View Transcription
+                    </Button>
+                  </SheetTrigger>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    {isRecording ? (
+                      <>
+                        <Button variant="outline" onClick={stopRecording} size="sm">
+                          <Square className="h-4 w-4 mr-2" />
+                          Stop Recording
+                        </Button>
+                        <div className="flex items-center bg-muted px-2 py-1 rounded-md">
+                          <span className="animate-pulse h-2 w-2 rounded-full bg-red-500 mr-2"></span>
+                          <span className="text-xs font-medium">
+                            {Math.floor(recordedTime / 60)}:{(recordedTime % 60).toString().padStart(2, '0')}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <Button variant="outline" onClick={startRecording} size="sm">
+                        <Circle className="h-4 w-4 mr-2 fill-red-500" />
+                        Record Meeting
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+              
+              <SheetContent side="right" className="w-[400px] sm:w-[540px]">
+                <SheetHeader>
+                  <SheetTitle>Consultation Transcription</SheetTitle>
+                  <SheetDescription>
+                    Generated transcript from the recorded consultation
+                  </SheetDescription>
+                </SheetHeader>
+                
+                <div className="my-6">
+                  <ScrollArea className="h-[calc(100vh-200px)]">
+                    <p className="text-sm whitespace-pre-wrap">{transcription}</p>
+                  </ScrollArea>
+                </div>
+                
+                <SheetFooter>
                   <Button onClick={createMedicalNote}>
                     <FileText className="h-4 w-4 mr-2" />
                     Create SOAP Note
                   </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="border rounded-lg p-4 mb-4">
-                <div className="flex justify-between items-center mb-2">
-                  <h4 className="font-medium">Recording Controls</h4>
-                  {isRecording && (
-                    <div className="flex items-center">
-                      <span className="animate-pulse h-2 w-2 rounded-full bg-red-500 mr-2"></span>
-                      <span className="text-sm text-muted-foreground">
-                        {Math.floor(recordedTime / 60)}:{(recordedTime % 60).toString().padStart(2, '0')}
-                      </span>
-                    </div>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  {isRecording ? (
-                    <Button variant="outline" onClick={stopRecording}>
-                      <Square className="h-4 w-4 mr-2" />
-                      Stop Recording
-                    </Button>
-                  ) : (
-                    <Button variant="outline" onClick={startRecording}>
-                      <Circle className="h-4 w-4 mr-2 fill-red-500" />
-                      Start Recording
-                    </Button>
-                  )}
-                </div>
-              </div>
-            )}
+                </SheetFooter>
+              </SheetContent>
+            </Sheet>
             
             <div className="flex justify-center gap-2">
               <Button 
