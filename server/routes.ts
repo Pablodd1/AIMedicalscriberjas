@@ -50,15 +50,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/appointments", async (req, res) => {
-    const validation = insertAppointmentSchema.safeParse(req.body);
-    if (!validation.success) {
-      return res.status(400).json(validation.error);
+    try {
+      // Convert numeric timestamp to Date object for PostgreSQL timestamp
+      let appointmentData = req.body;
+      if (typeof appointmentData.date === 'number') {
+        appointmentData = {
+          ...appointmentData,
+          date: new Date(appointmentData.date)
+        };
+      }
+
+      const validation = insertAppointmentSchema.safeParse(appointmentData);
+      if (!validation.success) {
+        return res.status(400).json(validation.error);
+      }
+      
+      const appointment = await storage.createAppointment({
+        ...validation.data,
+        doctorId: MOCK_DOCTOR_ID,
+      });
+      res.status(201).json(appointment);
+    } catch (error) {
+      console.error("Error creating appointment:", error);
+      res.status(500).json({ message: "Failed to create appointment" });
     }
-    const appointment = await storage.createAppointment({
-      ...validation.data,
-      doctorId: MOCK_DOCTOR_ID,
-    });
-    res.status(201).json(appointment);
   });
 
   // Medical Notes routes

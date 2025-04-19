@@ -63,10 +63,15 @@ export default function Appointments() {
 
   const createAppointmentMutation = useMutation({
     mutationFn: async (data: any) => {
+      // First convert the date string to a Date object if it's not already
+      const dateObj = typeof data.date === 'string' ? new Date(data.date) : data.date;
+      
+      // Convert the date to a timestamp (number)
       const formattedData = {
         ...data,
-        date: new Date(data.date).toISOString(),
+        date: dateObj.getTime(),
       };
+      
       const res = await apiRequest("POST", "/api/appointments", formattedData);
       return res.json();
     },
@@ -164,7 +169,7 @@ export default function Appointments() {
                           <Calendar
                             mode="single"
                             selected={new Date(field.value)}
-                            onSelect={(date) => field.onChange(date)}
+                            onSelect={(date) => field.onChange(date?.toISOString())}
                             disabled={(date) =>
                               date < new Date() || date < new Date("1900-01-01")
                             }
