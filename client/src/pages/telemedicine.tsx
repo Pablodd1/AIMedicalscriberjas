@@ -72,11 +72,8 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
   const [participants, setParticipants] = useState<any[]>([]);
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [videoEnabled, setVideoEnabled] = useState(true);
-  const [chatOpen, setChatOpen] = useState(false);
   const [liveTranscriptionOpen, setLiveTranscriptionOpen] = useState(false);
   const [liveTranscriptions, setLiveTranscriptions] = useState<Array<{speaker: string, text: string, timestamp: Date}>>([]);
-  const [messages, setMessages] = useState<{sender: string, text: string}[]>([]);
-  const [messageText, setMessageText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [recordedTime, setRecordedTime] = useState(0);
   const [transcription, setTranscription] = useState("");
@@ -237,9 +234,9 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           // Create a simple transcript if API fails
           let backupTranscriptText = "";
 
-          // Save conversation to transcript even if API fails
-          messages.forEach(msg => {
-            backupTranscriptText += `${msg.sender}: ${msg.text}\n`;
+          // Save transcriptions to backup transcript even if API fails
+          liveTranscriptions.forEach(item => {
+            backupTranscriptText += `${item.speaker}: ${item.text}\n`;
           });
 
           toast({
@@ -473,15 +470,8 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           break;
 
         case 'chat-message':
-          setMessages(prev => [...prev, {
-            sender: message.senderName,
-            text: message.text
-          }]);
-          
-          // If live transcription is enabled, also add chat messages to transcriptions
-          if (liveTranscriptionOpen) {
-            addLiveTranscription(message.senderName, message.text);
-          }
+          // Add message directly to live transcriptions
+          addLiveTranscription(message.senderName, message.text);
           break;
 
         case 'error':
@@ -762,28 +752,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
     }
   };
 
-  const sendChatMessage = () => {
-    if (messageText.trim() && wsRef.current) {
-      const message = {
-        type: 'chat-message',
-        sender: user?.id.toString(),
-        senderName: user?.name,
-        text: messageText,
-        roomId
-      };
 
-      wsRef.current.send(JSON.stringify(message));
-
-      // Add message to local state
-      setMessages(prev => [...prev, {
-        sender: user?.name || "You",
-        text: messageText
-      }]);
-
-      // Clear input
-      setMessageText("");
-    }
-  };
 
   const handleEndCall = onClose;
 
@@ -802,9 +771,6 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
   // Function to toggle live transcription
   const toggleLiveTranscription = () => {
     setLiveTranscriptionOpen(!liveTranscriptionOpen);
-    
-    // Always close chat when toggling transcription
-    setChatOpen(false);
     
     if (!liveTranscriptionOpen) {
       // Start with an empty list when enabling
@@ -951,7 +917,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       </div>
 
       <div className="grid flex-1 overflow-hidden" style={{ 
-        gridTemplateColumns: chatOpen ? '1fr minmax(250px, 350px)' : '1fr',
+        gridTemplateColumns: liveTranscriptionOpen ? '1fr minmax(250px, 350px)' : '1fr',
         gridTemplateRows: '1fr auto'
        }}>
         <div className="flex flex-col">
