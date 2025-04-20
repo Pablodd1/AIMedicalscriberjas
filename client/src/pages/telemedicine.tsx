@@ -1209,13 +1209,47 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                   <div className="bg-muted rounded-md p-1 flex">
                     <button 
                       className={`px-2 py-1 rounded transition-colors ${currentSpeaker === 'Doctor' ? 'bg-blue-500 text-white' : 'hover:bg-muted-foreground/10'}`}
-                      onClick={() => setCurrentSpeaker('Doctor')}
+                      onClick={() => {
+                        setCurrentSpeaker('Doctor');
+                        // Restart speech recognition to apply the new speaker setting
+                        if (speechRecognitionRef.current) {
+                          try {
+                            speechRecognitionRef.current.stop();
+                            setTimeout(() => {
+                              if (speechRecognitionRef.current) {
+                                speechRecognitionRef.current.start();
+                                // Add feedback message
+                                addLiveTranscription('System', "Now capturing Doctor's voice");
+                              }
+                            }, 100);
+                          } catch (e) {
+                            console.error('Failed to restart recognition after speaker change:', e);
+                          }
+                        }
+                      }}
                     >
                       Doctor
                     </button>
                     <button 
                       className={`px-2 py-1 rounded transition-colors ${currentSpeaker === 'Patient' ? 'bg-orange-500 text-white' : 'hover:bg-muted-foreground/10'}`}
-                      onClick={() => setCurrentSpeaker('Patient')}
+                      onClick={() => {
+                        setCurrentSpeaker('Patient');
+                        // Restart speech recognition to apply the new speaker setting
+                        if (speechRecognitionRef.current) {
+                          try {
+                            speechRecognitionRef.current.stop();
+                            setTimeout(() => {
+                              if (speechRecognitionRef.current) {
+                                speechRecognitionRef.current.start();
+                                // Add feedback message
+                                addLiveTranscription('System', "Now capturing Patient's voice");
+                              }
+                            }, 100);
+                          } catch (e) {
+                            console.error('Failed to restart recognition after speaker change:', e);
+                          }
+                        }
+                      }}
                     >
                       Patient
                     </button>
