@@ -440,13 +440,15 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
     console.log('Doctor connecting to WebSocket at:', wsUrl);
     
     try {
-      wsRef.current = new WebSocket(wsUrl);
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
       
-      wsRef.current.onopen = () => {
+      // Handle connection open
+      ws.onopen = () => {
         console.log('Doctor WebSocket connection established successfully');
         
         // Join the room
-        if (wsRef.current && user) {
+        if (user) {
           const joinMessage = {
             type: 'join',
             roomId,
@@ -456,13 +458,86 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           };
           
           console.log('Doctor joining room with message:', joinMessage);
-          wsRef.current.send(JSON.stringify(joinMessage));
+          ws.send(JSON.stringify(joinMessage));
         } else {
-          console.error('Cannot join room - WebSocket or user data not available');
+          console.error('Cannot join room - user data not available');
         }
       };
       
-      wsRef.current.onerror = (error) => {
+      // Handle incoming messages
+      ws.onmessage = async (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          console.log('Doctor received message:', message.type);
+          
+          switch (message.type) {
+            case 'welcome':
+              console.log('Received welcome message from server:', message.message);
+              break;
+              
+            case 'room-users':
+              setParticipants(message.users);
+              break;
+              
+            case 'user-joined':
+              toast({
+                title: "Participant joined",
+                description: `${message.name} has joined the consultation`,
+              });
+              setParticipants(prev => [...prev, {
+                id: message.userId,
+                name: message.name,
+                isDoctor: message.isDoctor
+              }]);
+              
+              // If this is the patient joining, initiate the call
+              if (!message.isDoctor) {
+                startCall(message.userId);
+              }
+              break;
+              
+            case 'user-left':
+              toast({
+                title: "Participant left",
+                description: "A participant has left the consultation",
+              });
+              setParticipants(prev => prev.filter(p => p.id !== message.userId));
+              break;
+              
+            case 'offer':
+              handleOffer(message);
+              break;
+              
+            case 'answer':
+              handleAnswer(message);
+              break;
+              
+            case 'ice-candidate':
+              handleICECandidate(message);
+              break;
+              
+            case 'chat-message':
+              setMessages(prev => [...prev, {
+                sender: message.senderName,
+                text: message.text
+              }]);
+              break;
+              
+            case 'error':
+              toast({
+                title: "Error",
+                description: message.message,
+                variant: "destructive"
+              });
+              break;
+          }
+        } catch (error) {
+          console.error('Error processing message:', error);
+        }
+      };
+      
+      // Handle errors
+      ws.onerror = (error) => {
         console.error('Doctor WebSocket connection error:', error);
         toast({
           title: "Connection Error",
@@ -470,6 +545,15 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           variant: "destructive"
         });
       };
+      
+      // Handle connection close
+      ws.onclose = () => {
+        console.log('WebSocket connection closed');
+        setConnected(false);
+      };
+      
+      // Get user media and initialize local video
+      initializeMedia();
     } catch (error) {
       console.error('Error creating WebSocket connection:', error);
       toast({
@@ -478,89 +562,6 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
         variant: "destructive"
       });
     }
-    
-    wsRef.current.onmessage = async (event) => {
-      const message = JSON.parse(event.data);
-      
-      switch (message.type) {
-        case 'welcome':
-          console.log('Received welcome message from server:', message.message);
-          break;
-          
-        case 'room-users':
-          setParticipants(message.users);
-          break;
-          
-        case 'user-joined':
-          toast({
-            title: "Participant joined",
-            description: `${message.name} has joined the consultation`,
-          });
-          setParticipants(prev => [...prev, {
-            id: message.userId,
-            name: message.name,
-            isDoctor: message.isDoctor
-          }]);
-          
-          // If this is the patient joining, initiate the call
-          if (!message.isDoctor) {
-            startCall(message.userId);
-          }
-          break;
-          
-        case 'user-left':
-          toast({
-            title: "Participant left",
-            description: "A participant has left the consultation",
-          });
-          setParticipants(prev => prev.filter(p => p.id !== message.userId));
-          break;
-          
-        case 'offer':
-          handleOffer(message);
-          break;
-          
-        case 'answer':
-          handleAnswer(message);
-          break;
-          
-        case 'ice-candidate':
-          handleICECandidate(message);
-          break;
-          
-        case 'chat-message':
-          setMessages(prev => [...prev, {
-            sender: message.senderName,
-            text: message.text
-          }]);
-          break;
-          
-        case 'error':
-          toast({
-            title: "Error",
-            description: message.message,
-            variant: "destructive"
-          });
-          break;
-      }
-    };
-    
-    wsRef.current.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      toast({
-        title: "Connection Error",
-        description: "Failed to connect to the consultation server",
-        variant: "destructive"
-      });
-    };
-    
-    wsRef.current.onclose = () => {
-      console.log('WebSocket connection closed');
-      setConnected(false);
-    };
-    
-    // Get user media and initialize local video
-    initializeMedia();
     
     // Cleanup function
     return () => {
@@ -591,7 +592,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
         localStreamRef.current.getTracks().forEach(track => track.stop());
       }
     };
-  }, [roomId, user]);
+  }, [roomId, user, toast, startCall, handleOffer, handleAnswer, handleICECandidate, initializeMedia, isRecording]);
   
   const initializeMedia = async () => {
     try {

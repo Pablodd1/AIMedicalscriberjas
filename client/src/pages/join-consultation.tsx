@@ -109,42 +109,71 @@ export default function JoinConsultationPage() {
     const wsUrl = `${protocol}//${window.location.host}/ws`;
 
     console.log('Patient connecting to WebSocket at:', wsUrl);
-    wsRef.current = new WebSocket(wsUrl);
+    
+    try {
+      wsRef.current = new WebSocket(wsUrl);
 
-    wsRef.current.onopen = () => {
-      console.log('WebSocket connection established');
-      console.log('Joining room with ID:', roomId);
-
-      // Join the room
-      if (wsRef.current && roomId) {
-        // Create a consistent patient ID for this session
+      wsRef.current.onopen = () => {
+        console.log('Patient WebSocket connection established successfully');
+        
+        // Create or retrieve the patient ID
         const patientId = sessionStorage.getItem('patientSessionId') || `patient_${Date.now()}`;
         
-        // Store it in session storage for consistent use
         if (!sessionStorage.getItem('patientSessionId')) {
+          console.log('Creating new patient session ID:', patientId);
           sessionStorage.setItem('patientSessionId', patientId);
+        } else {
+          console.log('Using existing patient session ID:', patientId);
         }
         
-        console.log('Patient joining room with ID:', roomId, 'using patientId:', patientId);
-        wsRef.current.send(JSON.stringify({
-          type: 'join',
-          roomId: roomId,
-          userId: patientId,
-          name: name,
-          isDoctor: false
-        }));
-      } else {
-        console.error('Cannot join room - missing room ID or WebSocket connection');
+        // Join the room
+        if (wsRef.current && roomId) {
+          const joinMessage = {
+            type: 'join',
+            roomId: roomId,
+            userId: patientId,
+            name: name,
+            isDoctor: false
+          };
+          
+          console.log('Patient joining room with message:', joinMessage);
+          wsRef.current.send(JSON.stringify(joinMessage));
+          
+          // Also initialize WebRTC peer connection after joining
+          createPeerConnection();
+        } else {
+          console.error('Cannot join room - missing room ID or WebSocket connection');
+          setError("Unable to join consultation. Please check your link and try again.");
+          toast({
+            title: "Connection Error",
+            description: "Unable to join consultation. Missing room ID.",
+            variant: "destructive"
+          });
+        }
+      };
+      
+      wsRef.current.onerror = (event) => {
+        console.error('Patient WebSocket connection error:', event);
+        setError("Failed to connect to consultation server. Please try again.");
         toast({
           title: "Connection Error",
-          description: "Unable to join consultation. Missing room ID.",
+          description: "Failed to connect to consultation server",
           variant: "destructive"
         });
-      }
-    };
+      };
+    } catch (error) {
+      console.error('Error creating WebSocket connection:', error);
+      setError("Connection error. Please try again later.");
+      toast({
+        title: "Connection Error",
+        description: "Failed to establish connection",
+        variant: "destructive"
+      });
+    }
 
-    wsRef.current.onmessage = async (event) => {
-      const message = JSON.parse(event.data);
+    if (wsRef.current) {
+      wsRef.current.onmessage = async (event) => {
+        const message = JSON.parse(event.data);
 
       switch (message.type) {
         case 'welcome':
@@ -187,18 +216,12 @@ export default function JoinConsultationPage() {
       }
     };
 
-    wsRef.current.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      toast({
-        title: "Connection Error",
-        description: "There was an error connecting to the video session.",
-        variant: "destructive"
-      });
-    };
-
-    wsRef.current.onclose = () => {
-      console.log('WebSocket connection closed');
-    };
+      // Handle connection close
+      wsRef.current.onclose = () => {
+        console.log('WebSocket connection closed');
+        setIsConnected(false);
+      };
+    } // End of the if wsRef.current block
   };
 
   const createPeerConnection = async (fromUserId?: string) => {
@@ -229,26 +252,7 @@ export default function JoinConsultationPage() {
       const patientId = sessionStorage.getItem('patientSessionId');
       console.log('Patient using consistent session ID for WebRTC connection:', patientId);
       
-      // Set up connection state monitoring
-      pc.oniceconnectionstatechange = () => {
-        console.log('Patient ICE connection state changed:', pc.iceConnectionState);
-        if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
-          setIsConnected(true);
-          toast({
-            title: "Connected",
-            description: `Connected with doctor ${doctorName || 'unknown'}`,
-          });
-        } else if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'closed') {
-          setIsConnected(false);
-          toast({
-            title: "Connection Lost",
-            description: "The video connection was lost. Please try again.",
-            variant: "destructive"
-          });
-        }
-      };
-      
-      // Monitor connection state
+      // Monitor connection state - this will be overwritten with more detailed handler below
       pc.onconnectionstatechange = () => {
         console.log('Patient connection state changed:', pc.connectionState);
       };
