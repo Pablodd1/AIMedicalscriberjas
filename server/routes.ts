@@ -520,7 +520,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           });
           
-          // Send current participants to the new user
+          // Send current participants to the new user - using both old and new formats for compatibility
           socket.send(JSON.stringify({
             type: 'room-info',
             participants: room.participants.map(p => ({
@@ -529,50 +529,120 @@ export async function registerRoutes(app: Express): Promise<Server> {
               isDoctor: p.isDoctor
             }))
           }));
+          
+          // Also send a room-users message for backward compatibility
+          socket.send(JSON.stringify({
+            type: 'room-users',
+            users: room.participants.map(p => ({
+              id: p.id,
+              name: p.name,
+              isDoctor: p.isDoctor
+            }))
+          }));
         }
         
         // Handle WebRTC signaling - including all signaling messages
-        if ((data.type === 'signal' || data.type === 'offer' || data.type === 'answer' || data.type === 'ice-candidate') && roomId && userId) {
+        if ((data.type === 'signal' || data.type === 'offer' || data.type === 'answer' || data.type === 'ice-candidate')) {
+          // First make sure we have the required fields
+          if (!roomId) {
+            console.error('Missing roomId in WebRTC message:', data.type);
+            socket.send(JSON.stringify({
+              type: 'error',
+              message: 'Missing roomId in WebRTC message'
+            }));
+            return;
+          }
+          
+          if (!userId) {
+            console.error('Missing userId in WebRTC message:', data.type);
+            socket.send(JSON.stringify({
+              type: 'error',
+              message: 'Missing userId in WebRTC message'
+            }));
+            return;
+          }
+          
+          // Handle different target id fields
+          const targetId = data.targetId || data.target;
+          if (!targetId) {
+            console.error('Missing target for WebRTC message:', data.type);
+            socket.send(JSON.stringify({
+              type: 'error',
+              message: 'Missing target ID in WebRTC message'
+            }));
+            return;
+          }
+          
+          // Get the room
           const room = rooms.get(roomId);
-          if (room) {
-            // Handle different target id fields
-            const targetId = data.targetId || data.target;
-            
-            console.log(`Routing ${data.type} message from ${userId} to target ${targetId} in room ${roomId}`);
-            console.log(`Current participants in room ${roomId}:`, room.participants.map(p => `${p.id} (${p.name}, ${p.isDoctor ? 'doctor' : 'patient'})`).join(', '));
-            
-            // Find the target user
-            const targetParticipant = room.participants.find(p => p.id === targetId);
-            
-            if (targetParticipant) {
-              // Forward the exact same message but add fromId if needed
-              const forwardData = {...data};
-              
-              // Add sender info if not already present
-              if (!forwardData.fromId && !forwardData.sender) {
-                forwardData.fromId = userId;
-                forwardData.sender = userId;
-              }
-              
-              // Log detailed message info (excluding large SDP data)
-              const logData = {...forwardData};
-              if (logData.data && typeof logData.data === 'object') {
-                if ('sdp' in logData.data) {
-                  logData.data.sdp = '(SDP data)';
-                }
-                if ('candidate' in logData.data) {
-                  logData.data.candidate = '(candidate data)';
-                }
-              }
-              console.log(`Forwarding ${data.type} message:`, JSON.stringify(logData));
-              
-              targetParticipant.socket.send(JSON.stringify(forwardData));
-              console.log(`Successfully forwarded ${data.type} message to ${targetId}`);
-            } else {
-              console.error(`Target participant ${targetId} not found in room ${roomId}. Available participants:`, room.participants.map(p => p.id).join(', '));
-            }
-          } else {
+          if (!room) {
             console.error(`Room ${roomId} not found for signal message. Available rooms:`, Array.from(rooms.keys()).join(', '));
+            socket.send(JSON.stringify({
+              type: 'error',
+              message: `Room ${roomId} not found`
+            }));
+            return;
+          }
+          
+          // Log detailed routing information
+          console.log(`[WebRTC] Routing ${data.type} message from ${userId} to target ${targetId} in room ${roomId}`);
+          console.log(`[WebRTC] Current participants in room ${roomId}:`, room.participants.map(p => `${p.id} (${p.name}, ${p.isDoctor ? 'doctor' : 'patient'})`).join(', '));
+          
+          // Find the target user
+          const targetParticipant = room.participants.find(p => p.id === targetId);
+          
+          if (!targetParticipant) {
+            console.error(`[WebRTC] Target participant ${targetId} not found in room ${roomId}. Available participants:`, room.participants.map(p => p.id).join(', '));
+            socket.send(JSON.stringify({
+              type: 'error',
+              message: `Target participant ${targetId} not found in room`
+            }));
+            return;
+          }
+          
+          // Check if the target socket is valid and connected
+          if (targetParticipant.socket.readyState !== WebSocket.OPEN) {
+            console.error(`[WebRTC] Target socket not open for ${targetId} in room ${roomId}. ReadyState:`, targetParticipant.socket.readyState);
+            socket.send(JSON.stringify({
+              type: 'error',
+              message: `Target participant ${targetId} is not connected`
+            }));
+            return;
+          }
+          
+          // Forward the exact same message but add sender info if needed
+          const forwardData = {...data};
+          
+          // Ensure consistent sender info is available to the recipient
+          forwardData.sender = userId;
+          forwardData.from = userId;
+          
+          // Add room ID if not present
+          if (!forwardData.roomId) {
+            forwardData.roomId = roomId;
+          }
+          
+          // Log detailed message info (excluding large SDP data)
+          const logData = {...forwardData};
+          if (logData.data && typeof logData.data === 'object') {
+            if ('sdp' in logData.data) {
+              logData.data.sdp = '(SDP data)';
+            }
+            if ('candidate' in logData.data) {
+              logData.data.candidate = '(candidate data)';
+            }
+          }
+          console.log(`[WebRTC] Forwarding ${data.type} message:`, JSON.stringify(logData));
+          
+          try {
+            targetParticipant.socket.send(JSON.stringify(forwardData));
+            console.log(`[WebRTC] Successfully forwarded ${data.type} message to ${targetId}`);
+          } catch (error) {
+            console.error(`[WebRTC] Error forwarding message to ${targetId}:`, error);
+            socket.send(JSON.stringify({
+              type: 'error',
+              message: `Failed to forward message to ${targetId}`
+            }));
           }
         }
       } catch (error) {
