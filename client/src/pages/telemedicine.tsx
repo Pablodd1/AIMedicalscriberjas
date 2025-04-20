@@ -1003,7 +1003,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                   className="bg-white/20 hover:bg-white/30 border-none rounded-full h-10 w-10 sm:h-12 sm:w-12"
                   onClick={toggleVideo}
                 >
-                  {videoEnabled ? <Video className="h-4 w-4" /> : <VideoOff className="h-4 w-4/>}
+                  {videoEnabled ? <Video className="h-4 w-4" /> : <VideoOff className="h-4 w-4" />}
                 </Button>
 
                 <Button
