@@ -435,7 +435,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
   useEffect(() => {
     // Initialize WebSocket connection
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws/telemedicine`;
+    const wsUrl = `${protocol}//${window.location.host}/ws`;
     
     console.log('Connecting to WebSocket at:', wsUrl);
     wsRef.current = new WebSocket(wsUrl);
@@ -625,10 +625,35 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       };
       
       peerConnectionRef.current.ontrack = (event) => {
-        // Set remote stream to video element
-        if (remoteVideoRef.current && event.streams[0]) {
-          remoteVideoRef.current.srcObject = event.streams[0];
+        console.log('Doctor received remote track:', event.track.kind, event.track.label, event.track.readyState);
+        
+        // Make sure we have a valid remote video element
+        if (!remoteVideoRef.current) {
+          console.error('Remote video element not available');
+          return;
         }
+        
+        // Some browsers don't create a new MediaStream automatically
+        if (!remoteVideoRef.current.srcObject) {
+          console.log('Creating new MediaStream for remote video');
+          remoteVideoRef.current.srcObject = new MediaStream();
+        }
+        
+        // Get the stream from the video element or create new one
+        const stream = remoteVideoRef.current.srcObject as MediaStream;
+        
+        // Add the track to the stream if it's not already there
+        const trackExists = stream.getTracks().some(t => t.id === event.track.id);
+        if (!trackExists) {
+          console.log('Doctor adding track to remote stream:', event.track.kind, event.track.id);
+          stream.addTrack(event.track);
+        }
+        
+        // Log the current tracks in the stream
+        console.log('Doctor remote stream tracks:', stream.getTracks().map(t => `${t.kind}:${t.id}`).join(', '));
+        
+        // Enable the connection status in UI
+        setConnected(true);
       };
       
       // Create and send offer
@@ -688,10 +713,35 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
         };
         
         peerConnectionRef.current.ontrack = (event) => {
-          // Set remote stream to video element
-          if (remoteVideoRef.current && event.streams[0]) {
-            remoteVideoRef.current.srcObject = event.streams[0];
+          console.log('Doctor received remote track in handleOffer:', event.track.kind, event.track.label);
+          
+          // Make sure we have a valid remote video element
+          if (!remoteVideoRef.current) {
+            console.error('Remote video element not available');
+            return;
           }
+          
+          // Some browsers don't create a new MediaStream automatically
+          if (!remoteVideoRef.current.srcObject) {
+            console.log('Creating new MediaStream for remote video');
+            remoteVideoRef.current.srcObject = new MediaStream();
+          }
+          
+          // Get the stream from the video element or create new one
+          const stream = remoteVideoRef.current.srcObject as MediaStream;
+          
+          // Add the track to the stream if it's not already there
+          const trackExists = stream.getTracks().some(t => t.id === event.track.id);
+          if (!trackExists) {
+            console.log('Doctor adding track to remote stream:', event.track.kind, event.track.id);
+            stream.addTrack(event.track);
+          }
+          
+          // Log the current tracks in the stream
+          console.log('Doctor remote stream tracks:', stream.getTracks().map(t => `${t.kind}:${t.id}`).join(', '));
+          
+          // Enable the connection status in UI
+          setConnected(true);
         };
       }
       
