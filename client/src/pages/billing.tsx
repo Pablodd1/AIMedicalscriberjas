@@ -48,6 +48,15 @@ import { CalendarIcon, Plus, DollarSign, FileText, CreditCard, Calendar, Edit, F
 import { Badge } from "@/components/ui/badge";
 import { Patient, Invoice } from "@shared/schema";
 import { format } from "date-fns";
+
+// Extended interface for invoices with patient data
+interface ExtendedInvoice extends Invoice {
+  patient?: {
+    id: number;
+    name: string;
+    email: string;
+  }
+}
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -59,6 +68,7 @@ const invoiceFormSchema = z.object({
   amountPaid: z.coerce.number().min(0, "Amount paid cannot be negative").optional(),
   description: z.string().min(5, "Description must be at least 5 characters"),
   dueDate: z.date({ required_error: "Please select a due date" }),
+  invoiceNumber: z.string().optional(),
 });
 
 type InvoiceFormValues = z.infer<typeof invoiceFormSchema>;
@@ -75,11 +85,11 @@ export default function Billing() {
   const { toast } = useToast();
   const { user } = useAuth();
   const [showNewInvoiceForm, setShowNewInvoiceForm] = useState(false);
-  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [selectedInvoice, setSelectedInvoice] = useState<ExtendedInvoice | null>(null);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   
   // Fetch invoices
-  const { data: invoices, isLoading: isLoadingInvoices } = useQuery<any[]>({
+  const { data: invoices, isLoading: isLoadingInvoices } = useQuery<ExtendedInvoice[]>({
     queryKey: ['/api/invoices'],
   });
   
@@ -122,6 +132,8 @@ export default function Billing() {
         dueDate: data.dueDate.toISOString(),
         // Add the invoice number
         invoiceNumber,
+        // Add status if not provided
+        status: data.amountPaid && data.amountPaid >= data.amount ? 'paid' : data.amountPaid ? 'partial' : 'unpaid',
       });
       return await res.json();
     },
