@@ -16,6 +16,20 @@ import {
   type RecordingSession
 } from "@shared/schema";
 
+// Define the interface for telemedicine rooms
+interface VideoChatRoom {
+  id: string;
+  participants: { 
+    id: string;
+    socket: WebSocket;
+    name: string;
+    isDoctor: boolean;
+  }[];
+}
+
+// Store active rooms in memory
+const activeRooms = new Map<string, VideoChatRoom>();
+
 export async function registerRoutes(app: Express): Promise<Server> {
   setupAuth(app);
   
@@ -260,18 +274,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Telemedicine routes
-  // Store active video consultation rooms
-  interface VideoChatRoom {
-    id: string;
-    participants: { 
-      id: string;
-      socket: WebSocket;
-      name: string;
-      isDoctor: boolean;
-    }[];
-  }
-  
-  const activeRooms: Map<string, VideoChatRoom> = new Map();
   
   // Invoice routes
   app.get("/api/invoices", async (req, res) => {
