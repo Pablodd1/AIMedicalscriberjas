@@ -223,7 +223,7 @@ export default function Billing() {
   };
   
   // Open payment dialog for an invoice
-  const handleUpdatePayment = (invoice: Invoice) => {
+  const handleUpdatePayment = (invoice: ExtendedInvoice) => {
     setSelectedInvoice(invoice);
     paymentForm.reset({
       // Convert cents to dollars for display
