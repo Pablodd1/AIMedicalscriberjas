@@ -762,14 +762,35 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
 
   // Live transcription functions
   const addLiveTranscription = (speaker: string, text: string) => {
+    const newTranscription = {
+      speaker, 
+      text, 
+      timestamp: new Date()
+    };
+    
     setLiveTranscriptions(prev => [
       ...prev, 
-      {
-        speaker, 
-        text, 
-        timestamp: new Date()
-      }
+      newTranscription
     ]);
+    
+    // If we're already recording, save this transcription to the session
+    if (isRecording && mediaRecorderRef.current) {
+      try {
+        // Save transcription with the recording session
+        fetch('/api/telemedicine/recordings/transcription', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            roomId,
+            transcription: newTranscription
+          }),
+        }).catch(err => console.error('Failed to save transcription:', err));
+      } catch (error) {
+        console.error('Error saving transcription:', error);
+      }
+    }
   };
 
   // Reference for speech recognition
