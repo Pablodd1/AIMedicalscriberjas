@@ -330,6 +330,9 @@ export const recordingSessions = pgTable("recording_sessions", {
   transcript: text("transcript"),
   notes: text("notes"),
   duration: integer("duration"), // in seconds
+  audioFilePath: text("audio_file_path"), // Path to the audio recording file
+  durationSeconds: integer("duration_seconds"), // More explicit duration field in seconds
+  transcription: text("transcription"), // Full transcription from the audio
 });
 
 // Recording session insert schema
@@ -340,6 +343,9 @@ export const insertRecordingSessionSchema = createInsertSchema(recordingSessions
   status: true,
   transcript: true,
   notes: true,
+  audioFilePath: true,
+  durationSeconds: true,
+  transcription: true,
 });
 
 export type InsertRecordingSession = z.infer<typeof insertRecordingSessionSchema>;
