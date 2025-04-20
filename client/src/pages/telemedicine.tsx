@@ -180,11 +180,13 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       
       // Update recorded time every second
       recordingIntervalRef.current = window.setInterval(() => {
-        setRecordedTime(prev => prev + 1);
-        // Request more data every 5 seconds to ensure continuous recording
-        if (mediaRecorderRef.current && prev % 5 === 0) {
-          mediaRecorderRef.current.requestData();
-        }
+        setRecordedTime(currentTime => {
+          // Request more data every 5 seconds to ensure continuous recording
+          if (mediaRecorderRef.current && currentTime % 5 === 0) {
+            mediaRecorderRef.current.requestData();
+          }
+          return currentTime + 1;
+        });
       }, 1000);
       
       toast({
@@ -241,13 +243,44 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           });
           
           try {
-            // Create an audio URL for downloading
-            const audioUrl = URL.createObjectURL(audioBlob);
+            // Create an audio element to convert to MP3
+            const audioElement = document.createElement('audio');
+            audioElement.src = URL.createObjectURL(audioBlob);
             
-            // Save the audio file directly to consulting notes
+            // Convert webm to mp3 format by sending to server
+            const formDataMp3 = new FormData();
+            formDataMp3.append('audio', audioBlob, 'consultation_original.webm');
+            formDataMp3.append('roomId', roomId);
+            
+            // Save recording in the database first
+            const recordingResponse = await fetch('/api/telemedicine/recordings', {
+              method: 'POST',
+              body: formDataMp3,
+            });
+            
+            if (!recordingResponse.ok) {
+              console.error('Error saving recording:', recordingResponse.status);
+            }
+            
+            // Offer MP3 conversion through server API
+            const mp3Response = await fetch('/api/telemedicine/convert-to-mp3', {
+              method: 'POST',
+              body: formDataMp3,
+            });
+            
+            let mp3Url = null;
+            let mp3Blob = null;
+            
+            if (mp3Response.ok) {
+              mp3Blob = await mp3Response.blob();
+              mp3Url = URL.createObjectURL(mp3Blob);
+            }
+            
+            // Create the download link (using MP3 if conversion worked, webm as fallback)
+            const audioUrl = mp3Url || URL.createObjectURL(audioBlob);
             const downloadLink = document.createElement('a');
             downloadLink.href = audioUrl;
-            downloadLink.download = `consultation_${roomId}_${new Date().toISOString()}.webm`;
+            downloadLink.download = `consultation_${roomId}_${new Date().toISOString()}.${mp3Url ? 'mp3' : 'webm'}`;
             
             // Create a fallback timestamp-based transcript
             const timestamp = new Date().toISOString();
@@ -866,7 +899,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
               ref={remoteVideoRef}
               autoPlay
               playsInline
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain bg-black"
             />
             
             {/* Local video (pip) */}
@@ -876,7 +909,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                 autoPlay
                 playsInline
                 muted
-                className="w-full h-full object-cover"
+                className="w-full h-full object-contain bg-gray-800"
               />
             </div>
           </div>

@@ -1,10 +1,14 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from 'ws';
+import multer from 'multer';
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { aiRouter } from "./routes/ai";
 import { emailRouter } from "./routes/email";
+import path from 'path';
+import fs from 'fs';
+import { spawn } from 'child_process';
 import { 
   insertPatientSchema, 
   insertAppointmentSchema, 
