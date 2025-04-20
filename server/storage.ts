@@ -340,6 +340,60 @@ export class DatabaseStorage implements IStorage {
       return newTemplate;
     }
   }
+  
+  // Patient intake form methods
+  async getIntakeForms(doctorId: number): Promise<IntakeForm[]> {
+    return db.select().from(intakeForms).where(eq(intakeForms.doctorId, doctorId));
+  }
+
+  async getIntakeForm(id: number): Promise<IntakeForm | undefined> {
+    const [form] = await db.select().from(intakeForms).where(eq(intakeForms.id, id));
+    return form;
+  }
+
+  async getIntakeFormByLink(uniqueLink: string): Promise<IntakeForm | undefined> {
+    const [form] = await db
+      .select()
+      .from(intakeForms)
+      .where(eq(intakeForms.uniqueLink, uniqueLink));
+    
+    return form;
+  }
+
+  async createIntakeForm(form: InsertIntakeForm): Promise<IntakeForm> {
+    const [newForm] = await db
+      .insert(intakeForms)
+      .values(form)
+      .returning();
+    
+    return newForm;
+  }
+
+  async updateIntakeFormStatus(id: number, status: string): Promise<IntakeForm | undefined> {
+    const [updatedForm] = await db
+      .update(intakeForms)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(intakeForms.id, id))
+      .returning();
+    
+    return updatedForm;
+  }
+
+  async getIntakeFormResponses(formId: number): Promise<IntakeFormResponse[]> {
+    return db
+      .select()
+      .from(intakeFormResponses)
+      .where(eq(intakeFormResponses.formId, formId));
+  }
+
+  async createIntakeFormResponse(response: InsertIntakeFormResponse): Promise<IntakeFormResponse> {
+    const [newResponse] = await db
+      .insert(intakeFormResponses)
+      .values(response)
+      .returning();
+    
+    return newResponse;
+  }
 
   // Invoice methods
   async getInvoices(doctorId: number): Promise<Invoice[]> {
@@ -430,71 +484,6 @@ export class DatabaseStorage implements IStorage {
       .returning();
     
     return updatedInvoice;
-  }
-
-  // Patient intake form methods
-  async getIntakeForms(doctorId: number): Promise<IntakeForm[]> {
-    return db.select().from(intakeForms).where(eq(intakeForms.doctorId, doctorId));
-  }
-
-  async getIntakeForm(id: number): Promise<IntakeForm | undefined> {
-    const [form] = await db.select().from(intakeForms).where(eq(intakeForms.id, id));
-    return form;
-  }
-
-  async getIntakeFormByLink(uniqueLink: string): Promise<IntakeForm | undefined> {
-    const [form] = await db
-      .select()
-      .from(intakeForms)
-      .where(eq(intakeForms.uniqueLink, uniqueLink));
-    return form;
-  }
-
-  async createIntakeForm(form: InsertIntakeForm): Promise<IntakeForm> {
-    // Generate unique link if not provided
-    const formData = { ...form };
-    if (!formData.uniqueLink) {
-      // Format: {randomString}
-      formData.uniqueLink = `intake_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    }
-
-    const [newForm] = await db
-      .insert(intakeForms)
-      .values(formData)
-      .returning();
-    return newForm;
-  }
-
-  async updateIntakeFormStatus(id: number, status: string): Promise<IntakeForm | undefined> {
-    let updateData: any = { status };
-    
-    // If status is "completed", set completedAt
-    if (status === "completed") {
-      updateData.completedAt = new Date();
-    }
-    
-    const [updatedForm] = await db
-      .update(intakeForms)
-      .set(updateData)
-      .where(eq(intakeForms.id, id))
-      .returning();
-    
-    return updatedForm;
-  }
-
-  async getIntakeFormResponses(formId: number): Promise<IntakeFormResponse[]> {
-    return db
-      .select()
-      .from(intakeFormResponses)
-      .where(eq(intakeFormResponses.formId, formId));
-  }
-
-  async createIntakeFormResponse(response: InsertIntakeFormResponse): Promise<IntakeFormResponse> {
-    const [newResponse] = await db
-      .insert(intakeFormResponses)
-      .values(response)
-      .returning();
-    return newResponse;
   }
 }
 

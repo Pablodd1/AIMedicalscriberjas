@@ -10,7 +10,9 @@ import {
   insertAppointmentSchema, 
   insertMedicalNoteSchema,
   insertConsultationNoteSchema,
-  insertInvoiceSchema
+  insertInvoiceSchema,
+  insertIntakeFormSchema,
+  insertIntakeFormResponseSchema
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -537,6 +539,170 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
     });
+  });
+
+  // Patient intake form routes
+  app.get("/api/intake-forms", async (req, res) => {
+    try {
+      const forms = await storage.getIntakeForms(MOCK_DOCTOR_ID);
+      res.json(forms);
+    } catch (error: any) {
+      console.error("Error fetching intake forms:", error);
+      res.status(500).json({ message: "Failed to fetch intake forms" });
+    }
+  });
+  
+  app.get("/api/intake-forms/:id", async (req, res) => {
+    try {
+      const formId = parseInt(req.params.id);
+      if (isNaN(formId)) {
+        return res.status(400).json({ message: "Invalid ID format" });
+      }
+      
+      const form = await storage.getIntakeForm(formId);
+      if (!form) {
+        return res.status(404).json({ message: "Intake form not found" });
+      }
+      
+      // Get responses for this form
+      const responses = await storage.getIntakeFormResponses(formId);
+      
+      res.json({
+        ...form,
+        responses
+      });
+    } catch (error: any) {
+      console.error("Error fetching intake form:", error);
+      res.status(500).json({ message: "Failed to fetch intake form" });
+    }
+  });
+  
+  app.post("/api/intake-forms", async (req, res) => {
+    try {
+      const validation = insertIntakeFormSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json(validation.error);
+      }
+      
+      // One week expiration by default
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7);
+      
+      // Generate a unique link for the form
+      const uniqueLink = `intake_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      
+      const intakeForm = await storage.createIntakeForm({
+        ...validation.data,
+        doctorId: MOCK_DOCTOR_ID,
+        status: "pending",
+        uniqueLink,
+        expiresAt
+      });
+      
+      res.status(201).json(intakeForm);
+    } catch (error: any) {
+      console.error("Error creating intake form:", error);
+      res.status(500).json({ message: "Failed to create intake form" });
+    }
+  });
+  
+  // Public endpoint to access the intake form by its unique link
+  app.get("/api/public/intake-form/:uniqueLink", async (req, res) => {
+    try {
+      const { uniqueLink } = req.params;
+      
+      const form = await storage.getIntakeFormByLink(uniqueLink);
+      if (!form) {
+        return res.status(404).json({ message: "Intake form not found" });
+      }
+      
+      // Check if form is expired
+      if (form.status === "expired" || (form.expiresAt && new Date(form.expiresAt) < new Date())) {
+        return res.status(403).json({ message: "This intake form has expired" });
+      }
+      
+      // Check if form is already completed
+      if (form.status === "completed") {
+        return res.status(403).json({ message: "This intake form has already been completed" });
+      }
+      
+      // Get existing responses for this form
+      const responses = await storage.getIntakeFormResponses(form.id);
+      
+      res.json({
+        ...form,
+        responses
+      });
+    } catch (error: any) {
+      console.error("Error fetching public intake form:", error);
+      res.status(500).json({ message: "Failed to fetch intake form" });
+    }
+  });
+  
+  // Submit response for a specific intake form
+  app.post("/api/public/intake-form/:formId/responses", async (req, res) => {
+    try {
+      const formId = parseInt(req.params.formId);
+      
+      if (isNaN(formId)) {
+        return res.status(400).json({ message: "Invalid form ID" });
+      }
+      
+      // Make sure the form exists and is valid for submission
+      const form = await storage.getIntakeForm(formId);
+      if (!form) {
+        return res.status(404).json({ message: "Intake form not found" });
+      }
+      
+      // Check if form is expired or completed
+      if (form.status === "expired" || form.status === "completed") {
+        return res.status(403).json({ message: "This intake form cannot accept responses" });
+      }
+      
+      // Validate the response data
+      const responseData = {
+        ...req.body,
+        formId
+      };
+      
+      const validation = insertIntakeFormResponseSchema.safeParse(responseData);
+      if (!validation.success) {
+        return res.status(400).json(validation.error);
+      }
+      
+      // Save the response
+      const response = await storage.createIntakeFormResponse(validation.data);
+      
+      res.status(201).json(response);
+    } catch (error: any) {
+      console.error("Error saving intake form response:", error);
+      res.status(500).json({ message: "Failed to save response" });
+    }
+  });
+  
+  // Complete an intake form
+  app.post("/api/public/intake-form/:formId/complete", async (req, res) => {
+    try {
+      const formId = parseInt(req.params.formId);
+      
+      if (isNaN(formId)) {
+        return res.status(400).json({ message: "Invalid form ID" });
+      }
+      
+      // Make sure the form exists
+      const form = await storage.getIntakeForm(formId);
+      if (!form) {
+        return res.status(404).json({ message: "Intake form not found" });
+      }
+      
+      // Update the form status to completed
+      const updatedForm = await storage.updateIntakeFormStatus(formId, "completed");
+      
+      res.json(updatedForm);
+    } catch (error: any) {
+      console.error("Error completing intake form:", error);
+      res.status(500).json({ message: "Failed to complete intake form" });
+    }
   });
 
   return httpServer;

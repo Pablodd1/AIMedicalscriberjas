@@ -1,504 +1,404 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { 
-  Video, 
-  Mic, 
-  MicOff, 
-  VideoOff,
-  X,
-  MessageCircle,
-  Send
-} from "lucide-react";
-import { 
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardFooter
-} from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { useToast } from "@/hooks/use-toast";
-import { useLocation } from "wouter";
+import { Label } from "@/components/ui/label";
+import { Loader2, Mic, MicOff, Send, Check } from "lucide-react";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useParams, useLocation } from "wouter";
+import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { recordingService } from "@/lib/recording-service";
 
-export default function PatientJoin() {
+// Array of standard intake questions
+const DEFAULT_QUESTIONS = [
+  { id: "reason", text: "What is the reason for your visit today?" },
+  { id: "symptoms", text: "What symptoms are you experiencing and how long have they been present?" },
+  { id: "medical_history", text: "Do you have any pre-existing medical conditions?" },
+  { id: "medications", text: "Are you currently taking any medications? If so, please list them." },
+  { id: "allergies", text: "Do you have any allergies to medications or other substances?" },
+  { id: "family_history", text: "Is there any relevant family medical history we should know about?" },
+  { id: "lifestyle", text: "Please describe your lifestyle (exercise, diet, smoking, alcohol, etc.)" },
+];
+
+export default function PatientJoinPage() {
+  const { uniqueLink } = useParams();
+  const [location, setLocation] = useLocation();
   const { toast } = useToast();
-  const [, setLocation] = useLocation();
-  const [roomId, setRoomId] = useState("");
-  const [name, setName] = useState("");
-  const [joined, setJoined] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [questionResponses, setQuestionResponses] = useState<Record<string, { answer: string, answerType: string, audioUrl?: string }>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [allQuestionsAnswered, setAllQuestionsAnswered] = useState(false);
+  const [formComplete, setFormComplete] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   
-  // Video call state
-  const [connected, setConnected] = useState(false);
-  const [audioEnabled, setAudioEnabled] = useState(true);
-  const [videoEnabled, setVideoEnabled] = useState(true);
-  const [chatOpen, setChatOpen] = useState(false);
-  const [messages, setMessages] = useState<{sender: string, text: string}[]>([]);
-  const [messageText, setMessageText] = useState("");
-  
-  // References
-  const localVideoRef = useRef<HTMLVideoElement>(null);
-  const remoteVideoRef = useRef<HTMLVideoElement>(null);
-  const wsRef = useRef<WebSocket | null>(null);
-  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
-  const localStreamRef = useRef<MediaStream | null>(null);
-  
-  // WebRTC configuration
-  const configuration = {
-    iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
-    ]
-  };
-  
-  const handleJoin = () => {
-    if (!roomId || !name) {
-      toast({
-        title: "Missing information",
-        description: "Please enter your room ID and name",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    setJoined(true);
-    initializeMedia();
-  };
-  
-  const initializeMedia = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: true, 
-        audio: true 
-      });
-      
-      localStreamRef.current = stream;
-      
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-      }
-      
-      // Initialize WebSocket connection
-      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const wsUrl = `${protocol}//${window.location.host}/ws/telemedicine`;
-      
-      wsRef.current = new WebSocket(wsUrl);
-      
-      wsRef.current.onopen = () => {
-        console.log('WebSocket connection established');
-        
-        // Join the room
-        if (wsRef.current) {
-          wsRef.current.send(JSON.stringify({
-            type: 'join',
-            roomId,
-            userId: `patient-${Date.now()}`,
-            name,
-            isDoctor: false
-          }));
-        }
-      };
-      
-      wsRef.current.onmessage = async (event) => {
-        const message = JSON.parse(event.data);
-        
-        switch (message.type) {
-          case 'room-users':
-            toast({
-              title: "Connected to room",
-              description: `You have joined the consultation room with ${message.users.length} participants`,
-            });
-            break;
+  // Fetch intake form details by unique link
+  const { data: formData, isLoading, error } = useQuery({
+    queryKey: [`/api/public/intake-form/${uniqueLink}`],
+    enabled: !!uniqueLink,
+  });
+
+  // Update audio in the questionResponses when recording stops
+  useEffect(() => {
+    if (!isRecording && recordingService.isRecording) {
+      (async () => {
+        try {
+          await recordingService.stopRecording();
+          const transcript = await recordingService.getTranscript();
+          
+          if (transcript) {
+            const currentQuestionData = DEFAULT_QUESTIONS[currentQuestion];
+            setQuestionResponses(prev => ({
+              ...prev,
+              [currentQuestionData.id]: {
+                ...prev[currentQuestionData.id],
+                answer: transcript,
+                answerType: "audio"
+              }
+            }));
             
-          case 'user-joined':
-            toast({
-              title: "Participant joined",
-              description: `${message.name} has joined the consultation`,
-            });
-            break;
-            
-          case 'user-left':
-            toast({
-              title: "Participant left",
-              description: "A participant has left the consultation",
-            });
-            break;
-            
-          case 'offer':
-            handleOffer(message);
-            break;
-            
-          case 'answer':
-            handleAnswer(message);
-            break;
-            
-          case 'ice-candidate':
-            handleICECandidate(message);
-            break;
-            
-          case 'chat-message':
-            setMessages(prev => [...prev, {
-              sender: message.senderName,
-              text: message.text
-            }]);
-            break;
-            
-          case 'error':
-            toast({
-              title: "Error",
-              description: message.message,
-              variant: "destructive"
-            });
-            break;
-        }
-      };
-      
-      wsRef.current.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        toast({
-          title: "Connection Error",
-          description: "Failed to connect to the consultation server",
-          variant: "destructive"
-        });
-      };
-      
-      wsRef.current.onclose = () => {
-        console.log('WebSocket connection closed');
-        setConnected(false);
-      };
-      
-      setConnected(true);
-    } catch (error) {
-      console.error('Error accessing media devices:', error);
-      toast({
-        title: "Media Error",
-        description: "Could not access camera or microphone. Please check permissions.",
-        variant: "destructive"
-      });
-    }
-  };
-  
-  const handleOffer = async (message: any) => {
-    try {
-      // Create new RTCPeerConnection if it doesn't exist
-      if (!peerConnectionRef.current) {
-        peerConnectionRef.current = new RTCPeerConnection(configuration);
-        
-        // Add local stream tracks to peer connection
-        if (localStreamRef.current) {
-          localStreamRef.current.getTracks().forEach(track => {
-            if (localStreamRef.current && peerConnectionRef.current) {
-              peerConnectionRef.current.addTrack(track, localStreamRef.current);
+            // Automatically focus and populate the textarea
+            if (textareaRef.current) {
+              textareaRef.current.value = transcript;
+              textareaRef.current.focus();
             }
+          }
+        } catch (error) {
+          console.error("Error processing audio:", error);
+          toast({
+            title: "Audio processing failed",
+            description: "We couldn't process your audio. Please try again or type your answer.",
+            variant: "destructive",
           });
         }
-        
-        // Set up event handlers for peer connection
-        peerConnectionRef.current.onicecandidate = (event) => {
-          if (event.candidate) {
-            // Send ICE candidate to the other peer
-            if (wsRef.current) {
-              wsRef.current.send(JSON.stringify({
-                type: 'ice-candidate',
-                target: message.sender,
-                sender: `patient-${Date.now()}`,
-                data: event.candidate
-              }));
-            }
-          }
-        };
-        
-        peerConnectionRef.current.ontrack = (event) => {
-          // Set remote stream to video element
-          if (remoteVideoRef.current && event.streams[0]) {
-            remoteVideoRef.current.srcObject = event.streams[0];
-          }
-        };
-      }
-      
-      // Set remote description from offer
-      await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(message.data));
-      
-      // Create and send answer
-      const answer = await peerConnectionRef.current.createAnswer();
-      await peerConnectionRef.current.setLocalDescription(answer);
-      
-      if (wsRef.current) {
-        wsRef.current.send(JSON.stringify({
-          type: 'answer',
-          target: message.sender,
-          sender: `patient-${Date.now()}`,
-          data: answer
-        }));
-      }
-    } catch (error) {
-      console.error('Error handling offer:', error);
-      toast({
-        title: "Call Error",
-        description: "Failed to accept incoming call",
-        variant: "destructive"
-      });
+      })();
     }
-  };
-  
-  const handleAnswer = async (message: any) => {
-    try {
-      if (peerConnectionRef.current) {
-        await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(message.data));
-      }
-    } catch (error) {
-      console.error('Error handling answer:', error);
-    }
-  };
-  
-  const handleICECandidate = async (message: any) => {
-    try {
-      if (peerConnectionRef.current) {
-        await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(message.data));
-      }
-    } catch (error) {
-      console.error('Error handling ICE candidate:', error);
-    }
-  };
-  
-  const toggleAudio = () => {
-    if (localStreamRef.current) {
-      const audioTracks = localStreamRef.current.getAudioTracks();
-      audioTracks.forEach(track => {
-        track.enabled = !track.enabled;
-      });
-      setAudioEnabled(!audioEnabled);
-    }
-  };
-  
-  const toggleVideo = () => {
-    if (localStreamRef.current) {
-      const videoTracks = localStreamRef.current.getVideoTracks();
-      videoTracks.forEach(track => {
-        track.enabled = !track.enabled;
-      });
-      setVideoEnabled(!videoEnabled);
-    }
-  };
-  
-  const sendChatMessage = () => {
-    if (messageText.trim() && wsRef.current) {
-      const message = {
-        type: 'chat-message',
-        sender: `patient-${Date.now()}`,
-        senderName: name,
-        text: messageText,
-        roomId
-      };
-      
-      wsRef.current.send(JSON.stringify(message));
-      
-      // Add message to local state
-      setMessages(prev => [...prev, {
-        sender: name,
-        text: messageText
-      }]);
-      
-      // Clear input
-      setMessageText("");
-    }
-  };
-  
-  const endCall = () => {
-    // Close WebSocket
-    if (wsRef.current) {
-      wsRef.current.close();
-    }
-    
-    // Close peer connection
-    if (peerConnectionRef.current) {
-      peerConnectionRef.current.close();
-    }
-    
-    // Stop media streams
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => track.stop());
-    }
-    
-    setJoined(false);
-    setLocation("/");
-  };
+  }, [isRecording, currentQuestion, toast]);
 
-  // Component cleanup on unmount
+  // Update the allQuestionsAnswered state whenever questionResponses changes
   useEffect(() => {
-    return () => {
-      // Close WebSocket
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
-      
-      // Close peer connection
-      if (peerConnectionRef.current) {
-        peerConnectionRef.current.close();
-      }
-      
-      // Stop media streams
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, []);
+    if (Object.keys(questionResponses).length === DEFAULT_QUESTIONS.length) {
+      // Check if all questions have answers
+      const allAnswered = DEFAULT_QUESTIONS.every(q => 
+        questionResponses[q.id] && questionResponses[q.id].answer.trim().length > 0
+      );
+      setAllQuestionsAnswered(allAnswered);
+    } else {
+      setAllQuestionsAnswered(false);
+    }
+  }, [questionResponses]);
 
-  return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      {!joined ? (
-        <Card className="w-full max-w-md">
+  // Start audio recording
+  const handleStartRecording = async () => {
+    try {
+      setIsRecording(true);
+      await recordingService.startRecording();
+    } catch (error) {
+      console.error("Error starting recording:", error);
+      setIsRecording(false);
+      toast({
+        title: "Recording failed",
+        description: "Could not start recording. Please check your microphone permissions.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Stop audio recording
+  const handleStopRecording = async () => {
+    setIsRecording(false);
+  };
+
+  // Save the current question's answer
+  const saveCurrentAnswer = () => {
+    if (!textareaRef.current) return;
+    
+    const answer = textareaRef.current.value.trim();
+    if (answer.length === 0) return;
+    
+    const currentQuestionData = DEFAULT_QUESTIONS[currentQuestion];
+    
+    setQuestionResponses(prev => ({
+      ...prev,
+      [currentQuestionData.id]: {
+        ...prev[currentQuestionData.id],
+        answer,
+        answerType: prev[currentQuestionData.id]?.answerType || "text"
+      }
+    }));
+    
+    // If not the last question, go to next question
+    if (currentQuestion < DEFAULT_QUESTIONS.length - 1) {
+      setCurrentQuestion(currentQuestion + 1);
+      // Clear the textarea for the next question
+      if (textareaRef.current) {
+        textareaRef.current.value = questionResponses[DEFAULT_QUESTIONS[currentQuestion + 1]?.id]?.answer || "";
+      }
+    }
+  };
+
+  // Navigate to previous question
+  const handlePrevQuestion = () => {
+    if (currentQuestion > 0) {
+      setCurrentQuestion(currentQuestion - 1);
+      // Set the textarea value to the previous question's answer
+      if (textareaRef.current) {
+        const prevQuestionId = DEFAULT_QUESTIONS[currentQuestion - 1].id;
+        textareaRef.current.value = questionResponses[prevQuestionId]?.answer || "";
+      }
+    }
+  };
+
+  // Navigate to next question
+  const handleNextQuestion = () => {
+    // Save current answer first
+    saveCurrentAnswer();
+  };
+
+  // Submit all answers to complete the form
+  const handleCompleteForm = async () => {
+    if (!formData) return;
+    
+    // Save the current answer first
+    saveCurrentAnswer();
+    
+    setIsSubmitting(true);
+    
+    try {
+      // Submit each question response
+      for (const question of DEFAULT_QUESTIONS) {
+        const response = questionResponses[question.id];
+        if (response && response.answer) {
+          await apiRequest("POST", `/api/public/intake-form/${formData.id}/responses`, {
+            questionId: question.id,
+            question: question.text,
+            answer: response.answer,
+            answerType: response.answerType || "text",
+            audioUrl: response.audioUrl
+          });
+        }
+      }
+      
+      // Mark the form as completed
+      await apiRequest("POST", `/api/public/intake-form/${formData.id}/complete`);
+      
+      setFormComplete(true);
+      toast({
+        title: "Form submitted successfully",
+        description: "Thank you for completing the intake form.",
+      });
+    } catch (error) {
+      console.error("Error submitting form:", error);
+      toast({
+        title: "Submission failed",
+        description: "There was an error submitting the form. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // When the textarea input changes, update the current question response
+  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const currentQuestionData = DEFAULT_QUESTIONS[currentQuestion];
+    setQuestionResponses(prev => ({
+      ...prev,
+      [currentQuestionData.id]: {
+        ...prev[currentQuestionData.id],
+        answer: e.target.value,
+        answerType: "text"
+      }
+    }));
+  };
+
+  // Load existing answer for current question when changing questions
+  useEffect(() => {
+    if (textareaRef.current) {
+      const currentQuestionData = DEFAULT_QUESTIONS[currentQuestion];
+      textareaRef.current.value = questionResponses[currentQuestionData.id]?.answer || "";
+    }
+  }, [currentQuestion, questionResponses]);
+
+  // If there's an error or the form is still loading
+  if (isLoading) {
+    return (
+      <div className="container mx-auto p-4 flex justify-center items-center min-h-[60vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error || !formData) {
+    return (
+      <div className="container mx-auto p-4">
+        <Alert variant="destructive">
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>
+            The intake form could not be found or has expired. Please contact your healthcare provider.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  if (formComplete) {
+    return (
+      <div className="container mx-auto p-4">
+        <Card className="max-w-3xl mx-auto">
           <CardHeader>
-            <CardTitle>Join Medical Consultation</CardTitle>
-            <CardDescription>
-              Enter the room ID and your name to join your virtual consultation
+            <CardTitle className="text-center">
+              <Check className="inline-block mr-2 h-6 w-6 text-green-500" />
+              Form Completed
+            </CardTitle>
+            <CardDescription className="text-center">
+              Thank you for completing your intake form.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label htmlFor="room-id" className="text-sm font-medium">
-                  Room ID
-                </label>
-                <Input
-                  id="room-id"
-                  placeholder="Enter the room ID provided by your doctor"
-                  value={roomId}
-                  onChange={(e) => setRoomId(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="name" className="text-sm font-medium">
-                  Your Name
-                </label>
-                <Input
-                  id="name"
-                  placeholder="Enter your full name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
-              </div>
-            </div>
+          <CardContent className="text-center">
+            <p className="mb-4">
+              Your information has been submitted to {formData.name}. They will review your responses and contact you as needed.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              You may close this window now.
+            </p>
           </CardContent>
-          <CardFooter>
-            <Button className="w-full" onClick={handleJoin}>
-              Join Consultation
-            </Button>
-          </CardFooter>
         </Card>
-      ) : (
-        <div className="w-full max-w-6xl h-[80vh] flex flex-col rounded-lg overflow-hidden border">
-          <div className="flex justify-between items-center p-4 border-b">
-            <div>
-              <h3 className="font-medium">Medical Consultation</h3>
-              <p className="text-xs text-muted-foreground">Connected as {name}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto p-4">
+      <Card className="max-w-3xl mx-auto">
+        <CardHeader>
+          <CardTitle>Patient Intake Form</CardTitle>
+          <CardDescription>
+            Welcome to {formData.name}'s online intake form. Please answer each question either by typing or using voice input.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="mb-4">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-lg font-medium">
+                Question {currentQuestion + 1} of {DEFAULT_QUESTIONS.length}
+              </h3>
+              <div className="text-sm text-muted-foreground">
+                {Object.keys(questionResponses).length} of {DEFAULT_QUESTIONS.length} completed
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Button 
-                onClick={() => setChatOpen(!chatOpen)} 
-                variant="outline" 
-                size="icon"
-                className={chatOpen ? "bg-primary text-primary-foreground" : ""}
-              >
-                <MessageCircle className="h-4 w-4" />
-              </Button>
-              <Button variant="destructive" size="icon" onClick={endCall}>
-                <X className="h-4 w-4" />
-              </Button>
+            <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-primary"
+                style={{ width: `${(Object.keys(questionResponses).length / DEFAULT_QUESTIONS.length) * 100}%` }}
+              ></div>
             </div>
           </div>
-          
-          <div className="flex flex-1 overflow-hidden">
-            <div className={`flex-1 flex flex-col ${chatOpen ? 'w-2/3' : 'w-full'}`}>
-              <div className="relative flex-1 bg-muted">
-                {/* Main remote video */}
-                <video
-                  ref={remoteVideoRef}
-                  autoPlay
-                  playsInline
-                  className="w-full h-full object-cover"
+
+          <div className="mb-6">
+            <Label className="text-lg mb-2 block">{DEFAULT_QUESTIONS[currentQuestion].text}</Label>
+            <div className="flex items-start gap-4">
+              <div className="flex-1">
+                <Textarea 
+                  ref={textareaRef}
+                  placeholder="Type your answer here or use voice recording..."
+                  className="h-32"
+                  onChange={handleTextareaChange}
+                  defaultValue={questionResponses[DEFAULT_QUESTIONS[currentQuestion].id]?.answer || ""}
                 />
-                
-                {/* Local video (pip) */}
-                <div className="absolute bottom-4 right-4 w-1/4 max-w-[200px] rounded-lg overflow-hidden shadow-lg">
-                  <video
-                    ref={localVideoRef}
-                    autoPlay
-                    playsInline
-                    muted
-                    className="w-full h-full object-cover"
-                  />
-                </div>
               </div>
-              
-              <div className="p-4 flex justify-center gap-2 bg-background">
-                <Button 
-                  onClick={toggleAudio} 
-                  variant={audioEnabled ? "outline" : "destructive"}
-                  size="icon"
-                >
-                  {audioEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
-                </Button>
-                <Button 
-                  onClick={toggleVideo} 
-                  variant={videoEnabled ? "outline" : "destructive"}
-                  size="icon"
-                >
-                  {videoEnabled ? <Video className="h-4 w-4" /> : <VideoOff className="h-4 w-4" />}
-                </Button>
-                <Button variant="destructive" onClick={endCall}>
-                  End Call
-                </Button>
+              <div>
+                {isRecording ? (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="icon"
+                    onClick={handleStopRecording}
+                  >
+                    <MicOff className="h-4 w-4" />
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={handleStartRecording}
+                  >
+                    <Mic className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             </div>
-            
-            {chatOpen && (
-              <div className="w-1/3 border-l flex flex-col h-full">
-                <div className="p-4 border-b">
-                  <h3 className="font-medium">Chat</h3>
-                </div>
-                
-                <ScrollArea className="flex-1 p-4">
-                  <div className="space-y-4">
-                    {messages.map((msg, i) => (
-                      <div key={i} className="flex flex-col">
-                        <p className="text-xs font-medium text-muted-foreground">{msg.sender}</p>
-                        <div className="bg-muted rounded-lg p-3 mt-1 inline-block">
-                          <p>{msg.text}</p>
-                        </div>
-                      </div>
-                    ))}
-                    {messages.length === 0 && (
-                      <p className="text-center text-muted-foreground text-sm py-8">
-                        No messages yet
-                      </p>
-                    )}
-                  </div>
-                </ScrollArea>
-                
-                <div className="p-4 border-t flex gap-2">
-                  <Input 
-                    value={messageText}
-                    onChange={(e) => setMessageText(e.target.value)}
-                    placeholder="Type a message..."
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        sendChatMessage();
-                      }
-                    }}
-                  />
-                  <Button onClick={sendChatMessage} size="icon">
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </div>
+            {isRecording && (
+              <div className="text-sm text-primary mt-2 animate-pulse">
+                Recording in progress... Speak clearly and then click stop when finished.
               </div>
             )}
           </div>
-        </div>
-      )}
+
+          <div className="flex justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handlePrevQuestion}
+              disabled={currentQuestion === 0}
+            >
+              Previous
+            </Button>
+            {currentQuestion < DEFAULT_QUESTIONS.length - 1 ? (
+              <Button
+                type="button"
+                onClick={handleNextQuestion}
+              >
+                Next
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                disabled={!allQuestionsAnswered || isSubmitting}
+                onClick={handleCompleteForm}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    <Send className="mr-2 h-4 w-4" />
+                    Complete Form
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
+        </CardContent>
+        <CardFooter className="flex flex-col items-start border-t pt-4">
+          <div className="w-full">
+            <h4 className="font-semibold text-sm mb-2">Question Navigation</h4>
+            <div className="flex flex-wrap gap-2">
+              {DEFAULT_QUESTIONS.map((q, index) => {
+                const isAnswered = questionResponses[q.id]?.answer?.length > 0;
+                return (
+                  <Button
+                    key={q.id}
+                    variant={currentQuestion === index ? "default" : isAnswered ? "outline" : "ghost"}
+                    size="sm"
+                    className={`rounded-full w-8 h-8 p-0 ${isAnswered ? "border-primary text-primary" : ""}`}
+                    onClick={() => setCurrentQuestion(index)}
+                  >
+                    {index + 1}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+        </CardFooter>
+      </Card>
     </div>
   );
 }
