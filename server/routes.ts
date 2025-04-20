@@ -54,6 +54,136 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.status(200).json({ status: "healthy" });
   });
   
+  // Patient routes
+  app.get("/api/patients", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    try {
+      const patients = await storage.getPatients(req.user.id);
+      res.json(patients);
+    } catch (error) {
+      console.error('Error fetching patients:', error);
+      res.status(500).json({ message: "Server error" });
+    }
+  });
+  
+  app.post("/api/patients", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    try {
+      // Parse and validate the patient data
+      const { name, email, phone, dateOfBirth, address, medicalHistory } = req.body;
+      
+      // Create the patient record
+      const patient = await storage.createPatient({
+        name,
+        email,
+        phone,
+        dateOfBirth,
+        address,
+        medicalHistory,
+        createdBy: req.user.id
+      });
+      
+      res.status(200).json(patient);
+    } catch (error) {
+      console.error('Error creating patient:', error);
+      res.status(500).json({ message: "Error creating patient" });
+    }
+  });
+  
+  app.get("/api/patients/:id", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    try {
+      const patientId = parseInt(req.params.id);
+      const patient = await storage.getPatient(patientId);
+      
+      if (!patient) {
+        return res.status(404).json({ message: "Patient not found" });
+      }
+      
+      res.json(patient);
+    } catch (error) {
+      console.error('Error fetching patient:', error);
+      res.status(500).json({ message: "Server error" });
+    }
+  });
+  
+  // Appointment routes
+  app.get("/api/appointments", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    try {
+      const appointments = await storage.getAppointments(req.user.id);
+      res.json(appointments);
+    } catch (error) {
+      console.error('Error fetching appointments:', error);
+      res.status(500).json({ message: "Server error" });
+    }
+  });
+  
+  app.post("/api/appointments", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    try {
+      const { patientId, date, time, duration, notes, appointmentType, status } = req.body;
+      
+      // Create the appointment
+      const appointment = await storage.createAppointment({
+        doctorId: req.user.id,
+        patientId: parseInt(patientId),
+        date,
+        time,
+        duration: parseInt(duration) || 30,
+        notes: notes || '',
+        appointmentType: appointmentType || 'consultation',
+        status: status || 'scheduled'
+      });
+      
+      res.status(201).json(appointment);
+    } catch (error) {
+      console.error('Error creating appointment:', error);
+      res.status(500).json({ message: "Error creating appointment" });
+    }
+  });
+  
+  app.patch("/api/appointments/:id/status", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    try {
+      const appointmentId = parseInt(req.params.id);
+      const { status } = req.body;
+      
+      if (!status) {
+        return res.status(400).json({ message: "Status is required" });
+      }
+      
+      const appointment = await storage.updateAppointmentStatus(appointmentId, status);
+      
+      if (!appointment) {
+        return res.status(404).json({ message: "Appointment not found" });
+      }
+      
+      res.json(appointment);
+    } catch (error) {
+      console.error('Error updating appointment status:', error);
+      res.status(500).json({ message: "Server error" });
+    }
+  });
+  
   // Telemedicine routes for recording sessions
   app.post("/api/telemedicine/recordings", upload.single('audio'), async (req, res) => {
     if (!req.isAuthenticated()) {
