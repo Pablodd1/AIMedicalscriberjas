@@ -697,7 +697,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full max-h-[calc(100vh-8rem)] overflow-hidden">
       <div className="flex justify-between items-center p-2 border-b">
         <div className="flex items-center gap-2">
           <Avatar>
