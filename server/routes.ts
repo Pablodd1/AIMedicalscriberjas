@@ -145,6 +145,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     res.status(201).json(note);
   });
+  
+  // Quick Notes routes (notes without patient association)
+  app.get("/api/quick-notes", async (req, res) => {
+    try {
+      const notes = await storage.getQuickNotes(MOCK_DOCTOR_ID);
+      res.json(notes);
+    } catch (error) {
+      console.error("Error fetching quick notes:", error);
+      res.status(500).json({ message: "Failed to fetch quick notes" });
+    }
+  });
+  
+  app.post("/api/quick-notes", async (req, res) => {
+    try {
+      // Create a modified schema for quick notes that doesn't require patientId
+      const quickNoteData = {
+        ...req.body,
+        doctorId: MOCK_DOCTOR_ID,
+        isQuickNote: true
+      };
+      
+      const note = await storage.createQuickNote(quickNoteData);
+      res.status(201).json(note);
+    } catch (error) {
+      console.error("Error creating quick note:", error);
+      res.status(400).json({ message: "Failed to create quick note", error: error.message });
+    }
+  });
 
   // Consultation Notes routes
   app.get("/api/consultation-notes", async (req, res) => {

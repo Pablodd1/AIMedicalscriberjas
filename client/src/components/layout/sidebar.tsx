@@ -17,7 +17,8 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  Bot
+  Bot,
+  PenTool
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useState } from "react";
@@ -29,6 +30,7 @@ const navigation = [
   { name: "Patients", href: "/patients", icon: Users },
   { name: "Appointments", href: "/appointments", icon: Calendar },
   { name: "Medical Notes", href: "/notes", icon: FileText },
+  { name: "Quick Notes", href: "/quick-notes", icon: PenTool },
   { name: "Telemedicine", href: "/telemedicine", icon: Video },
   { name: "AI Assistant", href: "/assistant", icon: Bot },
   { name: "Billing", href: "/billing", icon: CreditCard },
