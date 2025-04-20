@@ -48,13 +48,16 @@ export const consultationNotes = pgTable("consultation_notes", {
 
 export const medicalNotes = pgTable("medical_notes", {
   id: serial("id").primaryKey(),
-  patientId: integer("patient_id").notNull(),
+  patientId: integer("patient_id"),  // Making this optional for quick notes
   doctorId: integer("doctor_id").notNull(),
   content: text("content").notNull(),
   type: noteTypeEnum("type").notNull().default('soap'),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   title: text("title").notNull(),
   consultationId: integer("consultation_id"),
+  isQuickNote: boolean("is_quick_note").default(false),
+  template: text("template"),
+  signature: text("signature"),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -86,6 +89,9 @@ export const insertMedicalNoteSchema = createInsertSchema(medicalNotes).pick({
   content: true,
   type: true,
   title: true,
+  isQuickNote: true,
+  template: true,
+  signature: true,
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;

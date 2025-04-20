@@ -44,6 +44,8 @@ export interface IStorage {
   getMedicalNotesByPatient(patientId: number): Promise<MedicalNote[]>;
   getMedicalNote(id: number): Promise<MedicalNote | undefined>;
   createMedicalNote(note: InsertMedicalNote): Promise<MedicalNote>;
+  getQuickNotes(doctorId: number): Promise<MedicalNote[]>;
+  createQuickNote(note: Omit<InsertMedicalNote, 'patientId'> & { signature?: string }): Promise<MedicalNote>;
   getConsultationNotes(doctorId: number): Promise<ConsultationNote[]>;
   getConsultationNotesByPatient(patientId: number): Promise<ConsultationNote[]>;
   getConsultationNote(id: number): Promise<ConsultationNote | undefined>;
@@ -152,7 +154,30 @@ export class DatabaseStorage implements IStorage {
       .insert(medicalNotes)
       .values({ 
         ...note, 
-        consultationId: null 
+        consultationId: null,
+        isQuickNote: false
+      })
+      .returning();
+    return newNote;
+  }
+  
+  async getQuickNotes(doctorId: number): Promise<MedicalNote[]> {
+    return db.select()
+      .from(medicalNotes)
+      .where(and(
+        eq(medicalNotes.doctorId, doctorId),
+        eq(medicalNotes.isQuickNote, true)
+      ));
+  }
+  
+  async createQuickNote(note: Omit<InsertMedicalNote, 'patientId'> & { signature?: string }): Promise<MedicalNote> {
+    const [newNote] = await db
+      .insert(medicalNotes)
+      .values({ 
+        ...note, 
+        patientId: null,
+        consultationId: null,
+        isQuickNote: true
       })
       .returning();
     return newNote;
