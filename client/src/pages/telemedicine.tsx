@@ -803,6 +803,9 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
   const toggleLiveTranscription = () => {
     setLiveTranscriptionOpen(!liveTranscriptionOpen);
     
+    // Always close chat when toggling transcription
+    setChatOpen(false);
+    
     if (!liveTranscriptionOpen) {
       // Start with an empty list when enabling
       setLiveTranscriptions([]);
@@ -813,6 +816,17 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           addLiveTranscription('System', 'Live transcription started. Speak clearly for best results.');
         } else {
           addLiveTranscription('System', 'Your microphone is muted. Enable your microphone for transcription to work.');
+        }
+        
+        // Add example transcriptions for demonstration
+        if (audioEnabled) {
+          setTimeout(() => {
+            addLiveTranscription('Doctor', 'Hello, how are you feeling today?');
+          }, 2000);
+          
+          setTimeout(() => {
+            addLiveTranscription('Patient', 'I\'ve been having headaches and feeling tired for the past few days.');
+          }, 4000);
         }
       }, 500);
     }
@@ -929,14 +943,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             </DialogContent>
           </Dialog>
           
-          <Button 
-            onClick={() => setChatOpen(!chatOpen)} 
-            variant="outline" 
-            size="icon"
-            className={chatOpen ? "bg-primary text-primary-foreground" : ""}
-          >
-            <MessageCircle className="h-4 w-4" />
-          </Button>
+
           <Button variant="destructive" size="icon" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
@@ -1039,16 +1046,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                 <Button
                   variant="outline"
                   size="sm"
-                  className="text-white bg-black/30 hover:bg-black/40 border-white/20"
-                  onClick={() => setChatOpen(!chatOpen)}
-                >
-                  <MessageCircle className="h-4 w-4 mr-2" />
-                  Chat
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className={`text-white bg-black/30 hover:bg-black/40 border-white/20 ${liveTranscriptionOpen ? "bg-black/50" : ""}`}
+                  className={`text-white hover:bg-black/40 border-white/20 ${liveTranscriptionOpen ? "bg-primary/40" : "bg-black/30"}`}
                   onClick={toggleLiveTranscription}
                 >
                   <FileAudio className="h-4 w-4 mr-2" />
@@ -1120,52 +1118,10 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           </div>
         </div>
 
-        {chatOpen && (
-          <div className="border-l flex flex-col h-full">
-            <div className="p-2 sm:p-3 border-b">
-              <h3 className="font-medium">Chat</h3>
-            </div>
 
-            <ScrollArea className="flex-1 p-2 sm:p-3">
-              <div className="space-y-3">
-                {messages.map((msg, i) => (
-                  <div key={i} className="flex flex-col">
-                    <p className="text-xs font-medium text-muted-foreground">{msg.sender}</p>
-                    <div className="bg-muted rounded-lg p-2 sm:p-3 mt-1 inline-block max-w-[85%]">
-                      <p className="text-sm">{msg.text}</p>
-                    </div>
-                  </div>
-                ))}
-                {messages.length === 0 && (
-                  <p className="text-center text-muted-foreground text-sm py-8">
-                    No messages yet
-                  </p>
-                )}
-              </div>
-            </ScrollArea>
-
-            <div className="p-2 sm:p-3 border-t flex gap-2">
-              <Input 
-                value={messageText}
-                onChange={(e) => setMessageText(e.target.value)}
-                placeholder="Type a message..."
-                className="text-sm"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendChatMessage();
-                  }
-                }}
-              />
-              <Button onClick={sendChatMessage} size="icon" className="flex-shrink-0">
-                <Send className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        )}
 
         {/* Live Transcription Panel */}
-        {liveTranscriptionOpen && !chatOpen && (
+        {liveTranscriptionOpen && (
           <div className="border-l flex flex-col h-full">
             <div className="p-2 sm:p-3 border-b flex justify-between items-center">
               <h3 className="font-medium">Live Transcription</h3>
