@@ -579,30 +579,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.post("/api/intake-forms", async (req, res) => {
     try {
-      const validation = insertIntakeFormSchema.safeParse(req.body);
-      if (!validation.success) {
-        return res.status(400).json(validation.error);
+      console.log("Creating intake form with data:", req.body);
+
+      // Check for required fields before validation
+      if (!req.body.doctorId) {
+        req.body.doctorId = MOCK_DOCTOR_ID; // Provide default value
+      }
+
+      if (!req.body.uniqueLink) {
+        // Generate a unique link for the form if not provided
+        req.body.uniqueLink = `intake_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      }
+
+      if (!req.body.status) {
+        req.body.status = "pending"; // Set default status
+      }
+
+      // One week expiration by default if not set
+      if (!req.body.expiresAt) {
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 7);
+        req.body.expiresAt = expiresAt;
       }
       
-      // One week expiration by default
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 7);
+      const validation = insertIntakeFormSchema.safeParse(req.body);
+      if (!validation.success) {
+        console.error("Validation error:", validation.error.format());
+        return res.status(400).json({
+          message: "Invalid form data",
+          issues: validation.error.format()
+        });
+      }
       
-      // Generate a unique link for the form
-      const uniqueLink = `intake_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-      
-      const intakeForm = await storage.createIntakeForm({
-        ...validation.data,
-        doctorId: MOCK_DOCTOR_ID,
-        status: "pending",
-        uniqueLink,
-        expiresAt
-      });
+      const intakeForm = await storage.createIntakeForm(validation.data);
       
       res.status(201).json(intakeForm);
     } catch (error: any) {
       console.error("Error creating intake form:", error);
-      res.status(500).json({ message: "Failed to create intake form" });
+      res.status(500).json({ message: "Failed to create intake form: " + (error.message || "Unknown error") });
     }
   });
   

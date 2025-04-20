@@ -88,16 +88,29 @@ export default function PatientIntakeFormPage() {
   // Mutation for creating a new intake form
   const createIntakeFormMutation = useMutation({
     mutationFn: async (data: CreateIntakeFormData) => {
-      // Generate a unique link for the form
-      const uniqueLink = `intake_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-      
-      const res = await apiRequest("POST", "/api/intake-forms", {
-        ...data,
-        patientId: parseInt(data.patientId),
-        doctorId: 1, // Use the MOCK_DOCTOR_ID from the server side
-        uniqueLink,
-      });
-      return res.json();
+      try {
+        // Generate a unique link for the form
+        const uniqueLink = `intake_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+        
+        const res = await apiRequest("POST", "/api/intake-forms", {
+          ...data,
+          patientId: parseInt(data.patientId),
+          doctorId: 1, // Use the MOCK_DOCTOR_ID from the server side
+          uniqueLink,
+          status: "pending" // Explicitly set status
+        });
+        
+        if (!res.ok) {
+          const errorData = await res.json();
+          console.error("Server validation error:", errorData);
+          throw new Error(errorData.message || "Failed to create intake form");
+        }
+        
+        return res.json();
+      } catch (error) {
+        console.error("Error creating intake form:", error);
+        throw error;
+      }
     },
     onSuccess: () => {
       toast({
@@ -112,9 +125,10 @@ export default function PatientIntakeFormPage() {
     onError: (error: Error) => {
       toast({
         title: "Failed to create form",
-        description: error.message,
+        description: error.message || "Check the form fields and try again",
         variant: "destructive",
       });
+      console.error("Form creation error:", error);
     },
   });
 
