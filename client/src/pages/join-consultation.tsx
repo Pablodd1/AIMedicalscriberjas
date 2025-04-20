@@ -111,16 +111,24 @@ export default function JoinConsultationPage() {
     
     wsRef.current.onopen = () => {
       console.log('WebSocket connection established');
+      console.log('Joining room with ID:', roomId);
       
       // Join the room
-      if (wsRef.current) {
+      if (wsRef.current && roomId) {
         wsRef.current.send(JSON.stringify({
           type: 'join',
-          roomId,
+          roomId: roomId,
           userId: `patient_${Date.now()}`,
           name: name,
           isDoctor: false
         }));
+      } else {
+        console.error('Cannot join room - missing room ID or WebSocket connection');
+        toast({
+          title: "Connection Error",
+          description: "Unable to join consultation. Missing room ID.",
+          variant: "destructive"
+        });
       }
     };
     
@@ -178,7 +186,7 @@ export default function JoinConsultationPage() {
     };
   };
   
-  const createPeerConnection = async () => {
+  const createPeerConnection = async (fromUserId?: string) => {
     try {
       const pc = new RTCPeerConnection(configuration);
       
@@ -193,11 +201,14 @@ export default function JoinConsultationPage() {
       
       // Handle ICE candidates
       pc.onicecandidate = (event) => {
-        if (event.candidate && wsRef.current) {
+        if (event.candidate && wsRef.current && roomId) {
+          console.log('Sending ICE candidate with room ID:', roomId);
           wsRef.current.send(JSON.stringify({
             type: 'ice-candidate',
             candidate: event.candidate,
-            roomId
+            roomId: roomId,
+            sender: `patient_${Date.now()}`,
+            target: fromUserId // Send to the doctor who sent the offer
           }));
         }
       };
@@ -239,18 +250,20 @@ export default function JoinConsultationPage() {
   
   const handleOffer = async (message: any) => {
     try {
-      const pc = await createPeerConnection();
+      const pc = await createPeerConnection(message.from);
       
       await pc.setRemoteDescription(new RTCSessionDescription(message.offer));
       
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       
-      if (wsRef.current) {
+      if (wsRef.current && roomId) {
+        console.log('Sending answer with room ID:', roomId);
         wsRef.current.send(JSON.stringify({
           type: 'answer',
           answer,
-          roomId,
+          roomId: roomId,
+          sender: `patient_${Date.now()}`,
           target: message.from
         }));
       }

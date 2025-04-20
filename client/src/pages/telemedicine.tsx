@@ -495,11 +495,13 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       peerConnectionRef.current.onicecandidate = (event) => {
         if (event.candidate) {
           // Send ICE candidate to the other peer
-          if (wsRef.current) {
+          if (wsRef.current && roomId) {
+            console.log('Doctor sending ICE candidate with room ID:', roomId);
             wsRef.current.send(JSON.stringify({
               type: 'ice-candidate',
               target: targetUserId,
               sender: user?.id.toString(),
+              roomId: roomId,
               data: event.candidate
             }));
           }
@@ -517,11 +519,13 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       const offer = await peerConnectionRef.current.createOffer();
       await peerConnectionRef.current.setLocalDescription(offer);
       
-      if (wsRef.current) {
+      if (wsRef.current && roomId) {
+        console.log('Doctor sending offer with room ID:', roomId);
         wsRef.current.send(JSON.stringify({
           type: 'offer',
           target: targetUserId,
           sender: user?.id.toString(),
+          roomId: roomId,
           data: offer
         }));
       }
@@ -554,11 +558,13 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
         peerConnectionRef.current.onicecandidate = (event) => {
           if (event.candidate) {
             // Send ICE candidate to the other peer
-            if (wsRef.current) {
+            if (wsRef.current && roomId) {
+              console.log('Doctor responding with ICE candidate, room ID:', roomId);
               wsRef.current.send(JSON.stringify({
                 type: 'ice-candidate',
                 target: message.sender,
                 sender: user?.id.toString(),
+                roomId: roomId,
                 data: event.candidate
               }));
             }
@@ -580,11 +586,13 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       const answer = await peerConnectionRef.current.createAnswer();
       await peerConnectionRef.current.setLocalDescription(answer);
       
-      if (wsRef.current) {
+      if (wsRef.current && roomId) {
+        console.log('Doctor sending answer with room ID:', roomId);
         wsRef.current.send(JSON.stringify({
           type: 'answer',
           target: message.sender,
           sender: user?.id.toString(),
+          roomId: roomId,
           data: answer
         }));
       }
