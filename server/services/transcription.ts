@@ -39,7 +39,7 @@ export async function transcribeAudio(audioFilePath: string): Promise<string> {
     });
     
     console.log('Transcription completed');
-    return transcription.text;
+    return transcription;
     
   } catch (error) {
     console.error("Error transcribing audio:", error);

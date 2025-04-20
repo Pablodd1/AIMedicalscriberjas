@@ -405,33 +405,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error('Error checking FFmpeg version:', error);
       }
       
-      // Use ffmpeg to convert WebM to MP3
-      const ffmpegArgs = [
-        '-i', inputPath,
-        '-vn', // No video
-        '-ar', '44100', // Audio sampling rate
-        '-ac', '2', // Stereo
-        '-b:a', '128k', // Bitrate
-        outputPath
-      ];
-      
-      console.log('FFmpeg command:', 'ffmpeg', ffmpegArgs.join(' '));
-      const ffmpeg = spawn('ffmpeg', ffmpegArgs);
-      
-      // Handle ffmpeg process completion
-      await new Promise<void>((resolve, reject) => {
-        ffmpeg.on('close', (code) => {
-          if (code === 0) {
-            resolve();
-          } else {
-            reject(new Error(`ffmpeg process exited with code ${code}`));
-          }
-        });
-        
-        ffmpeg.stderr.on('data', (data) => {
-          console.log(`ffmpeg: ${data}`);
-        });
-      });
+      // Use our transcription service to convert the file
+      const { convertWebmToMp3 } = await import('./services/transcription');
+      await convertWebmToMp3(inputPath);
       
       // Return the MP3 file
       res.sendFile(outputPath, { headers: { 'Content-Type': 'audio/mp3' } });
@@ -455,6 +431,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Serve MP3 conversion test page
   app.get('/mp3-test', (req, res) => {
     res.sendFile(path.resolve(__dirname, '../mp3-conversion-test.html'));
+  });
+  
+  // Serve transcription test page
+  app.get('/transcription-test', (req, res) => {
+    res.sendFile(path.resolve(__dirname, '../transcription-test.html'));
+  });
+  
+  // API to transcribe audio using OpenAI Whisper
+  app.post('/api/telemedicine/transcribe', upload.single('audio'), async (req, res) => {
+    try {
+      console.log('Transcription requested');
+      
+      if (!req.file) {
+        console.log('No audio file in request');
+        return res.status(400).json({ message: 'No audio file provided' });
+      }
+      
+      console.log('File received for transcription:', req.file.path, 'Size:', req.file.size, 'bytes');
+      
+      // First convert to MP3 if it's not already
+      const { convertWebmToMp3, transcribeAudio } = await import('./services/transcription');
+      
+      let fileToTranscribe = req.file.path;
+      
+      // If file is WebM, convert it to MP3 first
+      if (req.file.mimetype === 'audio/webm') {
+        console.log('Converting WebM to MP3 before transcription');
+        fileToTranscribe = await convertWebmToMp3(req.file.path);
+      }
+      
+      // Transcribe the audio
+      console.log('Starting transcription process');
+      const transcription = await transcribeAudio(fileToTranscribe);
+      
+      console.log('Transcription completed');
+      
+      res.json({ transcription });
+      
+    } catch (error) {
+      console.error('Error transcribing audio:', error);
+      res.status(500).json({ message: 'Failed to transcribe audio' });
+    }
   });
   
   // API to save recording to database
@@ -504,6 +522,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
+      // Process the audio file if it exists
+      let transcription = '';
+      
+      if (audioFilePath) {
+        try {
+          // Convert to MP3 if it's WebM format
+          if (req.file && req.file.mimetype === 'audio/webm') {
+            console.log('Converting WebM to MP3 before processing...');
+            const { convertWebmToMp3 } = await import('./services/transcription');
+            await convertWebmToMp3(audioFilePath);
+          }
+          
+          // Attempt to transcribe the audio if requested
+          const transcribeAudio = req.body.transcribe === 'true';
+          if (transcribeAudio) {
+            console.log('Attempting to transcribe audio...');
+            const { transcribeAudio } = await import('./services/transcription');
+            
+            try {
+              // Get MP3 file path (original path with .mp3 extension if converted)
+              const mp3FilePath = audioFilePath.replace(/\.[^/.]+$/, '.mp3');
+              transcription = await transcribeAudio(mp3FilePath);
+              console.log('Transcription completed');
+            } catch (transcriptionError) {
+              console.error('Error transcribing audio:', transcriptionError);
+              // Continue with empty transcription
+            }
+          }
+        } catch (processingError) {
+          console.error('Error processing audio:', processingError);
+          // Continue with saving - we'll still have the raw file
+        }
+      }
+      
       // Create recording session
       let recordingSession;
       
@@ -515,7 +567,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           audioFilePath: audioFilePath || '',
           status: 'completed',
           durationSeconds: 0, // Will be updated after processing
-          transcription: ''
+          transcription: transcription
         });
       } catch (error) {
         console.log('Error creating recording session in DB, using mock for testing:', error);
@@ -528,7 +580,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           audioFilePath: audioFilePath || '',
           status: 'completed',
           durationSeconds: 0,
-          transcription: '',
+          transcription: transcription,
           createdAt: new Date(),
           updatedAt: new Date()
         };
@@ -699,6 +751,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Download MP3 recording from a recording session
+  app.get('/api/telemedicine/recordings/:id/download', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: 'Invalid recording ID format' });
+      }
+      
+      // Get the recording session
+      const recording = await storage.getRecordingSession(id);
+      if (!recording) {
+        return res.status(404).json({ message: 'Recording session not found' });
+      }
+      
+      // Check if the audio file exists and is accessible
+      if (!recording.audioFilePath) {
+        return res.status(404).json({ message: 'No audio file available for this recording' });
+      }
+      
+      // Determine the correct file path - prefer MP3 version if it exists
+      let filePath = recording.audioFilePath;
+      const mp3Path = filePath.replace(/\.[^/.]+$/, '.mp3');
+      
+      if (fs.existsSync(mp3Path)) {
+        filePath = mp3Path;
+      } else if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ message: 'Audio file not found on the server' });
+      }
+      
+      // Set appropriate headers for MP3 file download
+      res.setHeader('Content-Type', 'audio/mp3');
+      res.setHeader('Content-Disposition', `attachment; filename="recording_${id}.mp3"`);
+      
+      // Send the file
+      res.sendFile(filePath);
+      
+    } catch (error) {
+      console.error('Error downloading recording:', error);
+      res.status(500).json({ message: 'Failed to download recording' });
+    }
+  });
+  
   // Get a specific recording session
   app.get('/api/telemedicine/recordings/:id', async (req, res) => {
     try {
@@ -740,14 +834,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Invalid recording ID format' });
       }
       
-      const { transcript, notes } = req.body;
-      if (!transcript && !notes) {
-        return res.status(400).json({ message: 'Must provide transcript or notes to update' });
+      const { transcript, notes, requestTranscription } = req.body;
+      
+      // If we're just requesting transcription and nothing else, that's fine
+      if (!transcript && !notes && !requestTranscription) {
+        return res.status(400).json({ message: 'Must provide transcript, notes, or request transcription' });
       }
       
       const updates: Partial<RecordingSession> = {};
       if (transcript) updates.transcript = transcript;
       if (notes) updates.notes = notes;
+      
+      // If transcription is requested, get the recording and transcribe its audio
+      if (requestTranscription) {
+        const recording = await storage.getRecordingSession(id);
+        if (!recording || !recording.audioFilePath) {
+          return res.status(404).json({ message: 'Recording session not found or has no audio' });
+        }
+        
+        try {
+          // Try to get the MP3 version (should exist if converted during upload)
+          const audioPath = recording.audioFilePath.replace(/\.[^/.]+$/, '.mp3');
+          
+          if (!fs.existsSync(audioPath)) {
+            return res.status(404).json({ message: 'Audio file not found on the server' });
+          }
+          
+          // Transcribe the audio
+          const { transcribeAudio } = await import('./services/transcription');
+          const transcription = await transcribeAudio(audioPath);
+          
+          updates.transcription = transcription;
+        } catch (error) {
+          console.error('Error transcribing audio for recording session:', error);
+          return res.status(500).json({ message: 'Failed to transcribe audio' });
+        }
+      }
       
       const updatedRecording = await storage.updateRecordingSession(id, updates);
       if (!updatedRecording) {

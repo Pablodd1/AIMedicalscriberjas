@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audio Transcription Test</title>
+  <style>
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      line-height: 1.5;
+      padding: 2rem;
+      max-width: 800px;
+      margin: 0 auto;
+      color: #444;
+    }
+    h1 {
+      color: #2563EB;
+      font-weight: 700;
+      margin-bottom: 1.5rem;
+    }
+    .button-group {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    button {
+      background-color: #2563EB;
+      color: white;
+      border: none;
+      border-radius: 0.375rem;
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    button:hover {
+      background-color: #1d4ed8;
+    }
+    button:disabled {
+      background-color: #93c5fd;
+      cursor: not-allowed;
+    }
+    .alert {
+      padding: 1rem;
+      border-radius: 0.375rem;
+      margin-bottom: 1rem;
+    }
+    .alert-error {
+      background-color: #fee2e2;
+      color: #b91c1c;
+    }
+    .alert-success {
+      background-color: #dcfce7;
+      color: #15803d;
+    }
+    .log-container {
+      background-color: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 0.375rem;
+      padding: 1rem;
+      margin-top: 1rem;
+      height: 300px;
+      overflow-y: auto;
+      font-family: monospace;
+      white-space: pre-wrap;
+    }
+    .transcription-container {
+      border: 1px solid #e2e8f0;
+      border-radius: 0.375rem;
+      padding: 1rem;
+      margin-top: 1rem;
+      min-height: 200px;
+      background-color: white;
+    }
+  </style>
+</head>
+<body>
+  <h1>Audio Transcription Test</h1>
+  
+  <div class="button-group">
+    <button id="recordButton">Start Recording</button>
+    <button id="stopButton" disabled>Stop Recording</button>
+    <button id="transcribeButton" disabled>Transcribe Audio</button>
+    <button id="downloadButton" disabled>Download MP3</button>
+  </div>
+  
+  <div id="statusContainer"></div>
+  
+  <div class="transcription-container">
+    <h3>Transcription Result:</h3>
+    <div id="transcription"></div>
+  </div>
+  
+  <div class="log-container" id="logContainer"></div>
+  
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const recordButton = document.getElementById('recordButton');
+      const stopButton = document.getElementById('stopButton');
+      const transcribeButton = document.getElementById('transcribeButton');
+      const downloadButton = document.getElementById('downloadButton');
+      const statusContainer = document.getElementById('statusContainer');
+      const logContainer = document.getElementById('logContainer');
+      const transcriptionContainer = document.getElementById('transcription');
+      
+      let mediaRecorder;
+      let audioChunks = [];
+      let audioBlob;
+      let mp3Url;
+      
+      function log(message) {
+        console.log(message);
+        const timestamp = new Date().toLocaleTimeString();
+        const logMessage = `${timestamp} - ${JSON.stringify(message)}`;
+        logContainer.innerHTML += logMessage + '\n';
+        logContainer.scrollTop = logContainer.scrollHeight;
+      }
+      
+      function showStatus(message, type = 'info') {
+        statusContainer.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+      }
+      
+      // Record button click handler
+      recordButton.addEventListener('click', async () => {
+        try {
+          log('Requesting media permissions...');
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          
+          // Create MediaRecorder instance
+          mediaRecorder = new MediaRecorder(stream);
+          
+          // Event handler for when data is available
+          mediaRecorder.ondataavailable = (event) => {
+            audioChunks.push(event.data);
+          };
+          
+          // Event handler for when recording stops
+          mediaRecorder.onstop = async () => {
+            log('Recording stopped, processing audio...');
+            
+            // Create a blob from audio chunks
+            audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            log(`Audio recorded: ${Math.round(audioBlob.size / 1024)} KB`);
+            
+            // Enable transcribe button
+            transcribeButton.disabled = false;
+          };
+          
+          // Start recording
+          mediaRecorder.start();
+          audioChunks = [];
+          
+          // Update UI
+          recordButton.disabled = true;
+          stopButton.disabled = false;
+          showStatus('Recording audio...', 'success');
+          log('Recording started');
+          
+        } catch (error) {
+          log(`Error accessing microphone: ${error.message}`);
+          showStatus(`Error accessing microphone: ${error.message}`, 'error');
+        }
+      });
+      
+      // Stop recording
+      stopButton.addEventListener('click', () => {
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+          mediaRecorder.stop();
+          
+          // Stop all audio tracks
+          mediaRecorder.stream.getTracks().forEach(track => track.stop());
+          
+          // Update UI
+          recordButton.disabled = false;
+          stopButton.disabled = true;
+        }
+      });
+      
+      // Transcribe button click handler
+      transcribeButton.addEventListener('click', async () => {
+        try {
+          transcribeButton.disabled = true;
+          showStatus('Transcribing audio... This may take a moment.', 'info');
+          log('Sending audio for transcription...');
+          
+          // Create form data
+          const formData = new FormData();
+          formData.append('audio', audioBlob, 'recording.webm');
+          
+          // Send for transcription
+          const response = await fetch('/api/telemedicine/transcribe', {
+            method: 'POST',
+            body: formData
+          });
+          
+          if (!response.ok) {
+            throw new Error(`Transcription failed: ${response.status}`);
+          }
+          
+          const data = await response.json();
+          log('Transcription received');
+          
+          // Display transcription
+          transcriptionContainer.textContent = data.transcription;
+          showStatus('Transcription complete!', 'success');
+          
+          // Convert to MP3 as well
+          await convertToMp3();
+          
+        } catch (error) {
+          log(`Error: ${error.message}`);
+          showStatus(`Error: ${error.message}`, 'error');
+          transcribeButton.disabled = false;
+        }
+      });
+      
+      // Convert to MP3 function
+      async function convertToMp3() {
+        try {
+          showStatus('Converting to MP3...', 'info');
+          log('Converting to MP3...');
+          
+          // Create form data
+          const formData = new FormData();
+          formData.append('audio', audioBlob, 'recording.webm');
+          formData.append('roomId', 'test_room_' + Date.now());
+          
+          // Send for MP3 conversion
+          const mp3Response = await fetch('/api/telemedicine/convert-to-mp3', {
+            method: 'POST',
+            body: formData
+          });
+          
+          if (!mp3Response.ok) {
+            throw new Error(`MP3 conversion failed: ${mp3Response.status}`);
+          }
+          
+          log('MP3 conversion successful!');
+          
+          // Create a blob from the response
+          const mp3Blob = await mp3Response.blob();
+          mp3Url = URL.createObjectURL(mp3Blob);
+          
+          log(`MP3 size: ${Math.round(mp3Blob.size / 1024)} KB`);
+          showStatus('Audio processing complete! You can download the file now.', 'success');
+          
+          // Enable download button
+          downloadButton.disabled = false;
+          
+        } catch (error) {
+          log(`Error: ${error.message}`);
+          showStatus(`Error: ${error.message}`, 'error');
+        }
+      }
+      
+      // Download MP3
+      downloadButton.addEventListener('click', () => {
+        if (mp3Url) {
+          const a = document.createElement('a');
+          a.href = mp3Url;
+          a.download = `recording_${Date.now()}.mp3`;
+          a.click();
+          log('MP3 download initiated');
+        }
+      });
+    });
+  </script>
+</body>
+</html>
