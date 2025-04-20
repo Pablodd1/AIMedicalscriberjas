@@ -35,6 +35,25 @@ interface VideoChatRoom {
 const activeRooms = new Map<string, VideoChatRoom>();
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Set up storage for multer
+  const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+      // Create uploads directory if it doesn't exist
+      const uploadsDir = path.join(__dirname, '../uploads');
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+      cb(null, uploadsDir);
+    },
+    filename: function (req, file, cb) {
+      // Use original file name and add timestamp
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, uniqueSuffix + '-' + file.originalname);
+    }
+  });
+  
+  const upload = multer({ storage: storage });
+  
   setupAuth(app);
   
   // Register AI routes
@@ -337,6 +356,118 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Telemedicine routes
+  
+  // API to convert WebM to MP3 format
+  app.post('/api/telemedicine/convert-to-mp3', upload.single('audio'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: 'No audio file provided' });
+      }
+      
+      // Input file path (WebM file)
+      const inputPath = req.file.path;
+      
+      // Output file path (MP3 file)
+      const outputPath = inputPath.replace(/\.[^/.]+$/, '.mp3');
+      
+      // Create a timestamp-based unique name for the recording
+      const timestamp = new Date().toISOString().replace(/:/g, '-');
+      const uniqueFilename = `recording_${timestamp}.mp3`;
+      
+      // Use ffmpeg to convert WebM to MP3
+      const ffmpeg = spawn('ffmpeg', [
+        '-i', inputPath,
+        '-vn', // No video
+        '-ar', '44100', // Audio sampling rate
+        '-ac', '2', // Stereo
+        '-b:a', '128k', // Bitrate
+        outputPath
+      ]);
+      
+      // Handle ffmpeg process completion
+      await new Promise<void>((resolve, reject) => {
+        ffmpeg.on('close', (code) => {
+          if (code === 0) {
+            resolve();
+          } else {
+            reject(new Error(`ffmpeg process exited with code ${code}`));
+          }
+        });
+        
+        ffmpeg.stderr.on('data', (data) => {
+          console.log(`ffmpeg: ${data}`);
+        });
+      });
+      
+      // Return the MP3 file
+      res.sendFile(outputPath, { headers: { 'Content-Type': 'audio/mp3' } });
+      
+      // Clean up temporary files after a delay
+      setTimeout(() => {
+        try {
+          fs.unlinkSync(inputPath);
+          // Keep the MP3 file for potential reuse
+        } catch (error) {
+          console.error('Error cleaning up temporary files:', error);
+        }
+      }, 5000);
+      
+    } catch (error) {
+      console.error('Error converting audio to MP3:', error);
+      res.status(500).json({ message: 'Failed to convert audio to MP3' });
+    }
+  });
+  
+  // API to save recording to database
+  app.post('/api/telemedicine/recordings', upload.single('audio'), async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+      
+      const doctorId = req.user.id;
+      const { roomId, patientId } = req.body;
+      
+      if (!roomId) {
+        return res.status(400).json({ message: 'Room ID is required' });
+      }
+      
+      // Get the file path if it exists
+      const audioFilePath = req.file ? req.file.path : null;
+      
+      // Look up patient by room ID or use provided patient ID
+      let patientIdNum = patientId ? parseInt(patientId) : 0;
+      
+      if (!patientIdNum && roomId) {
+        // Try to get patient from existing session
+        const existingSession = await storage.getRecordingSessionByRoomId(roomId);
+        if (existingSession) {
+          patientIdNum = existingSession.patientId;
+        }
+      }
+      
+      if (!patientIdNum) {
+        return res.status(400).json({ message: 'Patient ID is required' });
+      }
+      
+      // Create recording session
+      const recordingSession = await storage.createRecordingSession({
+        roomId,
+        doctorId,
+        patientId: patientIdNum,
+        audioFilePath: audioFilePath || '',
+        status: 'completed',
+        durationSeconds: 0, // Will be updated after processing
+        transcription: ''
+      });
+      
+      res.status(201).json(recordingSession);
+      
+    } catch (error) {
+      console.error('Error saving recording:', error);
+      res.status(500).json({ message: 'Failed to save recording' });
+    }
+  });
   
   // Invoice routes
   app.get("/api/invoices", async (req, res) => {
