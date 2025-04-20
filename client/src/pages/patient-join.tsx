@@ -36,8 +36,36 @@ export default function PatientJoinPage() {
   const [formComplete, setFormComplete] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   
+  // Define intake form interface
+  interface IntakeForm {
+    id: number;
+    patientId: number;
+    doctorId: number;
+    name: string;
+    email: string;
+    phone?: string;
+    status: string;
+    uniqueLink: string;
+    createdAt: string;
+    updatedAt?: string;
+    completedAt?: string;
+    expiresAt?: string;
+    responses?: IntakeFormResponse[];
+  }
+
+  interface IntakeFormResponse {
+    id: number;
+    formId: number;
+    questionId: string;
+    question: string;
+    answer: string;
+    answerType: string;
+    audioUrl?: string | null;
+    createdAt: string;
+  }
+  
   // Fetch intake form details by unique link
-  const { data: formData, isLoading, error } = useQuery({
+  const { data: formData, isLoading, error } = useQuery<IntakeForm>({
     queryKey: [`/api/public/intake-form/${uniqueLink}`],
     enabled: !!uniqueLink,
   });

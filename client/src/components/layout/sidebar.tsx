@@ -32,6 +32,7 @@ const navigation = [
   { name: "Appointments", href: "/appointments", icon: Calendar },
   { name: "Medical Notes", href: "/notes", icon: FileText },
   { name: "Quick Notes", href: "/quick-notes", icon: PenTool },
+  { name: "Patient Intake", href: "/patient-intake", icon: ClipboardList },
   { name: "Telemedicine", href: "/telemedicine", icon: Video },
   { name: "AI Assistant", href: "/assistant", icon: Bot },
   { name: "Billing", href: "/billing", icon: CreditCard },

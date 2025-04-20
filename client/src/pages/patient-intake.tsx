@@ -50,14 +50,37 @@ export default function PatientIntakeFormPage() {
     },
   });
   
+  // Define patient and intake form types
+  interface Patient {
+    id: number;
+    name: string;
+    email: string;
+    phone?: string;
+  }
+
+  interface IntakeForm {
+    id: number;
+    patientId: number;
+    doctorId: number;
+    name: string;
+    email: string;
+    phone?: string;
+    status: string;
+    uniqueLink: string;
+    createdAt: string;
+    updatedAt?: string;
+    completedAt?: string;
+    expiresAt?: string;
+  }
+
   // Fetch all patients for the select dropdown
-  const { data: patients, isLoading: patientsLoading } = useQuery({
+  const { data: patients, isLoading: patientsLoading } = useQuery<Patient[]>({
     queryKey: ["/api/patients"],
     staleTime: 30000, // 30 seconds
   });
   
   // Fetch all intake forms
-  const { data: intakeForms, isLoading: formsLoading } = useQuery({
+  const { data: intakeForms, isLoading: formsLoading } = useQuery<IntakeForm[]>({
     queryKey: ["/api/intake-forms"],
     staleTime: 30000, // 30 seconds
   });
