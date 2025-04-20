@@ -27,13 +27,13 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Patients", href: "/patients", icon: Users },
+  { name: "Appointments", href: "/appointments", icon: Calendar },
   { name: "Medical Notes", href: "/notes", icon: FileText },
   { name: "Telemedicine", href: "/telemedicine", icon: Video },
   { name: "AI Assistant", href: "/assistant", icon: Bot },
   { name: "Billing", href: "/billing", icon: CreditCard },
   { name: "Analytics", href: "/analytics", icon: LineChart },
   { name: "Settings", href: "/settings", icon: Settings },
-  { name: "Appointments", href: "/appointments", icon: Calendar },
 ];
 
 export default function Sidebar() {
