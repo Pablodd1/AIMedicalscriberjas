@@ -5,23 +5,88 @@ import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
 import HomePage from "@/pages/home-page";
 import PatientJoin from "@/pages/patient-join";
-import Billing from "@/pages/billing";
+import MainLayout from "@/components/layout/main-layout";
 import Assistant from "@/pages/assistant";
 import { AuthProvider } from "@/hooks/use-auth";
+
+// Import all the page components we need
+import Dashboard from "@/pages/dashboard";
+import Patients from "@/pages/patients";
+import Appointments from "@/pages/appointments";
+import Notes from "@/pages/notes";
+import Analytics from "@/pages/analytics";
+import Telemedicine from "@/pages/telemedicine";
+import Settings from "@/pages/settings";
+import Billing from "@/pages/billing";
+
+// Wrapper components for each page with the MainLayout
+const DashboardPage = () => (
+  <MainLayout>
+    <Dashboard />
+  </MainLayout>
+);
+
+const PatientsPage = () => (
+  <MainLayout>
+    <Patients />
+  </MainLayout>
+);
+
+const AppointmentsPage = () => (
+  <MainLayout>
+    <Appointments />
+  </MainLayout>
+);
+
+const NotesPage = () => (
+  <MainLayout>
+    <Notes />
+  </MainLayout>
+);
+
+const AnalyticsPage = () => (
+  <MainLayout>
+    <Analytics />
+  </MainLayout>
+);
+
+const BillingPage = () => (
+  <MainLayout>
+    <Billing />
+  </MainLayout>
+);
+
+const TelemedicinePage = () => (
+  <MainLayout>
+    <Telemedicine />
+  </MainLayout>
+);
+
+const SettingsPage = () => (
+  <MainLayout>
+    <Settings />
+  </MainLayout>
+);
+
+const AssistantPage = () => (
+  <MainLayout>
+    <Assistant />
+  </MainLayout>
+);
 
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={HomePage} />
-      <Route path="/dashboard" component={HomePage} />
-      <Route path="/patients" component={HomePage} />
-      <Route path="/appointments" component={HomePage} />
-      <Route path="/notes" component={HomePage} />
-      <Route path="/analytics" component={HomePage} />
-      <Route path="/billing" component={Billing} />
-      <Route path="/telemedicine" component={HomePage} />
-      <Route path="/settings" component={HomePage} />
-      <Route path="/assistant" component={Assistant} />
+      <Route path="/" component={DashboardPage} />
+      <Route path="/dashboard" component={DashboardPage} />
+      <Route path="/patients" component={PatientsPage} />
+      <Route path="/medical-notes" component={NotesPage} />
+      <Route path="/telemedicine" component={TelemedicinePage} />
+      <Route path="/assistant" component={AssistantPage} />
+      <Route path="/billing" component={BillingPage} />
+      <Route path="/analytics" component={AnalyticsPage} />
+      <Route path="/settings" component={SettingsPage} />
+      <Route path="/appointments" component={AppointmentsPage} />
       <Route path="/patient-join" component={PatientJoin} />
       <Route component={NotFound} />
     </Switch>
