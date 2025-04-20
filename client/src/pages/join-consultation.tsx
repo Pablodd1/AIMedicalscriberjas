@@ -117,10 +117,19 @@ export default function JoinConsultationPage() {
 
       // Join the room
       if (wsRef.current && roomId) {
+        // Create a consistent patient ID for this session
+        const patientId = sessionStorage.getItem('patientSessionId') || `patient_${Date.now()}`;
+        
+        // Store it in session storage for consistent use
+        if (!sessionStorage.getItem('patientSessionId')) {
+          sessionStorage.setItem('patientSessionId', patientId);
+        }
+        
+        console.log('Patient joining room with ID:', roomId, 'using patientId:', patientId);
         wsRef.current.send(JSON.stringify({
           type: 'join',
           roomId: roomId,
-          userId: `patient_${Date.now()}`,
+          userId: patientId,
           name: name,
           isDoctor: false
         }));
@@ -212,9 +221,9 @@ export default function JoinConsultationPage() {
         iceCandidatePoolSize: 10,
       });
       
-      // Create a fixed patient ID to ensure consistency
-      const patientId = `patient_${Date.now().toString()}`;
-      console.log('Patient using fixed ID for this session:', patientId);
+      // Use the same patient ID from session storage that we use for joining the room
+      const patientId = sessionStorage.getItem('patientSessionId');
+      console.log('Patient using session ID for WebRTC connection:', patientId);
       
       // Set up connection state monitoring
       pc.oniceconnectionstatechange = () => {
