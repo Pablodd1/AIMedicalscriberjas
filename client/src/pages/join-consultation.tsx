@@ -435,55 +435,101 @@ export default function JoinConsultationPage() {
 
   const handleICECandidate = async (message: any) => {
     try {
-      if (peerConnectionRef.current) {
-        console.log('Patient received ICE candidate message:', message);
-
-        // Handle different message formats
-        let candidate;
-
-        if (message.candidate) {
-          // Direct candidate format
-          candidate = message.candidate;
-        } else if (message.data && message.data.candidate) {
-          // Nested candidate format
-          candidate = message.data;
-        } else if (message.data) {
-          // Direct data format
-          candidate = message.data;
+      if (!peerConnectionRef.current) {
+        console.error('Patient cannot add ICE candidate - no peer connection exists');
+        return;
+      }
+      
+      // Check current connection state to make sure we're still connecting
+      if (peerConnectionRef.current.connectionState === 'closed') {
+        console.warn('Patient ignoring ICE candidate - connection is closed');
+        return;
+      }
+      
+      console.log('Patient received ICE candidate message from:', message.sender || message.from);
+      
+      // Wait for the peer connection to be in the right state to receive candidates
+      if (peerConnectionRef.current.remoteDescription === null) {
+        console.warn('Patient received ICE candidate before remote description was set. Waiting...');
+        
+        // Wait up to 5 seconds for the remote description to be set before trying to add the candidate
+        let attempts = 0;
+        const maxAttempts = 50; // 50 * 100ms = 5 seconds
+        
+        while (peerConnectionRef.current && peerConnectionRef.current.remoteDescription === null && attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+          attempts++;
         }
-
-        if (candidate) {
+        
+        if (!peerConnectionRef.current || peerConnectionRef.current.remoteDescription === null) {
+          console.error('Patient timed out waiting for remote description to be set');
+          return;
+        }
+      }
+      
+      // Extract the candidate information from various possible message formats
+      let candidate;
+      
+      if (message.candidate) {
+        // Direct candidate format
+        candidate = message.candidate;
+      } else if (message.data && message.data.candidate) {
+        // Nested candidate format
+        candidate = message.data;
+      } else if (message.data) {
+        // Direct data format
+        candidate = message.data;
+      }
+      
+      if (!candidate) {
+        console.error('Invalid ICE candidate format:', message);
+        return;
+      }
+      
+      try {
+        // Try to add the candidate directly
+        console.log('Patient adding ICE candidate:', candidate);
+        await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
+        console.log('Patient successfully added ICE candidate');
+      } catch (err) {
+        console.error('Patient error adding ICE candidate:', err);
+        
+        // If direct addition fails, try with a standardized format
+        if (typeof candidate === 'object' && candidate.candidate) {
           try {
-            // Log what we're trying to add
-            console.log('Adding ICE candidate:', candidate);
-            await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
-            console.log('Successfully added ICE candidate');
-          } catch (err) {
-            console.error('Error adding specific ICE candidate:', err, candidate);
-            // If it fails, try with a simpler version of the candidate
-            if (typeof candidate === 'object' && candidate.candidate) {
-              try {
-                const simpleCandidate = {
-                  candidate: candidate.candidate,
-                  sdpMLineIndex: candidate.sdpMLineIndex || 0,
-                  sdpMid: candidate.sdpMid || '0'
-                };
-                console.log('Trying simplified candidate:', simpleCandidate);
-                await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(simpleCandidate));
-                console.log('Successfully added simplified ICE candidate');
-              } catch (simplifiedErr) {
-                console.error('Failed to add simplified candidate:', simplifiedErr);
-              }
+            // Create a standardized candidate object with all required fields
+            const standardCandidate = {
+              candidate: candidate.candidate,
+              sdpMLineIndex: candidate.sdpMLineIndex !== undefined ? candidate.sdpMLineIndex : 0,
+              sdpMid: candidate.sdpMid || '0',
+              usernameFragment: candidate.usernameFragment || undefined
+            };
+            
+            console.log('Patient trying standardized candidate:', standardCandidate);
+            await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(standardCandidate));
+            console.log('Patient successfully added standardized ICE candidate');
+          } catch (standardErr) {
+            console.error('Patient failed to add standardized candidate:', standardErr);
+            
+            // Last resort - try with minimal required fields
+            try {
+              const minimalCandidate = {
+                candidate: candidate.candidate,
+                sdpMLineIndex: 0,
+                sdpMid: '0'
+              };
+              
+              console.log('Patient trying minimal candidate:', minimalCandidate);
+              await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(minimalCandidate));
+              console.log('Patient successfully added minimal ICE candidate');
+            } catch (minimalErr) {
+              console.error('Patient all attempts to add ICE candidate failed');
             }
           }
-        } else {
-          console.error('Invalid ICE candidate format:', message);
         }
-      } else {
-        console.error('Cannot add ICE candidate - no peer connection exists');
       }
     } catch (error) {
-      console.error('Error in ICE candidate handler:', error);
+      console.error('Unhandled error in ICE candidate handler:', error);
     }
   };
 

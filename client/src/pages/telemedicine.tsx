@@ -595,24 +595,71 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
   
   const startCall = async (targetUserId: string) => {
     try {
-      // Create new RTCPeerConnection
-      peerConnectionRef.current = new RTCPeerConnection(configuration);
+      console.log(`Doctor initiating call with patient ID: ${targetUserId}`);
       
-      // Add local stream tracks to peer connection
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach(track => {
-          if (localStreamRef.current && peerConnectionRef.current) {
-            peerConnectionRef.current.addTrack(track, localStreamRef.current);
-          }
-        });
+      // Close any existing connection first to ensure clean state
+      if (peerConnectionRef.current) {
+        console.log('Closing existing peer connection before creating a new one');
+        peerConnectionRef.current.close();
+        peerConnectionRef.current = null;
       }
+      
+      // Create new RTCPeerConnection with expanded STUN servers
+      peerConnectionRef.current = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+          { urls: 'stun:stun3.l.google.com:19302' },
+          { urls: 'stun:stun4.l.google.com:19302' }
+        ],
+        iceCandidatePoolSize: 10
+      });
+      
+      console.log('Doctor peer connection created');
+      
+      // Set up connection state monitoring
+      peerConnectionRef.current.onconnectionstatechange = () => {
+        if (!peerConnectionRef.current) return;
+        console.log('Doctor connection state changed:', peerConnectionRef.current.connectionState);
+        
+        if (peerConnectionRef.current.connectionState === 'connected') {
+          console.log('Doctor WebRTC connection established successfully');
+          setConnected(true);
+          toast({
+            title: "Connected",
+            description: "Video connection established with patient",
+          });
+        } else if (peerConnectionRef.current.connectionState === 'disconnected' || 
+                   peerConnectionRef.current.connectionState === 'failed') {
+          console.error('Doctor WebRTC connection failed or disconnected');
+          setConnected(false);
+          toast({
+            title: "Connection Lost",
+            description: "The video connection was lost",
+            variant: "destructive"
+          });
+        }
+      };
+      
+      // Monitor ICE connection state
+      peerConnectionRef.current.oniceconnectionstatechange = () => {
+        if (!peerConnectionRef.current) return;
+        console.log('Doctor ICE connection state changed:', peerConnectionRef.current.iceConnectionState);
+      };
+      
+      // Monitor signaling state
+      peerConnectionRef.current.onsignalingstatechange = () => {
+        if (!peerConnectionRef.current) return;
+        console.log('Doctor signaling state changed:', peerConnectionRef.current.signalingState);
+      };
       
       // Set up event handlers for peer connection
       peerConnectionRef.current.onicecandidate = (event) => {
         if (event.candidate) {
           // Send ICE candidate to the other peer
           if (wsRef.current && roomId) {
-            console.log('Doctor sending ICE candidate with room ID:', roomId);
+            console.log('Doctor sending ICE candidate to patient:', targetUserId);
             wsRef.current.send(JSON.stringify({
               type: 'ice-candidate',
               target: targetUserId,
@@ -624,6 +671,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
         }
       };
       
+      // Handle incoming tracks from the patient
       peerConnectionRef.current.ontrack = (event) => {
         console.log('Doctor received remote track:', event.track.kind, event.track.label, event.track.readyState);
         
@@ -633,13 +681,13 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           return;
         }
         
-        // Some browsers don't create a new MediaStream automatically
+        // Create a new MediaStream if needed or use the existing one
         if (!remoteVideoRef.current.srcObject) {
           console.log('Creating new MediaStream for remote video');
           remoteVideoRef.current.srcObject = new MediaStream();
         }
         
-        // Get the stream from the video element or create new one
+        // Get the stream from the video element
         const stream = remoteVideoRef.current.srcObject as MediaStream;
         
         // Add the track to the stream if it's not already there
@@ -647,6 +695,14 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
         if (!trackExists) {
           console.log('Doctor adding track to remote stream:', event.track.kind, event.track.id);
           stream.addTrack(event.track);
+          
+          // Show feedback toast when video is received
+          if (event.track.kind === 'video') {
+            toast({
+              title: "Patient Video Connected",
+              description: "Patient video feed is now active",
+            });
+          }
         }
         
         // Log the current tracks in the stream
@@ -656,12 +712,31 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
         setConnected(true);
       };
       
-      // Create and send offer
+      // Add local stream tracks to peer connection AFTER setting up event handlers
+      if (localStreamRef.current) {
+        console.log('Doctor adding local tracks to peer connection');
+        try {
+          localStreamRef.current.getTracks().forEach(track => {
+            console.log('Doctor adding track to peer connection:', track.kind, track.label, track.enabled);
+            if (localStreamRef.current && peerConnectionRef.current) {
+              peerConnectionRef.current.addTrack(track, localStreamRef.current);
+            }
+          });
+        } catch (error) {
+          console.error('Error adding tracks to peer connection:', error);
+        }
+      } else {
+        console.warn('No local stream available when creating doctor peer connection');
+      }
+      
+      // Create and send offer AFTER adding tracks
+      console.log('Doctor creating offer...');
       const offer = await peerConnectionRef.current.createOffer();
+      console.log('Doctor setting local description...');
       await peerConnectionRef.current.setLocalDescription(offer);
       
       if (wsRef.current && roomId) {
-        console.log('Doctor sending offer with room ID:', roomId);
+        console.log('Doctor sending offer with room ID:', roomId, 'to patient:', targetUserId);
         wsRef.current.send(JSON.stringify({
           type: 'offer',
           target: targetUserId,
@@ -674,7 +749,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       console.error('Error starting call:', error);
       toast({
         title: "Call Error",
-        description: "Failed to initiate video call",
+        description: "Failed to initiate video call. Please try again.",
         variant: "destructive"
       });
     }
@@ -682,81 +757,172 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
   
   const handleOffer = async (message: any) => {
     try {
-      // Create new RTCPeerConnection if it doesn't exist
-      if (!peerConnectionRef.current) {
-        peerConnectionRef.current = new RTCPeerConnection(configuration);
+      console.log('Doctor received offer from patient:', message.sender || message.from);
+      
+      // Close existing connection if present
+      if (peerConnectionRef.current) {
+        console.log('Closing existing peer connection before handling offer');
+        peerConnectionRef.current.close();
+        peerConnectionRef.current = null;
+      }
+      
+      // Create new RTCPeerConnection with expanded STUN servers
+      peerConnectionRef.current = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+          { urls: 'stun:stun3.l.google.com:19302' },
+          { urls: 'stun:stun4.l.google.com:19302' }
+        ],
+        iceCandidatePoolSize: 10
+      });
+      
+      console.log('Doctor created new peer connection for offer');
+      
+      // Set up connection monitoring
+      peerConnectionRef.current.onconnectionstatechange = () => {
+        if (!peerConnectionRef.current) return;
+        console.log('Doctor connection state changed:', peerConnectionRef.current.connectionState);
         
-        // Add local stream tracks to peer connection
-        if (localStreamRef.current) {
+        if (peerConnectionRef.current.connectionState === 'connected') {
+          console.log('Doctor WebRTC connection established successfully');
+          setConnected(true);
+          toast({
+            title: "Connected",
+            description: "Video connection established with patient",
+          });
+        } else if (peerConnectionRef.current.connectionState === 'disconnected' || 
+                   peerConnectionRef.current.connectionState === 'failed') {
+          console.error('Doctor WebRTC connection failed or disconnected');
+          setConnected(false);
+          toast({
+            title: "Connection Lost",
+            description: "The video connection was lost",
+            variant: "destructive"
+          });
+        }
+      };
+      
+      // Monitor ICE connection state
+      peerConnectionRef.current.oniceconnectionstatechange = () => {
+        if (!peerConnectionRef.current) return;
+        console.log('Doctor ICE connection state changed:', peerConnectionRef.current.iceConnectionState);
+      };
+      
+      // Monitor signaling state
+      peerConnectionRef.current.onsignalingstatechange = () => {
+        if (!peerConnectionRef.current) return;
+        console.log('Doctor signaling state changed:', peerConnectionRef.current.signalingState);
+      };
+      
+      // Set up ICE candidate event handler
+      peerConnectionRef.current.onicecandidate = (event) => {
+        if (event.candidate) {
+          // Send ICE candidate to the other peer (patient)
+          if (wsRef.current && roomId) {
+            const targetId = message.sender || message.from; // Handle different message formats
+            console.log('Doctor sending ICE candidate to patient:', targetId);
+            wsRef.current.send(JSON.stringify({
+              type: 'ice-candidate',
+              target: targetId,
+              sender: user?.id.toString(),
+              roomId: roomId,
+              data: event.candidate
+            }));
+          }
+        }
+      };
+      
+      // Set up track event handler
+      peerConnectionRef.current.ontrack = (event) => {
+        console.log('Doctor received remote track in handleOffer:', event.track.kind, event.track.label);
+        
+        // Make sure we have a valid remote video element
+        if (!remoteVideoRef.current) {
+          console.error('Remote video element not available');
+          return;
+        }
+        
+        // Create or use existing MediaStream
+        if (!remoteVideoRef.current.srcObject) {
+          console.log('Creating new MediaStream for remote video');
+          remoteVideoRef.current.srcObject = new MediaStream();
+        }
+        
+        // Get the stream from the video element
+        const stream = remoteVideoRef.current.srcObject as MediaStream;
+        
+        // Add the track to the stream if it's not already there
+        const trackExists = stream.getTracks().some(t => t.id === event.track.id);
+        if (!trackExists) {
+          console.log('Doctor adding track to remote stream:', event.track.kind, event.track.id);
+          stream.addTrack(event.track);
+          
+          // Show feedback toast when video is received
+          if (event.track.kind === 'video') {
+            toast({
+              title: "Patient Video Connected",
+              description: "Patient video feed is now active",
+            });
+          }
+        }
+        
+        // Log the current tracks in the stream
+        console.log('Doctor remote stream tracks:', stream.getTracks().map(t => `${t.kind}:${t.id}`).join(', '));
+        
+        // Enable the connection status in UI
+        setConnected(true);
+      };
+      
+      // Add local stream tracks to peer connection
+      if (localStreamRef.current) {
+        console.log('Doctor adding local tracks to peer connection');
+        try {
           localStreamRef.current.getTracks().forEach(track => {
+            console.log('Doctor adding track to peer connection:', track.kind, track.label, track.enabled);
             if (localStreamRef.current && peerConnectionRef.current) {
               peerConnectionRef.current.addTrack(track, localStreamRef.current);
             }
           });
+        } catch (error) {
+          console.error('Error adding tracks to peer connection:', error);
         }
-        
-        // Set up event handlers for peer connection
-        peerConnectionRef.current.onicecandidate = (event) => {
-          if (event.candidate) {
-            // Send ICE candidate to the other peer
-            if (wsRef.current && roomId) {
-              console.log('Doctor responding with ICE candidate, room ID:', roomId);
-              wsRef.current.send(JSON.stringify({
-                type: 'ice-candidate',
-                target: message.sender,
-                sender: user?.id.toString(),
-                roomId: roomId,
-                data: event.candidate
-              }));
-            }
-          }
-        };
-        
-        peerConnectionRef.current.ontrack = (event) => {
-          console.log('Doctor received remote track in handleOffer:', event.track.kind, event.track.label);
-          
-          // Make sure we have a valid remote video element
-          if (!remoteVideoRef.current) {
-            console.error('Remote video element not available');
-            return;
-          }
-          
-          // Some browsers don't create a new MediaStream automatically
-          if (!remoteVideoRef.current.srcObject) {
-            console.log('Creating new MediaStream for remote video');
-            remoteVideoRef.current.srcObject = new MediaStream();
-          }
-          
-          // Get the stream from the video element or create new one
-          const stream = remoteVideoRef.current.srcObject as MediaStream;
-          
-          // Add the track to the stream if it's not already there
-          const trackExists = stream.getTracks().some(t => t.id === event.track.id);
-          if (!trackExists) {
-            console.log('Doctor adding track to remote stream:', event.track.kind, event.track.id);
-            stream.addTrack(event.track);
-          }
-          
-          // Log the current tracks in the stream
-          console.log('Doctor remote stream tracks:', stream.getTracks().map(t => `${t.kind}:${t.id}`).join(', '));
-          
-          // Enable the connection status in UI
-          setConnected(true);
-        };
+      } else {
+        console.warn('No local stream available when handling offer');
+      }
+      
+      // Determine the format of the offer
+      let offerData;
+      if (message.offer) {
+        offerData = message.offer;
+      } else if (message.data) {
+        offerData = message.data;
+      }
+      
+      if (!offerData) {
+        throw new Error('Invalid offer format: missing offer data');
       }
       
       // Set remote description from offer
-      await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(message.data));
+      console.log('Doctor setting remote description from offer');
+      await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(offerData));
       
-      // Create and send answer
+      // Create answer
+      console.log('Doctor creating answer');
       const answer = await peerConnectionRef.current.createAnswer();
+      
+      // Set local description
+      console.log('Doctor setting local description for answer');
       await peerConnectionRef.current.setLocalDescription(answer);
       
+      // Send answer back to patient
       if (wsRef.current && roomId) {
-        console.log('Doctor sending answer with room ID:', roomId);
+        const targetId = message.sender || message.from;
+        console.log('Doctor sending answer to patient:', targetId);
         wsRef.current.send(JSON.stringify({
           type: 'answer',
-          target: message.sender,
+          target: targetId,
           sender: user?.id.toString(),
           roomId: roomId,
           data: answer
@@ -766,7 +932,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       console.error('Error handling offer:', error);
       toast({
         title: "Call Error",
-        description: "Failed to accept incoming call",
+        description: "Failed to accept incoming call. Please try again.",
         variant: "destructive"
       });
     }
@@ -775,20 +941,42 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
   const handleAnswer = async (message: any) => {
     try {
       if (peerConnectionRef.current) {
-        console.log('Received answer message:', message);
-        // Check if message format is correct
+        console.log('Doctor received answer message from patient:', message.sender || message.from);
+        
+        // Determine the format of the answer
+        let answerData;
         if (message.answer) {
-          await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(message.answer));
+          answerData = message.answer;
         } else if (message.data) {
-          await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(message.data));
-        } else {
+          answerData = message.data;
+        }
+        
+        if (!answerData) {
           console.error('Invalid answer format:', message);
           toast({
             title: "Connection Error",
             description: "Failed to establish connection. Invalid answer format.",
             variant: "destructive"
           });
+          return;
         }
+        
+        console.log('Doctor setting remote description from answer');
+        await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(answerData));
+        console.log('Doctor successfully set remote description from answer');
+        
+        // Show feedback that the connection setup is progressing
+        toast({
+          title: "Connection Setup",
+          description: "Finalizing connection with patient...",
+        });
+      } else {
+        console.error('Cannot handle answer - peer connection does not exist');
+        toast({
+          title: "Connection Error",
+          description: "Connection setup error. Please try restarting the call.",
+          variant: "destructive"
+        });
       }
     } catch (error) {
       console.error('Error handling answer:', error);
@@ -802,55 +990,101 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
   
   const handleICECandidate = async (message: any) => {
     try {
-      if (peerConnectionRef.current) {
-        console.log('Doctor received ICE candidate message:', message);
+      if (!peerConnectionRef.current) {
+        console.error('Doctor cannot add ICE candidate - no peer connection exists');
+        return;
+      }
+      
+      // Check current connection state to make sure we're still connecting
+      if (peerConnectionRef.current.connectionState === 'closed') {
+        console.warn('Doctor ignoring ICE candidate - connection is closed');
+        return;
+      }
+      
+      console.log('Doctor received ICE candidate message from:', message.sender || message.from);
+      
+      // Wait for the peer connection to be in the right state to receive candidates
+      if (peerConnectionRef.current.remoteDescription === null) {
+        console.warn('Doctor received ICE candidate before remote description was set. Waiting...');
         
-        // Handle different message formats
-        let candidate;
+        // Wait up to 5 seconds for the remote description to be set before trying to add the candidate
+        let attempts = 0;
+        const maxAttempts = 50; // 50 * 100ms = 5 seconds
         
-        if (message.candidate) {
-          // Direct candidate format
-          candidate = message.candidate;
-        } else if (message.data && message.data.candidate) {
-          // Nested candidate format
-          candidate = message.data;
-        } else if (message.data) {
-          // Direct data format
-          candidate = message.data;
+        while (peerConnectionRef.current && peerConnectionRef.current.remoteDescription === null && attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+          attempts++;
         }
         
-        if (candidate) {
+        if (!peerConnectionRef.current || peerConnectionRef.current.remoteDescription === null) {
+          console.error('Doctor timed out waiting for remote description to be set');
+          return;
+        }
+      }
+      
+      // Extract the candidate information from various possible message formats
+      let candidate;
+      
+      if (message.candidate) {
+        // Direct candidate format
+        candidate = message.candidate;
+      } else if (message.data && message.data.candidate) {
+        // Nested candidate format
+        candidate = message.data;
+      } else if (message.data) {
+        // Direct data format
+        candidate = message.data;
+      }
+      
+      if (!candidate) {
+        console.error('Invalid ICE candidate format:', message);
+        return;
+      }
+      
+      try {
+        // Try to add the candidate directly
+        console.log('Doctor adding ICE candidate:', candidate);
+        await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
+        console.log('Doctor successfully added ICE candidate');
+      } catch (err) {
+        console.error('Doctor error adding ICE candidate:', err);
+        
+        // If direct addition fails, try with a standardized format
+        if (typeof candidate === 'object' && candidate.candidate) {
           try {
-            // Log what we're trying to add
-            console.log('Doctor adding ICE candidate:', candidate);
-            await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
-            console.log('Doctor successfully added ICE candidate');
-          } catch (err) {
-            console.error('Doctor error adding specific ICE candidate:', err, candidate);
-            // If it fails, try with a simpler version of the candidate
-            if (typeof candidate === 'object' && candidate.candidate) {
-              try {
-                const simpleCandidate = {
-                  candidate: candidate.candidate,
-                  sdpMLineIndex: candidate.sdpMLineIndex || 0,
-                  sdpMid: candidate.sdpMid || '0'
-                };
-                console.log('Doctor trying simplified candidate:', simpleCandidate);
-                await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(simpleCandidate));
-                console.log('Doctor successfully added simplified ICE candidate');
-              } catch (simplifiedErr) {
-                console.error('Doctor failed to add simplified candidate:', simplifiedErr);
-              }
+            // Create a standardized candidate object with all required fields
+            const standardCandidate = {
+              candidate: candidate.candidate,
+              sdpMLineIndex: candidate.sdpMLineIndex !== undefined ? candidate.sdpMLineIndex : 0,
+              sdpMid: candidate.sdpMid || '0',
+              usernameFragment: candidate.usernameFragment || undefined
+            };
+            
+            console.log('Doctor trying standardized candidate:', standardCandidate);
+            await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(standardCandidate));
+            console.log('Doctor successfully added standardized ICE candidate');
+          } catch (standardErr) {
+            console.error('Doctor failed to add standardized candidate:', standardErr);
+            
+            // Last resort - try with minimal required fields
+            try {
+              const minimalCandidate = {
+                candidate: candidate.candidate,
+                sdpMLineIndex: 0,
+                sdpMid: '0'
+              };
+              
+              console.log('Doctor trying minimal candidate:', minimalCandidate);
+              await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(minimalCandidate));
+              console.log('Doctor successfully added minimal ICE candidate');
+            } catch (minimalErr) {
+              console.error('Doctor all attempts to add ICE candidate failed');
             }
           }
-        } else {
-          console.error('Invalid ICE candidate format:', message);
         }
-      } else {
-        console.error('Doctor cannot add ICE candidate - no peer connection exists');
       }
     } catch (error) {
-      console.error('Error in ICE candidate handler:', error);
+      console.error('Unhandled error in ICE candidate handler:', error);
     }
   };
   
