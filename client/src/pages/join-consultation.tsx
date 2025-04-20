@@ -173,48 +173,53 @@ export default function JoinConsultationPage() {
 
     if (wsRef.current) {
       wsRef.current.onmessage = async (event) => {
-        const message = JSON.parse(event.data);
+        try {
+          const message = JSON.parse(event.data);
+          console.log('Patient received message:', message.type);
+        
+          switch (message.type) {
+            case 'welcome':
+              console.log('Patient received welcome message from server:', message.message);
+              break;
 
-      switch (message.type) {
-        case 'welcome':
-          console.log('Patient received welcome message from server:', message.message);
-          break;
+            case 'room-users':
+              // Find the doctor in the room
+              const doctor = message.users.find((user: any) => user.isDoctor);
+              if (doctor) {
+                setDoctorName(doctor.name);
+              }
+              break;
 
-        case 'room-users':
-          // Find the doctor in the room
-          const doctor = message.users.find((user: any) => user.isDoctor);
-          if (doctor) {
-            setDoctorName(doctor.name);
+            case 'user-joined':
+              if (message.isDoctor) {
+                setDoctorName(message.name);
+                toast({
+                  title: "Doctor joined",
+                  description: `${message.name} has joined the consultation`,
+                });
+              }
+              break;
+
+            case 'offer':
+              await handleOffer(message);
+              break;
+
+            case 'ice-candidate':
+              await handleICECandidate(message);
+              break;
+
+            case 'error':
+              toast({
+                title: "Error",
+                description: message.message,
+                variant: "destructive"
+              });
+              break;
           }
-          break;
-
-        case 'user-joined':
-          if (message.isDoctor) {
-            setDoctorName(message.name);
-            toast({
-              title: "Doctor joined",
-              description: `${message.name} has joined the consultation`,
-            });
-          }
-          break;
-
-        case 'offer':
-          await handleOffer(message);
-          break;
-
-        case 'ice-candidate':
-          await handleICECandidate(message);
-          break;
-
-        case 'error':
-          toast({
-            title: "Error",
-            description: message.message,
-            variant: "destructive"
-          });
-          break;
-      }
-    };
+        } catch (error) {
+          console.error('Error handling WebSocket message:', error);
+        }
+      };
 
       // Handle connection close
       wsRef.current.onclose = () => {

@@ -490,9 +490,17 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                 isDoctor: message.isDoctor
               }]);
               
-              // If this is the patient joining, initiate the call
+              // We'll call startCall after function declaration
               if (!message.isDoctor) {
-                startCall(message.userId);
+                // Store patient ID for later use
+                const patientId = message.userId;
+                // We need to define this function before using it
+                setTimeout(() => {
+                  console.log('Delayed call to patient:', patientId);
+                  if (typeof startCall === 'function') {
+                    startCall(patientId);
+                  }
+                }, 1000);
               }
               break;
               
@@ -505,15 +513,31 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
               break;
               
             case 'offer':
-              handleOffer(message);
+              // We'll define a local handler to avoid reference issues
+              const offerMessage = message;
+              setTimeout(() => {
+                if (typeof handleOffer === 'function') {
+                  handleOffer(offerMessage);
+                }
+              }, 100);
               break;
               
             case 'answer':
-              handleAnswer(message);
+              const answerMessage = message;
+              setTimeout(() => {
+                if (typeof handleAnswer === 'function') {
+                  handleAnswer(answerMessage);
+                }
+              }, 100);
               break;
               
             case 'ice-candidate':
-              handleICECandidate(message);
+              const candidateMessage = message;
+              setTimeout(() => {
+                if (typeof handleICECandidate === 'function') {
+                  handleICECandidate(candidateMessage);
+                }
+              }, 100);
               break;
               
             case 'chat-message':
@@ -592,7 +616,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
         localStreamRef.current.getTracks().forEach(track => track.stop());
       }
     };
-  }, [roomId, user, toast, startCall, handleOffer, handleAnswer, handleICECandidate, initializeMedia, isRecording]);
+  }, [roomId, user, toast, isRecording]);
   
   const initializeMedia = async () => {
     try {
