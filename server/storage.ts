@@ -9,6 +9,7 @@ import {
   invoices,
   intakeForms,
   intakeFormResponses,
+  recordingSessions,
   type User, 
   type InsertUser, 
   type Patient, 
@@ -26,12 +27,14 @@ import {
   type IntakeForm,
   type InsertIntakeForm,
   type IntakeFormResponse,
-  type InsertIntakeFormResponse
+  type InsertIntakeFormResponse,
+  type RecordingSession,
+  type InsertRecordingSession
 } from "@shared/schema";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { db, pool } from "./db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 
 // Use connect-pg-simple for session storage with PostgreSQL
 const PostgresSessionStore = connectPg(session);
@@ -80,6 +83,13 @@ export interface IStorage {
   updateIntakeFormStatus(id: number, status: string): Promise<IntakeForm | undefined>;
   getIntakeFormResponses(formId: number): Promise<IntakeFormResponse[]>;
   createIntakeFormResponse(response: InsertIntakeFormResponse): Promise<IntakeFormResponse>;
+  // Recording session methods
+  getRecordingSessions(doctorId: number): Promise<RecordingSession[]>;
+  getRecordingSessionsByPatient(patientId: number): Promise<RecordingSession[]>;
+  getRecordingSession(id: number): Promise<RecordingSession | undefined>;
+  getRecordingSessionByRoomId(roomId: string): Promise<RecordingSession | undefined>;
+  createRecordingSession(session: InsertRecordingSession): Promise<RecordingSession>;
+  updateRecordingSession(id: number, updates: Partial<RecordingSession>): Promise<RecordingSession | undefined>;
   sessionStore: session.Store;
 }
 
@@ -370,15 +380,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateIntakeFormStatus(id: number, status: string): Promise<IntakeForm | undefined> {
-    // Update status and set completedAt if the status is 'completed'
-    const updateData: Record<string, any> = { status };
-    if (status === 'completed') {
-      updateData.completedAt = new Date();
-    }
-    
     const [updatedForm] = await db
       .update(intakeForms)
-      .set(updateData)
+      .set({ 
+        status, 
+        completedAt: status === 'completed' ? new Date() : null 
+      })
       .where(eq(intakeForms.id, id))
       .returning();
     
@@ -403,21 +410,7 @@ export class DatabaseStorage implements IStorage {
 
   // Invoice methods
   async getInvoices(doctorId: number): Promise<Invoice[]> {
-    return db.select({
-      invoice: invoices,
-      patient: {
-        id: patients.id,
-        name: patients.name,
-        email: patients.email
-      }
-    })
-    .from(invoices)
-    .where(eq(invoices.doctorId, doctorId))
-    .innerJoin(patients, eq(invoices.patientId, patients.id))
-    .then(results => results.map(({ invoice, patient }) => ({
-      ...invoice,
-      patient
-    })));
+    return db.select().from(invoices).where(eq(invoices.doctorId, doctorId));
   }
 
   async getInvoicesByPatient(patientId: number): Promise<Invoice[]> {
@@ -430,66 +423,108 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createInvoice(invoice: InsertInvoice): Promise<Invoice> {
-    // Generate invoice number if not provided
-    const invoiceData = { ...invoice };
-    if (!invoiceData.invoiceNumber) {
-      // Format: INV-{YYYYMMDD}-{RANDOM4DIGITS}
-      const now = new Date();
-      const datePart = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-      const randomPart = Math.floor(1000 + Math.random() * 9000).toString();
-      invoiceData.invoiceNumber = `INV-${datePart}-${randomPart}`;
-    }
-
     const [newInvoice] = await db
       .insert(invoices)
-      .values(invoiceData)
+      .values(invoice)
       .returning();
+    
     return newInvoice;
   }
 
   async updateInvoiceStatus(id: number, status: string): Promise<Invoice | undefined> {
     const [updatedInvoice] = await db
       .update(invoices)
-      .set({ 
-        status: status as any, // Cast to satisfy TypeScript
-        updatedAt: new Date() 
-      })
+      .set({ status, updatedAt: new Date() })
       .where(eq(invoices.id, id))
       .returning();
+    
     return updatedInvoice;
   }
 
   async updateInvoicePayment(id: number, amountPaid: number): Promise<Invoice | undefined> {
-    // Get the current invoice
-    const [currentInvoice] = await db
-      .select()
-      .from(invoices)
-      .where(eq(invoices.id, id));
+    const [invoice] = await db.select().from(invoices).where(eq(invoices.id, id));
     
-    if (!currentInvoice) return undefined;
-    
-    // Calculate the new status based on the amount paid
-    let newStatus = currentInvoice.status;
-    if (amountPaid >= currentInvoice.amount) {
-      newStatus = 'paid';
-    } else if (amountPaid > 0) {
-      newStatus = 'partial';
-    } else {
-      newStatus = 'unpaid';
+    if (!invoice) {
+      return undefined;
     }
     
-    // Update the invoice
+    // Update payment and status if needed
+    const newAmountPaid = amountPaid;
+    let status = invoice.status;
+    
+    // Determine new status based on payment
+    if (newAmountPaid === 0) {
+      status = 'unpaid';
+    } else if (newAmountPaid >= invoice.amount) {
+      status = 'paid';
+    } else {
+      status = 'partial';
+    }
+    
+    // Update invoice
     const [updatedInvoice] = await db
       .update(invoices)
       .set({ 
-        amountPaid, 
-        status: newStatus as any, // Cast to satisfy TypeScript
+        amountPaid: newAmountPaid, 
+        status, 
         updatedAt: new Date() 
       })
       .where(eq(invoices.id, id))
       .returning();
     
     return updatedInvoice;
+  }
+
+  // Recording session methods
+  async getRecordingSessions(doctorId: number): Promise<RecordingSession[]> {
+    return db.select()
+      .from(recordingSessions)
+      .where(eq(recordingSessions.doctorId, doctorId))
+      .orderBy(desc(recordingSessions.startTime));
+  }
+
+  async getRecordingSessionsByPatient(patientId: number): Promise<RecordingSession[]> {
+    return db.select()
+      .from(recordingSessions)
+      .where(eq(recordingSessions.patientId, patientId))
+      .orderBy(desc(recordingSessions.startTime));
+  }
+
+  async getRecordingSession(id: number): Promise<RecordingSession | undefined> {
+    const [session] = await db
+      .select()
+      .from(recordingSessions)
+      .where(eq(recordingSessions.id, id));
+    
+    return session;
+  }
+
+  async getRecordingSessionByRoomId(roomId: string): Promise<RecordingSession | undefined> {
+    const [session] = await db
+      .select()
+      .from(recordingSessions)
+      .where(eq(recordingSessions.roomId, roomId));
+    
+    return session;
+  }
+
+  async createRecordingSession(session: InsertRecordingSession): Promise<RecordingSession> {
+    const [newSession] = await db
+      .insert(recordingSessions)
+      .values(session)
+      .returning();
+    
+    return newSession;
+  }
+
+  async updateRecordingSession(id: number, updates: Partial<RecordingSession>): Promise<RecordingSession | undefined> {
+    const [updatedSession] = await db
+      .update(recordingSessions)
+      .set(updates)
+      .where(eq(recordingSessions.id, id))
+      .returning();
+    
+    return updatedSession;
   }
 }
 

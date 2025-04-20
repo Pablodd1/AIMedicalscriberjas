@@ -295,3 +295,42 @@ export const intakeFormResponseRelations = relations(intakeFormResponses, ({ one
     references: [intakeForms.id],
   }),
 }));
+
+// Recording sessions table for telemedicine
+export const recordingSessions = pgTable("recording_sessions", {
+  id: serial("id").primaryKey(),
+  roomId: text("room_id").notNull(),
+  patientId: integer("patient_id").references(() => patients.id, { onDelete: 'cascade' }).notNull(),
+  doctorId: integer("doctor_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  startTime: timestamp("start_time").notNull().defaultNow(),
+  endTime: timestamp("end_time"),
+  status: text("status").notNull().default("active"), // active, completed, cancelled
+  transcript: text("transcript"),
+  notes: text("notes"),
+  duration: integer("duration"), // in seconds
+});
+
+// Recording session insert schema
+export const insertRecordingSessionSchema = createInsertSchema(recordingSessions).pick({
+  roomId: true,
+  patientId: true,
+  doctorId: true,
+  status: true,
+  transcript: true,
+  notes: true,
+});
+
+export type InsertRecordingSession = z.infer<typeof insertRecordingSessionSchema>;
+export type RecordingSession = typeof recordingSessions.$inferSelect;
+
+// Recording session relations
+export const recordingSessionRelations = relations(recordingSessions, ({ one }) => ({
+  patient: one(patients, {
+    fields: [recordingSessions.patientId],
+    references: [patients.id],
+  }),
+  doctor: one(users, {
+    fields: [recordingSessions.doctorId],
+    references: [users.id],
+  }),
+}));
