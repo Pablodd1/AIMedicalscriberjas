@@ -126,14 +126,43 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       // Create a destination for the mixed audio
       const destination = audioContext.createMediaStreamDestination();
       
-      // Connect the audio sources to the destination
-      remoteAudio.connect(destination);
+      // Add gain nodes to ensure good audio levels
+      const remoteGain = audioContext.createGain();
+      remoteGain.gain.value = 1.0; // Normal volume for remote (patient)
+      
+      // Connect the audio sources to gain nodes
+      remoteAudio.connect(remoteGain);
+      remoteGain.connect(destination);
+      
       if (localAudio) {
-        localAudio.connect(destination);
+        const localGain = audioContext.createGain();
+        localGain.gain.value = 1.2; // Slightly boosted volume for local (doctor)
+        localAudio.connect(localGain);
+        localGain.connect(destination);
       }
       
-      // Create a MediaRecorder with the mixed audio
-      const options = { mimeType: 'audio/webm' };
+      // Try to use highest quality audio
+      let options = {};
+      
+      // Try different audio formats in order of preference
+      const mimeTypes = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/mp4',
+        'audio/ogg;codecs=opus',
+        'audio/ogg'
+      ];
+      
+      for (const mimeType of mimeTypes) {
+        if (MediaRecorder.isTypeSupported(mimeType)) {
+          options = { 
+            mimeType,
+            audioBitsPerSecond: 128000 // Higher bitrate for better quality
+          };
+          break;
+        }
+      }
+      
       const mediaRecorder = new MediaRecorder(destination.stream, options);
       
       mediaRecorderRef.current = mediaRecorder;
@@ -152,11 +181,15 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       // Update recorded time every second
       recordingIntervalRef.current = window.setInterval(() => {
         setRecordedTime(prev => prev + 1);
+        // Request more data every 5 seconds to ensure continuous recording
+        if (mediaRecorderRef.current && prev % 5 === 0) {
+          mediaRecorderRef.current.requestData();
+        }
       }, 1000);
       
       toast({
         title: "Recording Started",
-        description: "Consultation recording has started.",
+        description: "Consultation recording has started. Both participants' audio will be captured.",
       });
     } catch (error) {
       console.error('Error starting recording:', error);
@@ -194,12 +227,31 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           // Generate the audio blob
           const audioBlob = new Blob(recordedChunksRef.current, { type: 'audio/webm' });
           
+          // Create a simple transcript if API fails
+          let backupTranscriptText = "";
+          
+          // Save conversation to transcript even if API fails
+          messages.forEach(msg => {
+            backupTranscriptText += `${msg.sender}: ${msg.text}\n`;
+          });
+          
           toast({
             title: "Transcribing Audio",
             description: "Processing the recorded consultation...",
           });
           
           try {
+            // Create an audio URL for downloading
+            const audioUrl = URL.createObjectURL(audioBlob);
+            
+            // Save the audio file directly to consulting notes
+            const downloadLink = document.createElement('a');
+            downloadLink.href = audioUrl;
+            downloadLink.download = `consultation_${roomId}_${new Date().toISOString()}.webm`;
+            
+            // Create a fallback timestamp-based transcript
+            const timestamp = new Date().toISOString();
+            
             // Send the audio to the backend for transcription
             const formData = new FormData();
             formData.append('audio', audioBlob, 'consultation.webm');
@@ -220,20 +272,45 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
               title: "Transcription Complete",
               description: "Consultation has been recorded and transcribed.",
             });
+            
+            // Offer to download the audio file
+            toast({
+              title: "Audio Recording Ready",
+              description: <div className="flex items-center gap-2">
+                <span>Audio file is ready.</span>
+                <Button variant="outline" size="sm" onClick={() => downloadLink.click()}>
+                  <Download className="h-4 w-4 mr-1" />
+                  Download
+                </Button>
+              </div>,
+              duration: 10000,
+            });
+            
           } catch (error) {
             console.error('Error transcribing audio:', error);
+            
+            // Use backup transcript instead
+            setTranscription(`--- CONSULTATION TRANSCRIPT ---\n\nDate: ${new Date().toLocaleString()}\nPatient: ${patient.name}\n\n${backupTranscriptText}\n\n--- END OF TRANSCRIPT ---`);
+            
             toast({
-              title: "Transcription Error",
-              description: "Failed to transcribe the consultation recording.",
-              variant: "destructive"
+              title: "Transcription Created",
+              description: "Using chat messages as fallback for transcription.",
+              variant: "default"
             });
           }
           
           resolve();
         };
         
-        // Stop recording
-        mediaRecorderRef.current.stop();
+        // Request more data before stopping to ensure we capture everything
+        mediaRecorderRef.current.requestData();
+        
+        // Stop recording after a short delay to ensure all data is captured
+        setTimeout(() => {
+          if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            mediaRecorderRef.current.stop();
+          }
+        }, 500);
       } else {
         resolve();
       }
