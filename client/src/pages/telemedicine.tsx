@@ -71,6 +71,9 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
 
   const { user } = useAuth();
   const { toast } = useToast();
+  
+  // Reference to track when we should auto-scroll transcriptions
+  const shouldScrollRef = useRef(true);
   const [connected, setConnected] = useState(false);
   const [participants, setParticipants] = useState<any[]>([]);
   const [audioEnabled, setAudioEnabled] = useState(true);
@@ -761,8 +764,6 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
   const handleEndCall = onClose;
 
   // Live transcription functions
-  // Reference to track when we should auto-scroll
-  const shouldScrollRef = useRef(true);
   
   const addLiveTranscription = (speaker: string, text: string) => {
     const newTranscription = {
@@ -811,6 +812,21 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
 
   // Reference for speech recognition
   const speechRecognitionRef = useRef<any>(null);
+  
+  // Effect to handle auto-scrolling for new transcription messages
+  useEffect(() => {
+    if (liveTranscriptionOpen && shouldScrollRef.current && liveTranscriptions.length > 0) {
+      setTimeout(() => {
+        const scrollArea = document.getElementById('transcription-scroll-area');
+        if (scrollArea) {
+          const scrollContainer = scrollArea.querySelector('[data-radix-scroll-area-viewport]');
+          if (scrollContainer) {
+            scrollContainer.scrollTop = scrollContainer.scrollHeight;
+          }
+        }
+      }, 100);
+    }
+  }, [liveTranscriptions, liveTranscriptionOpen]);
   
   // Function to toggle live transcription
   const toggleLiveTranscription = () => {
