@@ -778,7 +778,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
 
 
   return (
-    <div className="flex flex-col h-full max-h-[calc(100vh-8rem)] overflow-hidden">
+    <div className="flex flex-col h-full min-h-[calc(100vh-8rem)] max-h-[calc(100vh-8rem)] overflow-hidden sm:overflow-auto">
       <div className="flex justify-between items-center p-2 border-b">
         <div className="flex items-center gap-2">
           <Avatar>
@@ -944,7 +944,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             </Sheet>
 
             {/* Controls overlay */}
-            <div className="absolute bottom-0 left-0 right-0 flex flex-col sm:flex-row items-center justify-between px-4 py-3 bg-gradient-to-t from-black/70 to-transparent">
+            <div className="absolute bottom-0 left-0 right-0 flex flex-col sm:flex-row items-center justify-between px-2 sm:px-4 py-2 sm:py-3 bg-gradient-to-t from-black/70 to-transparent gap-2">
               <div className="flex items-center gap-2 mb-2 sm:mb-0">
                 <Button
                   variant="outline"
@@ -1040,7 +1040,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
         </div>
 
         {chatOpen && (
-          <div className="w-1/3 border-l flex flex-col h-full">
+          <div className="w-full sm:w-1/3 border-l flex flex-col h-full">
             <div className="p-4 border-b">
               <h3 className="font-medium">Chat</h3>
             </div>
