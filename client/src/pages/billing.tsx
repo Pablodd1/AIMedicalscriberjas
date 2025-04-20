@@ -110,11 +110,18 @@ export default function Billing() {
   // Create invoice mutation
   const createInvoiceMutation = useMutation({
     mutationFn: async (data: InvoiceFormValues) => {
+      // Generate invoice number if not provided
+      const invoiceNumber = `INV-${new Date().toISOString().slice(0,10)}-${Math.floor(1000 + Math.random() * 9000)}`;
+      
       const res = await apiRequest("POST", "/api/invoices", {
         ...data,
         // Convert amount to cents
         amount: Math.round(data.amount * 100),
         amountPaid: Math.round((data.amountPaid || 0) * 100),
+        // Convert date to ISO string for proper serialization
+        dueDate: data.dueDate.toISOString(),
+        // Add the invoice number
+        invoiceNumber,
       });
       return await res.json();
     },
@@ -308,7 +315,7 @@ export default function Billing() {
                     return (
                       <TableRow key={invoice.id}>
                         <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
-                        <TableCell>{`Patient #${invoice.patientId}`}</TableCell>
+                        <TableCell>{invoice.patient?.name || `Patient #${invoice.patientId}`}</TableCell>
                         <TableCell>${(invoice.amount / 100).toFixed(2)}</TableCell>
                         <TableCell>${(invoice.amountPaid / 100).toFixed(2)}</TableCell>
                         <TableCell>${(remaining / 100).toFixed(2)}</TableCell>
@@ -504,7 +511,7 @@ export default function Billing() {
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div>
                       <p className="text-muted-foreground">Patient:</p>
-                      <p>{`Patient #${selectedInvoice.patientId}`}</p>
+                      <p>{selectedInvoice.patient?.name || `Patient #${selectedInvoice.patientId}`}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Total Amount:</p>
