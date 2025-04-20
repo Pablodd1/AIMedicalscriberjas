@@ -56,6 +56,9 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Patient, Appointment } from "@shared/schema";
 
+// We'll use 'any' types for the Speech Recognition API to avoid TypeScript complexities
+// This is fine for our demonstration purposes
+
 interface VideoConsultationProps {
   roomId: string;
   patient: Patient;
@@ -768,6 +771,9 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
     ]);
   };
 
+  // Reference for speech recognition
+  const speechRecognitionRef = useRef<any>(null);
+  
   // Function to toggle live transcription
   const toggleLiveTranscription = () => {
     setLiveTranscriptionOpen(!liveTranscriptionOpen);
@@ -777,24 +783,67 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       setLiveTranscriptions([]);
       
       // Add a greeting to demonstrate functionality
-      setTimeout(() => {
-        if (audioEnabled) {
-          addLiveTranscription('System', 'Live transcription started. Speak clearly for best results.');
-        } else {
-          addLiveTranscription('System', 'Your microphone is muted. Enable your microphone for transcription to work.');
-        }
+      addLiveTranscription('System', 'Live transcription started. Speak clearly for best results.');
+      
+      // Start speech recognition if browser supports it
+      try {
+        // Check for browser support using type assertions to avoid TypeScript errors
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
         
-        // Add example transcriptions for demonstration
-        if (audioEnabled) {
-          setTimeout(() => {
-            addLiveTranscription('Doctor', 'Hello, how are you feeling today?');
-          }, 2000);
+        if (SpeechRecognition) {
+          const recognition = new SpeechRecognition();
+          speechRecognitionRef.current = recognition;
           
-          setTimeout(() => {
-            addLiveTranscription('Patient', 'I\'ve been having headaches and feeling tired for the past few days.');
-          }, 4000);
+          recognition.continuous = true;
+          recognition.interimResults = true;
+          recognition.lang = 'en-US';
+          
+          // Handle recognition results
+          recognition.onresult = (event: any) => {
+            const last = event.results.length - 1;
+            const transcript = event.results[last][0].transcript;
+            const isFinal = event.results[last].isFinal;
+            
+            if (isFinal && transcript.trim()) {
+              addLiveTranscription('Doctor', transcript);
+            }
+          };
+          
+          recognition.onerror = (event: any) => {
+            console.error('Speech recognition error:', event.error);
+            addLiveTranscription('System', `Error: ${event.error}. Please try again.`);
+          };
+          
+          recognition.onend = () => {
+            // Restart recognition if transcription is still open
+            if (liveTranscriptionOpen && speechRecognitionRef.current) {
+              try {
+                speechRecognitionRef.current.start();
+              } catch (e) {
+                console.error('Failed to restart recognition:', e);
+              }
+            }
+          };
+          
+          // Start recognition
+          recognition.start();
+        } else {
+          addLiveTranscription('System', 'Your browser does not support speech recognition. Please use Chrome, Edge or Safari.');
         }
-      }, 500);
+      } catch (error) {
+        console.error('Speech recognition error:', error);
+        addLiveTranscription('System', 'Your browser does not support speech recognition. Please use Chrome, Edge or Safari.');
+      }
+    } else {
+      // Stop speech recognition when closing transcription panel
+      if (speechRecognitionRef.current) {
+        try {
+          speechRecognitionRef.current.stop();
+        } catch (e) {
+          console.error('Failed to stop recognition:', e);
+        }
+        speechRecognitionRef.current = null;
+      }
     }
   };
 
