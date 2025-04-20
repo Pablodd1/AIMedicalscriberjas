@@ -31,14 +31,16 @@ const upload = multer({
 });
 
 // For WebSocket server
+interface VideoChatParticipant {
+  id: string;
+  socket: WebSocket;
+  name: string;
+  isDoctor: boolean;
+}
+
 interface VideoChatRoom {
   id: string;
-  participants: { 
-    id: string;
-    socket: WebSocket;
-    name: string;
-    isDoctor: boolean;
-  }[];
+  participants: VideoChatParticipant[];
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -443,6 +445,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Log WebSocket server info
   console.log(`WebSocket server started on path: ${wss.options.path}`);
   
+  // Log when rooms are created or destroyed
+  setInterval(() => {
+    console.log(`Current active rooms: ${rooms.size}`);
+    if (rooms.size > 0) {
+      rooms.forEach((room, id) => {
+        console.log(`Room ${id}: ${room.participants.length} participants`);
+        room.participants.forEach(p => {
+          console.log(`- Participant: ${p.id}, name: ${p.name}, isDoctor: ${p.isDoctor}`);
+        });
+      });
+    }
+  }, 10000);
+  
   // Handle connection errors
   wss.on('error', (error) => {
     console.error('WebSocket server error:', error);
@@ -516,14 +531,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }));
         }
         
-        // Handle WebRTC signaling - for both offer, answer and ice-candidate
-        if ((data.type === 'signal' || data.type === 'offer' || data.type === 'ice-candidate') && roomId && userId) {
+        // Handle WebRTC signaling - including all signaling messages
+        if ((data.type === 'signal' || data.type === 'offer' || data.type === 'answer' || data.type === 'ice-candidate') && roomId && userId) {
           const room = rooms.get(roomId);
           if (room) {
             // Handle different target id fields
             const targetId = data.targetId || data.target;
             
             console.log(`Routing ${data.type} message from ${userId} to target ${targetId} in room ${roomId}`);
+            console.log(`Current participants in room ${roomId}:`, room.participants.map(p => `${p.id} (${p.name}, ${p.isDoctor ? 'doctor' : 'patient'})`).join(', '));
             
             // Find the target user
             const targetParticipant = room.participants.find(p => p.id === targetId);
@@ -538,13 +554,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 forwardData.sender = userId;
               }
               
+              // Log detailed message info (excluding large SDP data)
+              const logData = {...forwardData};
+              if (logData.data && typeof logData.data === 'object') {
+                if ('sdp' in logData.data) {
+                  logData.data.sdp = '(SDP data)';
+                }
+                if ('candidate' in logData.data) {
+                  logData.data.candidate = '(candidate data)';
+                }
+              }
+              console.log(`Forwarding ${data.type} message:`, JSON.stringify(logData));
+              
               targetParticipant.socket.send(JSON.stringify(forwardData));
               console.log(`Successfully forwarded ${data.type} message to ${targetId}`);
             } else {
-              console.error(`Target participant ${targetId} not found in room ${roomId}`);
+              console.error(`Target participant ${targetId} not found in room ${roomId}. Available participants:`, room.participants.map(p => p.id).join(', '));
             }
           } else {
-            console.error(`Room ${roomId} not found for signal message`);
+            console.error(`Room ${roomId} not found for signal message. Available rooms:`, Array.from(rooms.keys()).join(', '));
           }
         }
       } catch (error) {
