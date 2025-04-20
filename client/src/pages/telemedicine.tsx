@@ -434,8 +434,9 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
   useEffect(() => {
     // Initialize WebSocket connection
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws/telemedicine`;
+    const wsUrl = `${protocol}//${window.location.host}/ws`;
     
+    console.log('Connecting to WebSocket at:', wsUrl);
     wsRef.current = new WebSocket(wsUrl);
     
     wsRef.current.onopen = () => {

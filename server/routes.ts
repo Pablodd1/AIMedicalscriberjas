@@ -427,19 +427,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create HTTP server
   const httpServer = createServer(app);
   
-  // Initialize WebSocket server
+  // Initialize WebSocket server - making it available on all paths
   const wss = new WebSocketServer({ 
     server: httpServer,
-    path: '/ws'
+    path: '/ws',
+    // Add permissive CORS for WebSocket
+    verifyClient: (info) => {
+      return true; // Accept all connections for now
+    }
   });
   
   // Track active rooms
   const rooms: Map<string, VideoChatRoom> = new Map();
   
+  // Log WebSocket server info
+  console.log(`WebSocket server started on path: ${wss.options.path}`);
+  
+  // Handle connection errors
+  wss.on('error', (error) => {
+    console.error('WebSocket server error:', error);
+  });
+  
   // WebSocket connection handler
-  wss.on('connection', (socket) => {
+  wss.on('connection', (socket, req) => {
+    console.log(`New WebSocket connection from ${req.socket.remoteAddress}`);
+    
     let roomId: string | null = null;
     let userId: string | null = null;
+    
+    // Send a welcome message to confirm connection
+    try {
+      socket.send(JSON.stringify({ type: 'welcome', message: 'Connected to telemedicine server' }));
+    } catch (error) {
+      console.error('Error sending welcome message:', error);
+    }
     
     socket.on('message', (message: Buffer) => {
       try {
