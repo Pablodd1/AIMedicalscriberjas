@@ -6,6 +6,7 @@ import NotFound from "@/pages/not-found";
 import HomePage from "@/pages/home-page";
 import PatientJoin from "@/pages/patient-join";
 import Billing from "@/pages/billing";
+import Assistant from "@/pages/assistant";
 import { AuthProvider } from "@/hooks/use-auth";
 
 function Router() {
@@ -20,6 +21,7 @@ function Router() {
       <Route path="/billing" component={Billing} />
       <Route path="/telemedicine" component={HomePage} />
       <Route path="/settings" component={HomePage} />
+      <Route path="/assistant" component={Assistant} />
       <Route path="/patient-join" component={PatientJoin} />
       <Route component={NotFound} />
     </Switch>
