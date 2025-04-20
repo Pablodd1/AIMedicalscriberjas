@@ -20,7 +20,8 @@ import {
   FileText,
   Loader2,
   Printer,
-  Download
+  Download,
+  StopCircle
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -63,7 +64,7 @@ interface VideoConsultationProps {
 function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps) {
   // For patient join URL
   const patientJoinUrl = `${window.location.origin}/join-consultation/${roomId}`;
-  
+
   const { user } = useAuth();
   const { toast } = useToast();
   const [connected, setConnected] = useState(false);
@@ -76,7 +77,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
   const [isRecording, setIsRecording] = useState(false);
   const [recordedTime, setRecordedTime] = useState(0);
   const [transcription, setTranscription] = useState("");
-  
+
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -85,7 +86,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const recordingIntervalRef = useRef<number | null>(null);
-  
+
   // WebRTC configuration
   const configuration = {
     iceServers: [
@@ -109,41 +110,41 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       // Reset recording state
       recordedChunksRef.current = [];
       setRecordedTime(0);
-      
+
       // Create a mixed audio stream from both local and remote audio
       const audioContext = new AudioContext();
-      
+
       // Get audio from remote stream (patient's voice)
       const remoteStream = remoteVideoRef.current.srcObject as MediaStream;
       const remoteAudio = audioContext.createMediaStreamSource(remoteStream);
-      
+
       // Get audio from local stream (doctor's voice)
       let localAudio = null;
       if (localStreamRef.current) {
         localAudio = audioContext.createMediaStreamSource(localStreamRef.current);
       }
-      
+
       // Create a destination for the mixed audio
       const destination = audioContext.createMediaStreamDestination();
-      
+
       // Add gain nodes to ensure good audio levels
       const remoteGain = audioContext.createGain();
       remoteGain.gain.value = 1.0; // Normal volume for remote (patient)
-      
+
       // Connect the audio sources to gain nodes
       remoteAudio.connect(remoteGain);
       remoteGain.connect(destination);
-      
+
       if (localAudio) {
         const localGain = audioContext.createGain();
         localGain.gain.value = 1.2; // Slightly boosted volume for local (doctor)
         localAudio.connect(localGain);
         localGain.connect(destination);
       }
-      
+
       // Try to use highest quality audio
       let options = {};
-      
+
       // Try different audio formats in order of preference
       const mimeTypes = [
         'audio/webm;codecs=opus',
@@ -152,7 +153,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
         'audio/ogg;codecs=opus',
         'audio/ogg'
       ];
-      
+
       for (const mimeType of mimeTypes) {
         if (MediaRecorder.isTypeSupported(mimeType)) {
           options = { 
@@ -162,22 +163,22 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           break;
         }
       }
-      
+
       const mediaRecorder = new MediaRecorder(destination.stream, options);
-      
+
       mediaRecorderRef.current = mediaRecorder;
-      
+
       // Handle dataavailable event
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           recordedChunksRef.current.push(event.data);
         }
       };
-      
+
       // Start recording
       mediaRecorder.start(1000); // Collect data every second
       setIsRecording(true);
-      
+
       // Update recorded time every second
       recordingIntervalRef.current = window.setInterval(() => {
         setRecordedTime(prev => prev + 1);
@@ -186,7 +187,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           mediaRecorderRef.current.requestData();
         }
       }, 1000);
-      
+
       toast({
         title: "Recording Started",
         description: "Consultation recording has started. Both participants' audio will be captured.",
@@ -200,12 +201,12 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       });
     }
   };
-  
+
   const stopRecording = async () => {
     if (!mediaRecorderRef.current) {
       return;
     }
-    
+
     return new Promise<void>((resolve) => {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         // Stop the timer
@@ -213,66 +214,66 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           clearInterval(recordingIntervalRef.current);
           recordingIntervalRef.current = null;
         }
-        
+
         // Set up the ondataavailable and onstop event handlers
         mediaRecorderRef.current.ondataavailable = (event) => {
           if (event.data.size > 0) {
             recordedChunksRef.current.push(event.data);
           }
         };
-        
+
         mediaRecorderRef.current.onstop = async () => {
           setIsRecording(false);
-          
+
           // Generate the audio blob
           const audioBlob = new Blob(recordedChunksRef.current, { type: 'audio/webm' });
-          
+
           // Create a simple transcript if API fails
           let backupTranscriptText = "";
-          
+
           // Save conversation to transcript even if API fails
           messages.forEach(msg => {
             backupTranscriptText += `${msg.sender}: ${msg.text}\n`;
           });
-          
+
           toast({
             title: "Transcribing Audio",
             description: "Processing the recorded consultation...",
           });
-          
+
           try {
             // Create an audio URL for downloading
             const audioUrl = URL.createObjectURL(audioBlob);
-            
+
             // Save the audio file directly to consulting notes
             const downloadLink = document.createElement('a');
             downloadLink.href = audioUrl;
             downloadLink.download = `consultation_${roomId}_${new Date().toISOString()}.webm`;
-            
+
             // Create a fallback timestamp-based transcript
             const timestamp = new Date().toISOString();
-            
+
             // Send the audio to the backend for transcription
             const formData = new FormData();
             formData.append('audio', audioBlob, 'consultation.webm');
-            
+
             const response = await fetch('/api/ai/transcribe', {
               method: 'POST',
               body: formData,
             });
-            
+
             if (!response.ok) {
               throw new Error(`Transcription failed: ${response.status}`);
             }
-            
+
             const data = await response.json();
             setTranscription(data.text);
-            
+
             toast({
               title: "Transcription Complete",
               description: "Consultation has been recorded and transcribed.",
             });
-            
+
             // Offer to download the audio file
             toast({
               title: "Audio Recording Ready",
@@ -285,26 +286,26 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
               </div>,
               duration: 10000,
             });
-            
+
           } catch (error) {
             console.error('Error transcribing audio:', error);
-            
+
             // Use backup transcript instead
             setTranscription(`--- CONSULTATION TRANSCRIPT ---\n\nDate: ${new Date().toLocaleString()}\nPatient: ${patient.name}\n\n${backupTranscriptText}\n\n--- END OF TRANSCRIPT ---`);
-            
+
             toast({
               title: "Transcription Created",
               description: "Using chat messages as fallback for transcription.",
               variant: "default"
             });
           }
-          
+
           resolve();
         };
-        
+
         // Request more data before stopping to ensure we capture everything
         mediaRecorderRef.current.requestData();
-        
+
         // Stop recording after a short delay to ensure all data is captured
         setTimeout(() => {
           if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
@@ -316,7 +317,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       }
     });
   };
-  
+
   const createMedicalNote = async () => {
     if (!transcription) {
       toast({
@@ -326,7 +327,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       });
       return;
     }
-    
+
     try {
       // Generate SOAP notes from the transcription
       const response = await fetch('/api/ai/generate-soap', {
@@ -339,13 +340,13 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           patientInfo: patient
         }),
       });
-      
+
       if (!response.ok) {
         throw new Error(`Note generation failed: ${response.status}`);
       }
-      
+
       const data = await response.json();
-      
+
       // Save the consultation note
       const consultationResponse = await fetch('/api/consultation-notes', {
         method: 'POST',
@@ -358,13 +359,13 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           title: `Consultation with ${patient.name} - ${new Date().toLocaleDateString()}`
         }),
       });
-      
+
       if (!consultationResponse.ok) {
         throw new Error(`Failed to save consultation: ${consultationResponse.status}`);
       }
-      
+
       const consultationData = await consultationResponse.json();
-      
+
       // Save the medical note
       const medicalNoteResponse = await fetch('/api/medical-notes/from-consultation', {
         method: 'POST',
@@ -379,11 +380,11 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           type: 'soap'
         }),
       });
-      
+
       if (!medicalNoteResponse.ok) {
         throw new Error(`Failed to save medical note: ${medicalNoteResponse.status}`);
       }
-      
+
       toast({
         title: "Note Created",
         description: "Medical note has been generated and saved from the consultation.",
@@ -402,12 +403,12 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
     // Initialize WebSocket connection
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsUrl = `${protocol}//${window.location.host}/ws/telemedicine`;
-    
+
     wsRef.current = new WebSocket(wsUrl);
-    
+
     wsRef.current.onopen = () => {
       console.log('WebSocket connection established');
-      
+
       // Join the room
       if (wsRef.current && user) {
         wsRef.current.send(JSON.stringify({
@@ -419,15 +420,15 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
         }));
       }
     };
-    
+
     wsRef.current.onmessage = async (event) => {
       const message = JSON.parse(event.data);
-      
+
       switch (message.type) {
         case 'room-users':
           setParticipants(message.users);
           break;
-          
+
         case 'user-joined':
           toast({
             title: "Participant joined",
@@ -438,13 +439,13 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             name: message.name,
             isDoctor: message.isDoctor
           }]);
-          
+
           // If this is the patient joining, initiate the call
           if (!message.isDoctor) {
             startCall(message.userId);
           }
           break;
-          
+
         case 'user-left':
           toast({
             title: "Participant left",
@@ -452,26 +453,26 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           });
           setParticipants(prev => prev.filter(p => p.id !== message.userId));
           break;
-          
+
         case 'offer':
           handleOffer(message);
           break;
-          
+
         case 'answer':
           handleAnswer(message);
           break;
-          
+
         case 'ice-candidate':
           handleICECandidate(message);
           break;
-          
+
         case 'chat-message':
           setMessages(prev => [...prev, {
             sender: message.senderName,
             text: message.text
           }]);
           break;
-          
+
         case 'error':
           toast({
             title: "Error",
@@ -481,7 +482,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           break;
       }
     };
-    
+
     wsRef.current.onerror = (error) => {
       console.error('WebSocket error:', error);
       toast({
@@ -490,15 +491,15 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
         variant: "destructive"
       });
     };
-    
+
     wsRef.current.onclose = () => {
       console.log('WebSocket connection closed');
       setConnected(false);
     };
-    
+
     // Get user media and initialize local video
     initializeMedia();
-    
+
     // Cleanup function
     return () => {
       // Stop recording if it's in progress
@@ -506,43 +507,43 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
         if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
           mediaRecorderRef.current.stop();
         }
-        
+
         if (recordingIntervalRef.current) {
           clearInterval(recordingIntervalRef.current);
           recordingIntervalRef.current = null;
         }
       }
-      
+
       // Close WebSocket
       if (wsRef.current) {
         wsRef.current.close();
       }
-      
+
       // Close peer connection
       if (peerConnectionRef.current) {
         peerConnectionRef.current.close();
       }
-      
+
       // Stop media streams
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach(track => track.stop());
       }
     };
   }, [roomId, user]);
-  
+
   const initializeMedia = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: true, 
         audio: true 
       });
-      
+
       localStreamRef.current = stream;
-      
+
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
       }
-      
+
       setConnected(true);
     } catch (error) {
       console.error('Error accessing media devices:', error);
@@ -553,12 +554,12 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       });
     }
   };
-  
+
   const startCall = async (targetUserId: string) => {
     try {
       // Create new RTCPeerConnection
       peerConnectionRef.current = new RTCPeerConnection(configuration);
-      
+
       // Add local stream tracks to peer connection
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach(track => {
@@ -567,7 +568,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           }
         });
       }
-      
+
       // Set up event handlers for peer connection
       peerConnectionRef.current.onicecandidate = (event) => {
         if (event.candidate) {
@@ -584,18 +585,18 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           }
         }
       };
-      
+
       peerConnectionRef.current.ontrack = (event) => {
         // Set remote stream to video element
         if (remoteVideoRef.current && event.streams[0]) {
           remoteVideoRef.current.srcObject = event.streams[0];
         }
       };
-      
+
       // Create and send offer
       const offer = await peerConnectionRef.current.createOffer();
       await peerConnectionRef.current.setLocalDescription(offer);
-      
+
       if (wsRef.current && roomId) {
         console.log('Doctor sending offer with room ID:', roomId);
         wsRef.current.send(JSON.stringify({
@@ -615,13 +616,13 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       });
     }
   };
-  
+
   const handleOffer = async (message: any) => {
     try {
       // Create new RTCPeerConnection if it doesn't exist
       if (!peerConnectionRef.current) {
         peerConnectionRef.current = new RTCPeerConnection(configuration);
-        
+
         // Add local stream tracks to peer connection
         if (localStreamRef.current) {
           localStreamRef.current.getTracks().forEach(track => {
@@ -630,7 +631,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             }
           });
         }
-        
+
         // Set up event handlers for peer connection
         peerConnectionRef.current.onicecandidate = (event) => {
           if (event.candidate) {
@@ -647,7 +648,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             }
           }
         };
-        
+
         peerConnectionRef.current.ontrack = (event) => {
           // Set remote stream to video element
           if (remoteVideoRef.current && event.streams[0]) {
@@ -655,14 +656,14 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           }
         };
       }
-      
+
       // Set remote description from offer
       await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(message.data));
-      
+
       // Create and send answer
       const answer = await peerConnectionRef.current.createAnswer();
       await peerConnectionRef.current.setLocalDescription(answer);
-      
+
       if (wsRef.current && roomId) {
         console.log('Doctor sending answer with room ID:', roomId);
         wsRef.current.send(JSON.stringify({
@@ -682,7 +683,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       });
     }
   };
-  
+
   const handleAnswer = async (message: any) => {
     try {
       if (peerConnectionRef.current) {
@@ -710,7 +711,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       });
     }
   };
-  
+
   const handleICECandidate = async (message: any) => {
     try {
       if (peerConnectionRef.current) {
@@ -729,7 +730,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       // and we don't want to spam the user
     }
   };
-  
+
   const toggleAudio = () => {
     if (localStreamRef.current) {
       const audioTracks = localStreamRef.current.getAudioTracks();
@@ -739,7 +740,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       setAudioEnabled(!audioEnabled);
     }
   };
-  
+
   const toggleVideo = () => {
     if (localStreamRef.current) {
       const videoTracks = localStreamRef.current.getVideoTracks();
@@ -749,7 +750,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       setVideoEnabled(!videoEnabled);
     }
   };
-  
+
   const sendChatMessage = () => {
     if (messageText.trim() && wsRef.current) {
       const message = {
@@ -759,19 +760,22 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
         text: messageText,
         roomId
       };
-      
+
       wsRef.current.send(JSON.stringify(message));
-      
+
       // Add message to local state
       setMessages(prev => [...prev, {
         sender: user?.name || "You",
         text: messageText
       }]);
-      
+
       // Clear input
       setMessageText("");
     }
   };
+
+  const handleEndCall = onClose;
+
 
   return (
     <div className="flex flex-col h-full max-h-[calc(100vh-8rem)] overflow-hidden">
@@ -784,7 +788,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             <h3 className="font-medium">{patient.name}</h3>
             <p className="text-xs text-muted-foreground">Video Consultation</p>
           </div>
-          
+
           <Dialog>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm" className="ml-2">
@@ -842,7 +846,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             </DialogContent>
           </Dialog>
         </div>
-        
+
         <div className="flex items-center gap-2">
           <Button 
             onClick={() => setChatOpen(!chatOpen)} 
@@ -857,7 +861,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           </Button>
         </div>
       </div>
-      
+
       <div className="flex flex-1 overflow-hidden">
         <div className={`flex-1 flex flex-col ${chatOpen ? 'w-2/3' : 'w-full'}`}>
           <div className="relative flex-1 bg-muted">
@@ -868,7 +872,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
               playsInline
               className="w-full h-full object-cover"
             />
-            
+
             {/* Local video (pip) */}
             <div className="absolute bottom-4 right-4 w-1/4 max-w-[200px] rounded-lg overflow-hidden shadow-lg">
               <video
@@ -880,7 +884,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
               />
             </div>
           </div>
-          
+
           <div className="p-2 bg-background">
             <Sheet>
               <div className="flex items-center justify-between mb-4">
@@ -915,7 +919,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                   </div>
                 )}
               </div>
-              
+
               <SheetContent side="right" className="w-[400px] sm:w-[540px]">
                 <SheetHeader>
                   <SheetTitle>Consultation Transcription</SheetTitle>
@@ -923,13 +927,13 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                     Generated transcript from the recorded consultation
                   </SheetDescription>
                 </SheetHeader>
-                
+
                 <div className="my-6">
                   <ScrollArea className="h-[calc(100vh-200px)]">
                     <p className="text-sm whitespace-pre-wrap">{transcription}</p>
                   </ScrollArea>
                 </div>
-                
+
                 <SheetFooter>
                   <Button onClick={createMedicalNote}>
                     <FileText className="h-4 w-4 mr-2" />
@@ -938,7 +942,81 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                 </SheetFooter>
               </SheetContent>
             </Sheet>
-            
+
+            {/* Controls overlay */}
+            <div className="absolute bottom-0 left-0 right-0 flex flex-col sm:flex-row items-center justify-between px-4 py-3 bg-gradient-to-t from-black/70 to-transparent">
+              <div className="flex items-center gap-2 mb-2 sm:mb-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-white bg-black/30 hover:bg-black/40 border-white/20"
+                  onClick={() => setChatOpen(!chatOpen)}
+                >
+                  <MessageCircle className="h-4 w-4 mr-2" />
+                  Chat
+                </Button>
+                {transcription ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-white bg-black/30 hover:bg-black/40 border-white/20"
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    View Notes
+                  </Button>
+                ) : isRecording ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-white bg-black/30 hover:bg-black/40 border-white/20"
+                    onClick={stopRecording}
+                  >
+                    <StopCircle className="h-4 w-4 mr-2" />
+                    Stop Recording
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-white bg-black/30 hover:bg-black/40 border-white/20"
+                    onClick={startRecording}
+                  >
+                    <Mic className="h-4 w-4 mr-2" />
+                    Record
+                  </Button>
+                )}
+              </div>
+
+              <div className="flex justify-center gap-2">
+                <Button
+                  variant={audioEnabled ? "outline" : "destructive"}
+                  size="icon"
+                  className="bg-white/20 hover:bg-white/30 border-none rounded-full h-10 w-10 sm:h-12 sm:w-12"
+                  onClick={toggleAudio}
+                >
+                  {audioEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+                </Button>
+
+                <Button
+                  variant={videoEnabled ? "outline" : "destructive"}
+                  size="icon"
+                  className="bg-white/20 hover:bg-white/30 border-none rounded-full h-10 w-10 sm:h-12 sm:w-12"
+                  onClick={toggleVideo}
+                >
+                  {videoEnabled ? <Video className="h-4 w-4" /> : <VideoOff className="h-4 w-4/>}
+                </Button>
+
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  className="rounded-full h-10 w-10 sm:h-12 sm:w-12"
+                  onClick={handleEndCall}
+                >
+                  <VideoOff className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
             <div className="flex justify-center gap-2">
               <Button 
                 onClick={toggleAudio} 
@@ -960,13 +1038,13 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             </div>
           </div>
         </div>
-        
+
         {chatOpen && (
           <div className="w-1/3 border-l flex flex-col h-full">
             <div className="p-4 border-b">
               <h3 className="font-medium">Chat</h3>
             </div>
-            
+
             <ScrollArea className="flex-1 p-4">
               <div className="space-y-4">
                 {messages.map((msg, i) => (
@@ -984,7 +1062,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                 )}
               </div>
             </ScrollArea>
-            
+
             <div className="p-4 border-t flex gap-2">
               <Input 
                 value={messageText}
@@ -1016,16 +1094,16 @@ interface StartConsultationDialogProps {
 
 function StartConsultationDialog({ isOpen, onClose, onStartConsultation }: StartConsultationDialogProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  
+
   const { data: patients, isLoading } = useQuery<Patient[]>({
     queryKey: ["/api/patients"],
   });
-  
+
   const filteredPatients = patients?.filter(patient => 
     patient.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     patient.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
-  
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent>
@@ -1035,7 +1113,7 @@ function StartConsultationDialog({ isOpen, onClose, onStartConsultation }: Start
             Select a patient to start a video consultation with.
           </DialogDescription>
         </DialogHeader>
-        
+
         <div className="py-4">
           <Input
             placeholder="Search patients..."
@@ -1043,7 +1121,7 @@ function StartConsultationDialog({ isOpen, onClose, onStartConsultation }: Start
             onChange={(e) => setSearchQuery(e.target.value)}
             className="mb-4"
           />
-          
+
           <ScrollArea className="h-[300px]">
             <div className="space-y-2">
               {isLoading ? (
@@ -1076,7 +1154,7 @@ function StartConsultationDialog({ isOpen, onClose, onStartConsultation }: Start
             </div>
           </ScrollArea>
         </div>
-        
+
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
         </DialogFooter>
@@ -1102,7 +1180,7 @@ interface RecordingDetailsDialogProps {
 
 function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetailsDialogProps) {
   const { toast } = useToast();
-  
+
   // Use the recording data directly to get real-time updates
   const generateTranscriptMutation = useMutation({
     mutationFn: async (recordingId: number) => {
@@ -1125,7 +1203,7 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
       });
     },
   });
-  
+
   const generateSoapNoteMutation = useMutation({
     mutationFn: async (recordingId: number) => {
       const res = await apiRequest("POST", `/api/telemedicine/recordings/${recordingId}/generate-note`, {});
@@ -1153,7 +1231,7 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
       generateTranscriptMutation.mutate(recording.id);
     }
   };
-  
+
   const handleGenerateSoapNote = () => {
     if (recording) {
       generateSoapNoteMutation.mutate(recording.id);
@@ -1171,7 +1249,7 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
             View and manage recording details for this consultation.
           </DialogDescription>
         </DialogHeader>
-        
+
         <div className="grid gap-4 mt-4">
           <div className="flex flex-col sm:flex-row justify-between gap-4">
             <div>
@@ -1196,9 +1274,9 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
               )}
             </div>
           </div>
-          
+
           <Separator />
-          
+
           <div>
             <h4 className="text-sm font-medium mb-2">Transcript</h4>
             {recording.transcript ? (
@@ -1224,7 +1302,7 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
               </div>
             )}
           </div>
-          
+
           {recording.notes && (
             <div>
               <h4 className="text-sm font-medium mb-2">Notes</h4>
@@ -1234,7 +1312,7 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
             </div>
           )}
         </div>
-        
+
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Close</Button>
           {recording.transcript && !recording.notes && (
@@ -1281,24 +1359,24 @@ export default function Telemedicine() {
     roomId: string;
     patient: Patient;
   } | null>(null);
-  
+
   // State for recording details dialog
   const [showRecordingDetails, setShowRecordingDetails] = useState(false);
   const [selectedRecording, setSelectedRecording] = useState<RecordingSession | null>(null);
-  
+
   const { data: patients } = useQuery<Patient[]>({
     queryKey: ["/api/patients"],
   });
-  
+
   const { data: appointments } = useQuery<Appointment[]>({
     queryKey: ["/api/appointments"],
   });
-  
+
   // Fetch recording sessions
   const { data: recordings, isLoading: loadingRecordings } = useQuery<RecordingSession[]>({
     queryKey: ["/api/telemedicine/recordings"],
   });
-  
+
   const createRoomMutation = useMutation({
     mutationFn: async (patientData: { patientId: number, patientName: string }) => {
       const res = await apiRequest("POST", "/api/telemedicine/rooms", patientData);
@@ -1312,7 +1390,7 @@ export default function Telemedicine() {
             roomId: data.roomId,
             patient
           });
-          
+
           toast({
             title: "Consultation started",
             description: `Video consultation with ${patient.name} is ready.`,
@@ -1328,25 +1406,25 @@ export default function Telemedicine() {
       });
     },
   });
-  
+
   const handleStartConsultation = (patient: Patient) => {
     setShowStartDialog(false);
-    
+
     createRoomMutation.mutate({
       patientId: patient.id,
       patientName: patient.name
     });
   };
-  
+
   const handleEndConsultation = () => {
     setActiveConsultation(null);
-    
+
     toast({
       title: "Consultation ended",
       description: "Video consultation has been ended.",
     });
   };
-  
+
   return (
     <>
       {activeConsultation ? (
@@ -1438,14 +1516,14 @@ export default function Telemedicine() {
                     .map(appointment => {
                       const patient = patients.find(p => p.id === appointment.patientId);
                       if (!patient) return null;
-                      
+
                       const appointmentTime = new Date(appointment.date).toLocaleTimeString([], {
                         hour: '2-digit',
                         minute: '2-digit'
                       });
-                      
+
                       const initials = patient.name.split(' ').map(n => n[0]).join('');
-                      
+
                       return (
                         <div
                           key={appointment.id}
@@ -1480,7 +1558,7 @@ export default function Telemedicine() {
                   <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full" />
                 </div>
               )}
-              
+
               {appointments?.filter(a => a.type === 'telemedicine' && new Date(a.date) > new Date()).length === 0 && (
                 <div className="text-center p-6 text-muted-foreground">
                   <p>No upcoming telemedicine appointments.</p>
@@ -1489,7 +1567,7 @@ export default function Telemedicine() {
               )}
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Past Recordings</CardTitle>
@@ -1530,13 +1608,13 @@ export default function Telemedicine() {
                           {recording.status}
                         </Badge>
                       </div>
-                      
+
                       {recording.duration && (
                         <div className="text-sm text-muted-foreground mb-2">
                           Duration: {Math.floor(recording.duration / 60)}m {recording.duration % 60}s
                         </div>
                       )}
-                      
+
                       {recording.transcript && (
                         <div className="mt-2">
                           <p className="text-sm font-medium mb-1">Transcript:</p>
@@ -1546,7 +1624,7 @@ export default function Telemedicine() {
                           </div>
                         </div>
                       )}
-                      
+
                       <div className="flex gap-2 mt-3">
                         <Button 
                           variant="outline" 
@@ -1571,13 +1649,13 @@ export default function Telemedicine() {
               )}
             </CardContent>
           </Card>
-          
+
           <StartConsultationDialog 
             isOpen={showStartDialog}
             onClose={() => setShowStartDialog(false)}
             onStartConsultation={handleStartConsultation}
           />
-          
+
           <RecordingDetailsDialog
             recording={selectedRecording}
             isOpen={showRecordingDetails}
