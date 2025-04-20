@@ -72,6 +72,8 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [videoEnabled, setVideoEnabled] = useState(true);
   const [chatOpen, setChatOpen] = useState(false);
+  const [liveTranscriptionOpen, setLiveTranscriptionOpen] = useState(false);
+  const [liveTranscriptions, setLiveTranscriptions] = useState<Array<{speaker: string, text: string, timestamp: Date}>>([]);
   const [messages, setMessages] = useState<{sender: string, text: string}[]>([]);
   const [messageText, setMessageText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
@@ -915,8 +917,8 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
               className="w-full h-full object-cover"
             />
 
-            {/* Local video (pip) - Improved with label and better positioning */}
-            <div className="absolute bottom-4 right-4 w-1/4 max-w-[200px] min-w-[120px] rounded-lg overflow-hidden shadow-lg border-2 border-background z-10">
+            {/* Local video (pip) - Moved to top-right corner */}
+            <div className="absolute top-4 right-4 w-1/4 max-w-[180px] min-w-[120px] rounded-lg overflow-hidden shadow-lg border-2 border-background z-10">
               <video
                 ref={localVideoRef}
                 autoPlay
