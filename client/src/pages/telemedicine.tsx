@@ -437,23 +437,47 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsUrl = `${protocol}//${window.location.host}/ws`;
     
-    console.log('Connecting to WebSocket at:', wsUrl);
-    wsRef.current = new WebSocket(wsUrl);
+    console.log('Doctor connecting to WebSocket at:', wsUrl);
     
-    wsRef.current.onopen = () => {
-      console.log('WebSocket connection established');
+    try {
+      wsRef.current = new WebSocket(wsUrl);
       
-      // Join the room
-      if (wsRef.current && user) {
-        wsRef.current.send(JSON.stringify({
-          type: 'join',
-          roomId,
-          userId: user.id.toString(),
-          name: user.name,
-          isDoctor: true
-        }));
-      }
-    };
+      wsRef.current.onopen = () => {
+        console.log('Doctor WebSocket connection established successfully');
+        
+        // Join the room
+        if (wsRef.current && user) {
+          const joinMessage = {
+            type: 'join',
+            roomId,
+            userId: user.id.toString(),
+            name: user.name,
+            isDoctor: true
+          };
+          
+          console.log('Doctor joining room with message:', joinMessage);
+          wsRef.current.send(JSON.stringify(joinMessage));
+        } else {
+          console.error('Cannot join room - WebSocket or user data not available');
+        }
+      };
+      
+      wsRef.current.onerror = (error) => {
+        console.error('Doctor WebSocket connection error:', error);
+        toast({
+          title: "Connection Error",
+          description: "Failed to establish server connection. Please try again.",
+          variant: "destructive"
+        });
+      };
+    } catch (error) {
+      console.error('Error creating WebSocket connection:', error);
+      toast({
+        title: "Connection Error",
+        description: "Failed to create WebSocket connection. Please try refreshing the page.",
+        variant: "destructive"
+      });
+    }
     
     wsRef.current.onmessage = async (event) => {
       const message = JSON.parse(event.data);
