@@ -421,7 +421,10 @@ export default function JoinConsultationPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <p>Please contact your healthcare provider for a valid consultation link.</p>
+            <p>Please contact your healthcare provider for a valid consultation link. The link should include a room ID.</p>
+            <p className="mt-4 text-sm text-muted-foreground">
+              Example: <code className="bg-muted p-1 rounded">/join-consultation/room_12345</code>
+            </p>
           </CardContent>
         </Card>
       </div>

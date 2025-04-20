@@ -61,8 +61,9 @@ interface VideoConsultationProps {
 }
 
 function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps) {
-  // For patient join URL
+  // For patient join URL - make sure it includes the roomId parameter
   const patientJoinUrl = `${window.location.origin}/join-consultation/${roomId}`;
+  console.log("Generated patient join URL:", patientJoinUrl);
   
   const { user } = useAuth();
   const { toast } = useToast();
@@ -837,9 +838,12 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                   Share this information with patients to join the consultation
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 py-4">
+              <div className="space-y-6 py-4">
                 <div className="space-y-2">
-                  <div className="text-sm font-semibold">Patient Join URL</div>
+                  <div className="text-sm font-semibold">Complete Patient Join URL</div>
+                  <div className="text-xs text-muted-foreground mb-2">
+                    Share this complete URL with the patient. It contains the necessary room ID.
+                  </div>
                   <div className="flex items-center gap-2">
                     <Input value={patientJoinUrl} readOnly />
                     <Button
@@ -849,7 +853,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                         navigator.clipboard.writeText(patientJoinUrl);
                         toast({
                           title: "URL Copied",
-                          description: "Patient join URL copied to clipboard",
+                          description: "Complete patient join URL copied to clipboard",
                         });
                       }}
                     >
@@ -857,10 +861,14 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                     </Button>
                   </div>
                 </div>
+                <Separator />
                 <div className="space-y-2">
-                  <div className="text-sm font-semibold">Room ID</div>
+                  <div className="text-sm font-semibold">Room ID (for manual entry)</div>
+                  <div className="text-xs text-muted-foreground mb-2">
+                    If the patient needs to enter the room ID manually, share this code.
+                  </div>
                   <div className="flex items-center gap-2">
-                    <Input value={roomId} readOnly />
+                    <Input value={roomId} readOnly className="font-mono" />
                     <Button
                       size="sm"
                       variant="outline"
