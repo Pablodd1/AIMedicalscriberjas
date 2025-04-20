@@ -1178,6 +1178,10 @@ export default function Telemedicine() {
     queryKey: ["/api/patients"],
   });
   
+  const { data: appointments } = useQuery<Appointment[]>({
+    queryKey: ["/api/appointments"],
+  });
+  
   // Fetch recording sessions
   const { data: recordings, isLoading: loadingRecordings } = useQuery<RecordingSession[]>({
     queryKey: ["/api/telemedicine/recordings"],

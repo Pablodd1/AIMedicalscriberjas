@@ -29,6 +29,8 @@ export const appointments = pgTable("appointments", {
   doctorId: integer("doctor_id").notNull(),
   date: timestamp("date").notNull(),
   status: text("status").notNull().default("scheduled"),
+  type: text("type").notNull().default("in-person"),
+  reason: text("reason"),
   notes: text("notes"),
 });
 
@@ -80,6 +82,8 @@ export const insertAppointmentSchema = createInsertSchema(appointments).pick({
   patientId: true,
   doctorId: true,
   date: true,
+  type: true,
+  reason: true,
   notes: true,
 });
 
