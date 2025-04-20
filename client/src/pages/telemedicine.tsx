@@ -17,7 +17,10 @@ import {
   Send,
   Circle,
   Square,
-  FileText
+  FileText,
+  Loader2,
+  Printer,
+  Download
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -45,7 +48,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -986,49 +989,69 @@ interface RecordingDetailsDialogProps {
 }
 
 function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetailsDialogProps) {
-  const [transcript, setTranscript] = useState<string | null>(recording?.transcript || null);
-  const [isGenerating, setIsGenerating] = useState(false);
   const { toast } = useToast();
-
-  useEffect(() => {
-    // Update transcript when recording changes
-    setTranscript(recording?.transcript || null);
-  }, [recording]);
-
-  const handleGenerateTranscript = async () => {
-    if (!recording) return;
-    
-    setIsGenerating(true);
-    try {
-      const response = await apiRequest(
-        "PATCH", 
-        `/api/telemedicine/recordings/${recording.id}`,
-        { 
-          transcript: "This is an automatically generated transcript of the consultation. The patient described symptoms including headache, fever, and fatigue. The doctor recommended rest, hydration, and over-the-counter pain medication. A follow-up was scheduled for next week."
-        }
-      );
-      const data = await response.json();
-      
-      setTranscript(data.transcript);
+  
+  // Use the recording data directly to get real-time updates
+  const generateTranscriptMutation = useMutation({
+    mutationFn: async (recordingId: number) => {
+      const res = await apiRequest("PATCH", `/api/telemedicine/recordings/${recordingId}/generate-transcript`, {});
+      return res.json();
+    },
+    onSuccess: () => {
       toast({
-        title: "Transcript Generated",
-        description: "The recording transcript has been generated successfully."
+        title: "Transcript generated",
+        description: "The consultation transcript has been generated successfully.",
       });
-    } catch (error: any) {
+      // Invalidate the recordings cache to refresh data
+      queryClient.invalidateQueries({ queryKey: ["/api/telemedicine/recordings"] });
+    },
+    onError: (error: Error) => {
       toast({
-        title: "Failed to Generate Transcript",
-        description: error.message || "An error occurred while generating the transcript.",
-        variant: "destructive"
+        title: "Failed to generate transcript",
+        description: error.message,
+        variant: "destructive",
       });
-    } finally {
-      setIsGenerating(false);
+    },
+  });
+  
+  const generateSoapNoteMutation = useMutation({
+    mutationFn: async (recordingId: number) => {
+      const res = await apiRequest("POST", `/api/telemedicine/recordings/${recordingId}/generate-note`, {});
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "SOAP note generated",
+        description: "Medical note has been created based on the consultation.",
+      });
+      // Invalidate the recordings cache to refresh data
+      queryClient.invalidateQueries({ queryKey: ["/api/telemedicine/recordings"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to generate SOAP note",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleGenerateTranscript = () => {
+    if (recording) {
+      generateTranscriptMutation.mutate(recording.id);
+    }
+  };
+  
+  const handleGenerateSoapNote = () => {
+    if (recording) {
+      generateSoapNoteMutation.mutate(recording.id);
     }
   };
 
   if (!recording) return null;
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={() => onClose()}>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>Recording Details</DialogTitle>
@@ -1066,13 +1089,13 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
           
           <div>
             <h4 className="text-sm font-medium mb-2">Transcript</h4>
-            {transcript ? (
+            {recording.transcript ? (
               <ScrollArea className="h-64 rounded-md border p-4">
-                <p className="whitespace-pre-wrap">{transcript}</p>
+                <p className="whitespace-pre-wrap">{recording.transcript}</p>
               </ScrollArea>
             ) : (
               <div className="h-64 rounded-md border flex items-center justify-center">
-                {isGenerating ? (
+                {generateTranscriptMutation.isPending ? (
                   <div className="text-center">
                     <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-2"></div>
                     <p className="text-sm text-muted-foreground">Generating transcript...</p>
@@ -1102,10 +1125,21 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
         
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Close</Button>
-          <Button>
-            <FileText className="h-4 w-4 mr-2" />
-            Generate Medical Note
-          </Button>
+          {recording.transcript && !recording.notes && (
+            <Button onClick={handleGenerateSoapNote} disabled={generateSoapNoteMutation.isPending}>
+              {generateSoapNoteMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Generate SOAP Note
+                </>
+              )}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -1378,19 +1412,6 @@ export default function Telemedicine() {
                           <FileText className="h-4 w-4 mr-1" />
                           View Details
                         </Button>
-                        {!recording.transcript && recording.status === 'completed' && (
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => {
-                              setSelectedRecording(recording);
-                              setShowRecordingDetails(true);
-                            }}
-                          >
-                            <Mic className="h-4 w-4 mr-1" />
-                            Generate Transcript
-                          </Button>
-                        )}
                       </div>
                     </div>
                   ))}
