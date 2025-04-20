@@ -778,22 +778,23 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
 
 
   return (
-    <div className="flex flex-col h-full min-h-[calc(100vh-8rem)] max-h-[calc(100vh-8rem)] overflow-hidden sm:overflow-auto">
-      <div className="flex justify-between items-center p-2 border-b">
-        <div className="flex items-center gap-2">
-          <Avatar>
+    <div className="flex flex-col h-full min-h-[calc(100vh-4rem)] max-h-[calc(100vh-4rem)] overflow-hidden">
+      {/* Header with responsive design */}
+      <div className="flex flex-wrap justify-between items-center p-2 border-b">
+        <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+          <Avatar className="flex-shrink-0">
             <AvatarFallback>{patient.name[0]}</AvatarFallback>
           </Avatar>
-          <div>
-            <h3 className="font-medium">{patient.name}</h3>
+          <div className="min-w-0 overflow-hidden">
+            <h3 className="font-medium truncate">{patient.name}</h3>
             <p className="text-xs text-muted-foreground">Video Consultation</p>
           </div>
 
           <Dialog>
             <DialogTrigger asChild>
-              <Button variant="outline" size="sm" className="ml-2">
+              <Button variant="outline" size="sm" className="ml-2 hidden sm:flex">
                 <Users className="h-4 w-4 mr-1" />
-                Share Info
+                <span>Share Info</span>
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
@@ -848,6 +849,44 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Mobile share button */}
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="icon" className="sm:hidden">
+                <Users className="h-4 w-4" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="w-[90vw] sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Share Consultation</DialogTitle>
+                <DialogDescription>
+                  Share this link with your patient
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4">
+                <div className="space-y-2">
+                  <div className="text-sm font-semibold">Patient Join URL</div>
+                  <div className="flex items-center gap-2">
+                    <Input value={patientJoinUrl} readOnly />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(patientJoinUrl);
+                        toast({
+                          title: "URL Copied",
+                          description: "URL copied to clipboard",
+                        });
+                      }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+          
           <Button 
             onClick={() => setChatOpen(!chatOpen)} 
             variant="outline" 
@@ -862,8 +901,11 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
         </div>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
-        <div className={`flex-1 flex flex-col ${chatOpen ? 'w-2/3' : 'w-full'}`}>
+      <div className="grid flex-1 overflow-hidden" style={{ 
+        gridTemplateColumns: chatOpen ? '1fr minmax(250px, 350px)' : '1fr',
+        gridTemplateRows: '1fr auto'
+       }}>
+        <div className="flex flex-col">
           <div className="relative flex-1 bg-muted">
             {/* Main remote video */}
             <video
@@ -873,35 +915,40 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
               className="w-full h-full object-cover"
             />
 
-            {/* Local video (pip) */}
-            <div className="absolute bottom-4 right-4 w-1/4 max-w-[200px] rounded-lg overflow-hidden shadow-lg">
+            {/* Local video (pip) - Improved with label and better positioning */}
+            <div className="absolute bottom-4 right-4 w-1/4 max-w-[200px] min-w-[120px] rounded-lg overflow-hidden shadow-lg border-2 border-background z-10">
               <video
                 ref={localVideoRef}
                 autoPlay
                 playsInline
                 muted
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover bg-black"
               />
+              <div className="absolute bottom-0 left-0 right-0 bg-black/50 p-1 text-white text-xs text-center">
+                You
+              </div>
             </div>
           </div>
 
           <div className="p-2 bg-background">
             <Sheet>
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
                 {transcription ? (
                   <SheetTrigger asChild>
-                    <Button variant="outline" className="mr-auto">
+                    <Button variant="outline" className="mr-auto" size="sm">
                       <FileText className="h-4 w-4 mr-2" />
-                      View Transcription
+                      <span className="hidden sm:inline">View Transcription</span>
+                      <span className="sm:hidden inline">Transcript</span>
                     </Button>
                   </SheetTrigger>
                 ) : (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     {isRecording ? (
                       <>
                         <Button variant="outline" onClick={stopRecording} size="sm">
                           <Square className="h-4 w-4 mr-2" />
-                          Stop Recording
+                          <span className="hidden sm:inline">Stop Recording</span>
+                          <span className="sm:hidden inline">Stop</span>
                         </Button>
                         <div className="flex items-center bg-muted px-2 py-1 rounded-md">
                           <span className="animate-pulse h-2 w-2 rounded-full bg-red-500 mr-2"></span>
@@ -913,14 +960,15 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                     ) : (
                       <Button variant="outline" onClick={startRecording} size="sm">
                         <Circle className="h-4 w-4 mr-2 fill-red-500" />
-                        Record Meeting
+                        <span className="hidden sm:inline">Record Meeting</span>
+                        <span className="sm:hidden inline">Record</span>
                       </Button>
                     )}
                   </div>
                 )}
               </div>
 
-              <SheetContent side="right" className="w-[400px] sm:w-[540px]">
+              <SheetContent side="right" className="w-[90vw] sm:w-[540px] max-w-[95vw]">
                 <SheetHeader>
                   <SheetTitle>Consultation Transcription</SheetTitle>
                   <SheetDescription>
@@ -928,14 +976,14 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                   </SheetDescription>
                 </SheetHeader>
 
-                <div className="my-6">
-                  <ScrollArea className="h-[calc(100vh-200px)]">
+                <div className="my-4 sm:my-6">
+                  <ScrollArea className="h-[calc(100vh-220px)]">
                     <p className="text-sm whitespace-pre-wrap">{transcription}</p>
                   </ScrollArea>
                 </div>
 
-                <SheetFooter>
-                  <Button onClick={createMedicalNote}>
+                <SheetFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
+                  <Button onClick={createMedicalNote} className="w-full sm:w-auto">
                     <FileText className="h-4 w-4 mr-2" />
                     Create SOAP Note
                   </Button>
@@ -1017,41 +1065,23 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
               </div>
             </div>
 
-            <div className="flex justify-center gap-2">
-              <Button 
-                onClick={toggleAudio} 
-                variant={audioEnabled ? "outline" : "destructive"}
-                size="icon"
-              >
-                {audioEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
-              </Button>
-              <Button 
-                onClick={toggleVideo} 
-                variant={videoEnabled ? "outline" : "destructive"}
-                size="icon"
-              >
-                {videoEnabled ? <Video className="h-4 w-4" /> : <VideoOff className="h-4 w-4" />}
-              </Button>
-              <Button variant="destructive" onClick={onClose}>
-                End Call
-              </Button>
-            </div>
+            {/* Control buttons removed to avoid duplication with the overlay controls */}
           </div>
         </div>
 
         {chatOpen && (
-          <div className="w-full sm:w-1/3 border-l flex flex-col h-full">
-            <div className="p-4 border-b">
+          <div className="border-l flex flex-col h-full">
+            <div className="p-2 sm:p-3 border-b">
               <h3 className="font-medium">Chat</h3>
             </div>
 
-            <ScrollArea className="flex-1 p-4">
-              <div className="space-y-4">
+            <ScrollArea className="flex-1 p-2 sm:p-3">
+              <div className="space-y-3">
                 {messages.map((msg, i) => (
                   <div key={i} className="flex flex-col">
                     <p className="text-xs font-medium text-muted-foreground">{msg.sender}</p>
-                    <div className="bg-muted rounded-lg p-3 mt-1 inline-block">
-                      <p>{msg.text}</p>
+                    <div className="bg-muted rounded-lg p-2 sm:p-3 mt-1 inline-block max-w-[85%]">
+                      <p className="text-sm">{msg.text}</p>
                     </div>
                   </div>
                 ))}
@@ -1063,11 +1093,12 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
               </div>
             </ScrollArea>
 
-            <div className="p-4 border-t flex gap-2">
+            <div className="p-2 sm:p-3 border-t flex gap-2">
               <Input 
                 value={messageText}
                 onChange={(e) => setMessageText(e.target.value)}
                 placeholder="Type a message..."
+                className="text-sm"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
@@ -1075,7 +1106,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                   }
                 }}
               />
-              <Button onClick={sendChatMessage} size="icon">
+              <Button onClick={sendChatMessage} size="icon" className="flex-shrink-0">
                 <Send className="h-4 w-4" />
               </Button>
             </div>
