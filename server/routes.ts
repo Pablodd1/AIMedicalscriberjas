@@ -470,8 +470,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (data.type === 'join') {
           roomId = data.roomId;
           userId = data.userId;
-          const username = data.username || 'Anonymous';
+          const username = data.name || data.username || 'Anonymous'; // Accept either name or username
           const isDoctor = data.isDoctor || false;
+          
+          console.log(`User joining room: ${roomId}, userId: ${userId}, username: ${username}, isDoctor: ${isDoctor}`);
           
           // Create room if it doesn't exist
           if (!rooms.has(roomId)) {
@@ -497,6 +499,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 type: 'user-joined',
                 userId,
                 username,
+                name: username, // Send both for backward compatibility
                 isDoctor
               }));
             }
@@ -513,20 +516,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }));
         }
         
-        // Handle WebRTC signaling
-        if (data.type === 'signal' && roomId && userId) {
+        // Handle WebRTC signaling - for both offer, answer and ice-candidate
+        if ((data.type === 'signal' || data.type === 'offer' || data.type === 'ice-candidate') && roomId && userId) {
           const room = rooms.get(roomId);
           if (room) {
-            const { targetId, signal } = data;
+            // Handle different target id fields
+            const targetId = data.targetId || data.target;
+            
+            console.log(`Routing ${data.type} message from ${userId} to target ${targetId} in room ${roomId}`);
+            
+            // Find the target user
             const targetParticipant = room.participants.find(p => p.id === targetId);
             
             if (targetParticipant) {
-              targetParticipant.socket.send(JSON.stringify({
-                type: 'signal',
-                fromId: userId,
-                signal
-              }));
+              // Forward the exact same message but add fromId if needed
+              const forwardData = {...data};
+              
+              // Add sender info if not already present
+              if (!forwardData.fromId && !forwardData.sender) {
+                forwardData.fromId = userId;
+                forwardData.sender = userId;
+              }
+              
+              targetParticipant.socket.send(JSON.stringify(forwardData));
+              console.log(`Successfully forwarded ${data.type} message to ${targetId}`);
+            } else {
+              console.error(`Target participant ${targetId} not found in room ${roomId}`);
             }
+          } else {
+            console.error(`Room ${roomId} not found for signal message`);
           }
         }
       } catch (error) {
