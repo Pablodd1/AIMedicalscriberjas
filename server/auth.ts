@@ -9,7 +9,23 @@ import { User } from "@shared/schema";
 
 declare global {
   namespace Express {
-    interface User extends User {}
+    // Define the User interface for passport
+    interface User {
+      id: number;
+      username: string;
+      password: string;
+      name: string;
+      role: string;
+      email: string;
+      phone?: string;
+      specialty?: string;
+      licenseNumber?: string;
+      avatar?: string;
+      bio?: string;
+      isActive?: boolean;
+      createdAt?: Date;
+      lastLogin?: Date;
+    }
   }
 }
 
@@ -115,14 +131,14 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/login", (req, res, next) => {
-    passport.authenticate("local", (err, user, info) => {
+    passport.authenticate("local", (err: Error | null, user: User | false, info: { message: string } | undefined) => {
       if (err) {
         return next(err);
       }
       if (!user) {
         return res.status(401).json({ message: "Invalid username or password" });
       }
-      req.login(user, (err) => {
+      req.login(user, (err: Error | null) => {
         if (err) {
           return next(err);
         }

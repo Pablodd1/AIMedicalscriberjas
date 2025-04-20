@@ -165,6 +165,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/medical-notes", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    const doctorId = req.user.id;
+    
     const validation = insertMedicalNoteSchema.safeParse(req.body);
     if (!validation.success) {
       return res.status(400).json(validation.error);
@@ -180,7 +185,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     const note = await storage.createMedicalNote({
       ...validation.data,
-      doctorId: MOCK_DOCTOR_ID,
+      doctorId: doctorId,
     });
     
     res.status(201).json(note);
@@ -189,7 +194,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Quick Notes routes (notes without patient association)
   app.get("/api/quick-notes", async (req, res) => {
     try {
-      const notes = await storage.getQuickNotes(MOCK_DOCTOR_ID);
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const doctorId = req.user.id;
+      
+      const notes = await storage.getQuickNotes(doctorId);
       res.json(notes);
     } catch (error) {
       console.error("Error fetching quick notes:", error);
@@ -199,10 +209,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.post("/api/quick-notes", async (req, res) => {
     try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const doctorId = req.user.id;
+      
       // Create a modified schema for quick notes that doesn't require patientId
       const quickNoteData = {
         ...req.body,
-        doctorId: MOCK_DOCTOR_ID,
+        doctorId: doctorId,
         isQuickNote: true
       };
       
@@ -216,11 +231,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Consultation Notes routes
   app.get("/api/consultation-notes", async (req, res) => {
-    const notes = await storage.getConsultationNotes(MOCK_DOCTOR_ID);
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    const doctorId = req.user.id;
+    
+    const notes = await storage.getConsultationNotes(doctorId);
     res.json(notes);
   });
   
   app.get("/api/patients/:patientId/consultation-notes", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
     const patientId = parseInt(req.params.patientId);
     const patient = await storage.getPatient(patientId);
     if (!patient) return res.sendStatus(404);
@@ -230,6 +254,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   app.get("/api/consultation-notes/:id", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
     const noteId = parseInt(req.params.id);
     if (isNaN(noteId)) {
       return res.status(400).json({ message: "Invalid ID format" });
@@ -240,6 +268,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   app.post("/api/consultation-notes", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    const doctorId = req.user.id;
+    
     const validation = insertConsultationNoteSchema.safeParse(req.body);
     if (!validation.success) {
       return res.status(400).json(validation.error);
@@ -253,7 +286,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     const note = await storage.createConsultationNote({
       ...validation.data,
-      doctorId: MOCK_DOCTOR_ID,
+      doctorId: doctorId,
     });
     
     res.status(201).json(note);
