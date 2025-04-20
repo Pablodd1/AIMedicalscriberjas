@@ -313,13 +313,42 @@ export default function JoinConsultationPage() {
 
       // Handle incoming tracks (remote stream)
       pc.ontrack = (event) => {
-        console.log('Received remote track:', event.track.kind);
-        if (remoteVideoRef.current && event.streams && event.streams[0]) {
-          console.log('Setting remote stream to video element');
-          remoteVideoRef.current.srcObject = event.streams[0];
-          setIsConnected(true); // Set isConnected to true when remote track is received
-          setIsConnecting(false);
+        console.log('Received remote track:', event.track.kind, event.track.label, event.track.readyState);
+        
+        // Make sure we have a valid remote video element
+        if (!remoteVideoRef.current) {
+          console.error('Remote video element not available');
+          return;
         }
+        
+        // Some browsers don't create a new MediaStream automatically
+        if (!remoteVideoRef.current.srcObject) {
+          console.log('Creating new MediaStream for remote video');
+          remoteVideoRef.current.srcObject = new MediaStream();
+        }
+        
+        // Get the stream from the video element or create new one
+        const stream = remoteVideoRef.current.srcObject as MediaStream;
+        
+        // Add the track to the stream if it's not already there
+        const trackExists = stream.getTracks().some(t => t.id === event.track.id);
+        if (!trackExists) {
+          console.log('Adding track to remote stream:', event.track.kind, event.track.id);
+          stream.addTrack(event.track);
+        }
+        
+        // Log the current tracks in the stream
+        console.log('Remote stream tracks:', stream.getTracks().map(t => `${t.kind}:${t.id}`).join(', '));
+        
+        // Update UI state
+        setIsConnected(true);
+        setIsConnecting(false);
+        
+        // Show a success toast
+        toast({
+          title: "Connected",
+          description: `Video feed established with doctor ${doctorName || ''}`,
+        });
       };
 
       peerConnectionRef.current = pc;
@@ -563,10 +592,10 @@ export default function JoinConsultationPage() {
   return (
     <div className="flex flex-col h-screen bg-background">
       <div className="relative flex-1 overflow-hidden">
-        {/* Remote video (doctor) - fills the screen */}
+        {/* Remote video (doctor) - fills the screen without cropping */}
         <video
           ref={remoteVideoRef}
-          className="w-full h-full object-cover"
+          className="w-full h-full object-contain bg-black"
           autoPlay
           playsInline
         ></video>
