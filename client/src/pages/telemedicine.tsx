@@ -827,27 +827,52 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           const recognition = new SpeechRecognition();
           speechRecognitionRef.current = recognition;
           
+          // Set up recognition with improved settings for better speech capture
           recognition.continuous = true;
           recognition.interimResults = true;
           recognition.lang = 'en-US';
           
+          // Increase the maximum alternatives to try to catch more speech variations
+          // This helps with patient speech that might be quieter or less clear
+          recognition.maxAlternatives = 3;
+          
           // Handle recognition results
           recognition.onresult = (event: any) => {
             const last = event.results.length - 1;
-            const transcript = event.results[last][0].transcript;
-            const isFinal = event.results[last].isFinal;
+            const results = event.results[last];
+            const isFinal = results.isFinal;
             
-            if (isFinal && transcript.trim()) {
-              // Get current speaker from state at the moment of capture
-              // This ensures we correctly attribute the speech to the right person
-              addLiveTranscription(currentSpeaker, transcript);
+            if (isFinal) {
+              // Look through alternatives to find the best transcript
+              let bestTranscript = "";
+              let highestConfidence = -1;
               
-              // Add a visual indicator that new speech was captured
-              toast({
-                title: `${currentSpeaker} Speech Captured`,
-                description: transcript.length > 30 ? transcript.substring(0, 30) + "..." : transcript,
-                duration: 2000,
-              });
+              // Check all alternatives (maxAlternatives set above)
+              for (let i = 0; i < results.length; i++) {
+                const alternative = results[i];
+                const transcript = alternative.transcript.trim();
+                const confidence = alternative.confidence;
+                
+                // Keep the transcript with the highest confidence
+                if (transcript && confidence > highestConfidence) {
+                  highestConfidence = confidence;
+                  bestTranscript = transcript;
+                }
+              }
+              
+              // Only proceed if we found a valid transcript
+              if (bestTranscript) {
+                // Get current speaker from state at the moment of capture
+                // This ensures we correctly attribute the speech to the right person
+                addLiveTranscription(currentSpeaker, bestTranscript);
+                
+                // Add a visual indicator that new speech was captured
+                toast({
+                  title: `${currentSpeaker} Speech Captured`,
+                  description: bestTranscript.length > 30 ? bestTranscript.substring(0, 30) + "..." : bestTranscript,
+                  duration: 2000,
+                });
+              }
             }
           };
           
@@ -1304,7 +1329,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                     }
                   }}
                 >
-                  <ArrowDown className="h-4 w-4 mr-1" />
+                  <Mic className="h-4 w-4 mr-1" />
                   Scroll Down
                 </Button>
               </div>
