@@ -62,7 +62,7 @@ interface VideoConsultationProps {
 
 function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps) {
   // For patient join URL
-  const patientJoinUrl = `${window.location.origin}/patient-join`;
+  const patientJoinUrl = `${window.location.origin}/join-consultation/${roomId}`;
   
   const { user } = useAuth();
   const { toast } = useToast();
@@ -1174,13 +1174,6 @@ export default function Telemedicine() {
   const [showRecordingDetails, setShowRecordingDetails] = useState(false);
   const [selectedRecording, setSelectedRecording] = useState<RecordingSession | null>(null);
   
-  // Mock waiting room data (would come from API in production)
-  const waitingRoomPatients = [
-    { id: 1, name: "John Doe", time: "2:30 PM", initials: "JD" },
-    { id: 2, name: "Jane Smith", time: "3:00 PM", initials: "JS" },
-    { id: 3, name: "Robert Johnson", time: "3:30 PM", initials: "RJ" },
-  ];
-  
   const { data: patients } = useQuery<Patient[]>({
     queryKey: ["/api/patients"],
   });
@@ -1268,30 +1261,47 @@ export default function Telemedicine() {
                 <Calendar className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">5</div>
-                <p className="text-xs text-muted-foreground">Scheduled for today</p>
+                <div className="text-2xl font-bold">{
+                  appointments?.filter(a => 
+                    a.type === 'telemedicine' && 
+                    new Date(a.date) > new Date() && 
+                    a.status !== 'cancelled'
+                  ).length || 0
+                }</div>
+                <p className="text-xs text-muted-foreground">Scheduled telemedicine sessions</p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Online Patients</CardTitle>
+                <CardTitle className="text-sm font-medium">Today's Appointments</CardTitle>
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{waitingRoomPatients.length}</div>
-                <p className="text-xs text-muted-foreground">Currently in waiting room</p>
+                <div className="text-2xl font-bold">{
+                  appointments?.filter(a => {
+                    const appointmentDate = new Date(a.date);
+                    const today = new Date();
+                    return (
+                      appointmentDate.getDate() === today.getDate() &&
+                      appointmentDate.getMonth() === today.getMonth() &&
+                      appointmentDate.getFullYear() === today.getFullYear() &&
+                      a.status !== 'cancelled'
+                    );
+                  }).length || 0
+                }</div>
+                <p className="text-xs text-muted-foreground">Appointments for today</p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Completed Today</CardTitle>
+                <CardTitle className="text-sm font-medium">Completed Sessions</CardTitle>
                 <MessageSquare className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">8</div>
-                <p className="text-xs text-muted-foreground">Sessions completed</p>
+                <div className="text-2xl font-bold">{recordings?.filter(r => r.status === 'completed').length || 0}</div>
+                <p className="text-xs text-muted-foreground">Total completed consultations</p>
               </CardContent>
             </Card>
           </div>
@@ -1301,45 +1311,66 @@ export default function Telemedicine() {
               <CardTitle>Virtual Waiting Room</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {waitingRoomPatients.map((patient) => (
-                  <div
-                    key={patient.id}
-                    className="flex items-center justify-between p-4 border rounded-lg"
-                  >
-                    <div className="flex items-center gap-4">
-                      <Avatar>
-                        <AvatarFallback>{patient.initials}</AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-medium">{patient.name}</p>
-                        <p className="text-sm text-muted-foreground">Scheduled: {patient.time}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="icon">
-                        <MessageSquare className="h-4 w-4" />
-                      </Button>
-                      <Button variant="outline" size="icon">
-                        <Phone className="h-4 w-4" />
-                      </Button>
-                      <Button 
-                        size="icon"
-                        onClick={() => {
-                          if (patients) {
-                            const matchedPatient = patients.find(p => p.id === patient.id);
-                            if (matchedPatient) {
-                              handleStartConsultation(matchedPatient);
-                            }
-                          }
-                        }}
-                      >
-                        <Video className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              {appointments && patients ? (
+                <div className="space-y-4">
+                  {appointments
+                    .filter(appointment => 
+                      appointment.type === 'telemedicine' && 
+                      new Date(appointment.date) > new Date() &&
+                      appointment.status !== 'cancelled'
+                    )
+                    .map(appointment => {
+                      const patient = patients.find(p => p.id === appointment.patientId);
+                      if (!patient) return null;
+                      
+                      const appointmentTime = new Date(appointment.date).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      });
+                      
+                      const initials = patient.name.split(' ').map(n => n[0]).join('');
+                      
+                      return (
+                        <div
+                          key={appointment.id}
+                          className="flex items-center justify-between p-4 border rounded-lg"
+                        >
+                          <div className="flex items-center gap-4">
+                            <Avatar>
+                              <AvatarFallback>{initials}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <p className="font-medium">{patient.name}</p>
+                              <p className="text-sm text-muted-foreground">
+                                Scheduled: {appointmentTime} - {appointment.reason || 'Telemedicine consultation'}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button 
+                              size="icon"
+                              onClick={() => handleStartConsultation(patient)}
+                            >
+                              <Video className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  }
+                </div>
+              ) : (
+                <div className="flex justify-center p-4">
+                  <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full" />
+                </div>
+              )}
+              
+              {appointments?.filter(a => a.type === 'telemedicine' && new Date(a.date) > new Date()).length === 0 && (
+                <div className="text-center p-6 text-muted-foreground">
+                  <p>No upcoming telemedicine appointments.</p>
+                  <p className="text-sm mt-1">Schedule appointments from the Appointments page.</p>
+                </div>
+              )}
             </CardContent>
           </Card>
           

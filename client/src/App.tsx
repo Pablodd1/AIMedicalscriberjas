@@ -8,6 +8,8 @@ import PatientJoin from "@/pages/patient-join";
 import MainLayout from "@/components/layout/main-layout";
 import Assistant from "@/pages/assistant";
 import { AuthProvider } from "@/hooks/use-auth";
+import JoinConsultation from "@/pages/join-consultation";
+import ConsultationComplete from "@/pages/consultation-complete";
 
 // Import all the page components we need
 import Dashboard from "@/pages/dashboard";
@@ -104,6 +106,9 @@ function Router() {
       <Route path="/settings" component={SettingsPage} />
       <Route path="/patient-intake" component={PatientIntakePage} />
       <Route path="/patient-join/:uniqueLink" component={PatientJoin} />
+      {/* Public routes for telemedicine patient access */}
+      <Route path="/join-consultation/:roomId" component={JoinConsultation} />
+      <Route path="/consultation-complete" component={ConsultationComplete} />
       <Route component={NotFound} />
     </Switch>
   );
