@@ -250,21 +250,36 @@ export default function JoinConsultationPage() {
   
   const handleOffer = async (message: any) => {
     try {
-      const pc = await createPeerConnection(message.from);
+      console.log('Patient received offer message:', message);
+      // Determine the sender ID (from or sender)
+      const senderId = message.from || message.sender;
+      if (!senderId) {
+        console.error('Missing sender ID in offer message:', message);
+        return;
+      }
       
-      await pc.setRemoteDescription(new RTCSessionDescription(message.offer));
+      const pc = await createPeerConnection(senderId);
+      
+      // Determine which format the offer is in
+      const offerData = message.offer || message.data;
+      if (!offerData) {
+        console.error('Invalid offer format:', message);
+        return;
+      }
+      
+      await pc.setRemoteDescription(new RTCSessionDescription(offerData));
       
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       
       if (wsRef.current && roomId) {
-        console.log('Sending answer with room ID:', roomId);
+        console.log('Patient sending answer with room ID:', roomId);
         wsRef.current.send(JSON.stringify({
           type: 'answer',
-          answer,
+          data: answer,
           roomId: roomId,
           sender: `patient_${Date.now()}`,
-          target: message.from
+          target: senderId
         }));
       }
     } catch (error) {
@@ -280,7 +295,14 @@ export default function JoinConsultationPage() {
   const handleICECandidate = async (message: any) => {
     try {
       if (peerConnectionRef.current) {
-        await peerConnectionRef.current.addIceCandidate(message.candidate);
+        console.log('Patient received ICE candidate message:', message);
+        // Check which format is being used
+        const candidateData = message.candidate || message.data;
+        if (candidateData) {
+          await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidateData));
+        } else {
+          console.error('Invalid ICE candidate format:', message);
+        }
       }
     } catch (error) {
       console.error('Error adding ICE candidate:', error);

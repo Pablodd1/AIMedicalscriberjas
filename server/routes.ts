@@ -593,22 +593,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const targetParticipant = targetRoom.participants.find(p => p.id === data.target);
             if (targetParticipant) {
               // Forward the WebRTC signaling message with proper formatting
+              // Always pass the roomId to ensure proper room tracking
               if (data.type === 'offer') {
+                console.log('Server forwarding offer with room ID:', data.roomId);
                 targetParticipant.socket.send(JSON.stringify({
                   type: 'offer',
                   from: data.sender,
+                  roomId: data.roomId,
                   offer: data.data
                 }));
               } else if (data.type === 'answer') {
+                console.log('Server forwarding answer with room ID:', data.roomId);
                 targetParticipant.socket.send(JSON.stringify({
                   type: 'answer',
                   from: data.sender,
+                  roomId: data.roomId,
                   answer: data.data
                 }));
               } else if (data.type === 'ice-candidate') {
+                console.log('Server forwarding ICE candidate with room ID:', data.roomId);
                 targetParticipant.socket.send(JSON.stringify({
                   type: 'ice-candidate',
                   from: data.sender,
+                  roomId: data.roomId,
                   candidate: data.data
                 }));
               }

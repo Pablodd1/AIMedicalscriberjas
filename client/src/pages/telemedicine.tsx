@@ -609,20 +609,47 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
   const handleAnswer = async (message: any) => {
     try {
       if (peerConnectionRef.current) {
-        await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(message.data));
+        console.log('Received answer message:', message);
+        // Check if message format is correct
+        if (message.answer) {
+          await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(message.answer));
+        } else if (message.data) {
+          await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(message.data));
+        } else {
+          console.error('Invalid answer format:', message);
+          toast({
+            title: "Connection Error",
+            description: "Failed to establish connection. Invalid answer format.",
+            variant: "destructive"
+          });
+        }
       }
     } catch (error) {
       console.error('Error handling answer:', error);
+      toast({
+        title: "Connection Error",
+        description: "Failed to establish connection with patient.",
+        variant: "destructive"
+      });
     }
   };
   
   const handleICECandidate = async (message: any) => {
     try {
       if (peerConnectionRef.current) {
-        await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(message.data));
+        console.log('Received ICE candidate message:', message);
+        // Check which format is being used
+        const candidateData = message.candidate || message.data;
+        if (candidateData) {
+          await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidateData));
+        } else {
+          console.error('Invalid ICE candidate format:', message);
+        }
       }
     } catch (error) {
       console.error('Error handling ICE candidate:', error);
+      // Don't show a toast here as multiple ICE candidates are common
+      // and we don't want to spam the user
     }
   };
   
