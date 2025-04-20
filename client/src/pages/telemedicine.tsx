@@ -22,7 +22,8 @@ import {
   Loader2,
   Printer,
   Download,
-  StopCircle
+  StopCircle,
+  ArrowDown
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -796,37 +797,15 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       }
     }
     
-    // Scroll to bottom after new message is added (on next tick)
-    if (shouldScrollRef.current) {
-      setTimeout(() => {
-        const scrollArea = document.getElementById('transcription-scroll-area');
-        if (scrollArea) {
-          const scrollContainer = scrollArea.querySelector('[data-radix-scroll-area-viewport]');
-          if (scrollContainer) {
-            scrollContainer.scrollTop = scrollContainer.scrollHeight;
-          }
-        }
-      }, 100);
-    }
+      // Auto-scrolling has been removed as requested by user
+    // Manual scrolling is now handled by the user
   };
 
   // Reference for speech recognition
   const speechRecognitionRef = useRef<any>(null);
   
-  // Effect to handle auto-scrolling for new transcription messages
-  useEffect(() => {
-    if (liveTranscriptionOpen && shouldScrollRef.current && liveTranscriptions.length > 0) {
-      setTimeout(() => {
-        const scrollArea = document.getElementById('transcription-scroll-area');
-        if (scrollArea) {
-          const scrollContainer = scrollArea.querySelector('[data-radix-scroll-area-viewport]');
-          if (scrollContainer) {
-            scrollContainer.scrollTop = scrollContainer.scrollHeight;
-          }
-        }
-      }, 100);
-    }
-  }, [liveTranscriptions, liveTranscriptionOpen]);
+  // Removed auto-scrolling effect as requested by user
+  // Now using manual scrolling instead
   
   // Function to toggle live transcription
   const toggleLiveTranscription = () => {
@@ -859,7 +838,16 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             const isFinal = event.results[last].isFinal;
             
             if (isFinal && transcript.trim()) {
+              // Get current speaker from state at the moment of capture
+              // This ensures we correctly attribute the speech to the right person
               addLiveTranscription(currentSpeaker, transcript);
+              
+              // Add a visual indicator that new speech was captured
+              toast({
+                title: `${currentSpeaker} Speech Captured`,
+                description: transcript.length > 30 ? transcript.substring(0, 30) + "..." : transcript,
+                duration: 2000,
+              });
             }
           };
           
@@ -1261,18 +1249,6 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             <ScrollArea 
               className="flex-1 p-2 sm:p-3" 
               id="transcription-scroll-area"
-              onScrollCapture={(e) => {
-                // Get scroll container
-                const scrollContainer = e.currentTarget.querySelector('[data-radix-scroll-area-viewport]');
-                if (scrollContainer) {
-                  // Check if user is scrolled to the bottom
-                  const isScrolledToBottom = 
-                    Math.abs((scrollContainer.scrollHeight - scrollContainer.scrollTop) - scrollContainer.clientHeight) < 50;
-                  
-                  // Only auto-scroll if user is already at the bottom
-                  shouldScrollRef.current = isScrolledToBottom;
-                }
-              }}
             >
               <div className="space-y-3" id="transcription-container">
                 {liveTranscriptions.map((item, i) => (
@@ -1311,9 +1287,27 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             </ScrollArea>
 
             <div className="p-2 sm:p-3 border-t">
-              <p className="text-xs text-muted-foreground text-center">
-                Transcription is automatically generated and may not be 100% accurate
-              </p>
+              <div className="flex justify-between items-center">
+                <p className="text-xs text-muted-foreground">
+                  Transcription is automatically generated and may not be 100% accurate
+                </p>
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => {
+                    const scrollArea = document.getElementById('transcription-scroll-area');
+                    if (scrollArea) {
+                      const scrollContainer = scrollArea.querySelector('[data-radix-scroll-area-viewport]');
+                      if (scrollContainer) {
+                        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+                      }
+                    }
+                  }}
+                >
+                  <ArrowDown className="h-4 w-4 mr-1" />
+                  Scroll Down
+                </Button>
+              </div>
             </div>
           </div>
         )}
