@@ -294,6 +294,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Create medical note from consultation
   app.post("/api/medical-notes/from-consultation", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    const doctorId = req.user.id;
+    
     // Extract required fields from request
     const { consultationId, patientId, content, type, title } = req.body;
     
@@ -312,7 +317,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const medicalNote = await storage.createMedicalNoteFromConsultation(
         {
           patientId,
-          doctorId: MOCK_DOCTOR_ID,
+          doctorId: doctorId,
           content,
           type: type || 'soap',
           title
@@ -332,7 +337,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Invoice routes
   app.get("/api/invoices", async (req, res) => {
     try {
-      const invoices = await storage.getInvoices(MOCK_DOCTOR_ID);
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const doctorId = req.user.id;
+      
+      const invoices = await storage.getInvoices(doctorId);
       res.json(invoices);
     } catch (error) {
       console.error("Error fetching invoices:", error);
@@ -342,6 +352,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/invoices/patient/:patientId", async (req, res) => {
     try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
       const patientId = parseInt(req.params.patientId);
       const invoices = await storage.getInvoicesByPatient(patientId);
       res.json(invoices);
@@ -353,6 +367,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/invoices/:id", async (req, res) => {
     try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
       const invoiceId = parseInt(req.params.id);
       const invoice = await storage.getInvoice(invoiceId);
       
@@ -369,6 +387,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/invoices", async (req, res) => {
     try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const doctorId = req.user.id;
+      
       const validation = insertInvoiceSchema.safeParse(req.body);
       if (!validation.success) {
         return res.status(400).json(validation.error);
@@ -376,7 +399,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const invoice = await storage.createInvoice({
         ...validation.data,
-        doctorId: MOCK_DOCTOR_ID,
+        doctorId: doctorId,
       });
       res.status(201).json(invoice);
     } catch (error) {
@@ -443,7 +466,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get recording sessions (history of telemedicine consultations)
   app.get('/api/telemedicine/recordings', async (req, res) => {
     try {
-      const recordings = await storage.getRecordingSessions(MOCK_DOCTOR_ID);
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const doctorId = req.user.id;
+      
+      const recordings = await storage.getRecordingSessions(doctorId);
       
       // Get patient details for each recording
       const recordingsWithPatients = await Promise.all(
@@ -466,6 +494,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get a specific recording session
   app.get('/api/telemedicine/recordings/:id', async (req, res) => {
     try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ message: 'Invalid recording ID format' });
@@ -491,6 +523,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update transcript or notes for a recording session
   app.patch('/api/telemedicine/recordings/:id', async (req, res) => {
     try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ message: 'Invalid recording ID format' });
@@ -518,10 +554,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   app.post('/api/telemedicine/rooms', async (req, res) => {
-    // For development, we're not requiring authentication
-    // This would be required in production: if (!req.isAuthenticated()) {
-    //  return res.status(401).json({ message: 'Unauthorized' });
-    // }
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    const doctorId = req.user.id;
     
     const { patientId, patientName } = req.body;
     
@@ -543,7 +579,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const recordingSession = await storage.createRecordingSession({
         roomId,
         patientId,
-        doctorId: MOCK_DOCTOR_ID,
+        doctorId: doctorId,
         status: 'active',
         transcript: null,
         notes: null
@@ -757,7 +793,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Patient intake form routes
   app.get("/api/intake-forms", async (req, res) => {
     try {
-      const forms = await storage.getIntakeForms(MOCK_DOCTOR_ID);
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const doctorId = req.user.id;
+      
+      const forms = await storage.getIntakeForms(doctorId);
       res.json(forms);
     } catch (error: any) {
       console.error("Error fetching intake forms:", error);
@@ -767,6 +808,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.get("/api/intake-forms/:id", async (req, res) => {
     try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
       const formId = parseInt(req.params.id);
       if (isNaN(formId)) {
         return res.status(400).json({ message: "Invalid ID format" });
@@ -792,12 +837,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.post("/api/intake-forms", async (req, res) => {
     try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const doctorId = req.user.id;
+      
       console.log("Creating intake form with data:", req.body);
 
-      // Check for required fields before validation
-      if (!req.body.doctorId) {
-        req.body.doctorId = MOCK_DOCTOR_ID; // Provide default value
-      }
+      // Set the authenticated doctor ID
+      req.body.doctorId = doctorId;
 
       if (!req.body.uniqueLink) {
         // Generate a unique link for the form if not provided

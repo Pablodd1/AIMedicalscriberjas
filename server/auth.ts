@@ -9,22 +9,23 @@ import { User } from "@shared/schema";
 
 declare global {
   namespace Express {
-    // Define the User interface for passport
+    // Define the User interface for passport by using import from schema.ts
+    // but with some adjustments to property types to match database return types
     interface User {
       id: number;
       username: string;
       password: string;
       name: string;
-      role: string;
+      role: "doctor" | "admin" | "assistant" | "patient";
       email: string;
-      phone?: string;
-      specialty?: string;
-      licenseNumber?: string;
-      avatar?: string;
-      bio?: string;
-      isActive?: boolean;
-      createdAt?: Date;
-      lastLogin?: Date;
+      phone: string | null;
+      specialty: string | null;
+      licenseNumber: string | null;
+      avatar: string | null;
+      bio: string | null;
+      isActive: boolean | null;
+      createdAt: Date | null;
+      lastLogin: Date | null;
     }
   }
 }
@@ -73,7 +74,8 @@ export function setupAuth(app: Express) {
         if (!user || !(await comparePasswords(password, user.password))) {
           return done(null, false);
         } else {
-          return done(null, user);
+          // Type cast the user to Express.User interface
+          return done(null, user as Express.User);
         }
       } catch (error) {
         return done(error);
@@ -81,11 +83,16 @@ export function setupAuth(app: Express) {
     }),
   );
 
-  passport.serializeUser((user, done) => done(null, user.id));
+  passport.serializeUser((user: Express.User, done) => done(null, user.id));
   passport.deserializeUser(async (id: number, done) => {
     try {
       const user = await storage.getUser(id);
-      done(null, user);
+      if (user) {
+        // Type cast to meet passport's requirements
+        done(null, user as Express.User);
+      } else {
+        done(new Error("User not found"));
+      }
     } catch (error) {
       done(error);
     }
@@ -117,7 +124,7 @@ export function setupAuth(app: Express) {
         role
       });
 
-      req.login(user, (err) => {
+      req.login(user as Express.User, (err) => {
         if (err) return res.status(500).json({ message: "Login error after registration" });
         
         // Remove password from response
@@ -131,7 +138,7 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/login", (req, res, next) => {
-    passport.authenticate("local", (err: Error | null, user: User | false, info: { message: string } | undefined) => {
+    passport.authenticate("local", (err: Error | null, user: Express.User | false, info: { message: string } | undefined) => {
       if (err) {
         return next(err);
       }
