@@ -39,12 +39,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Register Email settings routes
   app.use('/api/settings', emailRouter);
 
-  // For development purposes, we're using a fixed doctorId of 1
-  const MOCK_DOCTOR_ID = 1;
-
   // Patients routes
   app.get("/api/patients", async (req, res) => {
-    const patients = await storage.getPatients(MOCK_DOCTOR_ID);
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    const doctorId = req.user.id;
+    const patients = await storage.getPatients(doctorId);
     res.json(patients);
   });
 

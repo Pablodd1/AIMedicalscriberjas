@@ -42,7 +42,12 @@ const PostgresSessionStore = connectPg(session);
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  getUsers(): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
+  updateUser(id: number, updates: Partial<User>): Promise<User | undefined>;
+  updateUserLastLogin(id: number): Promise<void>;
+  deleteUser(id: number): Promise<boolean>;
   getPatients(doctorId: number): Promise<Patient[]>;
   getPatient(id: number): Promise<Patient | undefined>;
   createPatient(patient: InsertPatient & { createdBy: number }): Promise<Patient>;
@@ -113,13 +118,50 @@ export class DatabaseStorage implements IStorage {
     const [user] = await db.select().from(users).where(eq(users.username, username));
     return user;
   }
+  
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+  
+  async getUsers(): Promise<User[]> {
+    return db.select().from(users).orderBy(users.createdAt);
+  }
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db
       .insert(users)
-      .values({ ...insertUser, role: "doctor" })
+      .values({
+        ...insertUser,
+        isActive: true,
+        createdAt: new Date(),
+      })
       .returning();
     return user;
+  }
+  
+  async updateUser(id: number, updates: Partial<User>): Promise<User | undefined> {
+    const [updatedUser] = await db
+      .update(users)
+      .set(updates)
+      .where(eq(users.id, id))
+      .returning();
+    return updatedUser;
+  }
+  
+  async updateUserLastLogin(id: number): Promise<void> {
+    await db
+      .update(users)
+      .set({ lastLogin: new Date() })
+      .where(eq(users.id, id));
+  }
+  
+  async deleteUser(id: number): Promise<boolean> {
+    const result = await db
+      .delete(users)
+      .where(eq(users.id, id))
+      .returning({ id: users.id });
+    return result.length > 0;
   }
 
   async getPatients(doctorId: number): Promise<Patient[]> {

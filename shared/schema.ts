@@ -3,13 +3,25 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
 
+// Define user roles enum
+export const userRoleEnum = pgEnum('user_role', ['doctor', 'admin', 'assistant', 'patient']);
+
+// User table with enhanced fields for multi-user support
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
   name: text("name").notNull(),
-  role: text("role").notNull().default("doctor"),
-  email: text("email").notNull(),
+  role: userRoleEnum("role").notNull().default('doctor'),
+  email: text("email").notNull().unique(),
+  phone: text("phone"),
+  specialty: text("specialty"),
+  licenseNumber: text("license_number"),
+  avatar: text("avatar"),
+  bio: text("bio"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  lastLogin: timestamp("last_login"),
 });
 
 export const patients = pgTable("patients", {
@@ -67,6 +79,12 @@ export const insertUserSchema = createInsertSchema(users).pick({
   password: true,
   name: true,
   email: true,
+  role: true,
+  phone: true,
+  specialty: true,
+  licenseNumber: true,
+  avatar: true,
+  bio: true,
 });
 
 export const insertPatientSchema = createInsertSchema(patients).pick({
