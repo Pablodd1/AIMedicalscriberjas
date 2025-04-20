@@ -1136,6 +1136,10 @@ export default function Telemedicine() {
     patient: Patient;
   } | null>(null);
   
+  // State for recording details dialog
+  const [showRecordingDetails, setShowRecordingDetails] = useState(false);
+  const [selectedRecording, setSelectedRecording] = useState<RecordingSession | null>(null);
+  
   // Mock waiting room data (would come from API in production)
   const waitingRoomPatients = [
     { id: 1, name: "John Doe", time: "2:30 PM", initials: "JD" },
@@ -1328,7 +1332,7 @@ export default function Telemedicine() {
                         <div className="flex items-center gap-2">
                           <Avatar className="h-8 w-8">
                             <AvatarFallback>
-                              {recording.patient?.name?.split(' ').map(n => n[0]).join('') || 'P'}
+                              {recording.patient?.name?.split(' ').map((n: string) => n[0]).join('') || 'P'}
                             </AvatarFallback>
                           </Avatar>
                           <div>
@@ -1363,12 +1367,26 @@ export default function Telemedicine() {
                       )}
                       
                       <div className="flex gap-2 mt-3">
-                        <Button variant="outline" size="sm">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            setSelectedRecording(recording);
+                            setShowRecordingDetails(true);
+                          }}
+                        >
                           <FileText className="h-4 w-4 mr-1" />
                           View Details
                         </Button>
                         {!recording.transcript && recording.status === 'completed' && (
-                          <Button variant="outline" size="sm">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => {
+                              setSelectedRecording(recording);
+                              setShowRecordingDetails(true);
+                            }}
+                          >
                             <Mic className="h-4 w-4 mr-1" />
                             Generate Transcript
                           </Button>
@@ -1390,6 +1408,12 @@ export default function Telemedicine() {
             isOpen={showStartDialog}
             onClose={() => setShowStartDialog(false)}
             onStartConsultation={handleStartConsultation}
+          />
+          
+          <RecordingDetailsDialog
+            recording={selectedRecording}
+            isOpen={showRecordingDetails}
+            onClose={() => setShowRecordingDetails(false)}
           />
         </div>
       )}
