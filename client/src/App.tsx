@@ -80,7 +80,7 @@ function Router() {
       <Route path="/" component={DashboardPage} />
       <Route path="/dashboard" component={DashboardPage} />
       <Route path="/patients" component={PatientsPage} />
-      <Route path="/medical-notes" component={NotesPage} />
+      <Route path="/notes" component={NotesPage} />
       <Route path="/telemedicine" component={TelemedicinePage} />
       <Route path="/assistant" component={AssistantPage} />
       <Route path="/billing" component={BillingPage} />
