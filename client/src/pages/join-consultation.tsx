@@ -188,37 +188,57 @@ export default function JoinConsultationPage() {
   
   const createPeerConnection = async (fromUserId?: string) => {
     try {
+      // Check if peer connection already exists
+      if (peerConnectionRef.current) {
+        console.log('Peer connection already exists, returning existing connection');
+        return peerConnectionRef.current;
+      }
+      
+      console.log('Creating new peer connection with doctor ID:', fromUserId);
       const pc = new RTCPeerConnection(configuration);
       
       // Add local tracks to peer connection
       if (localStreamRef.current) {
+        console.log('Adding local tracks to peer connection');
         localStreamRef.current.getTracks().forEach(track => {
+          console.log('Adding track to peer connection:', track.kind);
           if (localStreamRef.current) {
             pc.addTrack(track, localStreamRef.current);
           }
         });
+      } else {
+        console.warn('No local stream available when creating peer connection');
       }
       
       // Handle ICE candidates
       pc.onicecandidate = (event) => {
         if (event.candidate && wsRef.current && roomId) {
-          console.log('Sending ICE candidate with room ID:', roomId);
+          console.log('Patient sending ICE candidate with room ID:', roomId);
           wsRef.current.send(JSON.stringify({
             type: 'ice-candidate',
-            candidate: event.candidate,
+            data: event.candidate,
             roomId: roomId,
             sender: `patient_${Date.now()}`,
             target: fromUserId // Send to the doctor who sent the offer
           }));
+        } else if (!event.candidate) {
+          console.log('ICE candidate gathering complete');
+        } else if (!wsRef.current) {
+          console.error('Cannot send ICE candidate: WebSocket not connected');
+        } else if (!roomId) {
+          console.error('Cannot send ICE candidate: No room ID available');
         }
       };
       
       // Handle connection state changes
       pc.onconnectionstatechange = () => {
+        console.log('Connection state changed:', pc.connectionState);
         if (pc.connectionState === 'connected') {
+          console.log('WebRTC connection established successfully');
           setIsConnected(true);
           setIsConnecting(false);
         } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+          console.error('WebRTC connection failed or disconnected:', pc.connectionState);
           setIsConnected(false);
           toast({
             title: "Connection Lost",
@@ -228,9 +248,28 @@ export default function JoinConsultationPage() {
         }
       };
       
+      // Handle ICE connection state changes
+      pc.oniceconnectionstatechange = () => {
+        console.log('ICE connection state changed:', pc.iceConnectionState);
+        if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
+          toast({
+            title: "Connection Issue",
+            description: "Network issue detected. The connection may be unstable.",
+            variant: "destructive"
+          });
+        }
+      };
+      
+      // Handle negotiation needed
+      pc.onnegotiationneeded = async () => {
+        console.log('Negotiation needed event fired');
+      };
+      
       // Handle incoming tracks (remote stream)
       pc.ontrack = (event) => {
+        console.log('Remote track received:', event.track.kind);
         if (remoteVideoRef.current && event.streams && event.streams[0]) {
+          console.log('Setting remote stream to video element');
           remoteVideoRef.current.srcObject = event.streams[0];
         }
       };

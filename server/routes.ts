@@ -571,51 +571,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
           case 'offer':
           case 'answer':
           case 'ice-candidate':
-            // Handle WebRTC signaling
-            if (!roomId) {
+          case 'chat-message':
+            // Handle WebRTC signaling and chat messages
+            
+            // Make sure roomId is taken from message if not already set in socket connection
+            const messageRoomId = data.roomId || roomId;
+            if (!messageRoomId) {
+              console.error('No room ID found in message or socket state:', data);
               socket.send(JSON.stringify({
                 type: 'error',
-                message: 'Not joined to any room'
+                message: 'No room ID provided. Please join a room first.'
               }));
               return;
             }
             
-            const targetRoom = activeRooms.get(roomId as string);
+            const targetRoom = activeRooms.get(messageRoomId);
             if (!targetRoom) {
+              console.error('Room not found with ID:', messageRoomId);
               socket.send(JSON.stringify({
                 type: 'error',
-                message: 'Room not found'
+                message: 'Room not found with ID: ' + messageRoomId
               }));
               return;
             }
             
-            // Find the target participant
+            // For chat messages, broadcast to all participants in the room
+            if (data.type === 'chat-message') {
+              console.log('Broadcasting chat message in room:', messageRoomId);
+              targetRoom.participants.forEach(participant => {
+                if (participant.id !== data.sender) {
+                  participant.socket.send(JSON.stringify({
+                    type: 'chat-message',
+                    sender: data.sender,
+                    senderName: data.senderName,
+                    text: data.text,
+                    roomId: messageRoomId
+                  }));
+                }
+              });
+              break;
+            }
+            
+            // For WebRTC signals, find the target participant
             const targetParticipant = targetRoom.participants.find(p => p.id === data.target);
             if (targetParticipant) {
               // Forward the WebRTC signaling message with proper formatting
               // Always pass the roomId to ensure proper room tracking
               if (data.type === 'offer') {
-                console.log('Server forwarding offer with room ID:', data.roomId);
+                console.log('Server forwarding offer with room ID:', messageRoomId);
                 targetParticipant.socket.send(JSON.stringify({
                   type: 'offer',
                   from: data.sender,
-                  roomId: data.roomId,
+                  roomId: messageRoomId,
                   offer: data.data
                 }));
               } else if (data.type === 'answer') {
-                console.log('Server forwarding answer with room ID:', data.roomId);
+                console.log('Server forwarding answer with room ID:', messageRoomId);
                 targetParticipant.socket.send(JSON.stringify({
                   type: 'answer',
                   from: data.sender,
-                  roomId: data.roomId,
+                  roomId: messageRoomId,
                   answer: data.data
                 }));
               } else if (data.type === 'ice-candidate') {
-                console.log('Server forwarding ICE candidate with room ID:', data.roomId);
+                console.log('Server forwarding ICE candidate with room ID:', messageRoomId);
                 targetParticipant.socket.send(JSON.stringify({
                   type: 'ice-candidate',
                   from: data.sender,
-                  roomId: data.roomId,
+                  roomId: messageRoomId,
                   candidate: data.data
                 }));
               }
