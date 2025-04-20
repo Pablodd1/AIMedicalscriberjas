@@ -10,6 +10,8 @@ import Assistant from "@/pages/assistant";
 import { AuthProvider } from "@/hooks/use-auth";
 import JoinConsultation from "@/pages/join-consultation";
 import ConsultationComplete from "@/pages/consultation-complete";
+import AuthPage from "@/pages/auth-page";
+import { ProtectedRoute } from "@/lib/protected-route";
 
 // Import all the page components we need
 import Dashboard from "@/pages/dashboard";
@@ -93,19 +95,24 @@ const PatientIntakePage = () => (
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={DashboardPage} />
-      <Route path="/dashboard" component={DashboardPage} />
-      <Route path="/patients" component={PatientsPage} />
-      <Route path="/appointments" component={AppointmentsPage} />
-      <Route path="/notes" component={NotesPage} />
-      <Route path="/quick-notes" component={QuickNotesPage} />
-      <Route path="/telemedicine" component={TelemedicinePage} />
-      <Route path="/assistant" component={AssistantPage} />
-      <Route path="/billing" component={BillingPage} />
-      <Route path="/analytics" component={AnalyticsPage} />
-      <Route path="/settings" component={SettingsPage} />
-      <Route path="/patient-intake" component={PatientIntakePage} />
+      {/* Protected Routes - require authentication */}
+      <ProtectedRoute path="/" component={DashboardPage} />
+      <ProtectedRoute path="/dashboard" component={DashboardPage} />
+      <ProtectedRoute path="/patients" component={PatientsPage} />
+      <ProtectedRoute path="/appointments" component={AppointmentsPage} />
+      <ProtectedRoute path="/notes" component={NotesPage} />
+      <ProtectedRoute path="/quick-notes" component={QuickNotesPage} />
+      <ProtectedRoute path="/telemedicine" component={TelemedicinePage} />
+      <ProtectedRoute path="/assistant" component={AssistantPage} />
+      <ProtectedRoute path="/billing" component={BillingPage} />
+      <ProtectedRoute path="/analytics" component={AnalyticsPage} />
+      <ProtectedRoute path="/settings" component={SettingsPage} />
+      <ProtectedRoute path="/patient-intake" component={PatientIntakePage} />
+      
+      {/* Public Routes - accessible without authentication */}
+      <Route path="/auth" component={AuthPage} />
       <Route path="/patient-join/:uniqueLink" component={PatientJoin} />
+      
       {/* Public routes for telemedicine patient access */}
       <Route path="/join-consultation/:roomId" component={JoinConsultation} />
       <Route path="/consultation-complete" component={ConsultationComplete} />

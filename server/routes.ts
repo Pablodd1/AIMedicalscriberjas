@@ -56,25 +56,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/patients", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    const doctorId = req.user.id;
+    
     const validation = insertPatientSchema.safeParse(req.body);
     if (!validation.success) {
       return res.status(400).json(validation.error);
     }
     const patient = await storage.createPatient({
       ...validation.data,
-      createdBy: MOCK_DOCTOR_ID,
+      createdBy: doctorId,
     });
     res.status(201).json(patient);
   });
 
   // Appointments routes
   app.get("/api/appointments", async (req, res) => {
-    const appointments = await storage.getAppointments(MOCK_DOCTOR_ID);
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    const doctorId = req.user.id;
+    
+    const appointments = await storage.getAppointments(doctorId);
     res.json(appointments);
   });
 
   app.post("/api/appointments", async (req, res) => {
     try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const doctorId = req.user.id;
+      
       // Convert numeric timestamp to Date object for PostgreSQL timestamp
       let appointmentData = req.body;
       if (typeof appointmentData.date === 'number') {
@@ -91,7 +106,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const appointment = await storage.createAppointment({
         ...validation.data,
-        doctorId: MOCK_DOCTOR_ID,
+        doctorId: doctorId,
       });
       res.status(201).json(appointment);
     } catch (error) {
@@ -125,7 +140,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Medical Notes routes
   app.get("/api/medical-notes", async (req, res) => {
-    const notes = await storage.getMedicalNotes(MOCK_DOCTOR_ID);
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    const doctorId = req.user.id;
+    
+    const notes = await storage.getMedicalNotes(doctorId);
     res.json(notes);
   });
 

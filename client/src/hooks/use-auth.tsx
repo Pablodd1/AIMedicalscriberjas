@@ -6,7 +6,7 @@ import {
 } from "@tanstack/react-query";
 import { insertUserSchema, User as SelectUser, InsertUser } from "@shared/schema";
 import { getQueryFn, apiRequest, queryClient } from "../lib/queryClient";
-import { toast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/use-toast";
 
 type AuthContextType = {
   user: SelectUser | null;
@@ -21,35 +21,31 @@ type LoginData = Pick<InsertUser, "username" | "password">;
 
 export const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
-  
-  // For development purposes, we're using a mock user
-  const mockUser: SelectUser = {
-    id: 1,
-    username: "doctor",
-    password: "",
-    name: "Dr. John Smith",
-    role: "doctor",
-    email: "doctor@example.com"
-  };
-  
-  // Always return the mock user instead of querying the API
+  const { toast } = useToast();
   const {
     data: user,
     error,
     isLoading,
-  } = useQuery<SelectUser | undefined, Error>({
+  } = useQuery<SelectUser | null, Error>({
     queryKey: ["/api/user"],
-    queryFn: () => Promise.resolve(mockUser),
-    initialData: mockUser
+    queryFn: getQueryFn({ on401: "returnNull" }),
   });
 
-  // Mock login mutation
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
-      return mockUser;
+      const res = await apiRequest("POST", "/api/login", credentials);
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || 'Failed to login');
+      }
+      return await res.json();
     },
     onSuccess: (user: SelectUser) => {
       queryClient.setQueryData(["/api/user"], user);
+      toast({
+        title: "Login successful",
+        description: `Welcome back, ${user.name}!`,
+      });
     },
     onError: (error: Error) => {
       toast({
@@ -60,13 +56,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
-  // Mock register mutation
   const registerMutation = useMutation({
     mutationFn: async (credentials: InsertUser) => {
-      return mockUser;
+      const res = await apiRequest("POST", "/api/register", credentials);
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || 'Failed to register');
+      }
+      return await res.json();
     },
     onSuccess: (user: SelectUser) => {
       queryClient.setQueryData(["/api/user"], user);
+      toast({
+        title: "Registration successful",
+        description: `Welcome to the platform, ${user.name}!`,
+      });
     },
     onError: (error: Error) => {
       toast({
@@ -77,16 +81,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
-  // Mock logout mutation
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      return;
+      const res = await apiRequest("POST", "/api/logout");
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || 'Failed to logout');
+      }
     },
     onSuccess: () => {
-      // We don't actually log out in development mode
+      queryClient.setQueryData(["/api/user"], null);
       toast({
-        title: "Development Mode",
-        description: "Logout is disabled in development mode",
+        title: "Logged out",
+        description: "You have been successfully logged out.",
       });
     },
     onError: (error: Error) => {
@@ -101,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider
       value={{
-        user: user ?? null,
+        user: user || null,
         isLoading,
         error,
         loginMutation,
