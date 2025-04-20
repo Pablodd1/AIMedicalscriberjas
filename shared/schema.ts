@@ -222,3 +222,76 @@ export const invoiceRelations = relations(invoices, ({ one }) => ({
     references: [users.id],
   }),
 }));
+
+// Patient intake form schema
+export const intakeForms = pgTable("intake_forms", {
+  id: serial("id").primaryKey(),
+  patientId: integer("patient_id").references(() => patients.id).notNull(),
+  doctorId: integer("doctor_id").notNull(),
+  status: text("status").notNull().default("pending"), // pending, completed, expired
+  uniqueLink: text("unique_link").notNull(),
+  email: text("email").notNull(),
+  phone: text("phone"),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  expiresAt: timestamp("expires_at"),
+  completedAt: timestamp("completed_at"),
+});
+
+export const intakeFormResponses = pgTable("intake_form_responses", {
+  id: serial("id").primaryKey(),
+  formId: integer("form_id").references(() => intakeForms.id).notNull(),
+  questionId: integer("question_id").notNull(),
+  question: text("question").notNull(),
+  answer: text("answer"),
+  answerType: text("answer_type").default("text"), // text, voice
+  audioUrl: text("audio_url"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Intake form insert schemas
+export const insertIntakeFormSchema = createInsertSchema(intakeForms).pick({
+  patientId: true,
+  doctorId: true,
+  status: true,
+  uniqueLink: true,
+  email: true,
+  phone: true,
+  name: true,
+  expiresAt: true,
+});
+
+export const insertIntakeFormResponseSchema = createInsertSchema(intakeFormResponses).pick({
+  formId: true,
+  questionId: true,
+  question: true,
+  answer: true,
+  answerType: true,
+  audioUrl: true,
+});
+
+export type InsertIntakeForm = z.infer<typeof insertIntakeFormSchema>;
+export type InsertIntakeFormResponse = z.infer<typeof insertIntakeFormResponseSchema>;
+export type IntakeForm = typeof intakeForms.$inferSelect;
+export type IntakeFormResponse = typeof intakeFormResponses.$inferSelect;
+
+// Intake form relations
+export const intakeFormRelations = relations(intakeForms, ({ one, many }) => ({
+  patient: one(patients, {
+    fields: [intakeForms.patientId],
+    references: [patients.id],
+  }),
+  doctor: one(users, {
+    fields: [intakeForms.doctorId],
+    references: [users.id],
+  }),
+  responses: many(intakeFormResponses),
+}));
+
+export const intakeFormResponseRelations = relations(intakeFormResponses, ({ one }) => ({
+  form: one(intakeForms, {
+    fields: [intakeFormResponses.formId],
+    references: [intakeForms.id],
+  }),
+}));

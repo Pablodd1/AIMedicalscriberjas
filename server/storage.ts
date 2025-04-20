@@ -66,6 +66,14 @@ export interface IStorage {
   getEmailTemplate(type: string): Promise<EmailTemplate | undefined>;
   getEmailTemplates(): Promise<EmailTemplate[]>;
   saveEmailTemplate(type: string, content: string): Promise<EmailTemplate>;
+  // Patient intake form methods
+  getIntakeForms(doctorId: number): Promise<IntakeForm[]>;
+  getIntakeForm(id: number): Promise<IntakeForm | undefined>;
+  getIntakeFormByLink(uniqueLink: string): Promise<IntakeForm | undefined>;
+  createIntakeForm(form: InsertIntakeForm): Promise<IntakeForm>;
+  updateIntakeFormStatus(id: number, status: string): Promise<IntakeForm | undefined>;
+  getIntakeFormResponses(formId: number): Promise<IntakeFormResponse[]>;
+  createIntakeFormResponse(response: InsertIntakeFormResponse): Promise<IntakeFormResponse>;
   sessionStore: session.Store;
 }
 
