@@ -12,26 +12,14 @@
   }
 
   button {
-    @apply bg-gradient-to-r from-blue to-blue-light text-white hover:opacity-90 transition-all shadow-md;
+    @apply bg-blue hover:bg-blue-light transition-colors;
   }
 
   .primary-btn {
-    @apply bg-gradient-to-r from-blue to-blue-light text-white hover:opacity-90 px-6 py-3 rounded-lg font-semibold shadow-lg;
+    @apply bg-blue text-white hover:bg-blue-light px-4 py-2 rounded-md;
   }
 
   .secondary-btn {
-    @apply bg-gradient-to-r from-blue-light to-blue text-white hover:opacity-90 px-6 py-3 rounded-lg font-semibold shadow-lg;
-  }
-
-  .card {
-    @apply shadow-xl hover:shadow-2xl transition-shadow duration-300 border-none;
-  }
-
-  .input {
-    @apply rounded-lg border-2 focus:border-blue focus:ring-2 focus:ring-blue/20 transition-all;
-  }
-
-  .table {
-    @apply rounded-xl overflow-hidden shadow-lg;
+    @apply bg-blue-light text-white hover:bg-blue px-4 py-2 rounded-md;
   }
 }
