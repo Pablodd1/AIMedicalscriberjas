@@ -139,16 +139,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { patientId, date, time, duration, notes, appointmentType, status } = req.body;
       
+      // Convert date and time to proper Date object
+      let appointmentDate;
+      try {
+        if (date && time) {
+          // If both date and time are provided, combine them
+          appointmentDate = new Date(`${date}T${time}`);
+        } else if (date) {
+          // If only date is provided
+          appointmentDate = new Date(date);
+        } else {
+          // Default to now
+          appointmentDate = new Date();
+        }
+      } catch (error) {
+        console.error('Error parsing date:', error);
+        appointmentDate = new Date(); // Fallback to current date
+      }
+      
       // Create the appointment
       const appointment = await storage.createAppointment({
         doctorId: req.user.id,
         patientId: parseInt(patientId),
-        date,
-        time,
-        duration: parseInt(duration) || 30,
+        date: appointmentDate,
         notes: notes || '',
-        appointmentType: appointmentType || 'consultation',
-        status: status || 'scheduled'
+        type: appointmentType || 'consultation',
+        status: status || 'scheduled',
+        reason: `Appointment for ${duration || 30} minutes`,
       });
       
       res.status(201).json(appointment);
