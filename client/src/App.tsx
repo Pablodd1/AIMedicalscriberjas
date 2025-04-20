@@ -19,6 +19,7 @@ import Analytics from "@/pages/analytics";
 import Telemedicine from "@/pages/telemedicine";
 import Settings from "@/pages/settings";
 import Billing from "@/pages/billing";
+import PatientIntake from "@/pages/patient-intake";
 
 // Wrapper components for each page with the MainLayout
 const DashboardPage = () => (
@@ -81,6 +82,12 @@ const AssistantPage = () => (
   </MainLayout>
 );
 
+const PatientIntakePage = () => (
+  <MainLayout>
+    <PatientIntake />
+  </MainLayout>
+);
+
 function Router() {
   return (
     <Switch>
@@ -95,7 +102,8 @@ function Router() {
       <Route path="/billing" component={BillingPage} />
       <Route path="/analytics" component={AnalyticsPage} />
       <Route path="/settings" component={SettingsPage} />
-      <Route path="/patient-join" component={PatientJoin} />
+      <Route path="/patient-intake" component={PatientIntakePage} />
+      <Route path="/patient-join/:uniqueLink" component={PatientJoin} />
       <Route component={NotFound} />
     </Switch>
   );
