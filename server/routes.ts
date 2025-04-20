@@ -592,12 +592,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Find the target participant
             const targetParticipant = targetRoom.participants.find(p => p.id === data.target);
             if (targetParticipant) {
-              // Forward the WebRTC signaling message
-              targetParticipant.socket.send(JSON.stringify({
-                type: data.type,
-                sender: data.sender,
-                data: data.data
-              }));
+              // Forward the WebRTC signaling message with proper formatting
+              if (data.type === 'offer') {
+                targetParticipant.socket.send(JSON.stringify({
+                  type: 'offer',
+                  from: data.sender,
+                  offer: data.data
+                }));
+              } else if (data.type === 'answer') {
+                targetParticipant.socket.send(JSON.stringify({
+                  type: 'answer',
+                  from: data.sender,
+                  answer: data.data
+                }));
+              } else if (data.type === 'ice-candidate') {
+                targetParticipant.socket.send(JSON.stringify({
+                  type: 'ice-candidate',
+                  from: data.sender,
+                  candidate: data.data
+                }));
+              }
+            } else {
+              console.log('Target participant not found:', data.target);
             }
             break;
             
