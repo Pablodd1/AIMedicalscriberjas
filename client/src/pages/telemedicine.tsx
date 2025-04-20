@@ -52,7 +52,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Patient } from "@shared/schema";
+import { Patient, Appointment } from "@shared/schema";
 
 interface VideoConsultationProps {
   roomId: string;
