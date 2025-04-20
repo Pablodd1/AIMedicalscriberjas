@@ -133,9 +133,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     
     // Verify patient exists
-    const patient = await storage.getPatient(validation.data.patientId);
-    if (!patient) {
-      return res.status(404).json({ message: "Patient not found" });
+    if (validation.data.patientId) {
+      const patient = await storage.getPatient(validation.data.patientId);
+      if (!patient) {
+        return res.status(404).json({ message: "Patient not found" });
+      }
     }
     
     const note = await storage.createMedicalNote({
@@ -168,7 +170,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const note = await storage.createQuickNote(quickNoteData);
       res.status(201).json(note);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating quick note:", error);
       res.status(400).json({ message: "Failed to create quick note", error: error.message });
     }
@@ -190,7 +192,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   app.get("/api/consultation-notes/:id", async (req, res) => {
-    const note = await storage.getConsultationNote(parseInt(req.params.id));
+    const noteId = parseInt(req.params.id);
+    if (isNaN(noteId)) {
+      return res.status(400).json({ message: "Invalid ID format" });
+    }
+    const note = await storage.getConsultationNote(noteId);
     if (!note) return res.sendStatus(404);
     res.json(note);
   });
@@ -226,6 +232,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     
     try {
+      const consultationIdNum = parseInt(consultationId);
+      if (isNaN(consultationIdNum)) {
+        return res.status(400).json({ message: "Invalid consultation ID format" });
+      }
+      
       // Create a medical note linked to the consultation
       const medicalNote = await storage.createMedicalNoteFromConsultation(
         {
@@ -235,11 +246,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           type: type || 'soap',
           title
         },
-        consultationId
+        consultationIdNum
       );
       
       res.status(201).json(medicalNote);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating medical note from consultation:", error);
       res.status(500).json({ message: "Failed to create medical note from consultation" });
     }

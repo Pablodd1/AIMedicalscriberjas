@@ -14,6 +14,7 @@ import Dashboard from "@/pages/dashboard";
 import Patients from "@/pages/patients";
 import Appointments from "@/pages/appointments";
 import Notes from "@/pages/notes";
+import QuickNotes from "@/pages/quick-notes";
 import Analytics from "@/pages/analytics";
 import Telemedicine from "@/pages/telemedicine";
 import Settings from "@/pages/settings";
@@ -41,6 +42,12 @@ const AppointmentsPage = () => (
 const NotesPage = () => (
   <MainLayout>
     <Notes />
+  </MainLayout>
+);
+
+const QuickNotesPage = () => (
+  <MainLayout>
+    <QuickNotes />
   </MainLayout>
 );
 
@@ -82,6 +89,7 @@ function Router() {
       <Route path="/patients" component={PatientsPage} />
       <Route path="/appointments" component={AppointmentsPage} />
       <Route path="/notes" component={NotesPage} />
+      <Route path="/quick-notes" component={QuickNotesPage} />
       <Route path="/telemedicine" component={TelemedicinePage} />
       <Route path="/assistant" component={AssistantPage} />
       <Route path="/billing" component={BillingPage} />
