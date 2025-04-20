@@ -401,8 +401,8 @@ export default function JoinConsultationPage() {
       wsRef.current.close();
     }
     
-    // Redirect to a thank you page or home
-    window.location.href = '/consultation-complete';
+    // Redirect to the consultation complete page with room ID
+    window.location.href = `/consultation-complete?roomId=${roomId}`;
   };
   
   if (!roomId) {

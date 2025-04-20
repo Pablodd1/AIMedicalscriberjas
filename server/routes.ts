@@ -726,6 +726,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get recording sessions (history of telemedicine consultations)
   app.get('/api/telemedicine/recordings', async (req, res) => {
     try {
+      const { roomId } = req.query;
+      
+      // If a roomId is provided, we'll allow access without authentication
+      // This is used in the post-consultation page
+      if (roomId) {
+        console.log('Fetching recording session for room ID:', roomId);
+        try {
+          const session = await storage.getRecordingSessionByRoomId(roomId as string);
+          
+          if (!session) {
+            return res.status(404).json({ message: 'Recording session not found for this room' });
+          }
+          
+          // Get patient details
+          const patient = await storage.getPatient(session.patientId);
+          
+          return res.json([{
+            ...session,
+            patient: patient || { name: 'Unknown Patient' }
+          }]);
+        } catch (error) {
+          console.error('Error fetching recording session by room ID:', error);
+          return res.status(500).json({ message: 'Failed to fetch recording session' });
+        }
+      }
+      
+      // Regular case - get all recordings for authenticated doctor
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: "Unauthorized" });
       }
@@ -752,6 +779,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Download MP3 recording from a recording session
+  // No authentication required to allow easy access in post-consultation page
   app.get('/api/telemedicine/recordings/:id/download', async (req, res) => {
     try {
       const id = parseInt(req.params.id);
@@ -774,10 +802,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let filePath = recording.audioFilePath;
       const mp3Path = filePath.replace(/\.[^/.]+$/, '.mp3');
       
+      console.log('Looking for MP3 file at:', mp3Path);
+      
       if (fs.existsSync(mp3Path)) {
+        console.log('Found MP3 file, serving:', mp3Path);
         filePath = mp3Path;
       } else if (!fs.existsSync(filePath)) {
+        console.log('Neither original nor MP3 file exists');
         return res.status(404).json({ message: 'Audio file not found on the server' });
+      } else {
+        console.log('MP3 not found, serving original file:', filePath);
       }
       
       // Set appropriate headers for MP3 file download
