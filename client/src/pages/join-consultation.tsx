@@ -106,7 +106,7 @@ export default function JoinConsultationPage() {
 
   const setupWebSocket = () => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws/telemedicine`;
+    const wsUrl = `${protocol}//${window.location.host}/ws`;
 
     console.log('Patient connecting to WebSocket at:', wsUrl);
     wsRef.current = new WebSocket(wsUrl);
@@ -201,22 +201,51 @@ export default function JoinConsultationPage() {
       }
 
       console.log('Creating new peer connection with doctor ID:', fromUserId);
-      const pc = new RTCPeerConnection(configuration);
+      const pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+          { urls: 'stun:stun3.l.google.com:19302' },
+          { urls: 'stun:stun4.l.google.com:19302' }
+        ],
+        iceCandidatePoolSize: 10,
+      });
+      
+      // Create a fixed patient ID to ensure consistency
+      const patientId = `patient_${Date.now().toString()}`;
+      console.log('Patient using fixed ID for this session:', patientId);
+      
+      // Set up connection state monitoring
+      pc.oniceconnectionstatechange = () => {
+        console.log('Patient ICE connection state changed:', pc.iceConnectionState);
+        if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+          setIsConnected(true);
+          toast({
+            title: "Connected",
+            description: `Connected with doctor ${doctorName || 'unknown'}`,
+          });
+        } else if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'closed') {
+          setIsConnected(false);
+          toast({
+            title: "Connection Lost",
+            description: "The video connection was lost. Please try again.",
+            variant: "destructive"
+          });
+        }
+      };
+      
+      // Monitor connection state
+      pc.onconnectionstatechange = () => {
+        console.log('Patient connection state changed:', pc.connectionState);
+      };
+      
+      // Monitor signaling state
+      pc.onsignalingstatechange = () => {
+        console.log('Patient signaling state changed:', pc.signalingState);
+      };
 
-      // Add local tracks to peer connection
-      if (localStreamRef.current) {
-        console.log('Adding local tracks to peer connection');
-        localStreamRef.current.getTracks().forEach(track => {
-          console.log('Adding track to peer connection:', track.kind);
-          if (localStreamRef.current) {
-            pc.addTrack(track, localStreamRef.current);
-          }
-        });
-      } else {
-        console.warn('No local stream available when creating peer connection');
-      }
-
-      // Handle ICE candidates
+      // Handle ICE candidates - use the fixed patientId
       pc.onicecandidate = (event) => {
         if (event.candidate && wsRef.current && roomId) {
           console.log('Patient sending ICE candidate with room ID:', roomId);
@@ -224,11 +253,28 @@ export default function JoinConsultationPage() {
             type: 'ice-candidate',
             data: event.candidate,
             roomId: roomId,
-            sender: `patient_${Date.now()}`,
+            sender: patientId,
             target: fromUserId // Send to the doctor who sent the offer
           }));
         }
       };
+      
+      // Add local tracks to peer connection AFTER setting up event handlers
+      if (localStreamRef.current) {
+        console.log('Adding local tracks to peer connection');
+        try {
+          localStreamRef.current.getTracks().forEach(track => {
+            console.log('Adding track to peer connection:', track.kind, track.label, track.enabled);
+            if (localStreamRef.current) {
+              pc.addTrack(track, localStreamRef.current);
+            }
+          });
+        } catch (error) {
+          console.error('Error adding tracks to peer connection:', error);
+        }
+      } else {
+        console.warn('No local stream available when creating peer connection');
+      }
 
       // Handle connection state changes
       pc.onconnectionstatechange = () => {
@@ -316,12 +362,14 @@ export default function JoinConsultationPage() {
       await pc.setLocalDescription(answer);
 
       if (wsRef.current && roomId) {
-        console.log('Patient sending answer with room ID:', roomId);
+        // Use a consistent patient ID stored during connection creation
+        const patientId = sessionStorage.getItem('patientSessionId') || `patient_${Date.now()}`;
+        console.log('Patient sending answer with room ID:', roomId, 'using patientId:', patientId);
         wsRef.current.send(JSON.stringify({
           type: 'answer',
           data: answer,
           roomId: roomId,
-          sender: `patient_${Date.now()}`,
+          sender: patientId,
           target: senderId
         }));
       }
