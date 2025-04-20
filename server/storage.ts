@@ -431,7 +431,7 @@ export class DatabaseStorage implements IStorage {
     return newInvoice;
   }
 
-  async updateInvoiceStatus(id: number, status: string): Promise<Invoice | undefined> {
+  async updateInvoiceStatus(id: number, status: 'paid' | 'partial' | 'unpaid' | 'overdue'): Promise<Invoice | undefined> {
     const [updatedInvoice] = await db
       .update(invoices)
       .set({ status, updatedAt: new Date() })
@@ -450,7 +450,7 @@ export class DatabaseStorage implements IStorage {
     
     // Update payment and status if needed
     const newAmountPaid = amountPaid;
-    let status = invoice.status;
+    let status: 'paid' | 'partial' | 'unpaid' | 'overdue' = invoice.status;
     
     // Determine new status based on payment
     if (newAmountPaid === 0) {
