@@ -30,7 +30,48 @@ export default function PatientJoinPage() {
   const { toast } = useToast();
   const [isRecording, setIsRecording] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [questionResponses, setQuestionResponses] = useState<Record<string, { answer: string, answerType: string, audioUrl?: string }>>({});
+  const [questionResponses, setQuestionResponses] = useState<Record<string, { 
+    answer: string, 
+    answerType: string, 
+    audioUrl?: string,
+    questionId: number,
+    question: string 
+  }>>({});
+
+  // Function to submit a voice response
+  const submitVoiceResponse = async (questionId: number, question: string, audioUrl: string) => {
+    try {
+      const response = await fetch(`/api/public/intake-form/${formData?.id}/responses`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          questionId,
+          question,
+          answer: '',
+          answerType: 'voice',
+          audioUrl
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to submit voice response');
+      }
+
+      toast({
+        title: 'Voice response saved',
+        description: 'Your voice response has been saved successfully.',
+      });
+    } catch (error) {
+      console.error('Error submitting voice response:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to save voice response. Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [allQuestionsAnswered, setAllQuestionsAnswered] = useState(false);
   const [formComplete, setFormComplete] = useState(false);
