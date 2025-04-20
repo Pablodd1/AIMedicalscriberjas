@@ -458,6 +458,10 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       const message = JSON.parse(event.data);
       
       switch (message.type) {
+        case 'welcome':
+          console.log('Received welcome message from server:', message.message);
+          break;
+          
         case 'room-users':
           setParticipants(message.users);
           break;

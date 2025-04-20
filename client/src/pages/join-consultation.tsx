@@ -105,8 +105,9 @@ export default function JoinConsultationPage() {
   
   const setupWebSocket = () => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws/telemedicine`;
+    const wsUrl = `${protocol}//${window.location.host}/ws`;
     
+    console.log('Patient connecting to WebSocket at:', wsUrl);
     wsRef.current = new WebSocket(wsUrl);
     
     wsRef.current.onopen = () => {
@@ -136,6 +137,10 @@ export default function JoinConsultationPage() {
       const message = JSON.parse(event.data);
       
       switch (message.type) {
+        case 'welcome':
+          console.log('Patient received welcome message from server:', message.message);
+          break;
+          
         case 'room-users':
           // Find the doctor in the room
           const doctor = message.users.find((user: any) => user.isDoctor);
