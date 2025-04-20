@@ -761,6 +761,9 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
   const handleEndCall = onClose;
 
   // Live transcription functions
+  // Reference to track when we should auto-scroll
+  const shouldScrollRef = useRef(true);
+  
   const addLiveTranscription = (speaker: string, text: string) => {
     const newTranscription = {
       speaker, 
@@ -790,6 +793,19 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       } catch (error) {
         console.error('Error saving transcription:', error);
       }
+    }
+    
+    // Scroll to bottom after new message is added (on next tick)
+    if (shouldScrollRef.current) {
+      setTimeout(() => {
+        const scrollArea = document.getElementById('transcription-scroll-area');
+        if (scrollArea) {
+          const scrollContainer = scrollArea.querySelector('[data-radix-scroll-area-viewport]');
+          if (scrollContainer) {
+            scrollContainer.scrollTop = scrollContainer.scrollHeight;
+          }
+        }
+      }, 100);
     }
   };
 
@@ -1192,8 +1208,23 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
               </div>
             </div>
 
-            <ScrollArea className="flex-1 p-2 sm:p-3">
-              <div className="space-y-3">
+            <ScrollArea 
+              className="flex-1 p-2 sm:p-3" 
+              id="transcription-scroll-area"
+              onScrollCapture={(e) => {
+                // Get scroll container
+                const scrollContainer = e.currentTarget.querySelector('[data-radix-scroll-area-viewport]');
+                if (scrollContainer) {
+                  // Check if user is scrolled to the bottom
+                  const isScrolledToBottom = 
+                    Math.abs((scrollContainer.scrollHeight - scrollContainer.scrollTop) - scrollContainer.clientHeight) < 50;
+                  
+                  // Only auto-scroll if user is already at the bottom
+                  shouldScrollRef.current = isScrolledToBottom;
+                }
+              }}
+            >
+              <div className="space-y-3" id="transcription-container">
                 {liveTranscriptions.map((item, i) => (
                   <div key={i} className="flex flex-col">
                     <div className="flex items-center gap-2">
