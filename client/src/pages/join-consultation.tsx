@@ -340,16 +340,53 @@ export default function JoinConsultationPage() {
     try {
       if (peerConnectionRef.current) {
         console.log('Patient received ICE candidate message:', message);
-        // Check which format is being used
-        const candidateData = message.candidate || message.data;
-        if (candidateData) {
-          await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidateData));
+        
+        // Handle different message formats
+        let candidate;
+        
+        if (message.candidate) {
+          // Direct candidate format
+          candidate = message.candidate;
+        } else if (message.data && message.data.candidate) {
+          // Nested candidate format
+          candidate = message.data;
+        } else if (message.data) {
+          // Direct data format
+          candidate = message.data;
+        }
+        
+        if (candidate) {
+          try {
+            // Log what we're trying to add
+            console.log('Adding ICE candidate:', candidate);
+            await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
+            console.log('Successfully added ICE candidate');
+          } catch (err) {
+            console.error('Error adding specific ICE candidate:', err, candidate);
+            // If it fails, try with a simpler version of the candidate
+            if (typeof candidate === 'object' && candidate.candidate) {
+              try {
+                const simpleCandidate = {
+                  candidate: candidate.candidate,
+                  sdpMLineIndex: candidate.sdpMLineIndex || 0,
+                  sdpMid: candidate.sdpMid || '0'
+                };
+                console.log('Trying simplified candidate:', simpleCandidate);
+                await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(simpleCandidate));
+                console.log('Successfully added simplified ICE candidate');
+              } catch (simplifiedErr) {
+                console.error('Failed to add simplified candidate:', simplifiedErr);
+              }
+            }
+          }
         } else {
           console.error('Invalid ICE candidate format:', message);
         }
+      } else {
+        console.error('Cannot add ICE candidate - no peer connection exists');
       }
     } catch (error) {
-      console.error('Error adding ICE candidate:', error);
+      console.error('Error in ICE candidate handler:', error);
     }
   };
   

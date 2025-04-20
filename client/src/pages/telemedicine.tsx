@@ -753,19 +753,54 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
   const handleICECandidate = async (message: any) => {
     try {
       if (peerConnectionRef.current) {
-        console.log('Received ICE candidate message:', message);
-        // Check which format is being used
-        const candidateData = message.candidate || message.data;
-        if (candidateData) {
-          await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidateData));
+        console.log('Doctor received ICE candidate message:', message);
+        
+        // Handle different message formats
+        let candidate;
+        
+        if (message.candidate) {
+          // Direct candidate format
+          candidate = message.candidate;
+        } else if (message.data && message.data.candidate) {
+          // Nested candidate format
+          candidate = message.data;
+        } else if (message.data) {
+          // Direct data format
+          candidate = message.data;
+        }
+        
+        if (candidate) {
+          try {
+            // Log what we're trying to add
+            console.log('Doctor adding ICE candidate:', candidate);
+            await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
+            console.log('Doctor successfully added ICE candidate');
+          } catch (err) {
+            console.error('Doctor error adding specific ICE candidate:', err, candidate);
+            // If it fails, try with a simpler version of the candidate
+            if (typeof candidate === 'object' && candidate.candidate) {
+              try {
+                const simpleCandidate = {
+                  candidate: candidate.candidate,
+                  sdpMLineIndex: candidate.sdpMLineIndex || 0,
+                  sdpMid: candidate.sdpMid || '0'
+                };
+                console.log('Doctor trying simplified candidate:', simpleCandidate);
+                await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(simpleCandidate));
+                console.log('Doctor successfully added simplified ICE candidate');
+              } catch (simplifiedErr) {
+                console.error('Doctor failed to add simplified candidate:', simplifiedErr);
+              }
+            }
+          }
         } else {
           console.error('Invalid ICE candidate format:', message);
         }
+      } else {
+        console.error('Doctor cannot add ICE candidate - no peer connection exists');
       }
     } catch (error) {
-      console.error('Error handling ICE candidate:', error);
-      // Don't show a toast here as multiple ICE candidates are common
-      // and we don't want to spam the user
+      console.error('Error in ICE candidate handler:', error);
     }
   };
   
