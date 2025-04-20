@@ -10,16 +10,4 @@
   body {
     @apply font-sans antialiased bg-background text-foreground;
   }
-
-  button {
-    @apply bg-blue hover:bg-blue-light transition-colors;
-  }
-
-  .primary-btn {
-    @apply bg-blue text-white hover:bg-blue-light px-4 py-2 rounded-md;
-  }
-
-  .secondary-btn {
-    @apply bg-blue-light text-white hover:bg-blue px-4 py-2 rounded-md;
-  }
 }
