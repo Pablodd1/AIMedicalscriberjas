@@ -473,6 +473,11 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             sender: message.senderName,
             text: message.text
           }]);
+          
+          // If live transcription is enabled, also add chat messages to transcriptions
+          if (liveTranscriptionOpen) {
+            addLiveTranscription(message.senderName, message.text);
+          }
           break;
 
         case 'error':
@@ -778,6 +783,37 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
 
   const handleEndCall = onClose;
 
+  // Live transcription functions
+  const addLiveTranscription = (speaker: string, text: string) => {
+    setLiveTranscriptions(prev => [
+      ...prev, 
+      {
+        speaker, 
+        text, 
+        timestamp: new Date()
+      }
+    ]);
+  };
+
+  // Function to toggle live transcription
+  const toggleLiveTranscription = () => {
+    setLiveTranscriptionOpen(!liveTranscriptionOpen);
+    
+    if (!liveTranscriptionOpen) {
+      // Start with an empty list when enabling
+      setLiveTranscriptions([]);
+      
+      // Add a greeting to demonstrate functionality
+      setTimeout(() => {
+        if (audioEnabled) {
+          addLiveTranscription('System', 'Live transcription started. Speak clearly for best results.');
+        } else {
+          addLiveTranscription('System', 'Your microphone is muted. Enable your microphone for transcription to work.');
+        }
+      }, 500);
+    }
+  };
+
 
   return (
     <div className="flex flex-col h-full min-h-[calc(100vh-4rem)] max-h-[calc(100vh-4rem)] overflow-hidden">
@@ -1004,6 +1040,15 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                 >
                   <MessageCircle className="h-4 w-4 mr-2" />
                   Chat
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={`text-white bg-black/30 hover:bg-black/40 border-white/20 ${liveTranscriptionOpen ? "bg-black/50" : ""}`}
+                  onClick={toggleLiveTranscription}
+                >
+                  <FileAudio className="h-4 w-4 mr-2" />
+                  {liveTranscriptionOpen ? "Hide Transcription" : "Show Transcription"}
                 </Button>
                 {transcription ? (
                   <Button
