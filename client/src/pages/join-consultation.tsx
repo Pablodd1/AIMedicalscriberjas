@@ -105,7 +105,7 @@ export default function JoinConsultationPage() {
   
   const setupWebSocket = () => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    const wsUrl = `${protocol}//${window.location.host}/ws/telemedicine`;
     
     console.log('Patient connecting to WebSocket at:', wsUrl);
     wsRef.current = new WebSocket(wsUrl);

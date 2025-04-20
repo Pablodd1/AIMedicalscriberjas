@@ -430,7 +430,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize WebSocket server - making it available on all paths
   const wss = new WebSocketServer({ 
     server: httpServer,
-    path: '/ws',
+    path: '/ws/telemedicine',
     // Add permissive CORS for WebSocket
     verifyClient: (info) => {
       return true; // Accept all connections for now
