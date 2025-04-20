@@ -18,6 +18,7 @@ import {
   Circle,
   Square,
   FileText,
+  FileAudio,
   Loader2,
   Printer,
   Download,
@@ -183,11 +184,14 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
 
       // Update recorded time every second
       recordingIntervalRef.current = window.setInterval(() => {
-        setRecordedTime(prev => prev + 1);
-        // Request more data every 5 seconds to ensure continuous recording
-        if (mediaRecorderRef.current && prev % 5 === 0) {
-          mediaRecorderRef.current.requestData();
-        }
+        setRecordedTime(prevTime => {
+          const newTime = prevTime + 1;
+          // Request more data every 5 seconds to ensure continuous recording
+          if (mediaRecorderRef.current && newTime % 5 === 0) {
+            mediaRecorderRef.current.requestData();
+          }
+          return newTime;
+        });
       }, 1000);
 
       toast({
@@ -1156,6 +1160,54 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
               <Button onClick={sendChatMessage} size="icon" className="flex-shrink-0">
                 <Send className="h-4 w-4" />
               </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Live Transcription Panel */}
+        {liveTranscriptionOpen && !chatOpen && (
+          <div className="border-l flex flex-col h-full">
+            <div className="p-2 sm:p-3 border-b flex justify-between items-center">
+              <h3 className="font-medium">Live Transcription</h3>
+              <Badge variant="outline" className="bg-primary/10">
+                <span className="animate-pulse h-2 w-2 rounded-full bg-primary mr-2"></span>
+                Live
+              </Badge>
+            </div>
+
+            <ScrollArea className="flex-1 p-2 sm:p-3">
+              <div className="space-y-3">
+                {liveTranscriptions.map((item, i) => (
+                  <div key={i} className="flex flex-col">
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs font-medium text-muted-foreground">{item.speaker}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {item.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                      </p>
+                    </div>
+                    <div className={`rounded-lg p-2 sm:p-3 mt-1 inline-block max-w-[85%] ${
+                      item.speaker === 'System' 
+                        ? 'bg-secondary/20 italic' 
+                        : item.speaker === 'Patient' 
+                          ? 'bg-muted' 
+                          : 'bg-primary/10'
+                    }`}>
+                      <p className="text-sm">{item.text}</p>
+                    </div>
+                  </div>
+                ))}
+                {liveTranscriptions.length === 0 && (
+                  <p className="text-center text-muted-foreground text-sm py-8">
+                    Waiting for speech to transcribe...
+                  </p>
+                )}
+              </div>
+            </ScrollArea>
+
+            <div className="p-2 sm:p-3 border-t">
+              <p className="text-xs text-muted-foreground text-center">
+                Transcription is automatically generated and may not be 100% accurate
+              </p>
             </div>
           </div>
         )}
