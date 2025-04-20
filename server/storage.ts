@@ -370,9 +370,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateIntakeFormStatus(id: number, status: string): Promise<IntakeForm | undefined> {
+    // Update status and set completedAt if the status is 'completed'
+    const updateData: Record<string, any> = { status };
+    if (status === 'completed') {
+      updateData.completedAt = new Date();
+    }
+    
     const [updatedForm] = await db
       .update(intakeForms)
-      .set({ status, updatedAt: new Date() })
+      .set(updateData)
       .where(eq(intakeForms.id, id))
       .returning();
     
