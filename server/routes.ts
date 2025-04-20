@@ -1,187 +1,122 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from 'ws';
-import multer from 'multer';
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { aiRouter } from "./routes/ai";
 import { emailRouter } from "./routes/email";
-import path from 'path';
-import fs from 'fs';
-import { spawn } from 'child_process';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
+import { 
+  insertPatientSchema, 
+  insertAppointmentSchema, 
+  insertMedicalNoteSchema,
+  insertConsultationNoteSchema,
+  insertInvoiceSchema,
+  insertIntakeFormSchema,
+  insertIntakeFormResponseSchema,
+  type RecordingSession
+} from "@shared/schema";
 
-// Create __dirname equivalent for ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// Create uploads directory if it doesn't exist
-const uploadsDir = path.join(process.cwd(), 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-// Setup multer for file uploads
-const upload = multer({ 
-  dest: uploadsDir,
-  limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB limit
-  }
-});
-
-// For WebSocket server
-interface VideoChatParticipant {
-  id: string;
-  socket: WebSocket;
-  name: string;
-  isDoctor: boolean;
-}
-
+// Define the interface for telemedicine rooms
 interface VideoChatRoom {
   id: string;
-  participants: VideoChatParticipant[];
+  participants: { 
+    id: string;
+    socket: WebSocket;
+    name: string;
+    isDoctor: boolean;
+  }[];
 }
 
+// Store active rooms in memory
+const activeRooms = new Map<string, VideoChatRoom>();
+
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Setup authentication routes (/api/register, /api/login, /api/logout, /api/user)
   setupAuth(app);
   
-  // Mount AI and email routers
-  app.use('/api', aiRouter);
-  app.use('/api', emailRouter);
+  // Register AI routes
+  app.use('/api/ai', aiRouter);
   
-  // Basic health check
-  app.get("/api/healthcheck", (req, res) => {
-    res.status(200).json({ status: "healthy" });
-  });
-  
-  // Patient routes
+  // Register Email settings routes
+  app.use('/api/settings', emailRouter);
+
+  // Patients routes
   app.get("/api/patients", async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Unauthorized" });
     }
-    
-    try {
-      const patients = await storage.getPatients(req.user.id);
-      res.json(patients);
-    } catch (error) {
-      console.error('Error fetching patients:', error);
-      res.status(500).json({ message: "Server error" });
-    }
+    const doctorId = req.user.id;
+    const patients = await storage.getPatients(doctorId);
+    res.json(patients);
   });
-  
+
+  app.get("/api/patients/:id", async (req, res) => {
+    const patient = await storage.getPatient(parseInt(req.params.id));
+    if (!patient) return res.sendStatus(404);
+    res.json(patient);
+  });
+
   app.post("/api/patients", async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Unauthorized" });
     }
+    const doctorId = req.user.id;
     
-    try {
-      // Parse and validate the patient data
-      const { name, email, phone, dateOfBirth, address, medicalHistory } = req.body;
-      
-      // Create the patient record
-      const patient = await storage.createPatient({
-        name,
-        email,
-        phone,
-        dateOfBirth,
-        address,
-        medicalHistory,
-        createdBy: req.user.id
-      });
-      
-      res.status(200).json(patient);
-    } catch (error) {
-      console.error('Error creating patient:', error);
-      res.status(500).json({ message: "Error creating patient" });
+    const validation = insertPatientSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json(validation.error);
     }
+    const patient = await storage.createPatient({
+      ...validation.data,
+      createdBy: doctorId,
+    });
+    res.status(201).json(patient);
   });
-  
-  app.get("/api/patients/:id", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    
-    try {
-      const patientId = parseInt(req.params.id);
-      const patient = await storage.getPatient(patientId);
-      
-      if (!patient) {
-        return res.status(404).json({ message: "Patient not found" });
-      }
-      
-      res.json(patient);
-    } catch (error) {
-      console.error('Error fetching patient:', error);
-      res.status(500).json({ message: "Server error" });
-    }
-  });
-  
-  // Appointment routes
+
+  // Appointments routes
   app.get("/api/appointments", async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Unauthorized" });
     }
+    const doctorId = req.user.id;
     
-    try {
-      const appointments = await storage.getAppointments(req.user.id);
-      res.json(appointments);
-    } catch (error) {
-      console.error('Error fetching appointments:', error);
-      res.status(500).json({ message: "Server error" });
-    }
+    const appointments = await storage.getAppointments(doctorId);
+    res.json(appointments);
   });
-  
+
   app.post("/api/appointments", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    
     try {
-      const { patientId, date, time, duration, notes, appointmentType, status } = req.body;
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const doctorId = req.user.id;
       
-      // Convert date and time to proper Date object
-      let appointmentDate;
-      try {
-        if (date && time) {
-          // If both date and time are provided, combine them
-          appointmentDate = new Date(`${date}T${time}`);
-        } else if (date) {
-          // If only date is provided
-          appointmentDate = new Date(date);
-        } else {
-          // Default to now
-          appointmentDate = new Date();
-        }
-      } catch (error) {
-        console.error('Error parsing date:', error);
-        appointmentDate = new Date(); // Fallback to current date
+      // Convert numeric timestamp to Date object for PostgreSQL timestamp
+      let appointmentData = req.body;
+      if (typeof appointmentData.date === 'number') {
+        appointmentData = {
+          ...appointmentData,
+          date: new Date(appointmentData.date)
+        };
+      }
+
+      const validation = insertAppointmentSchema.safeParse(appointmentData);
+      if (!validation.success) {
+        return res.status(400).json(validation.error);
       }
       
-      // Create the appointment
       const appointment = await storage.createAppointment({
-        doctorId: req.user.id,
-        patientId: parseInt(patientId),
-        date: appointmentDate,
-        notes: notes || '',
-        type: appointmentType || 'consultation',
-        status: status || 'scheduled',
-        reason: `Appointment for ${duration || 30} minutes`,
+        ...validation.data,
+        doctorId: doctorId,
       });
-      
       res.status(201).json(appointment);
     } catch (error) {
-      console.error('Error creating appointment:', error);
-      res.status(500).json({ message: "Error creating appointment" });
+      console.error("Error creating appointment:", error);
+      res.status(500).json({ message: "Failed to create appointment" });
     }
   });
-  
-  app.patch("/api/appointments/:id/status", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    
+
+  // Update appointment status
+  app.patch("/api/appointments/:id", async (req, res) => {
     try {
       const appointmentId = parseInt(req.params.id);
       const { status } = req.body;
@@ -190,489 +125,859 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Status is required" });
       }
       
-      const appointment = await storage.updateAppointmentStatus(appointmentId, status);
+      const updatedAppointment = await storage.updateAppointmentStatus(appointmentId, status);
       
-      if (!appointment) {
+      if (!updatedAppointment) {
         return res.status(404).json({ message: "Appointment not found" });
       }
       
-      res.json(appointment);
+      res.json(updatedAppointment);
     } catch (error) {
-      console.error('Error updating appointment status:', error);
-      res.status(500).json({ message: "Server error" });
-    }
-  });
-  
-  // Telemedicine routes for rooms and consultations
-  app.post("/api/telemedicine/rooms", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    
-    try {
-      // Generate a unique room ID
-      const roomId = `room_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-      
-      res.json({ roomId });
-    } catch (error) {
-      console.error('Error creating telemedicine room:', error);
-      res.status(500).json({ message: "Error creating telemedicine room" });
-    }
-  });
-  
-  // Telemedicine routes for recording sessions
-  app.post("/api/telemedicine/recordings", upload.single('audio'), async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    
-    // Only allow doctors to create recordings
-    if (req.user.role !== 'doctor' && req.user.role !== 'admin') {
-      return res.status(403).json({ message: "Only doctors can create recordings" });
-    }
-    
-    try {
-      const { roomId, notes, transcribe } = req.body;
-      let audioFilePath = null;
-      
-      if (req.file) {
-        // Convert uploaded WebM to MP3
-        try {
-          const { convertWebmToMp3 } = await import('./services/transcription');
-          const mp3Path = await convertWebmToMp3(req.file.path);
-          
-          // Remove the original WebM file
-          fs.unlinkSync(req.file.path);
-          
-          // Store relative path to MP3 file
-          audioFilePath = path.relative(process.cwd(), mp3Path);
-        } catch (error) {
-          console.error('Error converting audio:', error);
-          return res.status(500).json({ message: "Error converting audio format" });
-        }
-      }
-      
-      const session = await storage.createRecordingSession({
-        roomId,
-        doctorId: req.user.id,
-        patientId: null, // Would need to be determined from consultation
-        startTime: new Date().toISOString(),
-        audioFilePath,
-        notes: notes || '',
-      });
-      
-      // Start transcription if requested
-      if (transcribe === 'true' && audioFilePath) {
-        try {
-          const { transcribeAudio } = await import('./services/transcription');
-          const fullPath = path.join(process.cwd(), audioFilePath);
-          
-          // Transcribe in the background
-          transcribeAudio(fullPath).then(transcript => {
-            storage.updateRecordingSession(session.id, { transcript });
-          }).catch(error => {
-            console.error('Error in background transcription:', error);
-          });
-        } catch (error) {
-          console.error('Error starting transcription:', error);
-          // Continue anyway since this is a background task
-        }
-      }
-      
-      res.status(201).json(session);
-    } catch (error) {
-      console.error('Error creating recording session:', error);
-      return res.status(500).json({ message: "Server error" });
+      console.error("Error updating appointment status:", error);
+      res.status(500).json({ message: "Failed to update appointment status" });
     }
   });
 
-  app.get("/api/telemedicine/recordings", async (req, res) => {
+  // Medical Notes routes
+  app.get("/api/medical-notes", async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Unauthorized" });
     }
+    const doctorId = req.user.id;
     
-    const { roomId } = req.query;
+    const notes = await storage.getMedicalNotes(doctorId);
+    res.json(notes);
+  });
+
+  app.get("/api/patients/:patientId/medical-notes", async (req, res) => {
+    const patientId = parseInt(req.params.patientId);
+    const patient = await storage.getPatient(patientId);
+    if (!patient) return res.sendStatus(404);
     
-    try {
-      if (roomId) {
-        // If roomId is provided, get the specific recording session
-        const session = await storage.getRecordingSessionByRoomId(roomId as string);
-        if (session) {
-          return res.json([session]);
-        }
-        return res.json([]);
-      } else {
-        // Otherwise get all recording sessions for the doctor
-        const sessions = await storage.getRecordingSessions(req.user.id);
-        return res.json(sessions);
+    const notes = await storage.getMedicalNotesByPatient(patientId);
+    res.json(notes);
+  });
+
+  app.get("/api/medical-notes/:id", async (req, res) => {
+    const note = await storage.getMedicalNote(parseInt(req.params.id));
+    if (!note) return res.sendStatus(404);
+    res.json(note);
+  });
+
+  app.post("/api/medical-notes", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    const doctorId = req.user.id;
+    
+    const validation = insertMedicalNoteSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json(validation.error);
+    }
+    
+    // Verify patient exists
+    if (validation.data.patientId) {
+      const patient = await storage.getPatient(validation.data.patientId);
+      if (!patient) {
+        return res.status(404).json({ message: "Patient not found" });
       }
+    }
+    
+    const note = await storage.createMedicalNote({
+      ...validation.data,
+      doctorId: doctorId,
+    });
+    
+    res.status(201).json(note);
+  });
+  
+  // Quick Notes routes (notes without patient association)
+  app.get("/api/quick-notes", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const doctorId = req.user.id;
+      
+      const notes = await storage.getQuickNotes(doctorId);
+      res.json(notes);
     } catch (error) {
-      console.error('Error getting recording sessions:', error);
-      return res.status(500).json({ message: "Server error" });
+      console.error("Error fetching quick notes:", error);
+      res.status(500).json({ message: "Failed to fetch quick notes" });
     }
   });
   
-  // Endpoint to download recording audio
-  app.get("/api/telemedicine/recordings/:id/download", async (req, res) => {
+  app.post("/api/quick-notes", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const doctorId = req.user.id;
+      
+      // Create a modified schema for quick notes that doesn't require patientId
+      const quickNoteData = {
+        ...req.body,
+        doctorId: doctorId,
+        isQuickNote: true
+      };
+      
+      const note = await storage.createQuickNote(quickNoteData);
+      res.status(201).json(note);
+    } catch (error: any) {
+      console.error("Error creating quick note:", error);
+      res.status(400).json({ message: "Failed to create quick note", error: error.message });
+    }
+  });
+
+  // Consultation Notes routes
+  app.get("/api/consultation-notes", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    const doctorId = req.user.id;
+    
+    const notes = await storage.getConsultationNotes(doctorId);
+    res.json(notes);
+  });
+  
+  app.get("/api/patients/:patientId/consultation-notes", async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Unauthorized" });
     }
     
+    const patientId = parseInt(req.params.patientId);
+    const patient = await storage.getPatient(patientId);
+    if (!patient) return res.sendStatus(404);
+    
+    const notes = await storage.getConsultationNotesByPatient(patientId);
+    res.json(notes);
+  });
+  
+  app.get("/api/consultation-notes/:id", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    const noteId = parseInt(req.params.id);
+    if (isNaN(noteId)) {
+      return res.status(400).json({ message: "Invalid ID format" });
+    }
+    const note = await storage.getConsultationNote(noteId);
+    if (!note) return res.sendStatus(404);
+    res.json(note);
+  });
+  
+  app.post("/api/consultation-notes", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    const doctorId = req.user.id;
+    
+    const validation = insertConsultationNoteSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json(validation.error);
+    }
+    
+    // Verify patient exists
+    const patient = await storage.getPatient(validation.data.patientId);
+    if (!patient) {
+      return res.status(404).json({ message: "Patient not found" });
+    }
+    
+    const note = await storage.createConsultationNote({
+      ...validation.data,
+      doctorId: doctorId,
+    });
+    
+    res.status(201).json(note);
+  });
+  
+  // Create medical note from consultation
+  app.post("/api/medical-notes/from-consultation", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    const doctorId = req.user.id;
+    
+    // Extract required fields from request
+    const { consultationId, patientId, content, type, title } = req.body;
+    
+    // Basic validation
+    if (!consultationId || !patientId || !content || !title) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+    
     try {
-      const recordingId = parseInt(req.params.id);
-      const session = await storage.getRecordingSession(recordingId);
-      
-      if (!session) {
-        return res.status(404).json({ message: "Recording not found" });
+      const consultationIdNum = parseInt(consultationId);
+      if (isNaN(consultationIdNum)) {
+        return res.status(400).json({ message: "Invalid consultation ID format" });
       }
       
-      // Check if user has access to this recording
-      if (req.user.id !== session.doctorId && req.user.id !== session.patientId) {
-        return res.status(403).json({ message: "Not authorized to access this recording" });
+      // Create a medical note linked to the consultation
+      const medicalNote = await storage.createMedicalNoteFromConsultation(
+        {
+          patientId,
+          doctorId: doctorId,
+          content,
+          type: type || 'soap',
+          title
+        },
+        consultationIdNum
+      );
+      
+      res.status(201).json(medicalNote);
+    } catch (error: any) {
+      console.error("Error creating medical note from consultation:", error);
+      res.status(500).json({ message: "Failed to create medical note from consultation" });
+    }
+  });
+
+  // Telemedicine routes
+  
+  // Invoice routes
+  app.get("/api/invoices", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
       }
+      const doctorId = req.user.id;
       
-      // Check if file exists
-      if (!session.audioFilePath) {
-        return res.status(404).json({ message: "Audio file not found" });
-      }
-      
-      const filePath = path.join(process.cwd(), session.audioFilePath);
-      
-      // Check if file exists on the server
-      if (!fs.existsSync(filePath)) {
-        return res.status(404).json({ message: "Audio file not found on server" });
-      }
-      
-      // Send file
-      res.setHeader('Content-Type', 'audio/mpeg');
-      res.setHeader('Content-Disposition', `attachment; filename=consultation_recording_${session.id}.mp3`);
-      
-      const fileStream = fs.createReadStream(filePath);
-      fileStream.pipe(res);
+      const invoices = await storage.getInvoices(doctorId);
+      res.json(invoices);
     } catch (error) {
-      console.error('Error downloading recording:', error);
-      return res.status(500).json({ message: "Server error" });
+      console.error("Error fetching invoices:", error);
+      res.status(500).json({ message: "Failed to fetch invoices" });
+    }
+  });
+
+  app.get("/api/invoices/patient/:patientId", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const patientId = parseInt(req.params.patientId);
+      const invoices = await storage.getInvoicesByPatient(patientId);
+      res.json(invoices);
+    } catch (error) {
+      console.error("Error fetching patient invoices:", error);
+      res.status(500).json({ message: "Failed to fetch patient invoices" });
+    }
+  });
+
+  app.get("/api/invoices/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const invoiceId = parseInt(req.params.id);
+      const invoice = await storage.getInvoice(invoiceId);
+      
+      if (!invoice) {
+        return res.status(404).json({ message: "Invoice not found" });
+      }
+      
+      res.json(invoice);
+    } catch (error) {
+      console.error("Error fetching invoice:", error);
+      res.status(500).json({ message: "Failed to fetch invoice" });
+    }
+  });
+
+  app.post("/api/invoices", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const doctorId = req.user.id;
+      
+      const validation = insertInvoiceSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json(validation.error);
+      }
+      
+      const invoice = await storage.createInvoice({
+        ...validation.data,
+        doctorId: doctorId,
+      });
+      res.status(201).json(invoice);
+    } catch (error) {
+      console.error("Error creating invoice:", error);
+      res.status(500).json({ message: "Failed to create invoice" });
+    }
+  });
+
+  app.patch("/api/invoices/:id/status", async (req, res) => {
+    try {
+      const invoiceId = parseInt(req.params.id);
+      const { status } = req.body;
+      
+      const invoice = await storage.updateInvoiceStatus(invoiceId, status);
+      
+      if (!invoice) {
+        return res.status(404).json({ message: "Invoice not found" });
+      }
+      
+      res.json(invoice);
+    } catch (error) {
+      console.error("Error updating invoice status:", error);
+      res.status(500).json({ message: "Failed to update invoice status" });
+    }
+  });
+
+  app.patch("/api/invoices/:id/payment", async (req, res) => {
+    try {
+      const invoiceId = parseInt(req.params.id);
+      const { amountPaid } = req.body;
+      
+      const invoice = await storage.updateInvoicePayment(invoiceId, amountPaid);
+      
+      if (!invoice) {
+        return res.status(404).json({ message: "Invoice not found" });
+      }
+      
+      res.json(invoice);
+    } catch (error) {
+      console.error("Error updating invoice payment:", error);
+      res.status(500).json({ message: "Failed to update invoice payment" });
+    }
+  });
+
+  app.get('/api/telemedicine/rooms', (req, res) => {
+    // For development, we're not requiring authentication
+    // This would be required in production: if (!req.isAuthenticated()) {
+    //  return res.status(401).json({ message: 'Unauthorized' });
+    // }
+    
+    // Convert activeRooms to array of room objects (without socket objects for serialization)
+    const rooms = Array.from(activeRooms.entries()).map(([id, room]) => ({
+      id,
+      participants: room.participants.map(p => ({
+        id: p.id,
+        name: p.name,
+        isDoctor: p.isDoctor
+      }))
+    }));
+    
+    res.json(rooms);
+  });
+  
+  // Get recording sessions (history of telemedicine consultations)
+  app.get('/api/telemedicine/recordings', async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const doctorId = req.user.id;
+      
+      const recordings = await storage.getRecordingSessions(doctorId);
+      
+      // Get patient details for each recording
+      const recordingsWithPatients = await Promise.all(
+        recordings.map(async (recording) => {
+          const patient = await storage.getPatient(recording.patientId);
+          return {
+            ...recording,
+            patient: patient || { name: 'Unknown Patient' }
+          };
+        })
+      );
+      
+      res.json(recordingsWithPatients);
+    } catch (error) {
+      console.error('Error fetching recording sessions:', error);
+      res.status(500).json({ message: 'Failed to fetch recording sessions' });
     }
   });
   
-  // Endpoint to update a recording session (e.g., add transcription)
-  app.patch("/api/telemedicine/recordings/:id", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    
+  // Get a specific recording session
+  app.get('/api/telemedicine/recordings/:id', async (req, res) => {
     try {
-      const recordingId = parseInt(req.params.id);
-      const session = await storage.getRecordingSession(recordingId);
-      
-      if (!session) {
-        return res.status(404).json({ message: "Recording not found" });
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
       }
       
-      // Only allow doctors to update recordings
-      if (req.user.role !== 'doctor' && req.user.role !== 'admin') {
-        return res.status(403).json({ message: "Only doctors can update recordings" });
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: 'Invalid recording ID format' });
       }
       
-      // Handle transcription request
-      if (req.body.requestTranscription && session.audioFilePath) {
-        // Import dynamically to avoid loading unless needed
-        const { transcribeAudio } = await import('./services/transcription');
-        
-        const audioFilePath = path.join(process.cwd(), session.audioFilePath);
-        
-        // Check if file exists
-        if (!fs.existsSync(audioFilePath)) {
-          return res.status(404).json({ message: "Audio file not found" });
-        }
-        
-        try {
-          // Transcribe the audio file
-          const transcript = await transcribeAudio(audioFilePath);
-          
-          // Update the session with the transcription
-          const updatedSession = await storage.updateRecordingSession(recordingId, {
-            transcript
-          });
-          
-          return res.json(updatedSession);
-        } catch (error) {
-          console.error('Error transcribing audio:', error);
-          return res.status(500).json({ message: "Error transcribing audio" });
-        }
+      const recording = await storage.getRecordingSession(id);
+      if (!recording) {
+        return res.status(404).json({ message: 'Recording session not found' });
       }
       
-      // Handle normal updates
-      const updates: Record<string, any> = {};
+      const patient = await storage.getPatient(recording.patientId);
       
-      if (req.body.notes !== undefined) {
-        updates.notes = req.body.notes;
+      res.json({
+        ...recording,
+        patient: patient || { name: 'Unknown Patient' }
+      });
+    } catch (error) {
+      console.error('Error fetching recording session:', error);
+      res.status(500).json({ message: 'Failed to fetch recording session' });
+    }
+  });
+  
+  // Update transcript or notes for a recording session
+  app.patch('/api/telemedicine/recordings/:id', async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
       }
       
-      if (req.body.transcript !== undefined) {
-        updates.transcript = req.body.transcript;
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: 'Invalid recording ID format' });
       }
       
-      // Only update if there are changes
-      if (Object.keys(updates).length > 0) {
-        const updatedSession = await storage.updateRecordingSession(recordingId, updates);
-        return res.json(updatedSession);
+      const { transcript, notes } = req.body;
+      if (!transcript && !notes) {
+        return res.status(400).json({ message: 'Must provide transcript or notes to update' });
       }
       
-      return res.json(session);
+      const updates: Partial<RecordingSession> = {};
+      if (transcript) updates.transcript = transcript;
+      if (notes) updates.notes = notes;
+      
+      const updatedRecording = await storage.updateRecordingSession(id, updates);
+      if (!updatedRecording) {
+        return res.status(404).json({ message: 'Recording session not found' });
+      }
+      
+      res.json(updatedRecording);
     } catch (error) {
       console.error('Error updating recording session:', error);
-      return res.status(500).json({ message: "Server error" });
+      res.status(500).json({ message: 'Failed to update recording session' });
     }
   });
-
-  // Create HTTP server
+  
+  app.post('/api/telemedicine/rooms', async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    const doctorId = req.user.id;
+    
+    const { patientId, patientName } = req.body;
+    
+    if (!patientId || !patientName) {
+      return res.status(400).json({ message: 'Missing required fields' });
+    }
+    
+    // Generate room ID
+    const roomId = `room_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    
+    try {
+      // Create new room
+      activeRooms.set(roomId, {
+        id: roomId,
+        participants: []
+      });
+      
+      // Create recording session in database
+      const recordingSession = await storage.createRecordingSession({
+        roomId,
+        patientId,
+        doctorId: doctorId,
+        status: 'active',
+        transcript: null,
+        notes: null
+      });
+      
+      res.status(201).json({ roomId, recordingSessionId: recordingSession.id });
+    } catch (error) {
+      console.error('Error creating telemedicine room:', error);
+      res.status(500).json({ message: 'Failed to create telemedicine room' });
+    }
+  });
+  
   const httpServer = createServer(app);
   
-  // Initialize WebSocket server for telemedicine
+  // Create WebSocket server on the same HTTP server but with a distinct path
   const wss = new WebSocketServer({ 
-    server: httpServer,
-    path: '/ws', // Simplified path for compatibility
-    // Add permissive CORS for WebSocket
-    verifyClient: (info) => {
-      return true; // Accept all connections for now
-    }
+    server: httpServer, 
+    path: '/ws/telemedicine'
   });
   
-  // Track active rooms
-  const rooms: Map<string, VideoChatRoom> = new Map();
-  
-  // Log WebSocket server info
-  console.log(`WebSocket server started on path: ${wss.options.path}`);
-  
-  // Log when rooms are created or destroyed
-  setInterval(() => {
-    console.log(`Current active rooms: ${rooms.size}`);
-    if (rooms.size > 0) {
-      rooms.forEach((room, id) => {
-        console.log(`Room ${id}: ${room.participants.length} participants`);
-        room.participants.forEach(p => {
-          console.log(`- Participant: ${p.id}, name: ${p.name}, isDoctor: ${p.isDoctor}`);
-        });
-      });
-    }
-  }, 10000);
-  
-  // Handle connection errors
-  wss.on('error', (error) => {
-    console.error('WebSocket server error:', error);
-  });
-  
-  // WebSocket connection handler
-  wss.on('connection', (socket, req) => {
-    console.log(`New WebSocket connection from ${req.socket.remoteAddress}`);
+  wss.on('connection', (socket: any) => {
+    console.log('New WebSocket connection established');
     
+    // Initialize participant data
+    let participantId: string | null = null;
     let roomId: string | null = null;
-    let userId: string | null = null;
     
-    // Send a welcome message to confirm connection
-    try {
-      socket.send(JSON.stringify({ type: 'welcome', message: 'Connected to telemedicine server' }));
-    } catch (error) {
-      console.error('Error sending welcome message:', error);
-    }
-    
-    socket.on('message', (message: Buffer) => {
+    socket.on('message', (message: any) => {
       try {
         const data = JSON.parse(message.toString());
         
-        // Handle room joining
-        if (data.type === 'join') {
-          roomId = data.roomId;
-          userId = data.userId;
-          const username = data.name || data.username || 'Anonymous'; // Accept either name or username
-          const isDoctor = data.isDoctor || false;
-          
-          console.log(`User joining room: ${roomId}, userId: ${userId}, username: ${username}, isDoctor: ${isDoctor}`);
-          
-          // Create room if it doesn't exist
-          if (!rooms.has(roomId)) {
-            rooms.set(roomId, { 
-              id: roomId, 
-              participants: [] 
-            });
-          }
-          
-          // Add user to room
-          const room = rooms.get(roomId)!;
-          room.participants.push({ 
-            id: userId, 
-            socket,
-            name: username,
-            isDoctor 
-          });
-          
-          // Tell everyone about the new user
-          room.participants.forEach(participant => {
-            if (participant.id !== userId) {
-              participant.socket.send(JSON.stringify({
-                type: 'user-joined',
-                userId,
-                username,
-                name: username, // Send both for backward compatibility
-                isDoctor
+        switch (data.type) {
+          case 'join':
+            // User joining a room
+            roomId = data.roomId;
+            participantId = data.userId;
+            const room = activeRooms.get(roomId as string);
+            
+            if (!room) {
+              socket.send(JSON.stringify({
+                type: 'error',
+                message: 'Room not found'
               }));
+              return;
             }
-          });
-          
-          // Send current participants to the new user - using both old and new formats for compatibility
-          socket.send(JSON.stringify({
-            type: 'room-info',
-            participants: room.participants.map(p => ({
-              id: p.id,
-              name: p.name,
-              isDoctor: p.isDoctor
-            }))
-          }));
-          
-          // Also send a room-users message for backward compatibility
-          socket.send(JSON.stringify({
-            type: 'room-users',
-            users: room.participants.map(p => ({
-              id: p.id,
-              name: p.name,
-              isDoctor: p.isDoctor
-            }))
-          }));
-        }
-        
-        // Handle WebRTC signaling - including all signaling messages
-        if ((data.type === 'signal' || data.type === 'offer' || data.type === 'answer' || data.type === 'ice-candidate')) {
-          // First make sure we have the required fields
-          if (!roomId) {
-            console.error('Missing roomId in WebRTC message:', data.type);
+            
+            // Add participant to room
+            room.participants.push({
+              id: data.userId,
+              socket,
+              name: data.name,
+              isDoctor: data.isDoctor
+            });
+            
+            // Notify other participants in the room about the new participant
+            room.participants.forEach(participant => {
+              if (participant.id !== data.userId) {
+                participant.socket.send(JSON.stringify({
+                  type: 'user-joined',
+                  userId: data.userId,
+                  name: data.name,
+                  isDoctor: data.isDoctor
+                }));
+              }
+            });
+            
+            // Send the list of existing participants to the new participant
             socket.send(JSON.stringify({
-              type: 'error',
-              message: 'Missing roomId in WebRTC message'
+              type: 'room-users',
+              users: room.participants.map(p => ({
+                id: p.id,
+                name: p.name,
+                isDoctor: p.isDoctor
+              }))
             }));
-            return;
-          }
-          
-          if (!userId) {
-            console.error('Missing userId in WebRTC message:', data.type);
-            socket.send(JSON.stringify({
-              type: 'error',
-              message: 'Missing userId in WebRTC message'
-            }));
-            return;
-          }
-          
-          // Handle different target id fields
-          const targetId = data.targetId || data.target;
-          if (!targetId) {
-            console.error('Missing target for WebRTC message:', data.type);
-            socket.send(JSON.stringify({
-              type: 'error',
-              message: 'Missing target ID in WebRTC message'
-            }));
-            return;
-          }
-          
-          // Get the room
-          const room = rooms.get(roomId);
-          if (!room) {
-            console.error(`Room ${roomId} not found for signal message. Available rooms:`, Array.from(rooms.keys()).join(', '));
-            socket.send(JSON.stringify({
-              type: 'error',
-              message: `Room ${roomId} not found`
-            }));
-            return;
-          }
-          
-          // Log detailed routing information
-          console.log(`[WebRTC] Routing ${data.type} message from ${userId} to target ${targetId} in room ${roomId}`);
-          console.log(`[WebRTC] Current participants in room ${roomId}:`, room.participants.map(p => `${p.id} (${p.name}, ${p.isDoctor ? 'doctor' : 'patient'})`).join(', '));
-          
-          // Find the target user
-          const targetParticipant = room.participants.find(p => p.id === targetId);
-          
-          if (!targetParticipant) {
-            console.error(`[WebRTC] Target participant ${targetId} not found in room ${roomId}. Available participants:`, room.participants.map(p => p.id).join(', '));
-            socket.send(JSON.stringify({
-              type: 'error',
-              message: `Target participant ${targetId} not found in room`
-            }));
-            return;
-          }
-          
-          // Check if the target socket is valid and connected
-          if (targetParticipant.socket.readyState !== WebSocket.OPEN) {
-            console.error(`[WebRTC] Target socket not open for ${targetId} in room ${roomId}. ReadyState:`, targetParticipant.socket.readyState);
-            socket.send(JSON.stringify({
-              type: 'error',
-              message: `Target participant ${targetId} is not connected`
-            }));
-            return;
-          }
-          
-          // Forward the exact same message but add sender info if needed
-          const forwardData = {...data};
-          
-          // Ensure consistent sender info is available to the recipient
-          forwardData.sender = userId;
-          forwardData.from = userId;
-          
-          // Add room ID if not present
-          if (!forwardData.roomId) {
-            forwardData.roomId = roomId;
-          }
-          
-          // Log detailed message info (excluding large SDP data)
-          const logData = {...forwardData};
-          if (logData.data && typeof logData.data === 'object') {
-            if ('sdp' in logData.data) {
-              logData.data.sdp = '(SDP data)';
+            
+            break;
+            
+          case 'offer':
+          case 'answer':
+          case 'ice-candidate':
+          case 'chat-message':
+            // Handle WebRTC signaling and chat messages
+            
+            // Make sure roomId is taken from message if not already set in socket connection
+            const messageRoomId = data.roomId || roomId;
+            if (!messageRoomId) {
+              console.error('No room ID found in message or socket state:', data);
+              socket.send(JSON.stringify({
+                type: 'error',
+                message: 'No room ID provided. Please join a room first.'
+              }));
+              return;
             }
-            if ('candidate' in logData.data) {
-              logData.data.candidate = '(candidate data)';
+            
+            const targetRoom = activeRooms.get(messageRoomId);
+            if (!targetRoom) {
+              console.error('Room not found with ID:', messageRoomId);
+              socket.send(JSON.stringify({
+                type: 'error',
+                message: 'Room not found with ID: ' + messageRoomId
+              }));
+              return;
             }
-          }
-          console.log(`[WebRTC] Forwarding ${data.type} message:`, JSON.stringify(logData));
-          
-          try {
-            targetParticipant.socket.send(JSON.stringify(forwardData));
-            console.log(`[WebRTC] Successfully forwarded ${data.type} message to ${targetId}`);
-          } catch (error) {
-            console.error(`[WebRTC] Error forwarding message to ${targetId}:`, error);
-            socket.send(JSON.stringify({
-              type: 'error',
-              message: `Failed to forward message to ${targetId}`
-            }));
-          }
+            
+            // For chat messages, broadcast to all participants in the room
+            if (data.type === 'chat-message') {
+              console.log('Broadcasting chat message in room:', messageRoomId);
+              targetRoom.participants.forEach(participant => {
+                if (participant.id !== data.sender) {
+                  participant.socket.send(JSON.stringify({
+                    type: 'chat-message',
+                    sender: data.sender,
+                    senderName: data.senderName,
+                    text: data.text,
+                    roomId: messageRoomId
+                  }));
+                }
+              });
+              break;
+            }
+            
+            // For WebRTC signals, find the target participant
+            const targetParticipant = targetRoom.participants.find(p => p.id === data.target);
+            if (targetParticipant) {
+              // Forward the WebRTC signaling message with proper formatting
+              // Always pass the roomId to ensure proper room tracking
+              if (data.type === 'offer') {
+                console.log('Server forwarding offer with room ID:', messageRoomId);
+                targetParticipant.socket.send(JSON.stringify({
+                  type: 'offer',
+                  from: data.sender,
+                  roomId: messageRoomId,
+                  offer: data.data
+                }));
+              } else if (data.type === 'answer') {
+                console.log('Server forwarding answer with room ID:', messageRoomId);
+                targetParticipant.socket.send(JSON.stringify({
+                  type: 'answer',
+                  from: data.sender,
+                  roomId: messageRoomId,
+                  answer: data.data
+                }));
+              } else if (data.type === 'ice-candidate') {
+                console.log('Server forwarding ICE candidate with room ID:', messageRoomId);
+                targetParticipant.socket.send(JSON.stringify({
+                  type: 'ice-candidate',
+                  from: data.sender,
+                  roomId: messageRoomId,
+                  candidate: data.data
+                }));
+              }
+            } else {
+              console.log('Target participant not found:', data.target);
+            }
+            break;
+            
+          default:
+            console.log('Unknown message type:', data.type);
         }
       } catch (error) {
-        console.error('Error handling WebSocket message:', error);
+        console.error('Error processing WebSocket message:', error);
       }
     });
     
-    // Handle disconnection
-    socket.on('close', () => {
-      if (roomId && userId) {
-        const room = rooms.get(roomId);
+    socket.on('close', async () => {
+      console.log('WebSocket connection closed');
+      
+      // Remove participant from room when they disconnect
+      if (roomId && participantId) {
+        const room = activeRooms.get(roomId as string);
         if (room) {
-          // Remove user from room
-          room.participants = room.participants.filter(p => p.id !== userId);
+          // Remove participant
+          room.participants = room.participants.filter(p => p.id !== participantId);
           
-          // Notify others about disconnection
+          // Notify other participants
           room.participants.forEach(participant => {
             participant.socket.send(JSON.stringify({
               type: 'user-left',
-              userId
+              userId: participantId
             }));
           });
           
-          // Clean up empty rooms
+          // If room is empty, delete it and update recording session
           if (room.participants.length === 0) {
-            rooms.delete(roomId);
+            activeRooms.delete(roomId);
+            
+            try {
+              // Get recording session by room ID
+              const session = await storage.getRecordingSessionByRoomId(roomId);
+              if (session) {
+                // Update session with end time and status
+                const endTime = new Date();
+                const duration = Math.floor((endTime.getTime() - session.startTime.getTime()) / 1000); // in seconds
+                
+                await storage.updateRecordingSession(session.id, {
+                  endTime,
+                  duration,
+                  status: 'completed'
+                });
+              }
+            } catch (error) {
+              console.error('Error updating recording session on room close:', error);
+            }
           }
         }
       }
     });
+  });
+
+  // Patient intake form routes
+  app.get("/api/intake-forms", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const doctorId = req.user.id;
+      
+      const forms = await storage.getIntakeForms(doctorId);
+      res.json(forms);
+    } catch (error: any) {
+      console.error("Error fetching intake forms:", error);
+      res.status(500).json({ message: "Failed to fetch intake forms" });
+    }
+  });
+  
+  app.get("/api/intake-forms/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const formId = parseInt(req.params.id);
+      if (isNaN(formId)) {
+        return res.status(400).json({ message: "Invalid ID format" });
+      }
+      
+      const form = await storage.getIntakeForm(formId);
+      if (!form) {
+        return res.status(404).json({ message: "Intake form not found" });
+      }
+      
+      // Get responses for this form
+      const responses = await storage.getIntakeFormResponses(formId);
+      
+      res.json({
+        ...form,
+        responses
+      });
+    } catch (error: any) {
+      console.error("Error fetching intake form:", error);
+      res.status(500).json({ message: "Failed to fetch intake form" });
+    }
+  });
+  
+  app.post("/api/intake-forms", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const doctorId = req.user.id;
+      
+      console.log("Creating intake form with data:", req.body);
+
+      // Set the authenticated doctor ID
+      req.body.doctorId = doctorId;
+
+      if (!req.body.uniqueLink) {
+        // Generate a unique link for the form if not provided
+        req.body.uniqueLink = `intake_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      }
+
+      if (!req.body.status) {
+        req.body.status = "pending"; // Set default status
+      }
+
+      // One week expiration by default if not set
+      if (!req.body.expiresAt) {
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 7);
+        req.body.expiresAt = expiresAt;
+      }
+      
+      const validation = insertIntakeFormSchema.safeParse(req.body);
+      if (!validation.success) {
+        console.error("Validation error:", validation.error.format());
+        return res.status(400).json({
+          message: "Invalid form data",
+          issues: validation.error.format()
+        });
+      }
+      
+      const intakeForm = await storage.createIntakeForm(validation.data);
+      
+      res.status(201).json(intakeForm);
+    } catch (error: any) {
+      console.error("Error creating intake form:", error);
+      res.status(500).json({ message: "Failed to create intake form: " + (error.message || "Unknown error") });
+    }
+  });
+  
+  // Public endpoint to access the intake form by its unique link
+  app.get("/api/public/intake-form/:uniqueLink", async (req, res) => {
+    try {
+      const { uniqueLink } = req.params;
+      
+      const form = await storage.getIntakeFormByLink(uniqueLink);
+      if (!form) {
+        return res.status(404).json({ message: "Intake form not found" });
+      }
+      
+      // Check if form is expired
+      if (form.status === "expired" || (form.expiresAt && new Date(form.expiresAt) < new Date())) {
+        return res.status(403).json({ message: "This intake form has expired" });
+      }
+      
+      // Check if form is already completed
+      if (form.status === "completed") {
+        return res.status(403).json({ message: "This intake form has already been completed" });
+      }
+      
+      // Get existing responses for this form
+      const responses = await storage.getIntakeFormResponses(form.id);
+      
+      res.json({
+        ...form,
+        responses
+      });
+    } catch (error: any) {
+      console.error("Error fetching public intake form:", error);
+      res.status(500).json({ message: "Failed to fetch intake form" });
+    }
+  });
+  
+  // Submit response for a specific intake form
+  app.post("/api/public/intake-form/:formId/responses", async (req, res) => {
+    try {
+      const formId = parseInt(req.params.formId);
+      
+      if (isNaN(formId)) {
+        return res.status(400).json({ message: "Invalid form ID" });
+      }
+      
+      // Make sure the form exists and is valid for submission
+      const form = await storage.getIntakeForm(formId);
+      if (!form) {
+        return res.status(404).json({ message: "Intake form not found" });
+      }
+      
+      // Check if form is expired or completed
+      if (form.status === "expired" || form.status === "completed") {
+        return res.status(403).json({ message: "This intake form cannot accept responses" });
+      }
+      
+      // Validate the response data
+      const responseData = {
+        ...req.body,
+        formId
+      };
+      
+      const validation = insertIntakeFormResponseSchema.safeParse(responseData);
+      if (!validation.success) {
+        return res.status(400).json(validation.error);
+      }
+      
+      // Save the response
+      const response = await storage.createIntakeFormResponse(validation.data);
+      
+      res.status(201).json(response);
+    } catch (error: any) {
+      console.error("Error saving intake form response:", error);
+      res.status(500).json({ message: "Failed to save response" });
+    }
+  });
+  
+  // Complete an intake form
+  app.post("/api/public/intake-form/:formId/complete", async (req, res) => {
+    try {
+      const formId = parseInt(req.params.formId);
+      
+      if (isNaN(formId)) {
+        return res.status(400).json({ message: "Invalid form ID" });
+      }
+      
+      // Make sure the form exists
+      const form = await storage.getIntakeForm(formId);
+      if (!form) {
+        return res.status(404).json({ message: "Intake form not found" });
+      }
+      
+      // Update the form status to completed
+      const updatedForm = await storage.updateIntakeFormStatus(formId, "completed");
+      
+      res.json(updatedForm);
+    } catch (error: any) {
+      console.error("Error completing intake form:", error);
+      res.status(500).json({ message: "Failed to complete intake form" });
+    }
   });
 
   return httpServer;
