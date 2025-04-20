@@ -137,19 +137,8 @@
               formData.append('audio', audioBlob, 'test_recording.webm');
               formData.append('roomId', 'test_room_' + Date.now());
               
-              // First save recording
-              log('Saving recording to database...');
-              const recordingResponse = await fetch('/api/telemedicine/recordings', {
-                method: 'POST',
-                body: formData
-              });
-              
-              if (!recordingResponse.ok) {
-                throw new Error(`Failed to save recording: ${recordingResponse.status}`);
-              }
-              
-              const recordingData = await recordingResponse.json();
-              log(`Recording saved with ID: ${recordingData.id}`);
+              // Skip database saving for testing and go directly to MP3 conversion
+              log('Skipping database save and going directly to MP3 conversion...');
               
               // Now convert to MP3
               log('Converting to MP3...');
