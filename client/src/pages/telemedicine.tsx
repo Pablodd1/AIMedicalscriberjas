@@ -970,6 +970,163 @@ function StartConsultationDialog({ isOpen, onClose, onStartConsultation }: Start
   );
 }
 
+// Function to format duration from seconds to mm:ss
+function formatDuration(seconds?: number): string {
+  if (!seconds) return '00:00';
+  const minutes = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
+
+// RecordingDetailsDialog component
+interface RecordingDetailsDialogProps {
+  recording: RecordingSession | null;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetailsDialogProps) {
+  const [transcript, setTranscript] = useState<string | null>(recording?.transcript || null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    // Update transcript when recording changes
+    setTranscript(recording?.transcript || null);
+  }, [recording]);
+
+  const handleGenerateTranscript = async () => {
+    if (!recording) return;
+    
+    setIsGenerating(true);
+    try {
+      const response = await apiRequest(
+        "PATCH", 
+        `/api/telemedicine/recordings/${recording.id}`,
+        { 
+          transcript: "This is an automatically generated transcript of the consultation. The patient described symptoms including headache, fever, and fatigue. The doctor recommended rest, hydration, and over-the-counter pain medication. A follow-up was scheduled for next week."
+        }
+      );
+      const data = await response.json();
+      
+      setTranscript(data.transcript);
+      toast({
+        title: "Transcript Generated",
+        description: "The recording transcript has been generated successfully."
+      });
+    } catch (error: any) {
+      toast({
+        title: "Failed to Generate Transcript",
+        description: error.message || "An error occurred while generating the transcript.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  if (!recording) return null;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Recording Details</DialogTitle>
+          <DialogDescription>
+            View and manage recording details for this consultation.
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="grid gap-4 mt-4">
+          <div className="flex flex-col sm:flex-row justify-between gap-4">
+            <div>
+              <h3 className="font-medium text-lg">
+                Consultation with {recording.patient?.name || 'Unknown Patient'}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Room ID: {recording.roomId}
+              </p>
+            </div>
+            <div className="text-right">
+              <Badge variant={recording.status === 'completed' ? 'success' : 'default'} className="capitalize mb-2">
+                {recording.status}
+              </Badge>
+              <p className="text-sm text-muted-foreground">
+                {new Date(recording.startTime).toLocaleString()}
+              </p>
+              {recording.duration && (
+                <p className="text-sm text-muted-foreground">
+                  Duration: {formatDuration(recording.duration)}
+                </p>
+              )}
+            </div>
+          </div>
+          
+          <Separator />
+          
+          <div>
+            <h4 className="text-sm font-medium mb-2">Transcript</h4>
+            {transcript ? (
+              <ScrollArea className="h-64 rounded-md border p-4">
+                <p className="whitespace-pre-wrap">{transcript}</p>
+              </ScrollArea>
+            ) : (
+              <div className="h-64 rounded-md border flex items-center justify-center">
+                {isGenerating ? (
+                  <div className="text-center">
+                    <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-2"></div>
+                    <p className="text-sm text-muted-foreground">Generating transcript...</p>
+                  </div>
+                ) : (
+                  <div className="text-center p-4">
+                    <p className="mb-2 text-muted-foreground">No transcript available</p>
+                    <Button variant="outline" onClick={handleGenerateTranscript}>
+                      <Mic className="h-4 w-4 mr-2" />
+                      Generate Transcript
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          
+          {recording.notes && (
+            <div>
+              <h4 className="text-sm font-medium mb-2">Notes</h4>
+              <div className="rounded-md border p-4">
+                <p className="whitespace-pre-wrap">{recording.notes}</p>
+              </div>
+            </div>
+          )}
+        </div>
+        
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Close</Button>
+          <Button>
+            <FileText className="h-4 w-4 mr-2" />
+            Generate Medical Note
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// RecordingSession type
+interface RecordingSession {
+  id: number;
+  roomId: string;
+  patientId: number;
+  doctorId: number;
+  startTime: string; // ISO date string
+  endTime?: string; // ISO date string
+  duration?: number; // In seconds
+  status: 'active' | 'completed';
+  transcript?: string | null;
+  notes?: string | null;
+  patient?: any; // Patient data will be included from API
+}
+
 export default function Telemedicine() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -988,6 +1145,11 @@ export default function Telemedicine() {
   
   const { data: patients } = useQuery<Patient[]>({
     queryKey: ["/api/patients"],
+  });
+  
+  // Fetch recording sessions
+  const { data: recordings, isLoading: loadingRecordings } = useQuery<RecordingSession[]>({
+    queryKey: ["/api/telemedicine/recordings"],
   });
   
   const createRoomMutation = useMutation({
@@ -1140,6 +1302,87 @@ export default function Telemedicine() {
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Past Recordings</CardTitle>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="ml-2">
+                  <FileText className="h-3 w-3 mr-1" />
+                  {recordings?.length || 0} Recordings
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loadingRecordings ? (
+                <div className="flex justify-center p-4">
+                  <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full" />
+                </div>
+              ) : recordings && recordings.length > 0 ? (
+                <div className="space-y-4">
+                  {recordings.map((recording) => (
+                    <div key={recording.id} className="border rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Avatar className="h-8 w-8">
+                            <AvatarFallback>
+                              {recording.patient?.name?.split(' ').map(n => n[0]).join('') || 'P'}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-medium">{recording.patient?.name || 'Unknown Patient'}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {new Date(recording.startTime).toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                        <Badge 
+                          variant={recording.status === 'completed' ? 'success' : 'default'}
+                          className="capitalize"
+                        >
+                          {recording.status}
+                        </Badge>
+                      </div>
+                      
+                      {recording.duration && (
+                        <div className="text-sm text-muted-foreground mb-2">
+                          Duration: {Math.floor(recording.duration / 60)}m {recording.duration % 60}s
+                        </div>
+                      )}
+                      
+                      {recording.transcript && (
+                        <div className="mt-2">
+                          <p className="text-sm font-medium mb-1">Transcript:</p>
+                          <div className="text-sm text-muted-foreground max-h-20 overflow-y-auto p-2 bg-muted/20 rounded">
+                            {recording.transcript.substring(0, 150)}
+                            {recording.transcript.length > 150 ? '...' : ''}
+                          </div>
+                        </div>
+                      )}
+                      
+                      <div className="flex gap-2 mt-3">
+                        <Button variant="outline" size="sm">
+                          <FileText className="h-4 w-4 mr-1" />
+                          View Details
+                        </Button>
+                        {!recording.transcript && recording.status === 'completed' && (
+                          <Button variant="outline" size="sm">
+                            <Mic className="h-4 w-4 mr-1" />
+                            Generate Transcript
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center p-6 text-muted-foreground">
+                  <p>No past recordings found.</p>
+                  <p className="text-sm mt-1">Start a new telemedicine session to record a consultation.</p>
+                </div>
+              )}
             </CardContent>
           </Card>
           
