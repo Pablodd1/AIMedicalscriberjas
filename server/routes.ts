@@ -201,6 +201,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Telemedicine routes for rooms and consultations
+  app.post("/api/telemedicine/rooms", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    try {
+      // Generate a unique room ID
+      const roomId = `room_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      
+      res.json({ roomId });
+    } catch (error) {
+      console.error('Error creating telemedicine room:', error);
+      res.status(500).json({ message: "Error creating telemedicine room" });
+    }
+  });
+  
   // Telemedicine routes for recording sessions
   app.post("/api/telemedicine/recordings", upload.single('audio'), async (req, res) => {
     if (!req.isAuthenticated()) {
