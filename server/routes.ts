@@ -12,7 +12,8 @@ import {
   insertConsultationNoteSchema,
   insertInvoiceSchema,
   insertIntakeFormSchema,
-  insertIntakeFormResponseSchema
+  insertIntakeFormResponseSchema,
+  type RecordingSession
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -383,7 +384,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(rooms);
   });
   
-  app.post('/api/telemedicine/rooms', (req, res) => {
+  // Get recording sessions (history of telemedicine consultations)
+  app.get('/api/telemedicine/recordings', async (req, res) => {
+    try {
+      const recordings = await storage.getRecordingSessions(MOCK_DOCTOR_ID);
+      
+      // Get patient details for each recording
+      const recordingsWithPatients = await Promise.all(
+        recordings.map(async (recording) => {
+          const patient = await storage.getPatient(recording.patientId);
+          return {
+            ...recording,
+            patient: patient || { name: 'Unknown Patient' }
+          };
+        })
+      );
+      
+      res.json(recordingsWithPatients);
+    } catch (error) {
+      console.error('Error fetching recording sessions:', error);
+      res.status(500).json({ message: 'Failed to fetch recording sessions' });
+    }
+  });
+  
+  // Get a specific recording session
+  app.get('/api/telemedicine/recordings/:id', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: 'Invalid recording ID format' });
+      }
+      
+      const recording = await storage.getRecordingSession(id);
+      if (!recording) {
+        return res.status(404).json({ message: 'Recording session not found' });
+      }
+      
+      const patient = await storage.getPatient(recording.patientId);
+      
+      res.json({
+        ...recording,
+        patient: patient || { name: 'Unknown Patient' }
+      });
+    } catch (error) {
+      console.error('Error fetching recording session:', error);
+      res.status(500).json({ message: 'Failed to fetch recording session' });
+    }
+  });
+  
+  // Update transcript or notes for a recording session
+  app.patch('/api/telemedicine/recordings/:id', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: 'Invalid recording ID format' });
+      }
+      
+      const { transcript, notes } = req.body;
+      if (!transcript && !notes) {
+        return res.status(400).json({ message: 'Must provide transcript or notes to update' });
+      }
+      
+      const updates: Partial<RecordingSession> = {};
+      if (transcript) updates.transcript = transcript;
+      if (notes) updates.notes = notes;
+      
+      const updatedRecording = await storage.updateRecordingSession(id, updates);
+      if (!updatedRecording) {
+        return res.status(404).json({ message: 'Recording session not found' });
+      }
+      
+      res.json(updatedRecording);
+    } catch (error) {
+      console.error('Error updating recording session:', error);
+      res.status(500).json({ message: 'Failed to update recording session' });
+    }
+  });
+  
+  app.post('/api/telemedicine/rooms', async (req, res) => {
     // For development, we're not requiring authentication
     // This would be required in production: if (!req.isAuthenticated()) {
     //  return res.status(401).json({ message: 'Unauthorized' });
@@ -398,13 +476,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Generate room ID
     const roomId = `room_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     
-    // Create new room
-    activeRooms.set(roomId, {
-      id: roomId,
-      participants: []
-    });
-    
-    res.status(201).json({ roomId });
+    try {
+      // Create new room
+      activeRooms.set(roomId, {
+        id: roomId,
+        participants: []
+      });
+      
+      // Create recording session in database
+      const recordingSession = await storage.createRecordingSession({
+        roomId,
+        patientId,
+        doctorId: MOCK_DOCTOR_ID,
+        status: 'active',
+        transcript: null,
+        notes: null
+      });
+      
+      res.status(201).json({ roomId, recordingSessionId: recordingSession.id });
+    } catch (error) {
+      console.error('Error creating telemedicine room:', error);
+      res.status(500).json({ message: 'Failed to create telemedicine room' });
+    }
   });
   
   const httpServer = createServer(app);
@@ -514,7 +607,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     });
     
-    socket.on('close', () => {
+    socket.on('close', async () => {
       console.log('WebSocket connection closed');
       
       // Remove participant from room when they disconnect
@@ -532,9 +625,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }));
           });
           
-          // If room is empty, delete it
+          // If room is empty, delete it and update recording session
           if (room.participants.length === 0) {
             activeRooms.delete(roomId);
+            
+            try {
+              // Get recording session by room ID
+              const session = await storage.getRecordingSessionByRoomId(roomId);
+              if (session) {
+                // Update session with end time and status
+                const endTime = new Date();
+                const duration = Math.floor((endTime.getTime() - session.startTime.getTime()) / 1000); // in seconds
+                
+                await storage.updateRecordingSession(session.id, {
+                  endTime,
+                  duration,
+                  status: 'completed'
+                });
+              }
+            } catch (error) {
+              console.error('Error updating recording session on room close:', error);
+            }
           }
         }
       }
