@@ -22,8 +22,7 @@ import {
   Loader2,
   Printer,
   Download,
-  StopCircle,
-  ArrowDown
+  StopCircle
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -72,9 +71,6 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
 
   const { user } = useAuth();
   const { toast } = useToast();
-  
-  // Reference to track when we should auto-scroll transcriptions
-  const shouldScrollRef = useRef(true);
   const [connected, setConnected] = useState(false);
   const [participants, setParticipants] = useState<any[]>([]);
   const [audioEnabled, setAudioEnabled] = useState(true);
@@ -765,47 +761,19 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
   const handleEndCall = onClose;
 
   // Live transcription functions
-  
   const addLiveTranscription = (speaker: string, text: string) => {
-    const newTranscription = {
-      speaker, 
-      text, 
-      timestamp: new Date()
-    };
-    
     setLiveTranscriptions(prev => [
       ...prev, 
-      newTranscription
-    ]);
-    
-    // If we're already recording, save this transcription to the session
-    if (isRecording && mediaRecorderRef.current) {
-      try {
-        // Save transcription with the recording session
-        fetch('/api/telemedicine/recordings/transcription', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            roomId,
-            transcription: newTranscription
-          }),
-        }).catch(err => console.error('Failed to save transcription:', err));
-      } catch (error) {
-        console.error('Error saving transcription:', error);
+      {
+        speaker, 
+        text, 
+        timestamp: new Date()
       }
-    }
-    
-      // Auto-scrolling has been removed as requested by user
-    // Manual scrolling is now handled by the user
+    ]);
   };
 
   // Reference for speech recognition
   const speechRecognitionRef = useRef<any>(null);
-  
-  // Removed auto-scrolling effect as requested by user
-  // Now using manual scrolling instead
   
   // Function to toggle live transcription
   const toggleLiveTranscription = () => {
@@ -827,52 +795,18 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           const recognition = new SpeechRecognition();
           speechRecognitionRef.current = recognition;
           
-          // Set up recognition with improved settings for better speech capture
           recognition.continuous = true;
           recognition.interimResults = true;
           recognition.lang = 'en-US';
           
-          // Increase the maximum alternatives to try to catch more speech variations
-          // This helps with patient speech that might be quieter or less clear
-          recognition.maxAlternatives = 3;
-          
           // Handle recognition results
           recognition.onresult = (event: any) => {
             const last = event.results.length - 1;
-            const results = event.results[last];
-            const isFinal = results.isFinal;
+            const transcript = event.results[last][0].transcript;
+            const isFinal = event.results[last].isFinal;
             
-            if (isFinal) {
-              // Look through alternatives to find the best transcript
-              let bestTranscript = "";
-              let highestConfidence = -1;
-              
-              // Check all alternatives (maxAlternatives set above)
-              for (let i = 0; i < results.length; i++) {
-                const alternative = results[i];
-                const transcript = alternative.transcript.trim();
-                const confidence = alternative.confidence;
-                
-                // Keep the transcript with the highest confidence
-                if (transcript && confidence > highestConfidence) {
-                  highestConfidence = confidence;
-                  bestTranscript = transcript;
-                }
-              }
-              
-              // Only proceed if we found a valid transcript
-              if (bestTranscript) {
-                // Get current speaker from state at the moment of capture
-                // This ensures we correctly attribute the speech to the right person
-                addLiveTranscription(currentSpeaker, bestTranscript);
-                
-                // Add a visual indicator that new speech was captured
-                toast({
-                  title: `${currentSpeaker} Speech Captured`,
-                  description: bestTranscript.length > 30 ? bestTranscript.substring(0, 30) + "..." : bestTranscript,
-                  duration: 2000,
-                });
-              }
+            if (isFinal && transcript.trim()) {
+              addLiveTranscription(currentSpeaker, transcript);
             }
           };
           
@@ -1222,47 +1156,13 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                   <div className="bg-muted rounded-md p-1 flex">
                     <button 
                       className={`px-2 py-1 rounded transition-colors ${currentSpeaker === 'Doctor' ? 'bg-blue-500 text-white' : 'hover:bg-muted-foreground/10'}`}
-                      onClick={() => {
-                        setCurrentSpeaker('Doctor');
-                        // Restart speech recognition to apply the new speaker setting
-                        if (speechRecognitionRef.current) {
-                          try {
-                            speechRecognitionRef.current.stop();
-                            setTimeout(() => {
-                              if (speechRecognitionRef.current) {
-                                speechRecognitionRef.current.start();
-                                // Add feedback message
-                                addLiveTranscription('System', "Now capturing Doctor's voice");
-                              }
-                            }, 100);
-                          } catch (e) {
-                            console.error('Failed to restart recognition after speaker change:', e);
-                          }
-                        }
-                      }}
+                      onClick={() => setCurrentSpeaker('Doctor')}
                     >
                       Doctor
                     </button>
                     <button 
                       className={`px-2 py-1 rounded transition-colors ${currentSpeaker === 'Patient' ? 'bg-orange-500 text-white' : 'hover:bg-muted-foreground/10'}`}
-                      onClick={() => {
-                        setCurrentSpeaker('Patient');
-                        // Restart speech recognition to apply the new speaker setting
-                        if (speechRecognitionRef.current) {
-                          try {
-                            speechRecognitionRef.current.stop();
-                            setTimeout(() => {
-                              if (speechRecognitionRef.current) {
-                                speechRecognitionRef.current.start();
-                                // Add feedback message
-                                addLiveTranscription('System', "Now capturing Patient's voice");
-                              }
-                            }, 100);
-                          } catch (e) {
-                            console.error('Failed to restart recognition after speaker change:', e);
-                          }
-                        }
-                      }}
+                      onClick={() => setCurrentSpeaker('Patient')}
                     >
                       Patient
                     </button>
@@ -1271,11 +1171,8 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
               </div>
             </div>
 
-            <ScrollArea 
-              className="flex-1 p-2 sm:p-3" 
-              id="transcription-scroll-area"
-            >
-              <div className="space-y-3" id="transcription-container">
+            <ScrollArea className="flex-1 p-2 sm:p-3">
+              <div className="space-y-3">
                 {liveTranscriptions.map((item, i) => (
                   <div key={i} className="flex flex-col">
                     <div className="flex items-center gap-2">
@@ -1312,27 +1209,9 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             </ScrollArea>
 
             <div className="p-2 sm:p-3 border-t">
-              <div className="flex justify-between items-center">
-                <p className="text-xs text-muted-foreground">
-                  Transcription is automatically generated and may not be 100% accurate
-                </p>
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  onClick={() => {
-                    const scrollArea = document.getElementById('transcription-scroll-area');
-                    if (scrollArea) {
-                      const scrollContainer = scrollArea.querySelector('[data-radix-scroll-area-viewport]');
-                      if (scrollContainer) {
-                        scrollContainer.scrollTop = scrollContainer.scrollHeight;
-                      }
-                    }
-                  }}
-                >
-                  <Mic className="h-4 w-4 mr-1" />
-                  Scroll Down
-                </Button>
-              </div>
+              <p className="text-xs text-muted-foreground text-center">
+                Transcription is automatically generated and may not be 100% accurate
+              </p>
             </div>
           </div>
         )}

@@ -553,48 +553,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Add live transcription to recording session
-  app.post('/api/telemedicine/recordings/transcription', async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    
-    try {
-      const { roomId, transcription } = req.body;
-      
-      if (!roomId || !transcription) {
-        return res.status(400).json({ error: 'Missing required fields' });
-      }
-      
-      // Get current recording session by room ID
-      const recordingSession = await storage.getRecordingSessionByRoomId(roomId);
-      
-      if (!recordingSession) {
-        return res.status(404).json({ error: 'Recording session not found' });
-      }
-      
-      // Add the transcription to the transcript field
-      // First get existing transcript
-      let existingTranscript = recordingSession.transcript || '';
-      
-      // Format the new transcription
-      const formattedTranscription = `${transcription.speaker} (${new Date(transcription.timestamp).toLocaleTimeString()}): ${transcription.text}\n`;
-      
-      // Append the new transcription
-      const updatedTranscript = existingTranscript + formattedTranscription;
-      
-      // Update the recording session
-      await storage.updateRecordingSession(recordingSession.id, {
-        transcript: updatedTranscript
-      });
-      
-      res.status(200).json({ success: true });
-    } catch (error) {
-      console.error('Error saving transcription:', error);
-      res.status(500).json({ error: 'Failed to save transcription' });
-    }
-  });
-  
   app.post('/api/telemedicine/rooms', async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Unauthorized" });
