@@ -77,6 +77,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
   const [videoEnabled, setVideoEnabled] = useState(true);
   const [liveTranscriptionOpen, setLiveTranscriptionOpen] = useState(false);
   const [liveTranscriptions, setLiveTranscriptions] = useState<Array<{speaker: string, text: string, timestamp: Date}>>([]);
+  const [currentSpeaker, setCurrentSpeaker] = useState<'Doctor' | 'Patient'>('Doctor');
   const [isRecording, setIsRecording] = useState(false);
   const [recordedTime, setRecordedTime] = useState(0);
   const [transcription, setTranscription] = useState("");
@@ -805,7 +806,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             const isFinal = event.results[last].isFinal;
             
             if (isFinal && transcript.trim()) {
-              addLiveTranscription('Doctor', transcript);
+              addLiveTranscription(currentSpeaker, transcript);
             }
           };
           
@@ -1138,12 +1139,36 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
         {/* Live Transcription Panel */}
         {liveTranscriptionOpen && (
           <div className="border-l flex flex-col h-full">
-            <div className="p-2 sm:p-3 border-b flex justify-between items-center">
-              <h3 className="font-medium">Live Transcription</h3>
-              <Badge variant="outline" className="bg-primary/10">
-                <span className="animate-pulse h-2 w-2 rounded-full bg-primary mr-2"></span>
-                Live
-              </Badge>
+            <div className="p-2 sm:p-3 border-b">
+              <div className="flex justify-between items-center">
+                <h3 className="font-medium">Live Transcription</h3>
+                <Badge variant="outline" className="bg-primary/10">
+                  <span className="animate-pulse h-2 w-2 rounded-full bg-primary mr-2"></span>
+                  Live
+                </Badge>
+              </div>
+              <div className="mt-2 flex flex-col space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Currently transcribing: <span className="font-medium">{currentSpeaker}'s speech</span>
+                </p>
+                <div className="flex items-center space-x-1 text-xs">
+                  <span className="text-muted-foreground mr-1">Speaker:</span>
+                  <div className="bg-muted rounded-md p-1 flex">
+                    <button 
+                      className={`px-2 py-1 rounded transition-colors ${currentSpeaker === 'Doctor' ? 'bg-blue-500 text-white' : 'hover:bg-muted-foreground/10'}`}
+                      onClick={() => setCurrentSpeaker('Doctor')}
+                    >
+                      Doctor
+                    </button>
+                    <button 
+                      className={`px-2 py-1 rounded transition-colors ${currentSpeaker === 'Patient' ? 'bg-orange-500 text-white' : 'hover:bg-muted-foreground/10'}`}
+                      onClick={() => setCurrentSpeaker('Patient')}
+                    >
+                      Patient
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <ScrollArea className="flex-1 p-2 sm:p-3">
@@ -1151,7 +1176,11 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                 {liveTranscriptions.map((item, i) => (
                   <div key={i} className="flex flex-col">
                     <div className="flex items-center gap-2">
-                      <p className="text-xs font-medium text-muted-foreground">{item.speaker}</p>
+                      <p className={`text-xs font-medium ${
+                          item.speaker === 'Doctor' ? 'text-blue-500' : 
+                          item.speaker === 'Patient' ? 'text-orange-500' : 
+                          'text-muted-foreground'
+                        }`}>{item.speaker}</p>
                       <p className="text-xs text-muted-foreground">
                         {item.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                       </p>
@@ -1160,17 +1189,21 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                       item.speaker === 'System' 
                         ? 'bg-secondary/20 italic' 
                         : item.speaker === 'Patient' 
-                          ? 'bg-muted' 
-                          : 'bg-primary/10'
+                          ? 'bg-orange-500/10 border border-orange-500/20' 
+                          : 'bg-blue-500/10 border border-blue-500/20'
                     }`}>
                       <p className="text-sm">{item.text}</p>
                     </div>
                   </div>
                 ))}
                 {liveTranscriptions.length === 0 && (
-                  <p className="text-center text-muted-foreground text-sm py-8">
-                    Waiting for speech to transcribe...
-                  </p>
+                  <div className="text-center py-8 text-muted-foreground text-sm">
+                    <div className="mb-2">
+                      <FileAudio className="h-8 w-8 mx-auto opacity-50" />
+                    </div>
+                    <p>Waiting for speech to transcribe...</p>
+                    <p className="text-xs mt-2">Currently capturing {currentSpeaker}'s voice</p>
+                  </div>
                 )}
               </div>
             </ScrollArea>
