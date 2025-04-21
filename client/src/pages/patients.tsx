@@ -47,7 +47,8 @@ export default function Patients() {
   const form = useForm({
     resolver: zodResolver(insertPatientSchema),
     defaultValues: {
-      name: "",
+      firstName: "",
+      lastName: "",
       email: "",
       phone: "",
       dateOfBirth: "",
@@ -78,7 +79,7 @@ export default function Patients() {
   });
 
   const filteredPatients = patients?.filter(patient =>
-    patient.name.toLowerCase().includes(search.toLowerCase()) ||
+    `${patient.firstName} ${patient.lastName || ''}`.toLowerCase().includes(search.toLowerCase()) ||
     patient.email.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -102,28 +103,43 @@ export default function Patients() {
             </DialogHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit((data) => createPatientMutation.mutate(data))} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Full Name</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="firstName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>First Name *</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="John" required />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="lastName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Last Name</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="Doe" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Email</FormLabel>
+                        <FormLabel>Email *</FormLabel>
                         <FormControl>
-                          <Input type="email" {...field} />
+                          <Input type="email" {...field} placeholder="patient@example.com" required />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -231,7 +247,7 @@ export default function Patients() {
           <TableBody>
             {filteredPatients?.map((patient) => (
               <TableRow key={patient.id} className="cursor-pointer hover:bg-muted/50">
-                <TableCell className="font-medium">{patient.name}</TableCell>
+                <TableCell className="font-medium">{`${patient.firstName} ${patient.lastName || ''}`}</TableCell>
                 <TableCell>
                   <Badge variant="secondary">Active</Badge>
                 </TableCell>
