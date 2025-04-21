@@ -355,6 +355,7 @@ Plan:
               <TabsList className="mb-4">
                 <TabsTrigger value="templates">Templates</TabsTrigger>
                 <TabsTrigger value="analysis">Analysis</TabsTrigger>
+                <TabsTrigger value="assistant">Doctor Assistant</TabsTrigger>
               </TabsList>
               <TabsContent value="templates">
                 <div className="space-y-2">
@@ -499,6 +500,272 @@ Plan:
                     <ClipboardList className="h-4 w-4 mr-2" />
                     Physical Examination
                   </Button>
+                  
+                  <Button 
+                    variant="outline" 
+                    className="w-full justify-start"
+                    onClick={() => {
+                      if (selectedPatientId) {
+                        setNoteTitle("Re-evaluation Note");
+                        setNoteText(
+`Re-evaluation Note
+
+Patient Information:
+- Name: ${selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : ''}
+- Date of Service: ${format(new Date(), "yyyy-MM-dd")}
+
+Reason for Re-evaluation:
+- 
+
+Previous Diagnosis:
+- 
+
+Changes Since Last Visit:
+- Symptom changes:
+- Response to treatment:
+- Medication adjustments:
+- New concerns:
+
+Current Assessment:
+- Updated diagnosis:
+- Disease progression/regression:
+- Functional status:
+
+Treatment Plan Modifications:
+- Medication changes:
+- Therapy adjustments:
+- New interventions:
+
+Goals and Prognosis:
+- Short-term goals:
+- Long-term goals:
+- Expected outcomes:
+
+Follow-up:
+- Recommended follow-up timeframe:
+- Additional testing:
+- Referrals:
+`);
+                      } else {
+                        toast({
+                          title: "Patient Required",
+                          description: "Please select a patient first",
+                          variant: "destructive",
+                        });
+                      }
+                    }}
+                  >
+                    <ClipboardList className="h-4 w-4 mr-2" />
+                    Re-evaluation Note
+                  </Button>
+                  
+                  <Button 
+                    variant="outline" 
+                    className="w-full justify-start"
+                    onClick={() => {
+                      if (selectedPatientId) {
+                        setNoteTitle("Procedure Note");
+                        setNoteText(
+`Procedure Note
+
+Patient Information:
+- Name: ${selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : ''}
+- Date of Procedure: ${format(new Date(), "yyyy-MM-dd")}
+
+Procedure Details:
+- Procedure name:
+- Indication:
+- Location performed:
+- Consent obtained: Yes/No
+
+Pre-Procedure Assessment:
+- Vital signs:
+- Relevant examination findings:
+- Pre-procedure medications:
+- Allergies:
+
+Procedure Description:
+- Technique:
+- Equipment used:
+- Specimens collected:
+- Medications administered:
+- Local anesthetic details:
+- Complications:
+
+Post-Procedure Assessment:
+- Vital signs:
+- Patient status:
+- Pain level:
+
+Follow-up Instructions:
+- Activity restrictions:
+- Wound care:
+- Medications:
+- Follow-up appointment:
+- When to seek medical attention:
+
+Provider Signature: ______________________________
+`);
+                      } else {
+                        toast({
+                          title: "Patient Required",
+                          description: "Please select a patient first",
+                          variant: "destructive",
+                        });
+                      }
+                    }}
+                  >
+                    <ClipboardList className="h-4 w-4 mr-2" />
+                    Procedure Note
+                  </Button>
+                  
+                  <Button 
+                    variant="outline" 
+                    className="w-full justify-start"
+                    onClick={() => {
+                      if (selectedPatientId) {
+                        setNoteTitle("Psychiatric Evaluation");
+                        setNoteText(
+`Psychiatric Evaluation
+
+Patient Information:
+- Name: ${selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : ''}
+- Date of Evaluation: ${format(new Date(), "yyyy-MM-dd")}
+
+Chief Complaint:
+- 
+
+History of Present Illness:
+- 
+
+Psychiatric History:
+- Previous diagnoses:
+- Previous treatments:
+- Previous hospitalizations:
+- Medication trials and responses:
+
+Medical History:
+- Relevant conditions:
+- Current medications:
+- Allergies:
+
+Substance Use History:
+- 
+
+Family Psychiatric History:
+- 
+
+Social History:
+- 
+
+Mental Status Examination:
+- Appearance:
+- Behavior:
+- Speech:
+- Mood and affect:
+- Thought process:
+- Thought content:
+- Perception:
+- Cognition:
+- Insight:
+- Judgment:
+
+Risk Assessment:
+- Suicidal ideation:
+- Homicidal ideation:
+- Self-harm behaviors:
+- Violence risk:
+
+Diagnosis:
+- 
+
+Treatment Plan:
+- Medications:
+- Therapy recommendations:
+- Level of care:
+- Follow-up plan:
+
+Provider Signature: ______________________________
+`);
+                      } else {
+                        toast({
+                          title: "Patient Required",
+                          description: "Please select a patient first",
+                          variant: "destructive",
+                        });
+                      }
+                    }}
+                  >
+                    <ClipboardList className="h-4 w-4 mr-2" />
+                    Psychiatric Evaluation
+                  </Button>
+                  
+                  <Button 
+                    variant="outline" 
+                    className="w-full justify-start"
+                    onClick={() => {
+                      if (selectedPatientId) {
+                        setNoteTitle("Discharge Summary");
+                        setNoteText(
+`Discharge Summary
+
+Patient Information:
+- Name: ${selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : ''}
+- Admission Date:
+- Discharge Date: ${format(new Date(), "yyyy-MM-dd")}
+- Length of Stay:
+
+Admission Diagnosis:
+- 
+
+Discharge Diagnosis:
+- Primary:
+- Secondary:
+
+Brief History:
+- 
+
+Hospital Course:
+- 
+
+Procedures Performed:
+- 
+
+Consultations:
+- 
+
+Significant Lab/Imaging Results:
+- 
+
+Condition at Discharge:
+- 
+
+Discharge Medications:
+- 
+
+Discharge Instructions:
+- Activity restrictions:
+- Diet:
+- Wound care:
+- Follow-up appointments:
+
+Prognosis:
+- 
+
+Provider Signature: ______________________________
+`);
+                      } else {
+                        toast({
+                          title: "Patient Required",
+                          description: "Please select a patient first",
+                          variant: "destructive",
+                        });
+                      }
+                    }}
+                  >
+                    <ClipboardList className="h-4 w-4 mr-2" />
+                    Discharge Summary
+                  </Button>
                 </div>
               </TabsContent>
               <TabsContent value="analysis">
@@ -527,6 +794,164 @@ Plan:
                   ) : (
                     "AI analysis will appear when a patient is selected"
                   )}
+                </div>
+              </TabsContent>
+              <TabsContent value="assistant">
+                <div className="h-[400px] flex flex-col">
+                  <div className="flex-1 border rounded-md mb-4 p-4 overflow-y-auto bg-secondary/5" id="assistant-chat-area">
+                    <div className="space-y-4">
+                      <div className="flex justify-start">
+                        <div className="bg-primary/10 rounded-lg p-3 max-w-[85%]">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Stethoscope className="h-4 w-4 text-primary" />
+                            <span className="font-medium text-sm">AI Assistant</span>
+                          </div>
+                          <p className="text-sm">Hello! I'm your AI medical assistant. How can I help you today? You can ask me about medical conditions, treatments, or help with note-taking.</p>
+                        </div>
+                      </div>
+                      {/* Chat messages will be added here dynamically */}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Input 
+                      placeholder="Ask a medical question or request help with your note..." 
+                      id="assistant-input"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          const input = document.getElementById('assistant-input') as HTMLInputElement;
+                          const chatArea = document.getElementById('assistant-chat-area');
+                          
+                          if (input.value.trim() && chatArea) {
+                            // Add user message to chat
+                            const userDiv = document.createElement('div');
+                            userDiv.className = 'flex justify-end my-4';
+                            userDiv.innerHTML = `
+                              <div class="bg-primary text-primary-foreground rounded-lg p-3 max-w-[85%]">
+                                <div class="flex items-center gap-2 mb-1">
+                                  <span class="font-medium text-sm">You</span>
+                                  <UserPlus class="h-4 w-4" />
+                                </div>
+                                <p class="text-sm">${input.value.trim()}</p>
+                              </div>
+                            `;
+                            chatArea.appendChild(userDiv);
+                            
+                            // Add loading message
+                            const loadingDiv = document.createElement('div');
+                            loadingDiv.className = 'flex justify-start my-4 ai-loading';
+                            loadingDiv.innerHTML = `
+                              <div class="bg-primary/10 rounded-lg p-3 max-w-[85%]">
+                                <div class="flex items-center gap-2 mb-1">
+                                  <Stethoscope class="h-4 w-4 text-primary" />
+                                  <span class="font-medium text-sm">AI Assistant</span>
+                                </div>
+                                <p class="text-sm flex items-center">
+                                  <Loader2 class="h-4 w-4 mr-2 animate-spin" />
+                                  Thinking...
+                                </p>
+                              </div>
+                            `;
+                            chatArea.appendChild(loadingDiv);
+                            
+                            // Scroll to bottom
+                            chatArea.scrollTop = chatArea.scrollHeight;
+                            
+                            // Prepare messages for API
+                            const messages = [
+                              {
+                                role: 'system',
+                                content: 'You are an AI medical assistant helping a healthcare professional. Provide accurate, evidence-based information and always clarify that the doctor should use their professional judgment. Keep responses concise and relevant to medical practice.'
+                              },
+                              {
+                                role: 'user',
+                                content: input.value.trim()
+                              }
+                            ];
+                            
+                            // Call API
+                            fetch('/api/ai/chat', {
+                              method: 'POST',
+                              headers: {
+                                'Content-Type': 'application/json',
+                              },
+                              body: JSON.stringify({ messages }),
+                            })
+                              .then(response => response.json())
+                              .then(data => {
+                                // Remove loading message
+                                const loadingElement = chatArea.querySelector('.ai-loading');
+                                if (loadingElement) {
+                                  chatArea.removeChild(loadingElement);
+                                }
+                                
+                                // Add AI response
+                                const aiDiv = document.createElement('div');
+                                aiDiv.className = 'flex justify-start my-4';
+                                aiDiv.innerHTML = `
+                                  <div class="bg-primary/10 rounded-lg p-3 max-w-[85%]">
+                                    <div class="flex items-center gap-2 mb-1">
+                                      <Stethoscope class="h-4 w-4 text-primary" />
+                                      <span class="font-medium text-sm">AI Assistant</span>
+                                    </div>
+                                    <p class="text-sm">${data.content || 'Sorry, I encountered an error.'}</p>
+                                  </div>
+                                `;
+                                chatArea.appendChild(aiDiv);
+                                
+                                // Scroll to bottom
+                                chatArea.scrollTop = chatArea.scrollHeight;
+                              })
+                              .catch(error => {
+                                console.error('Error calling AI API:', error);
+                                
+                                // Remove loading message
+                                const loadingElement = chatArea.querySelector('.ai-loading');
+                                if (loadingElement) {
+                                  chatArea.removeChild(loadingElement);
+                                }
+                                
+                                // Add error message
+                                const errorDiv = document.createElement('div');
+                                errorDiv.className = 'flex justify-start my-4';
+                                errorDiv.innerHTML = `
+                                  <div class="bg-destructive/10 text-destructive rounded-lg p-3 max-w-[85%]">
+                                    <div class="flex items-center gap-2 mb-1">
+                                      <Stethoscope class="h-4 w-4" />
+                                      <span class="font-medium text-sm">AI Assistant</span>
+                                    </div>
+                                    <p class="text-sm">Sorry, I encountered an error processing your request.</p>
+                                  </div>
+                                `;
+                                chatArea.appendChild(errorDiv);
+                                
+                                // Scroll to bottom
+                                chatArea.scrollTop = chatArea.scrollHeight;
+                              });
+                            
+                            // Clear input
+                            input.value = '';
+                          }
+                        }
+                      }}
+                    />
+                    <Button 
+                      onClick={() => {
+                        const input = document.getElementById('assistant-input') as HTMLInputElement;
+                        // Trigger Enter key event
+                        if (input.value.trim()) {
+                          const event = new KeyboardEvent('keydown', {
+                            key: 'Enter',
+                            bubbles: true
+                          });
+                          input.dispatchEvent(event);
+                        }
+                      }}
+                    >
+                      <FileText className="h-4 w-4" />
+                      Ask
+                    </Button>
+                  </div>
                 </div>
               </TabsContent>
             </Tabs>
