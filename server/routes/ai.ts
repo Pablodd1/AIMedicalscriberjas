@@ -83,31 +83,87 @@ aiRouter.post('/generate-title', async (req, res) => {
 // Route to generate SOAP notes from transcript
 aiRouter.post('/generate-soap', async (req, res) => {
   try {
-    // Simple solution - return a mock SOAP note for the prototype
-    // In a production environment, this would use OpenAI's API
-    const mockSoapNote = `
-SOAP NOTE
+    const { transcript, patientInfo } = req.body;
 
-S (Subjective):
-Patient presents with symptoms as described in the consultation. Patient history noted.
+    if (!transcript) {
+      return res.json({ 
+        success: false,
+        soap: 'No transcript provided. Please provide consultation text to generate SOAP notes.'
+      });
+    }
 
-O (Objective):
-Vital signs stable. Physical examination conducted.
+    // Check if we have an OpenAI API key
+    if (!process.env.OPENAI_API_KEY) {
+      return res.json({
+        success: false,
+        soap: "OpenAI API key not configured. Please add your OpenAI API key to use this feature."
+      });
+    }
 
-A (Assessment):
-Assessment based on the consultation transcript and patient information.
+    try {
+      // Sanitize inputs
+      const sanitizedTranscript = (transcript || '').toString().slice(0, 4000); // Limit length to avoid token issues
+      
+      // Extract patient info for the prompt
+      const patientName = patientInfo?.name || 
+                          `${patientInfo?.firstName || ''} ${patientInfo?.lastName || ''}`.trim() || 
+                          'Unknown';
+      
+      const patientInfoString = `Patient: ${patientName}, ID: ${patientInfo?.id || 'Unknown'}`;
+      
+      // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: 'system',
+            content: `You are an experienced medical scribe tasked with converting doctor-patient 
+                     conversation transcripts into professional SOAP notes. 
+                     Structure the output in proper SOAP format (Subjective, Objective, Assessment, Plan).
+                     Make sure the output is well-organized and maintains medical accuracy.
+                     Only include information that's present in the transcript or can be directly inferred.
+                     Be comprehensive yet concise. For missing information, leave sections with placeholders 
+                     rather than inventing details.`
+          },
+          {
+            role: 'user',
+            content: `Please create SOAP notes based on the following doctor-patient consultation transcript.
+                     
+                     ${patientInfoString}
+                     
+                     Transcript:
+                     ${sanitizedTranscript}`
+          }
+        ],
+        temperature: 0.5,
+        max_tokens: 1000
+      });
 
-P (Plan):
-1. Follow up in 2 weeks
-2. Prescription medications as discussed
-3. Recommended lifestyle modifications
-`;
-
-    // Return a successful response with the mock SOAP note
-    return res.json({ 
-      success: true,
-      soap: mockSoapNote
-    });
+      const soapNotes = response.choices[0]?.message?.content?.trim() || '';
+      
+      if (!soapNotes) {
+        console.error('OpenAI returned empty response');
+        return res.json({ 
+          success: false,
+          soap: 'Could not generate SOAP notes from the provided transcript. Please try with more detailed text.'
+        });
+      }
+      
+      // Return successful response with the generated SOAP notes
+      return res.json({ 
+        success: true,
+        soap: soapNotes
+      });
+      
+    } catch (openaiError) {
+      console.error('OpenAI API error:', openaiError);
+      
+      // Return a valid JSON response even when OpenAI fails
+      return res.json({ 
+        success: false,
+        soap: 'There was an error connecting to the AI service. Please try again later.'
+      });
+    }
   } catch (error) {
     console.error('Server error generating SOAP notes:', error);
     // Return a valid JSON response even in case of errors
