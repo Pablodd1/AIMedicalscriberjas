@@ -95,6 +95,7 @@ export interface IStorage {
   getRecordingSessionByRoomId(roomId: string): Promise<RecordingSession | undefined>;
   createRecordingSession(session: InsertRecordingSession): Promise<RecordingSession>;
   updateRecordingSession(id: number, updates: Partial<RecordingSession>): Promise<RecordingSession | undefined>;
+  deleteRecordingSession(id: number): Promise<boolean>;
   sessionStore: session.Store;
 }
 
@@ -567,6 +568,14 @@ export class DatabaseStorage implements IStorage {
       .returning();
     
     return updatedSession;
+  }
+  
+  async deleteRecordingSession(id: number): Promise<boolean> {
+    const result = await db
+      .delete(recordingSessions)
+      .where(eq(recordingSessions.id, id))
+      .returning({ id: recordingSessions.id });
+    return result.length > 0;
   }
 }
 
