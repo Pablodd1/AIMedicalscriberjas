@@ -130,7 +130,7 @@ Plan:
   
   const handleGeneratedNotesFromConsultation = (notes: string) => {
     setNoteText(notes);
-    setNoteTitle(`${selectedPatient?.name || ""} - Consultation Notes ${format(new Date(), "yyyy-MM-dd")}`);
+    setNoteTitle(`${selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : ""} - Consultation Notes ${format(new Date(), "yyyy-MM-dd")}`);
   };
 
   const handleGenerateNotes = () => {
@@ -150,7 +150,7 @@ Plan:
       const patient = patients?.find(p => p.id === selectedPatientId);
       if (patient) {
         setNoteText(
-`SOAP Note for ${patient.name}
+`SOAP Note for ${patient.firstName} ${patient.lastName || ''}
 
 Subjective:
 - Patient complains of ${Math.random() > 0.5 ? "headache" : "sore throat"} for the past ${Math.floor(Math.random() * 5) + 1} days
@@ -173,7 +173,7 @@ Plan:
 - Return if symptoms worsen or do not improve within 3-5 days
 - Follow-up in 1 week if needed
 `);
-        setNoteTitle(`${patient.name} - ${Math.random() > 0.5 ? "Follow Up" : "Initial Consultation"}`);
+        setNoteTitle(`${patient.firstName} ${patient.lastName || ''} - ${Math.random() > 0.5 ? "Follow Up" : "Initial Consultation"}`);
       }
       setIsGenerating(false);
     }, 2000);

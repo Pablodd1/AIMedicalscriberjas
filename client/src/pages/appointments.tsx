@@ -199,7 +199,7 @@ export default function Appointments() {
                         <SelectContent>
                           {patients?.map((patient) => (
                             <SelectItem key={patient.id} value={patient.id.toString()}>
-                              {patient.name}
+                              {`${patient.firstName} ${patient.lastName || ''}`}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -300,7 +300,10 @@ export default function Appointments() {
                 >
                   <div className="space-y-1">
                     <p className="font-medium">
-                      {patients?.find(p => p.id === appointment.patientId)?.name}
+                      {(() => {
+                        const patient = patients?.find(p => p.id === appointment.patientId);
+                        return patient ? `${patient.firstName} ${patient.lastName || ''}` : '';
+                      })()}
                     </p>
                     <p className="text-sm text-muted-foreground">
                       {format(new Date(appointment.date), "PPP p")}
@@ -453,9 +456,15 @@ export default function Appointments() {
                       <div
                         key={i}
                         className="text-xs p-1 mb-1 bg-blue-500 text-white rounded truncate"
-                        title={`${patients?.find(p => p.id === appointment.patientId)?.name} - ${format(new Date(appointment.date), 'p')}`}
+                        title={`${(() => {
+                          const patient = patients?.find(p => p.id === appointment.patientId);
+                          return patient ? `${patient.firstName} ${patient.lastName || ''}` : '';
+                        })()} - ${format(new Date(appointment.date), 'p')}`}
                       >
-                        {format(new Date(appointment.date), 'p')} - {patients?.find(p => p.id === appointment.patientId)?.name}
+                        {format(new Date(appointment.date), 'p')} - {(() => {
+                          const patient = patients?.find(p => p.id === appointment.patientId);
+                          return patient ? `${patient.firstName} ${patient.lastName || ''}` : '';
+                        })()}
                       </div>
                     ))}
                     {day.appointments.length > 2 && (
