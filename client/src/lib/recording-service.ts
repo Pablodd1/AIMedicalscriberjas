@@ -159,40 +159,30 @@ export async function generateSoapNotes(transcript: string, patientInfo: any): P
       // Add any other essential fields but keep it minimal
     };
     
-    // Call our backend API to generate SOAP notes
-    const response = await fetch('/api/ai/generate-soap', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        transcript,
-        patientInfo: safePatientInfo,
-      }),
+    // Call our backend API to generate SOAP notes using apiRequest helper
+    // to ensure consistent headers and authentication
+    const response = await apiRequest('POST', '/api/ai/generate-soap', {
+      transcript,
+      patientInfo: safePatientInfo,
     });
     
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Server error:', errorText);
-      throw new Error('Failed to generate SOAP notes');
-    }
-    
-    // Get the raw response text first to debug
     try {
-      const rawText = await response.text();
-      console.log("Raw server response:", rawText);
+      if (!response.ok) {
+        console.error(`Server error: ${response.status} ${response.statusText}`);
+        return "Server error occurred. Please try again later.";
+      }
       
-      // Try to parse it as JSON
-      try {
-        const data = JSON.parse(rawText);
-        return data.soap || "No SOAP notes were generated";
-      } catch (parseError) {
-        console.error("JSON parse error:", parseError);
-        return "There was an error processing the server response. Please try again with more detailed text.";
+      const data = await response.json();
+      
+      if (data && data.soap) {
+        return data.soap;
+      } else {
+        console.error("Invalid response format:", data);
+        return "No SOAP notes were generated. Please try with more detailed text.";
       }
     } catch (responseError) {
       console.error("Response processing error:", responseError);
-      return "Could not read server response. Please try again later.";
+      return "There was an error processing the server response. Please try again with more detailed text.";
     }
   } catch (error) {
     console.error("Error generating SOAP notes:", error);
