@@ -1,11 +1,10 @@
-
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
-import { 
-  LayoutDashboard, 
-  Users, 
+import {
+  LayoutDashboard,
+  Users,
   Calendar,
   LogOut,
   Menu,
@@ -19,12 +18,17 @@ import {
   ChevronRight,
   Bot,
   PenTool,
-  ClipboardList
+  ClipboardList,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -51,15 +55,15 @@ export default function Sidebar() {
     href: string;
     icon: React.ComponentType<{ className?: string }>;
   }
-  
+
   interface SidebarLinkProps {
     item: NavItem;
     isCollapsed: boolean;
   }
-  
+
   const SidebarLink = ({ item, isCollapsed }: SidebarLinkProps) => {
     const isActive = location === item.href;
-    
+
     return (
       <TooltipProvider delayDuration={0}>
         <Tooltip>
@@ -76,7 +80,9 @@ export default function Sidebar() {
               </Button>
             </Link>
           </TooltipTrigger>
-          {isCollapsed && <TooltipContent side="right">{item.name}</TooltipContent>}
+          {isCollapsed && (
+            <TooltipContent side="right">{item.name}</TooltipContent>
+          )}
         </Tooltip>
       </TooltipProvider>
     );
@@ -87,17 +93,26 @@ export default function Sidebar() {
       <div className="flex items-center justify-between px-3 h-16">
         <Link href="/dashboard">
           <div className="flex items-center gap-2 cursor-pointer">
-            <Stethoscope className="h-6 w-6 text-primary" />
-            {!isCollapsed && <span className="font-bold text-lg">Medical Platform</span>}
+            <img
+              src="https://res.cloudinary.com/dsex1a9tu/image/upload/v1745207658/logo_1_cdaq2f.png"
+              alt="AIMS Logo"
+              className="h-6 w-6"
+            />
+            {!isCollapsed && <span className="font-bold text-lg">AIMS</span>}
           </div>
         </Link>
+
         <Button
           variant="ghost"
           size="icon"
           className="hidden lg:flex"
           onClick={() => setIsCollapsed(!isCollapsed)}
         >
-          {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          {isCollapsed ? (
+            <ChevronRight className="h-4 w-4" />
+          ) : (
+            <ChevronLeft className="h-4 w-4" />
+          )}
         </Button>
       </div>
 
@@ -146,10 +161,15 @@ export default function Sidebar() {
         </SheetContent>
       </Sheet>
 
-      <div className={cn("hidden lg:flex flex-col border-r bg-card transition-all duration-300", {
-        "w-64": !isCollapsed,
-        "w-16": isCollapsed,
-      })}>
+      <div
+        className={cn(
+          "hidden lg:flex flex-col border-r bg-card transition-all duration-300",
+          {
+            "w-64": !isCollapsed,
+            "w-16": isCollapsed,
+          },
+        )}
+      >
         <SidebarContent />
       </div>
     </>
