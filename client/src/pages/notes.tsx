@@ -240,7 +240,7 @@ Plan:
               ) : patients?.length ? (
                 patients.map((patient) => (
                   <SelectItem key={patient.id} value={patient.id.toString()}>
-                    {patient.name}
+                    {`${patient.firstName} ${patient.lastName || ''}`}
                   </SelectItem>
                 ))
               ) : (
@@ -283,7 +283,7 @@ Plan:
                 <Users className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <h3 className="font-medium">{selectedPatient.name}</h3>
+                <h3 className="font-medium">{`${selectedPatient.firstName} ${selectedPatient.lastName || ''}`}</h3>
                 <div className="text-sm text-muted-foreground flex gap-4">
                   <span>DOB: {selectedPatient.dateOfBirth}</span>
                   <span>Email: {selectedPatient.email}</span>
@@ -300,7 +300,7 @@ Plan:
           <CardHeader>
             <CardTitle>SOAP Note</CardTitle>
             {selectedPatient ? (
-              <CardDescription>Writing note for {selectedPatient.name}</CardDescription>
+              <CardDescription>Writing note for {`${selectedPatient.firstName} ${selectedPatient.lastName || ''}`}</CardDescription>
             ) : (
               <CardDescription>Select a patient to begin</CardDescription>
             )}
@@ -545,7 +545,7 @@ Plan:
           </DialogHeader>
           <div className="py-4">
             <p>
-              The medical note for {selectedPatient?.name} has been saved successfully. 
+              The medical note for {selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : ''} has been saved successfully. 
               The note will be available in the patient's record.
             </p>
           </div>

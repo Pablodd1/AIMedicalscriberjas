@@ -298,7 +298,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             console.error('Error transcribing audio:', error);
 
             // Use backup transcript instead
-            setTranscription(`--- CONSULTATION TRANSCRIPT ---\n\nDate: ${new Date().toLocaleString()}\nPatient: ${patient.name}\n\n${backupTranscriptText}\n\n--- END OF TRANSCRIPT ---`);
+            setTranscription(`--- CONSULTATION TRANSCRIPT ---\n\nDate: ${new Date().toLocaleString()}\nPatient: ${patient.firstName} ${patient.lastName || ''}\n\n${backupTranscriptText}\n\n--- END OF TRANSCRIPT ---`);
 
             toast({
               title: "Transcription Created",
@@ -363,7 +363,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
         body: JSON.stringify({
           patientId: patient.id,
           content: transcription,
-          title: `Consultation with ${patient.name} - ${new Date().toLocaleDateString()}`
+          title: `Consultation with ${patient.firstName} ${patient.lastName || ''} - ${new Date().toLocaleDateString()}`
         }),
       });
 
@@ -383,7 +383,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           consultationId: consultationData.id,
           patientId: patient.id,
           content: data.notes,
-          title: `SOAP Notes: ${patient.name} - ${new Date().toLocaleDateString()}`,
+          title: `SOAP Notes: ${patient.firstName} ${patient.lastName || ''} - ${new Date().toLocaleDateString()}`,
           type: 'soap'
         }),
       });
@@ -855,7 +855,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       <div className="flex flex-wrap justify-between items-center p-2 border-b">
         <div className="flex items-center gap-2 min-w-0 overflow-hidden">
           <Avatar className="flex-shrink-0">
-            <AvatarFallback>{patient.name[0]}</AvatarFallback>
+            <AvatarFallback>{patient.firstName[0]}</AvatarFallback>
           </Avatar>
           <div className="min-w-0 overflow-hidden">
             <h3 className="font-medium truncate">{patient.name}</h3>
