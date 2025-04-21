@@ -479,7 +479,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const patient = await storage.getPatient(recording.patientId);
           return {
             ...recording,
-            patient: patient || { name: 'Unknown Patient' }
+            patient: patient || null
           };
         })
       );
@@ -550,6 +550,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error updating recording session:', error);
       res.status(500).json({ message: 'Failed to update recording session' });
+    }
+  });
+  
+  // Delete a recording session
+  app.delete('/api/telemedicine/recordings/:id', async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const doctorId = req.user.id;
+      const id = parseInt(req.params.id);
+      
+      if (isNaN(id)) {
+        return res.status(400).json({ message: 'Invalid recording ID format' });
+      }
+      
+      const recording = await storage.getRecordingSession(id);
+      
+      if (!recording) {
+        return res.status(404).json({ message: 'Recording not found' });
+      }
+      
+      // Security check: Only allow the doctor who owns the recording to delete it
+      if (recording.doctorId !== doctorId) {
+        return res.status(403).json({ message: 'Not authorized to delete this recording' });
+      }
+      
+      // Delete the recording
+      const deleted = await storage.deleteRecordingSession(id);
+      
+      if (!deleted) {
+        return res.status(500).json({ message: 'Failed to delete recording' });
+      }
+      
+      res.status(200).json({ message: 'Recording deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting recording:', error);
+      res.status(500).json({ message: 'Failed to delete recording' });
     }
   });
   

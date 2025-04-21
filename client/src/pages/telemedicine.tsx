@@ -1507,9 +1507,39 @@ export default function Telemedicine() {
   });
 
   // Fetch recording sessions
-  const { data: recordings, isLoading: loadingRecordings } = useQuery<RecordingSession[]>({
+  const { data: recordings, isLoading: loadingRecordings, refetch: refetchRecordings } = useQuery<RecordingSession[]>({
     queryKey: ["/api/telemedicine/recordings"],
   });
+  
+  // Delete recording mutation
+  const deleteRecordingMutation = useMutation({
+    mutationFn: async (recordingId: number) => {
+      const res = await apiRequest("DELETE", `/api/telemedicine/recordings/${recordingId}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Recording deleted",
+        description: "The recording has been successfully removed",
+      });
+      // Refresh the recordings list
+      refetchRecordings();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: `Failed to delete recording: ${error.message}`,
+        variant: "destructive",
+      });
+    },
+  });
+  
+  // Handler for deleting a recording
+  const handleDeleteRecording = (recordingId: number) => {
+    if (window.confirm("Are you sure you want to delete this recording? This action cannot be undone.")) {
+      deleteRecordingMutation.mutate(recordingId);
+    }
+  };
 
   const createRoomMutation = useMutation({
     mutationFn: async (patientData: { patientId: number, patientName: string }) => {
@@ -1725,22 +1755,38 @@ export default function Telemedicine() {
                         <div className="flex items-center gap-2">
                           <Avatar className="h-8 w-8">
                             <AvatarFallback>
-                              {recording.patient?.name?.split(' ').map((n: string) => n[0]).join('') || 'P'}
+                              {recording.patient ? 
+                                `${recording.patient.firstName?.charAt(0) || ''}${recording.patient.lastName?.charAt(0) || ''}` : 
+                                'P'}
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                            <p className="font-medium">{recording.patient?.name || 'Unknown Patient'}</p>
+                            <p className="font-medium">
+                              {recording.patient ? 
+                                `${recording.patient.firstName} ${recording.patient.lastName || ''}` : 
+                                'Unknown Patient'}
+                            </p>
                             <p className="text-sm text-muted-foreground">
                               {new Date(recording.startTime).toLocaleString()}
                             </p>
                           </div>
                         </div>
-                        <Badge 
-                          variant={recording.status === 'completed' ? 'success' : 'default'}
-                          className="capitalize"
-                        >
-                          {recording.status}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleDeleteRecording(recording.id)}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                          <Badge 
+                            variant={recording.status === 'completed' ? 'success' : 'default'}
+                            className="capitalize"
+                          >
+                            {recording.status}
+                          </Badge>
+                        </div>
                       </div>
 
                       {recording.duration && (
