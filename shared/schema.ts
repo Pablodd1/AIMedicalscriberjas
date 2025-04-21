@@ -26,11 +26,12 @@ export const users = pgTable("users", {
 
 export const patients = pgTable("patients", {
   id: serial("id").primaryKey(),
-  name: text("name").notNull(),
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name"),
   email: text("email").notNull(),
-  phone: text("phone").notNull(),
-  dateOfBirth: text("date_of_birth").notNull(),
-  address: text("address").notNull(),
+  phone: text("phone"),
+  dateOfBirth: text("date_of_birth"),
+  address: text("address"),
   medicalHistory: text("medical_history"),
   createdBy: integer("created_by").notNull(),
 });
@@ -88,12 +89,22 @@ export const insertUserSchema = createInsertSchema(users).pick({
 });
 
 export const insertPatientSchema = createInsertSchema(patients).pick({
-  name: true,
+  firstName: true,
+  lastName: true,
   email: true,
   phone: true,
   dateOfBirth: true,
   address: true,
   medicalHistory: true,
+}).extend({
+  // Add validation: firstName is required, email is required
+  firstName: z.string().min(1, { message: "First name is required" }),
+  lastName: z.string().optional(),
+  email: z.string().email({ message: "Invalid email address" }).min(1, { message: "Email is required" }),
+  phone: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  address: z.string().optional(),
+  medicalHistory: z.string().optional(),
 });
 
 export const insertAppointmentSchema = createInsertSchema(appointments).pick({
