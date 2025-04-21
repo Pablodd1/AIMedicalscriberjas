@@ -222,7 +222,7 @@ export const invoices = pgTable("invoices", {
   amount: integer("amount").notNull(), // Stored in cents (e.g. $10.00 = 1000)
   amountPaid: integer("amount_paid").default(0).notNull(), // Stored in cents
   status: paymentStatusEnum("status").default('unpaid').notNull(),
-  dueDate: timestamp("due_date").notNull(),
+  dueDate: text("due_date").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
   description: text("description").notNull(),
@@ -232,7 +232,7 @@ export const invoices = pgTable("invoices", {
 // Invoice insert schema
 export const insertInvoiceSchema = createInsertSchema(invoices, {
   dueDate: z.string().or(z.date()).transform(val => 
-    typeof val === 'string' ? new Date(val) : val)
+    typeof val === 'string' ? val : val.toISOString().split('T')[0])
 }).pick({
   patientId: true,
   doctorId: true,

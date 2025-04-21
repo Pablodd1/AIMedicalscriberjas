@@ -362,7 +362,7 @@ export default function Billing() {
                             {invoice.status}
                           </Badge>
                         </TableCell>
-                        <TableCell>{new Date(invoice.dueDate).toLocaleDateString()}</TableCell>
+                        <TableCell>{invoice.dueDate}</TableCell>
                         <TableCell>
                           <Button 
                             variant="ghost" 
@@ -562,7 +562,7 @@ export default function Billing() {
                     </div>
                     <div>
                       <p className="text-muted-foreground">Due Date:</p>
-                      <p>{new Date(selectedInvoice.dueDate).toLocaleDateString()}</p>
+                      <p>{selectedInvoice.dueDate}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Current Status:</p>
