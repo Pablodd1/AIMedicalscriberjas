@@ -1234,7 +1234,7 @@ function StartConsultationDialog({ isOpen, onClose, onStartConsultation }: Start
   });
 
   const filteredPatients = patients?.filter(patient => 
-    patient.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    `${patient.firstName} ${patient.lastName || ''}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
     patient.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -1271,10 +1271,10 @@ function StartConsultationDialog({ isOpen, onClose, onStartConsultation }: Start
                   >
                     <div className="flex items-center gap-3">
                       <Avatar>
-                        <AvatarFallback>{patient.name[0]}</AvatarFallback>
+                        <AvatarFallback>{patient.firstName[0]}</AvatarFallback>
                       </Avatar>
                       <div>
-                        <p className="font-medium">{patient.name}</p>
+                        <p className="font-medium">{`${patient.firstName} ${patient.lastName || ''}`}</p>
                         <p className="text-sm text-muted-foreground">{patient.email}</p>
                       </div>
                     </div>
@@ -1527,7 +1527,7 @@ export default function Telemedicine() {
 
           toast({
             title: "Consultation started",
-            description: `Video consultation with ${patient.name} is ready.`,
+            description: `Video consultation with ${patient.firstName} ${patient.lastName || ''} is ready.`,
           });
         }
       }
@@ -1546,7 +1546,7 @@ export default function Telemedicine() {
 
     createRoomMutation.mutate({
       patientId: patient.id,
-      patientName: patient.name
+      patientName: `${patient.firstName} ${patient.lastName || ''}`
     });
   };
 
@@ -1656,7 +1656,7 @@ export default function Telemedicine() {
                         minute: '2-digit'
                       });
 
-                      const initials = patient.name.split(' ').map(n => n[0]).join('');
+                      const initials = `${patient.firstName.charAt(0)}${patient.lastName ? patient.lastName.charAt(0) : ''}`;
 
                       return (
                         <div
@@ -1668,7 +1668,7 @@ export default function Telemedicine() {
                               <AvatarFallback>{initials}</AvatarFallback>
                             </Avatar>
                             <div>
-                              <p className="font-medium">{patient.name}</p>
+                              <p className="font-medium">{`${patient.firstName} ${patient.lastName || ''}`}</p>
                               <p className="text-sm text-muted-foreground">
                                 Scheduled: {appointmentTime} - {appointment.reason || 'Telemedicine consultation'}
                               </p>

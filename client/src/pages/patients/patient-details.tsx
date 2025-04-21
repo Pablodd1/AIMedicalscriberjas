@@ -54,7 +54,7 @@ export default function PatientDetails({ patientId }: PatientDetailsProps) {
       <div className="space-y-6 p-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold">{patient.name}</h2>
+            <h2 className="text-2xl font-bold">{`${patient.firstName} ${patient.lastName || ''}`}</h2>
             <div className="flex items-center gap-4 text-muted-foreground mt-1">
               <div className="flex items-center gap-1">
                 <CalendarDays className="h-4 w-4" />
