@@ -340,9 +340,9 @@ export default function QuickNotes() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6">
         {/* Left Panel - Note Creation */}
-        <div className="lg:col-span-3 space-y-6">
+        <div className="md:col-span-2 lg:col-span-3 space-y-4 md:space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Create New Quick Note</CardTitle>
@@ -556,22 +556,32 @@ export default function QuickNotes() {
                       
                       {/* Text Input UI */}
                       {inputMethod === "text" && (
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                           <Label>Text Input</Label>
                           <Textarea 
-                            placeholder="Enter your text here..." 
-                            rows={6}
+                            placeholder="Paste or type your text here to generate structured notes..." 
+                            rows={8}
                             value={transcript}
-                            onChange={handleTextInputChange}
-                            className="resize-none"
+                            onChange={(e) => {
+                              handleTextInputChange(e);
+                              if (e.target.value) {
+                                // Auto-generate notes when text is pasted
+                                generateNotesFromText();
+                              }
+                            }}
+                            onPaste={() => {
+                              // Small delay to ensure pasted content is available
+                              setTimeout(generateNotesFromText, 100);
+                            }}
+                            className="resize-none text-base p-4"
                           />
                           <Button 
                             type="button" 
                             onClick={generateNotesFromText}
                             variant="outline" 
-                            className="w-full"
+                            className="w-full md:w-auto"
                           >
-                            Generate Notes from Text
+                            Generate Notes
                           </Button>
                         </div>
                       )}
@@ -604,10 +614,13 @@ export default function QuickNotes() {
                           <SignatureCanvas
                             ref={signatureRef}
                             canvasProps={{
-                              width: 500,
-                              height: 150,
                               className: "signature-canvas w-full h-[150px] border border-dashed border-gray-300 rounded-md"
                             }}
+                            penColor="black"
+                            dotSize={2}
+                            throttle={16}
+                            minWidth={1}
+                            maxWidth={2.5}
                           />
                         </div>
                         <div className="flex space-x-2">
@@ -686,7 +699,7 @@ export default function QuickNotes() {
         </div>
 
         {/* Right Panel - Saved Notes List */}
-        <div className="lg:col-span-2">
+        <div className="md:col-span-1 lg:col-span-2">
           <Card>
             <CardHeader>
               <CardTitle>Saved Quick Notes</CardTitle>
