@@ -128,10 +128,14 @@ export function ConsultationModal({
       // Create a title for the consultation note based on patient info and timestamp
       const title = `Consultation with ${patientInfo.name} - ${new Date().toLocaleString()}`;
 
+      // Get the current logged in user
+      const userData = JSON.parse(localStorage.getItem('currentUser') || '{}');
+      const doctorId = userData?.id || 1;
+      
       // Save transcript to database as consultation note
       const savedNote = await saveConsultationNote(
         patientInfo.id,
-        1, // Using mock doctor ID
+        doctorId,
         transcript,
         recordingMethod,
         title
@@ -176,12 +180,16 @@ export function ConsultationModal({
       // Create a title for the medical note
       const title = `SOAP Note for ${patientInfo.name} - ${new Date().toLocaleString()}`;
 
+      // Get the current logged in user (if not already fetched)
+      const userData = JSON.parse(localStorage.getItem('currentUser') || '{}');
+      const doctorId = userData?.id || 1;
+      
       // If we have a consultation ID, create a medical note linked to it
       if (consultId) {
         await createMedicalNoteFromConsultation(
           consultId,
           patientInfo.id,
-          1, // Using mock doctor ID
+          doctorId,
           notes,
           'soap',
           title
