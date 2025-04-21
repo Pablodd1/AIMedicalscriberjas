@@ -149,47 +149,33 @@ class BrowserRecordingService implements RecordingServiceInterface {
 // Generate SOAP notes from transcript using AI
 export async function generateSoapNotes(transcript: string, patientInfo: any): Promise<string> {
   try {
-    // Validate and prepare patient info to prevent JSON stringify issues
-    const safePatientInfo = {
-      id: patientInfo?.id || 0,
-      firstName: patientInfo?.firstName || '',
-      lastName: patientInfo?.lastName || '',
-      gender: patientInfo?.gender || 'Unknown',
-      dateOfBirth: patientInfo?.dateOfBirth || 'Unknown',
-      // Add any other essential fields but keep it minimal
-    };
-    
-    // Call our backend API to generate SOAP notes using apiRequest helper
-    // to ensure consistent headers and authentication
-    const response = await apiRequest('POST', '/api/ai/generate-soap', {
-      transcript,
-      patientInfo: safePatientInfo,
+    // Simple direct implementation that should work reliably
+    const response = await fetch('/api/ai/generate-soap', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        transcript: transcript.substring(0, 4000), // limit to 4000 chars
+        patientInfo: {
+          id: patientInfo?.id || 0,
+          name: `${patientInfo?.firstName || ''} ${patientInfo?.lastName || ''}`.trim() || 'Unknown',
+        }
+      }),
     });
     
-    try {
-      if (!response.ok) {
-        console.error(`Server error: ${response.status} ${response.statusText}`);
-        return "Server error occurred. Please try again later.";
-      }
-      
-      const data = await response.json();
-      
-      if (data && data.soap) {
-        return data.soap;
-      } else {
-        console.error("Invalid response format:", data);
-        return "No SOAP notes were generated. Please try with more detailed text.";
-      }
-    } catch (responseError) {
-      console.error("Response processing error:", responseError);
-      return "There was an error processing the server response. Please try again with more detailed text.";
-    }
+    // Parse response as json
+    const data = await response.json();
+    
+    // Return the soap notes or a fallback
+    return data.soap || "No SOAP notes were generated. Please try again.";
+    
   } catch (error) {
     console.error("Error generating SOAP notes:", error);
     notify("Failed to generate SOAP notes", "error");
     
     // Return a fallback message instead of throwing to prevent UI breaking
-    return "There was an error generating SOAP notes. Please try again with more detailed transcript text.";
+    return "There was an error generating SOAP notes. Please try again.";
   }
 }
 
