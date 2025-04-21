@@ -163,9 +163,12 @@ export function ConsultationModal({
       const recordingMethod = activeTab;
 
       // Create a title for the consultation note based on patient info and timestamp
-      const title = `Consultation with ${patientInfo.name} - ${new Date().toLocaleString()}`;
+      const patientName = patientInfo.firstName 
+        ? `${patientInfo.firstName} ${patientInfo.lastName || ''}`
+        : patientInfo.name || 'Patient';
+      const title = `Consultation with ${patientName} - ${new Date().toLocaleString()}`;
 
-      // Get the current logged in user
+      // Get the current logged in user from auth
       const userData = JSON.parse(localStorage.getItem('currentUser') || '{}');
       const doctorId = userData?.id || 1;
       
@@ -215,7 +218,10 @@ export function ConsultationModal({
       }
 
       // Create a title for the medical note
-      const title = `SOAP Note for ${patientInfo.name} - ${new Date().toLocaleString()}`;
+      const patientName = patientInfo.firstName 
+        ? `${patientInfo.firstName} ${patientInfo.lastName || ''}`
+        : patientInfo.name || 'Patient';
+      const title = `SOAP Note for ${patientName} - ${new Date().toLocaleString()}`;
 
       // Get the current logged in user (if not already fetched)
       const userData = JSON.parse(localStorage.getItem('currentUser') || '{}');
@@ -250,7 +256,7 @@ export function ConsultationModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[800px]">
+      <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Consultation Recording</DialogTitle>
           <DialogDescription>
@@ -258,213 +264,215 @@ export function ConsultationModal({
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="live-recording">Live Recording</TabsTrigger>
-            <TabsTrigger value="upload-recording">Upload Recording</TabsTrigger>
-            <TabsTrigger value="text-paste">Text Paste</TabsTrigger>
-          </TabsList>
+        <div className="mt-4 flex flex-col space-y-4">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="live-recording">Live Recording</TabsTrigger>
+              <TabsTrigger value="upload-recording">Upload Recording</TabsTrigger>
+              <TabsTrigger value="text-paste">Text Paste</TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="live-recording" className="space-y-4 mt-4">
-            <div className="flex flex-col items-center justify-center p-8 border rounded-md">
-              {isRecording ? (
-                <Button
-                  variant="destructive"
-                  size="lg"
-                  className="w-40 h-40 rounded-full flex flex-col gap-2"
-                  onClick={handleStopRecording}
-                >
-                  <StopCircle className="h-12 w-12" />
-                  <span>Stop Recording</span>
-                </Button>
-              ) : (
+            <TabsContent value="live-recording" className="space-y-4 mt-4">
+              <div className="flex flex-col items-center justify-center p-4 border rounded-md">
+                {isRecording ? (
+                  <Button
+                    variant="destructive"
+                    size="lg"
+                    className="w-32 h-32 rounded-full flex flex-col gap-2"
+                    onClick={handleStopRecording}
+                  >
+                    <StopCircle className="h-8 w-8" />
+                    <span>Stop Recording</span>
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="w-32 h-32 rounded-full flex flex-col gap-2"
+                    onClick={handleStartRecording}
+                  >
+                    <Mic className="h-8 w-8" />
+                    <span>Start Recording</span>
+                  </Button>
+                )}
+                <p className="text-sm text-muted-foreground mt-4">
+                  {isRecording
+                    ? "Recording in progress... Speak clearly"
+                    : "Click to start recording the consultation"}
+                </p>
+              </div>
+
+              {transcript && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-medium">Transcript</h3>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={saveTranscriptToDatabase}
+                      disabled={isSaving || !patientInfo}
+                    >
+                      {isSaving ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          Save Transcript
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  <div className="p-4 border rounded-md bg-muted/50 max-h-[150px] overflow-y-auto">
+                    <p className="whitespace-pre-wrap">{transcript}</p>
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="upload-recording" className="space-y-4 mt-4">
+              <div className="flex flex-col items-center justify-center p-4 border rounded-md">
+                <input
+                  type="file"
+                  accept="audio/*"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
                 <Button
                   variant="outline"
                   size="lg"
-                  className="w-40 h-40 rounded-full flex flex-col gap-2"
-                  onClick={handleStartRecording}
+                  className="w-32 h-32 rounded-full flex flex-col gap-2"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isProcessing}
                 >
-                  <Mic className="h-12 w-12" />
-                  <span>Start Recording</span>
+                  {isProcessing ? (
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                  ) : (
+                    <Upload className="h-8 w-8" />
+                  )}
+                  <span>{isProcessing ? "Processing..." : "Upload Audio"}</span>
                 </Button>
+                <p className="text-sm text-muted-foreground mt-4">
+                  Upload an audio recording of the consultation
+                </p>
+              </div>
+
+              {transcript && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-medium">Transcript</h3>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={saveTranscriptToDatabase}
+                      disabled={isSaving || !patientInfo}
+                    >
+                      {isSaving ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          Save Transcript
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  <div className="p-4 border rounded-md bg-muted/50 max-h-[150px] overflow-y-auto">
+                    <p className="whitespace-pre-wrap">{transcript}</p>
+                  </div>
+                </div>
               )}
-              <p className="text-sm text-muted-foreground mt-4">
-                {isRecording
-                  ? "Recording in progress... Speak clearly"
-                  : "Click to start recording the consultation"}
-              </p>
-            </div>
+            </TabsContent>
 
-            {transcript && (
+            <TabsContent value="text-paste" className="space-y-4 mt-4">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-medium">Transcript</h3>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={saveTranscriptToDatabase}
-                    disabled={isSaving || !patientInfo}
-                  >
-                    {isSaving ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        Save Transcript
-                      </>
-                    )}
-                  </Button>
+                  <h3 className="text-lg font-medium">Paste Consultation Text</h3>
+                  {transcript.trim() && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={saveTranscriptToDatabase}
+                      disabled={isSaving || !patientInfo}
+                    >
+                      {isSaving ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          Save Transcript
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </div>
-                <div className="p-4 border rounded-md bg-muted/50">
-                  <p className="whitespace-pre-wrap">{transcript}</p>
-                </div>
+                <Textarea
+                  placeholder="Paste or type the consultation text here..."
+                  className="min-h-[150px]"
+                  onChange={handleTextInput}
+                  value={transcript}
+                />
+                <Button
+                  onClick={() => generateNotes(transcript)}
+                  disabled={!transcript.trim() || isProcessing}
+                  className="w-full"
+                >
+                  {isProcessing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="h-4 w-4 mr-2" />
+                      Generate SOAP Notes
+                    </>
+                  )}
+                </Button>
               </div>
-            )}
-          </TabsContent>
+            </TabsContent>
+          </Tabs>
 
-          <TabsContent value="upload-recording" className="space-y-4 mt-4">
-            <div className="flex flex-col items-center justify-center p-8 border rounded-md">
-              <input
-                type="file"
-                accept="audio/*"
-                ref={fileInputRef}
-                onChange={handleFileUpload}
-                className="hidden"
-              />
-              <Button
-                variant="outline"
-                size="lg"
-                className="w-40 h-40 rounded-full flex flex-col gap-2"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isProcessing}
-              >
-                {isProcessing ? (
-                  <Loader2 className="h-12 w-12 animate-spin" />
-                ) : (
-                  <Upload className="h-12 w-12" />
-                )}
-                <span>{isProcessing ? "Processing..." : "Upload Audio"}</span>
-              </Button>
-              <p className="text-sm text-muted-foreground mt-4">
-                Upload an audio recording of the consultation
-              </p>
-            </div>
-
-            {transcript && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-medium">Transcript</h3>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={saveTranscriptToDatabase}
-                    disabled={isSaving || !patientInfo}
-                  >
-                    {isSaving ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        Save Transcript
-                      </>
-                    )}
-                  </Button>
-                </div>
-                <div className="p-4 border rounded-md bg-muted/50">
-                  <p className="whitespace-pre-wrap">{transcript}</p>
-                </div>
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="text-paste" className="space-y-4 mt-4">
-            <div className="space-y-2">
+          {notes && (
+            <div className="space-y-2 mt-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium">Paste Consultation Text</h3>
-                {transcript.trim() && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={saveTranscriptToDatabase}
-                    disabled={isSaving || !patientInfo}
-                  >
-                    {isSaving ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        Save Transcript
-                      </>
-                    )}
-                  </Button>
-                )}
+                <h3 className="text-lg font-medium">Generated SOAP Notes</h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(notes);
+                    toast({
+                      title: "Copied",
+                      description: "Notes copied to clipboard",
+                    });
+                  }}
+                >
+                  <ClipboardCopy className="h-4 w-4 mr-2" />
+                  Copy
+                </Button>
               </div>
-              <Textarea
-                placeholder="Paste or type the consultation text here..."
-                className="min-h-[200px]"
-                onChange={handleTextInput}
-                value={transcript}
-              />
-              <Button
-                onClick={() => generateNotes(transcript)}
-                disabled={!transcript.trim() || isProcessing}
-                className="w-full"
-              >
-                {isProcessing ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <FileText className="h-4 w-4 mr-2" />
-                    Generate SOAP Notes
-                  </>
-                )}
-              </Button>
+              <div className="p-4 border rounded-md bg-muted/50 max-h-[200px] overflow-y-auto">
+                <pre className="whitespace-pre-wrap font-sans text-sm">{notes}</pre>
+              </div>
             </div>
-          </TabsContent>
-        </Tabs>
-
-        {notes && (
-          <div className="mt-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-medium">Generated SOAP Notes</h3>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  navigator.clipboard.writeText(notes);
-                  toast({
-                    title: "Copied",
-                    description: "Notes copied to clipboard",
-                  });
-                }}
-              >
-                <ClipboardCopy className="h-4 w-4 mr-2" />
-                Copy
-              </Button>
-            </div>
-            <div className="p-4 border rounded-md bg-muted/50 max-h-[300px] overflow-y-auto">
-              <pre className="whitespace-pre-wrap font-sans text-sm">{notes}</pre>
-            </div>
-          </div>
-        )}
-
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button onClick={handleUseNotes} disabled={!notes}>
-            Use These Notes
-          </Button>
-        </DialogFooter>
+          )}
+          
+          <DialogFooter className="mt-6 flex sm:justify-between justify-center flex-wrap gap-2">
+            <Button variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button onClick={handleUseNotes} disabled={!notes}>
+              Use These Notes
+            </Button>
+          </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );
