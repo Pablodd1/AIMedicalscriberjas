@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Patient, Appointment } from "@shared/schema";
+import { Patient, Appointment, MedicalNote } from "@shared/schema";
 import {
   Card,
   CardContent,
@@ -27,16 +27,23 @@ import {
   FileWarning,
   Syringe,
   Heart,
-  Loader2
+  Loader2,
+  Copy,
+  Check
 } from "lucide-react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 interface PatientDetailsProps {
   patientId: number;
 }
 
 export default function PatientDetails({ patientId }: PatientDetailsProps) {
+  const [copiedNote, setCopiedNote] = useState<number | null>(null);
+  const { toast } = useToast();
+
   const { data: patient } = useQuery<Patient>({
     queryKey: [`/api/patients/${patientId}`],
   });
@@ -45,9 +52,24 @@ export default function PatientDetails({ patientId }: PatientDetailsProps) {
     queryKey: ["/api/appointments"],
   });
 
+  const { data: medicalNotes, isLoading: isLoadingNotes } = useQuery<MedicalNote[]>({
+    queryKey: [`/api/patients/${patientId}/medical-notes`],
+    enabled: !!patientId,
+  });
+
   if (!patient) return null;
 
   const patientAppointments = appointments?.filter(a => a.patientId === patientId) || [];
+  
+  const handleCopyNote = (content: string, noteId: number) => {
+    navigator.clipboard.writeText(content);
+    setCopiedNote(noteId);
+    toast({
+      title: "Copied",
+      description: "Note copied to clipboard",
+    });
+    setTimeout(() => setCopiedNote(null), 3000);
+  };
 
   return (
     <ScrollArea className="h-[calc(100vh-8rem)]">
@@ -261,20 +283,68 @@ export default function PatientDetails({ patientId }: PatientDetailsProps) {
                 </div>
                 
                 <div className="mt-8">
-                  <h3 className="text-lg font-medium mb-4">Medical Notes</h3>
-                  
-                  {/* Patient Notes Section */}
-                  <div className="text-center p-8 text-muted-foreground border rounded-lg">
-                    <FileText className="h-10 w-10 mx-auto mb-2 text-muted-foreground" />
-                    <p>Medical notes are available in the Notes section</p>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-medium">Medical Notes</h3>
                     <Button 
                       variant="outline" 
-                      className="mt-2"
+                      size="sm"
                       onClick={() => window.location.href = "/notes"}
                     >
-                      Go to Notes
+                      <FileText className="h-4 w-4 mr-2" />
+                      Create New Note
                     </Button>
                   </div>
+                  
+                  {/* Patient Notes Section */}
+                  {isLoadingNotes ? (
+                    <div className="flex justify-center items-center p-8 border rounded-lg">
+                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : !medicalNotes || medicalNotes.length === 0 ? (
+                    <div className="text-center p-8 text-muted-foreground border rounded-lg">
+                      <FileText className="h-10 w-10 mx-auto mb-2 text-muted-foreground" />
+                      <p>No medical notes found for this patient</p>
+                      <Button 
+                        variant="outline" 
+                        className="mt-2"
+                        onClick={() => window.location.href = "/notes"}
+                      >
+                        Create New Note
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {medicalNotes.map((note) => (
+                        <div key={note.id} className="p-4 border rounded-lg">
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <h4 className="font-medium">{note.title || 'Medical Note'}</h4>
+                              <p className="text-sm text-muted-foreground">
+                                {note.createdAt ? format(new Date(note.createdAt), "PPP p") : 'No date'}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleCopyNote(note.content, note.id)}
+                              >
+                                {copiedNote === note.id ? (
+                                  <Check className="h-4 w-4 text-green-500" />
+                                ) : (
+                                  <Copy className="h-4 w-4" />
+                                )}
+                              </Button>
+                              <Badge variant="outline">{note.type || 'Note'}</Badge>
+                            </div>
+                          </div>
+                          <div className="mt-2 p-3 bg-muted/50 rounded-md max-h-60 overflow-y-auto">
+                            <pre className="whitespace-pre-wrap font-sans text-sm">{note.content}</pre>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
