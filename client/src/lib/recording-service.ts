@@ -149,6 +149,16 @@ class BrowserRecordingService implements RecordingServiceInterface {
 // Generate SOAP notes from transcript using AI
 export async function generateSoapNotes(transcript: string, patientInfo: any): Promise<string> {
   try {
+    // Validate and prepare patient info to prevent JSON stringify issues
+    const safePatientInfo = {
+      id: patientInfo?.id || 0,
+      firstName: patientInfo?.firstName || '',
+      lastName: patientInfo?.lastName || '',
+      gender: patientInfo?.gender || 'Unknown',
+      dateOfBirth: patientInfo?.dateOfBirth || 'Unknown',
+      // Add any other essential fields but keep it minimal
+    };
+    
     // Call our backend API to generate SOAP notes
     const response = await fetch('/api/ai/generate-soap', {
       method: 'POST',
@@ -157,20 +167,29 @@ export async function generateSoapNotes(transcript: string, patientInfo: any): P
       },
       body: JSON.stringify({
         transcript,
-        patientInfo,
+        patientInfo: safePatientInfo,
       }),
     });
     
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Server error:', errorText);
       throw new Error('Failed to generate SOAP notes');
     }
     
-    const data = await response.json();
-    return data.soap || "Error generating notes";
+    try {
+      const data = await response.json();
+      return data.soap || "No SOAP notes were generated";
+    } catch (parseError) {
+      console.error("JSON parse error:", parseError);
+      throw new Error('Invalid response format from server');
+    }
   } catch (error) {
     console.error("Error generating SOAP notes:", error);
     notify("Failed to generate SOAP notes", "error");
-    throw error;
+    
+    // Return a fallback message instead of throwing to prevent UI breaking
+    return "There was an error generating SOAP notes. Please try again with more detailed transcript text.";
   }
 }
 

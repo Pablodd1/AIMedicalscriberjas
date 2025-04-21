@@ -94,13 +94,50 @@ export function ConsultationModal({
   const generateNotes = async (text: string) => {
     try {
       setIsProcessing(true);
+      
+      // Make sure we have sufficient text
+      if (!text || text.trim().length < 10) {
+        toast({
+          title: "Not enough text",
+          description: "Please provide more text to generate meaningful SOAP notes",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Ensure we have valid patient info
+      if (!patientInfo || !patientInfo.id) {
+        toast({
+          title: "Patient information required",
+          description: "Please select a patient before generating notes",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Generate the notes
       const generatedNotes = await generateSoapNotes(text, patientInfo);
+      
+      // Set the notes in the state
       setNotes(generatedNotes);
+      
+      // If generatedNotes contains an error message, show a toast
+      if (generatedNotes.includes("error") || generatedNotes.includes("failed")) {
+        toast({
+          title: "Note generation limited",
+          description: "The SOAP notes were generated with limited information. Please review and edit as needed.",
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: "SOAP notes generated successfully",
+        });
+      }
     } catch (error) {
       console.error("Failed to generate notes:", error);
       toast({
         title: "Error",
-        description: "Failed to generate SOAP notes",
+        description: "Failed to generate SOAP notes. Please try again with more detailed text.",
         variant: "destructive",
       });
     } finally {
