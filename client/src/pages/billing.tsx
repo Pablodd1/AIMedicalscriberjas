@@ -126,11 +126,12 @@ export default function Billing() {
       
       const res = await apiRequest("POST", "/api/invoices", {
         ...data,
+        doctorId: user?.id, // Explicitly add the doctor ID from the logged-in user
         // Convert amount to cents
         amount: Math.round(data.amount * 100),
         amountPaid: Math.round((data.amountPaid || 0) * 100),
-        // Convert date to ISO string for proper serialization
-        dueDate: data.dueDate.toISOString(),
+        // Make sure dueDate is a proper date object and format it correctly
+        dueDate: new Date(data.dueDate),
         // Add the invoice number
         invoiceNumber,
         // Add status if not provided
@@ -479,7 +480,13 @@ export default function Billing() {
                         <CalendarComponent
                           mode="single"
                           selected={field.value}
-                          onSelect={field.onChange}
+                          onSelect={(date) => {
+                            // Make sure we're setting a proper Date object
+                            if (date) {
+                              field.onChange(date);
+                            }
+                          }}
+                          disabled={(date) => date < new Date()}
                           initialFocus
                         />
                       </PopoverContent>

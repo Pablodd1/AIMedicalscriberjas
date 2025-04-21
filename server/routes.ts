@@ -392,15 +392,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const doctorId = req.user.id;
       
-      const validation = insertInvoiceSchema.safeParse(req.body);
+      // Create a modified request body to ensure proper types
+      const modifiedBody = {
+        ...req.body,
+        doctorId: doctorId,
+        // Ensure dueDate is properly converted to a Date object
+        dueDate: new Date(req.body.dueDate)
+      };
+      
+      const validation = insertInvoiceSchema.safeParse(modifiedBody);
       if (!validation.success) {
         return res.status(400).json(validation.error);
       }
       
-      const invoice = await storage.createInvoice({
-        ...validation.data,
-        doctorId: doctorId,
-      });
+      const invoice = await storage.createInvoice(validation.data);
       res.status(201).json(invoice);
     } catch (error) {
       console.error("Error creating invoice:", error);
