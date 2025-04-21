@@ -100,6 +100,16 @@ aiRouter.post('/generate-soap', async (req, res) => {
        DOB: ${patientInfo.dateOfBirth || 'Unknown'}`;
 
     try {
+      // Check if we have an OpenAI API key
+      if (!process.env.OPENAI_API_KEY) {
+        return res.json({
+          soap: "OpenAI API key not configured. Please add your OpenAI API key to use this feature."
+        });
+      }
+
+      // Sanitize inputs
+      const sanitizedTranscript = transcript.slice(0, 4000); // Limit length to avoid token issues
+      
       // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
@@ -121,7 +131,7 @@ aiRouter.post('/generate-soap', async (req, res) => {
                      ${patientInfoString}
                      
                      Transcript:
-                     ${transcript}`
+                     ${sanitizedTranscript}`
           }
         ],
         temperature: 0.5,
@@ -134,7 +144,8 @@ aiRouter.post('/generate-soap', async (req, res) => {
         return res.json({ soap: 'Could not generate SOAP notes from the provided transcript. Please try with more detailed text.' });
       }
       
-      return res.json({ soap: soapNotes });
+      // Make sure we're properly returning a valid JSON object
+      return res.json({ soap: soapNotes || "Generated notes not available" });
     } catch (openaiError) {
       console.error('OpenAI API error:', openaiError);
       

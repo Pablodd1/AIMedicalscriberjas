@@ -177,12 +177,22 @@ export async function generateSoapNotes(transcript: string, patientInfo: any): P
       throw new Error('Failed to generate SOAP notes');
     }
     
+    // Get the raw response text first to debug
     try {
-      const data = await response.json();
-      return data.soap || "No SOAP notes were generated";
-    } catch (parseError) {
-      console.error("JSON parse error:", parseError);
-      throw new Error('Invalid response format from server');
+      const rawText = await response.text();
+      console.log("Raw server response:", rawText);
+      
+      // Try to parse it as JSON
+      try {
+        const data = JSON.parse(rawText);
+        return data.soap || "No SOAP notes were generated";
+      } catch (parseError) {
+        console.error("JSON parse error:", parseError);
+        return "There was an error processing the server response. Please try again with more detailed text.";
+      }
+    } catch (responseError) {
+      console.error("Response processing error:", responseError);
+      return "Could not read server response. Please try again later.";
     }
   } catch (error) {
     console.error("Error generating SOAP notes:", error);
