@@ -68,7 +68,10 @@ const invoiceFormSchema = z.object({
   amount: z.coerce.number().min(1, "Amount must be greater than 0"),
   amountPaid: z.coerce.number().min(0, "Amount paid cannot be negative").optional(),
   description: z.string().min(5, "Description must be at least 5 characters"),
-  dueDate: z.date({ required_error: "Please select a due date" }),
+  dueDate: z.union([
+    z.string().min(1, "Please select a due date"),
+    z.date({ required_error: "Please select a due date" })
+  ]),
   invoiceNumber: z.string().optional(),
 });
 
@@ -479,7 +482,9 @@ export default function Billing() {
                             }`}
                           >
                             {field.value ? (
-                              format(field.value, "PPP")
+                              typeof field.value === 'string' 
+                                ? format(new Date(field.value), "PPP") 
+                                : format(field.value, "PPP")
                             ) : (
                               <span>Pick a date</span>
                             )}
@@ -490,11 +495,19 @@ export default function Billing() {
                       <PopoverContent className="w-auto p-0" align="start">
                         <CalendarComponent
                           mode="single"
-                          selected={field.value}
+                          selected={
+                            field.value ? 
+                              (typeof field.value === 'string' ? 
+                                new Date(field.value) : 
+                                field.value as Date) 
+                              : undefined
+                          }
                           onSelect={(date) => {
-                            // Make sure we're setting a proper Date object
+                            // Store as a YYYY-MM-DD string instead of a Date object
                             if (date) {
-                              field.onChange(date);
+                              // Convert to string in YYYY-MM-DD format
+                              const dateStr = date.toISOString().split('T')[0];
+                              field.onChange(dateStr);
                             }
                           }}
                           initialFocus
