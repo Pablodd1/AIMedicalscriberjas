@@ -53,7 +53,8 @@ export default function PatientIntakeFormPage() {
   // Define patient and intake form types
   interface Patient {
     id: number;
-    name: string;
+    firstName: string;
+    lastName: string | null;
     email: string;
     phone?: string;
   }
@@ -151,7 +152,7 @@ export default function PatientIntakeFormPage() {
     
     const selectedPatient = patients.find(p => p.id.toString() === patientId);
     if (selectedPatient) {
-      form.setValue("name", selectedPatient.name);
+      form.setValue("name", `${selectedPatient.firstName} ${selectedPatient.lastName || ''}`);
       form.setValue("email", selectedPatient.email);
       form.setValue("phone", selectedPatient.phone || "");
     }
@@ -218,7 +219,7 @@ export default function PatientIntakeFormPage() {
                         <SelectContent>
                           {patients?.map((patient) => (
                             <SelectItem key={patient.id} value={patient.id.toString()}>
-                              {patient.name}
+                              {`${patient.firstName} ${patient.lastName || ''}`}
                             </SelectItem>
                           ))}
                         </SelectContent>
