@@ -393,11 +393,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const doctorId = req.user.id;
       
       // Create a modified request body to ensure proper types
+      let dueDate;
+      try {
+        // Try to parse the date string in a simpler format
+        if (typeof req.body.dueDate === 'string') {
+          // If it's a simple YYYY-MM-DD format
+          if (req.body.dueDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            dueDate = new Date(req.body.dueDate);
+          } else {
+            // Try to extract just the date part
+            const dateParts = req.body.dueDate.split(/[^0-9]/);
+            if (dateParts.length >= 3) {
+              const year = parseInt(dateParts[0]);
+              const month = parseInt(dateParts[1]) - 1; // JavaScript months are 0-based
+              const day = parseInt(dateParts[2]);
+              dueDate = new Date(year, month, day);
+            } else {
+              dueDate = new Date(); // Fallback to current date if parsing fails
+            }
+          }
+        } else {
+          dueDate = new Date(req.body.dueDate);
+        }
+      } catch (e) {
+        console.error("Error parsing date:", e);
+        dueDate = new Date(); // Fallback to current date
+      }
+      
       const modifiedBody = {
         ...req.body,
         doctorId: doctorId,
-        // Ensure dueDate is properly converted to a Date object
-        dueDate: new Date(req.body.dueDate)
+        // Set the parsed date
+        dueDate: dueDate
       };
       
       const validation = insertInvoiceSchema.safeParse(modifiedBody);

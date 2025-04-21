@@ -124,14 +124,25 @@ export default function Billing() {
       // Generate invoice number if not provided
       const invoiceNumber = `INV-${new Date().toISOString().slice(0,10)}-${Math.floor(1000 + Math.random() * 9000)}`;
       
+      // Use simple date format as a string
+      let dueDate = data.dueDate;
+      // Convert date object to string if needed
+      let dueDateStr = '';
+      if (typeof dueDate === 'object' && dueDate instanceof Date) {
+        // Convert to YYYY-MM-DD format
+        dueDateStr = dueDate.toISOString().split('T')[0];
+      } else {
+        dueDateStr = String(dueDate);
+      }
+      
       const res = await apiRequest("POST", "/api/invoices", {
         ...data,
         doctorId: user?.id, // Explicitly add the doctor ID from the logged-in user
         // Convert amount to cents
         amount: Math.round(data.amount * 100),
         amountPaid: Math.round((data.amountPaid || 0) * 100),
-        // Make sure dueDate is a proper date object and format it correctly
-        dueDate: new Date(data.dueDate),
+        // Use a simple date string format
+        dueDate: dueDateStr,
         // Add the invoice number
         invoiceNumber,
         // Add status if not provided
@@ -486,7 +497,6 @@ export default function Billing() {
                               field.onChange(date);
                             }
                           }}
-                          disabled={(date) => date < new Date()}
                           initialFocus
                         />
                       </PopoverContent>

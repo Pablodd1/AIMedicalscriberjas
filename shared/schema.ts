@@ -230,7 +230,10 @@ export const invoices = pgTable("invoices", {
 });
 
 // Invoice insert schema
-export const insertInvoiceSchema = createInsertSchema(invoices).pick({
+export const insertInvoiceSchema = createInsertSchema(invoices, {
+  dueDate: z.string().or(z.date()).transform(val => 
+    typeof val === 'string' ? new Date(val) : val)
+}).pick({
   patientId: true,
   doctorId: true,
   amount: true,
