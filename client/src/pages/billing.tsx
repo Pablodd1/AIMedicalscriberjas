@@ -53,7 +53,8 @@ import { format } from "date-fns";
 interface ExtendedInvoice extends Invoice {
   patient?: {
     id: number;
-    name: string;
+    firstName: string;
+    lastName: string | null;
     email: string;
   }
 }

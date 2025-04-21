@@ -10,7 +10,7 @@ interface AppointmentsListProps {
     patientId: number;
     date: string;
     status: string;
-    patient: { name: string; };
+    patient: { firstName: string; lastName: string | null; };
   }>;
 }
 
@@ -33,11 +33,11 @@ export default function AppointmentsList({ appointments }: AppointmentsListProps
               >
                 <Avatar>
                   <AvatarFallback>
-                    {appointment.patient.name[0]}
+                    {appointment.patient.firstName[0]}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
-                  <p className="font-medium">{appointment.patient.name}</p>
+                  <p className="font-medium">{`${appointment.patient.firstName} ${appointment.patient.lastName || ''}`}</p>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Calendar className="h-4 w-4" />
                     {format(new Date(appointment.date), "PPP p")}

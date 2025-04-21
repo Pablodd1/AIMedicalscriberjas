@@ -858,7 +858,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             <AvatarFallback>{patient.firstName[0]}</AvatarFallback>
           </Avatar>
           <div className="min-w-0 overflow-hidden">
-            <h3 className="font-medium truncate">{patient.name}</h3>
+            <h3 className="font-medium truncate">{`${patient.firstName} ${patient.lastName || ''}`}</h3>
             <p className="text-xs text-muted-foreground">Video Consultation</p>
           </div>
 

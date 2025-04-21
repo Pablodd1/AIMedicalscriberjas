@@ -58,7 +58,7 @@ export default function PatientDetails({ patientId }: PatientDetailsProps) {
             <div className="flex items-center gap-4 text-muted-foreground mt-1">
               <div className="flex items-center gap-1">
                 <CalendarDays className="h-4 w-4" />
-                <span>{format(new Date(patient.dateOfBirth), "PPP")}</span>
+                <span>{patient.dateOfBirth ? format(new Date(patient.dateOfBirth), "PPP") : "No DOB"}</span>
               </div>
               <div className="flex items-center gap-1">
                 <Phone className="h-4 w-4" />
