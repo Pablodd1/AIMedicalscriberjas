@@ -96,10 +96,10 @@ export default function Dashboard() {
                     <div key={appointment.id} className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="flex items-center gap-4">
                         <Avatar>
-                          <AvatarFallback>{patient?.name.charAt(0)}</AvatarFallback>
+                          <AvatarFallback>{patient?.firstName ? patient.firstName.charAt(0) : ''}</AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="font-medium">{patient?.name}</p>
+                          <p className="font-medium">{patient ? `${patient.firstName} ${patient.lastName || ''}` : 'Unknown Patient'}</p>
                           <p className="text-sm text-muted-foreground">
                             {format(new Date(appointment.date), "h:mm a")}
                           </p>
