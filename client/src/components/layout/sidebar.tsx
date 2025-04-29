@@ -72,10 +72,14 @@ export default function Sidebar() {
               <Button
                 variant={isActive ? "secondary" : "ghost"}
                 className={cn("w-full justify-start gap-2", {
-                  "bg-primary text-primary-foreground": isActive,
+                  "bg-medical-dark-blue text-white": isActive,
+                  "hover:bg-medical-yellow hover:text-black": !isActive,
                 })}
               >
-                <item.icon className="h-5 w-5" />
+                <item.icon className={cn("h-5 w-5", {
+                  "text-medical-yellow": isActive && item.name === "Billing",
+                  "text-medical-red": isActive && item.name === "Telemedicine",
+                })} />
                 {!isCollapsed && item.name}
               </Button>
             </Link>
@@ -90,13 +94,13 @@ export default function Sidebar() {
 
   const SidebarContent = () => (
     <>
-      <div className="flex items-center justify-between px-3 h-16">
+      <div className="flex items-center justify-between px-3 h-16 bg-medical-dark-blue text-white">
         <Link href="/dashboard">
           <div className="flex items-center gap-2 cursor-pointer">
             <img
               src="https://res.cloudinary.com/dsex1a9tu/image/upload/v1745207658/logo_1_cdaq2f.png"
               alt="AIMS Logo"
-              className="h-6 w-6"
+              className="h-6 w-6 bg-white rounded-full p-1"
             />
             {!isCollapsed && <span className="font-bold text-lg">AIMS</span>}
           </div>
@@ -105,7 +109,7 @@ export default function Sidebar() {
         <Button
           variant="ghost"
           size="icon"
-          className="hidden lg:flex"
+          className="hidden lg:flex text-white hover:bg-medical-yellow hover:text-black"
           onClick={() => setIsCollapsed(!isCollapsed)}
         >
           {isCollapsed ? (
@@ -124,8 +128,8 @@ export default function Sidebar() {
 
       <div className={cn("px-3 py-4 border-t", { "text-center": isCollapsed })}>
         <div className="flex items-center gap-3 mb-4">
-          <Avatar>
-            <AvatarFallback>{user?.name[0]}</AvatarFallback>
+          <Avatar className="border-2 border-medical-yellow">
+            <AvatarFallback className="bg-medical-dark-blue text-white">{user?.name?.[0]}</AvatarFallback>
           </Avatar>
           {!isCollapsed && (
             <div>
@@ -136,7 +140,7 @@ export default function Sidebar() {
         </div>
         <Button
           variant="outline"
-          className={cn("w-full justify-start gap-2", {
+          className={cn("w-full justify-start gap-2 bg-medical-red hover:bg-medical-red/90 text-white border-medical-red", {
             "justify-center": isCollapsed,
           })}
           onClick={() => logoutMutation.mutate()}
@@ -152,18 +156,18 @@ export default function Sidebar() {
     <>
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger asChild className="lg:hidden fixed top-4 left-4">
-          <Button variant="outline" size="icon">
+          <Button variant="outline" size="icon" className="bg-medical-dark-blue text-white border-medical-dark-blue hover:bg-medical-yellow hover:text-black hover:border-medical-yellow">
             <Menu className="h-5 w-5" />
           </Button>
         </SheetTrigger>
-        <SheetContent side="left" className="w-64 p-0">
+        <SheetContent side="left" className="w-64 p-0 border-medical-dark-blue">
           <SidebarContent />
         </SheetContent>
       </Sheet>
 
       <div
         className={cn(
-          "hidden lg:flex flex-col border-r bg-card transition-all duration-300",
+          "hidden lg:flex flex-col border-r border-medical-dark-blue bg-card transition-all duration-300",
           {
             "w-64": !isCollapsed,
             "w-16": isCollapsed,
