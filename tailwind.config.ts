@@ -41,6 +41,12 @@ export default {
           DEFAULT: "hsl(var(--destructive))",
           foreground: "hsl(var(--destructive-foreground))",
         },
+        // Custom medical color scheme
+        medical: {
+          yellow: "hsl(var(--medical-yellow))",
+          red: "hsl(var(--medical-red))",
+          "dark-blue": "hsl(var(--medical-dark-blue))",
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

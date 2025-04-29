@@ -3,6 +3,12 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --medical-yellow: 45 100% 50%;
+    --medical-red: 0 85% 50%;
+    --medical-dark-blue: 218 72% 21%;
+  }
+
   * {
     @apply border-border;
   }
@@ -10,4 +16,54 @@
   body {
     @apply font-sans antialiased bg-background text-foreground;
   }
+}
+
+/* Custom medical color scheme classes */
+.bg-medical-yellow {
+  background-color: hsl(var(--medical-yellow));
+}
+
+.text-medical-yellow {
+  color: hsl(var(--medical-yellow));
+}
+
+.border-medical-yellow {
+  border-color: hsl(var(--medical-yellow));
+}
+
+.bg-medical-red {
+  background-color: hsl(var(--medical-red));
+}
+
+.text-medical-red {
+  color: hsl(var(--medical-red));
+}
+
+.border-medical-red {
+  border-color: hsl(var(--medical-red));
+}
+
+.bg-medical-dark-blue {
+  background-color: hsl(var(--medical-dark-blue));
+}
+
+.text-medical-dark-blue {
+  color: hsl(var(--medical-dark-blue));
+}
+
+.border-medical-dark-blue {
+  border-color: hsl(var(--medical-dark-blue));
+}
+
+/* Badge color overrides */
+.badge-yellow {
+  @apply bg-medical-yellow text-black;
+}
+
+.badge-red {
+  @apply bg-medical-red text-white;
+}
+
+.badge-dark-blue {
+  @apply bg-medical-dark-blue text-white;
 }

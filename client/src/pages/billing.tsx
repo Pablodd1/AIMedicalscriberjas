@@ -349,14 +349,14 @@ export default function Billing() {
                         <TableCell>${(remaining / 100).toFixed(2)}</TableCell>
                         <TableCell>
                           <Badge
-                            variant={
+                            className={
                               invoice.status === "paid"
-                                ? "secondary"
+                                ? "bg-medical-yellow text-black"
                                 : invoice.status === "partial"
-                                ? "default"
+                                ? "bg-medical-dark-blue text-white"
                                 : invoice.status === "unpaid"
-                                ? "outline"
-                                : "destructive"
+                                ? "border-2 border-medical-dark-blue text-medical-dark-blue"
+                                : "bg-medical-red text-white"
                             }
                           >
                             {invoice.status}
@@ -567,14 +567,14 @@ export default function Billing() {
                     <div>
                       <p className="text-muted-foreground">Current Status:</p>
                       <Badge
-                        variant={
+                        className={
                           selectedInvoice.status === "paid"
-                            ? "secondary"
+                            ? "bg-medical-yellow text-black"
                             : selectedInvoice.status === "partial"
-                            ? "default"
+                            ? "bg-medical-dark-blue text-white"
                             : selectedInvoice.status === "unpaid"
-                            ? "outline"
-                            : "destructive"
+                            ? "border-2 border-medical-dark-blue text-medical-dark-blue"
+                            : "bg-medical-red text-white"
                         }
                       >
                         {selectedInvoice.status}
