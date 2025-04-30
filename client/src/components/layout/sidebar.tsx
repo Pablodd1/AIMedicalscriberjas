@@ -79,9 +79,8 @@ export default function Sidebar() {
                 })}
               >
                 <item.icon className={cn("h-5 w-5", {
-                  "text-medical-yellow": isActive && item.name === "Billing",
+                  "text-medical-yellow": isActive && (item.name === "Billing" || item.name === "Patient Monitoring"),
                   "text-medical-red": isActive && item.name === "Telemedicine",
-                  "text-medical-yellow": isActive && item.name === "Patient Monitoring",
                 })} />
                 {!isCollapsed && item.name}
               </Button>

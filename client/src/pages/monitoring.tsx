@@ -1222,21 +1222,21 @@ export default function MonitoringSystem() {
                 <div className="grid grid-cols-2 gap-2 mt-2">
                   <div className="flex items-center space-x-2">
                     <Checkbox id="notify-patient" defaultChecked />
-                    <label htmlFor="notify-patient" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                    <Label htmlFor="notify-patient" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
                       Patient
-                    </label>
+                    </Label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <Checkbox id="notify-doctor" defaultChecked />
-                    <label htmlFor="notify-doctor" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                    <Label htmlFor="notify-doctor" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
                       Doctor
-                    </label>
+                    </Label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <Checkbox id="notify-caregiver" />
-                    <label htmlFor="notify-caregiver" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                    <Label htmlFor="notify-caregiver" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
                       Caregiver
-                    </label>
+                    </Label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <Checkbox id="notify-family" />
