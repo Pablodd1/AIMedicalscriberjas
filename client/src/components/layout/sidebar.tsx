@@ -19,6 +19,7 @@ import {
   Bot,
   PenTool,
   ClipboardList,
+  Activity,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useState } from "react";

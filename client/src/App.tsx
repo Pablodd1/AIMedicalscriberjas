@@ -24,6 +24,7 @@ import Telemedicine from "@/pages/telemedicine";
 import Settings from "@/pages/settings";
 import Billing from "@/pages/billing";
 import PatientIntake from "@/pages/patient-intake";
+import MonitoringSystem from "@/pages/monitoring";
 
 // Wrapper components for each page with the MainLayout
 const DashboardPage = () => (
@@ -92,6 +93,12 @@ const PatientIntakePage = () => (
   </MainLayout>
 );
 
+const MonitoringPage = () => (
+  <MainLayout>
+    <MonitoringSystem />
+  </MainLayout>
+);
+
 function Router() {
   return (
     <Switch>
@@ -108,6 +115,7 @@ function Router() {
       <ProtectedRoute path="/analytics" component={AnalyticsPage} />
       <ProtectedRoute path="/settings" component={SettingsPage} />
       <ProtectedRoute path="/patient-intake" component={PatientIntakePage} />
+      <ProtectedRoute path="/monitoring" component={MonitoringPage} />
       
       {/* Public Routes - accessible without authentication */}
       <Route path="/auth" component={AuthPage} />
