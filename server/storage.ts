@@ -10,6 +10,10 @@ import {
   intakeForms,
   intakeFormResponses,
   recordingSessions,
+  devices,
+  bpReadings,
+  glucoseReadings,
+  alertSettings,
   type User, 
   type InsertUser, 
   type Patient, 
@@ -29,7 +33,15 @@ import {
   type IntakeFormResponse,
   type InsertIntakeFormResponse,
   type RecordingSession,
-  type InsertRecordingSession
+  type InsertRecordingSession,
+  type Device,
+  type InsertDevice,
+  type BpReading,
+  type InsertBpReading,
+  type GlucoseReading,
+  type InsertGlucoseReading,
+  type AlertSetting,
+  type InsertAlertSetting
 } from "@shared/schema";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
@@ -594,6 +606,188 @@ export class DatabaseStorage implements IStorage {
       .where(eq(recordingSessions.id, id))
       .returning({ id: recordingSessions.id });
     return result.length > 0;
+  }
+  
+  // Device monitoring methods
+  async getDevices(patientId: number): Promise<Device[]> {
+    return db.select()
+      .from(devices)
+      .where(eq(devices.patientId, patientId))
+      .orderBy(devices.name);
+  }
+
+  async getDevice(id: number): Promise<Device | undefined> {
+    const [device] = await db
+      .select()
+      .from(devices)
+      .where(eq(devices.id, id));
+    return device;
+  }
+
+  async createDevice(deviceData: InsertDevice): Promise<Device> {
+    const [device] = await db
+      .insert(devices)
+      .values({
+        ...deviceData,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .returning();
+    return device;
+  }
+
+  async updateDevice(id: number, updates: Partial<Device>): Promise<Device | undefined> {
+    const [updatedDevice] = await db
+      .update(devices)
+      .set({
+        ...updates,
+        updatedAt: new Date()
+      })
+      .where(eq(devices.id, id))
+      .returning();
+    return updatedDevice;
+  }
+
+  async deleteDevice(id: number): Promise<boolean> {
+    const result = await db
+      .delete(devices)
+      .where(eq(devices.id, id))
+      .returning({ id: devices.id });
+    return result.length > 0;
+  }
+
+  // Blood pressure readings
+  async getBpReadings(patientId: number, limit?: number): Promise<BpReading[]> {
+    let query = db.select()
+      .from(bpReadings)
+      .where(eq(bpReadings.patientId, patientId))
+      .orderBy(desc(bpReadings.timestamp));
+    
+    if (limit) {
+      query = query.limit(limit);
+    }
+    
+    return query;
+  }
+
+  async getBpReadingsByDevice(deviceId: number, limit?: number): Promise<BpReading[]> {
+    let query = db.select()
+      .from(bpReadings)
+      .where(eq(bpReadings.deviceId, deviceId))
+      .orderBy(desc(bpReadings.timestamp));
+    
+    if (limit) {
+      query = query.limit(limit);
+    }
+    
+    return query;
+  }
+
+  async createBpReading(reading: InsertBpReading): Promise<BpReading> {
+    const [newReading] = await db
+      .insert(bpReadings)
+      .values({
+        ...reading,
+        timestamp: new Date()
+      })
+      .returning();
+    return newReading;
+  }
+
+  // Glucose readings
+  async getGlucoseReadings(patientId: number, limit?: number): Promise<GlucoseReading[]> {
+    let query = db.select()
+      .from(glucoseReadings)
+      .where(eq(glucoseReadings.patientId, patientId))
+      .orderBy(desc(glucoseReadings.timestamp));
+    
+    if (limit) {
+      query = query.limit(limit);
+    }
+    
+    return query;
+  }
+
+  async getGlucoseReadingsByDevice(deviceId: number, limit?: number): Promise<GlucoseReading[]> {
+    let query = db.select()
+      .from(glucoseReadings)
+      .where(eq(glucoseReadings.deviceId, deviceId))
+      .orderBy(desc(glucoseReadings.timestamp));
+    
+    if (limit) {
+      query = query.limit(limit);
+    }
+    
+    return query;
+  }
+
+  async createGlucoseReading(reading: InsertGlucoseReading): Promise<GlucoseReading> {
+    const [newReading] = await db
+      .insert(glucoseReadings)
+      .values({
+        ...reading,
+        timestamp: new Date()
+      })
+      .returning();
+    return newReading;
+  }
+
+  // Alert settings
+  async getAlertSettings(patientId: number, deviceType: string): Promise<AlertSetting | undefined> {
+    const [settings] = await db
+      .select()
+      .from(alertSettings)
+      .where(
+        and(
+          eq(alertSettings.patientId, patientId),
+          eq(alertSettings.deviceType, deviceType as any)
+        )
+      );
+    return settings;
+  }
+
+  async saveAlertSettings(settingsData: InsertAlertSetting): Promise<AlertSetting> {
+    // Check if settings already exist for this patient and device type
+    const existing = await this.getAlertSettings(
+      settingsData.patientId, 
+      settingsData.deviceType as string
+    );
+    
+    if (existing) {
+      // Update existing settings
+      const [updated] = await db
+        .update(alertSettings)
+        .set({
+          ...settingsData,
+          updatedAt: new Date()
+        })
+        .where(eq(alertSettings.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      // Create new settings
+      const [newSettings] = await db
+        .insert(alertSettings)
+        .values({
+          ...settingsData,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+        .returning();
+      return newSettings;
+    }
+  }
+
+  async updateAlertSettings(id: number, updates: Partial<AlertSetting>): Promise<AlertSetting | undefined> {
+    const [updatedSettings] = await db
+      .update(alertSettings)
+      .set({
+        ...updates,
+        updatedAt: new Date()
+      })
+      .where(eq(alertSettings.id, id))
+      .returning();
+    return updatedSettings;
   }
 }
 

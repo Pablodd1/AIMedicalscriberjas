@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { storage } from "../storage";
 import { db } from "../db";
 import { 
@@ -11,7 +11,7 @@ import {
 export const monitoringRouter = Router();
 
 // Authentication middleware
-const authenticate = (req, res, next) => {
+const authenticate = (req: Request, res: Response, next: NextFunction) => {
   if (!req.isAuthenticated()) {
     return res.status(401).json({ message: "Not authenticated" });
   }
@@ -19,12 +19,12 @@ const authenticate = (req, res, next) => {
 };
 
 // Get all devices for a patient
-monitoringRouter.get("/devices/:patientId", authenticate, async (req, res) => {
+monitoringRouter.get("/devices/:patientId", authenticate, async (req: Request, res: Response) => {
   try {
     const patientId = parseInt(req.params.patientId);
     const devices = await storage.getDevices(patientId);
     res.json(devices);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Error fetching devices:", error);
     res.status(500).json({ message: "Failed to fetch devices" });
   }

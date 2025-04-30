@@ -1,1268 +1,999 @@
-import { useState } from "react";
-import { 
-  Tabs, 
-  TabsContent, 
-  TabsList, 
-  TabsTrigger 
-} from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Slider } from "@/components/ui/slider";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Bluetooth,
-  Activity,
-  Droplet,
-  Bell,
-  Shield,
-  Plus,
-  Trash,
-  Settings,
-  RotateCcw,
-  RefreshCcw,
-  Download,
-  AlertTriangle,
-  CheckCircle,
-  XCircle,
-  Info
-} from "lucide-react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { useToast } from "@/hooks/use-toast";
-import { useQuery } from "@tanstack/react-query";
-import { Patient } from "@shared/schema";
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useLocation } from 'wouter';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertCircle, Activity, Plus, Trash } from 'lucide-react';
+import { queryClient } from '@/lib/queryClient';
 
-// Device types
-interface Device {
-  id: string;
-  name: string;
-  type: "bp" | "glucose";
-  model: string;
-  status: "connected" | "disconnected" | "pairing";
-  lastReading?: {
-    value: string | number;
-    timestamp: Date;
-    unit: string;
+const PatientSelector = ({ patients, selectedPatientId, onSelectPatient }) => {
+  if (!patients?.length) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>No patients available</AlertTitle>
+        <AlertDescription>
+          You need to add patients before you can monitor their health data.
+        </AlertDescription>
+      </Alert>
+    );
   }
-}
 
-// Reading types
-interface BPReading {
-  id: string;
-  patientId: number;
-  deviceId: string;
-  systolic: number;
-  diastolic: number;
-  pulse: number;
-  timestamp: Date;
-}
-
-interface GlucoseReading {
-  id: string;
-  patientId: number;
-  deviceId: string;
-  value: number;
-  type: "fasting" | "pre-meal" | "post-meal" | "random";
-  timestamp: Date;
-}
-
-type Reading = BPReading | GlucoseReading;
-
-// Sample data for demo purposes (will be replaced with real data in production)
-const mockDevices: Device[] = [
-  {
-    id: "dev-001",
-    name: "iHealth Track BP",
-    type: "bp",
-    model: "iHealth Track Connected",
-    status: "connected",
-    lastReading: {
-      value: "120/80",
-      timestamp: new Date(Date.now() - 3600000), // 1 hour ago
-      unit: "mmHg"
-    }
-  },
-  {
-    id: "dev-002",
-    name: "CareSens Glucose",
-    type: "glucose",
-    model: "CareSens N Plus",
-    status: "connected",
-    lastReading: {
-      value: 105,
-      timestamp: new Date(Date.now() - 7200000), // 2 hours ago
-      unit: "mg/dL"
-    }
-  }
-];
-
-// Get sample readings (will be replaced with API calls in production)
-const getLast7DaysReadings = (type: "bp" | "glucose"): Reading[] => {
-  if (type === "bp") {
-    return Array(7).fill(null).map((_, i) => ({
-      id: `bp-${i}`,
-      patientId: 15,
-      deviceId: "dev-001",
-      systolic: Math.floor(Math.random() * 30) + 110, // Between 110-140
-      diastolic: Math.floor(Math.random() * 20) + 70, // Between 70-90
-      pulse: Math.floor(Math.random() * 20) + 60, // Between 60-80
-      timestamp: new Date(Date.now() - (i * 24 * 3600000)) // Days ago
-    })) as BPReading[];
-  } else {
-    return Array(7).fill(null).map((_, i) => ({
-      id: `gluc-${i}`,
-      patientId: 15,
-      deviceId: "dev-002",
-      value: Math.floor(Math.random() * 40) + 90, // Between 90-130
-      type: ["fasting", "pre-meal", "post-meal", "random"][Math.floor(Math.random() * 4)] as "fasting" | "pre-meal" | "post-meal" | "random",
-      timestamp: new Date(Date.now() - (i * 24 * 3600000)) // Days ago
-    })) as GlucoseReading[];
-  }
+  return (
+    <div className="mb-6">
+      <Label htmlFor="patientSelect">Select Patient</Label>
+      <Select
+        value={selectedPatientId?.toString() || ''}
+        onValueChange={(value) => onSelectPatient(parseInt(value))}
+      >
+        <SelectTrigger id="patientSelect">
+          <SelectValue placeholder="Select a patient" />
+        </SelectTrigger>
+        <SelectContent>
+          {patients.map((patient) => (
+            <SelectItem key={patient.id} value={patient.id.toString()}>
+              {patient.firstName} {patient.lastName}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
 };
 
-// Alert thresholds
-const initialAlertSettings = {
-  bp: {
-    systolicHigh: 140,
-    systolicLow: 90,
-    diastolicHigh: 90,
-    diastolicLow: 60,
-    pulseHigh: 100,
-    pulseLow: 50,
-    enabled: true,
-    notify: ["patient", "doctor"]
-  },
-  glucose: {
-    fastingHigh: 130,
-    fastingLow: 70,
-    preMealHigh: 130, 
-    preMealLow: 70,
-    postMealHigh: 180,
-    postMealLow: 70,
-    enabled: true,
-    notify: ["patient", "doctor"]
-  }
-};
-
-export default function MonitoringSystem() {
-  const { toast } = useToast();
-  const [selectedTab, setSelectedTab] = useState("dashboard");
-  const [devices, setDevices] = useState<Device[]>(mockDevices);
-  const [showAddDevice, setShowAddDevice] = useState(false);
-  const [showConfigureDevice, setShowConfigureDevice] = useState(false);
-  const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
-  const [alertSettings, setAlertSettings] = useState(initialAlertSettings);
-  const [showAlertSettings, setShowAlertSettings] = useState(false);
-  const [alertType, setAlertType] = useState<"bp" | "glucose">("bp");
-
-  // Get patients for the dropdown
-  const { data: patients } = useQuery<Patient[]>({
-    queryKey: ["/api/patients"],
-  });
-
-  // This would fetch real readings in production
-  const bpReadings = getLast7DaysReadings("bp") as BPReading[];
-  const glucoseReadings = getLast7DaysReadings("glucose") as GlucoseReading[];
-
-  // Handler for pairing new devices
-  const pairDevice = (deviceType: string, model: string) => {
-    toast({
-      title: "Searching for Devices",
-      description: "Please ensure your device is in pairing mode.",
-    });
-    
-    // In a real app, this would initiate a Bluetooth scan
-    setTimeout(() => {
-      setDevices([
-        ...devices,
-        {
-          id: `dev-${Math.floor(Math.random() * 1000)}`,
-          name: `${model} (New)`,
-          type: deviceType as "bp" | "glucose",
-          model: model,
-          status: "connected"
-        }
-      ]);
-      
-      setShowAddDevice(false);
-      
-      toast({
-        title: "Device Connected",
-        description: `${model} has been successfully paired.`,
-      });
-    }, 2000);
-  };
-
-  // Simulate device connection status update
-  const toggleDeviceConnection = (deviceId: string) => {
-    setDevices(devices.map(device => 
-      device.id === deviceId 
-        ? { ...device, status: device.status === "connected" ? "disconnected" : "connected" } 
-        : device
-    ));
-    
-    const device = devices.find(d => d.id === deviceId);
-    
-    toast({
-      title: device?.status === "connected" ? "Device Disconnected" : "Device Connected",
-      description: `${device?.name} is now ${device?.status === "connected" ? "disconnected" : "connected"}.`,
-    });
-  };
-
-  // Configure device
-  const openDeviceConfig = (device: Device) => {
-    setSelectedDevice(device);
-    setShowConfigureDevice(true);
-  };
-
-  // Remove device
-  const removeDevice = (deviceId: string) => {
-    const device = devices.find(d => d.id === deviceId);
-    
-    setDevices(devices.filter(device => device.id !== deviceId));
-    
-    toast({
-      title: "Device Removed",
-      description: `${device?.name} has been removed from your account.`,
-      variant: "destructive"
-    });
-  };
-
-  // Open alert settings
-  const openAlertSettings = (type: "bp" | "glucose") => {
-    setAlertType(type);
-    setShowAlertSettings(true);
-  };
-
-  // Format reading date
-  const formatReadingDate = (date: Date) => {
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit"
-    });
-  };
-
-  // Get appropriate color based on blood pressure
-  const getBPColor = (systolic: number, diastolic: number) => {
-    if (systolic >= 140 || diastolic >= 90) return "text-medical-red";
-    if (systolic <= 90 || diastolic <= 60) return "text-blue-500";
-    return "text-emerald-500";
-  };
-
-  // Get appropriate color based on glucose reading
-  const getGlucoseColor = (value: number, type: string) => {
-    if (type === "fasting" || type === "pre-meal") {
-      if (value > 130) return "text-medical-red";
-      if (value < 70) return "text-blue-500";
-    } else if (type === "post-meal") {
-      if (value > 180) return "text-medical-red";
-      if (value < 70) return "text-blue-500";
-    }
-    return "text-emerald-500";
-  };
-
-  // Simulate sending alerts to providers
-  const sendTestAlert = () => {
-    toast({
-      title: "Test Alert Sent",
-      description: "A test alert has been successfully sent to all configured recipients.",
-    });
+const DeviceCard = ({ device, onDelete, onAddReading }) => {
+  const statusColors = {
+    connected: 'bg-green-500',
+    disconnected: 'bg-red-500',
+    pairing: 'bg-yellow-500'
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Patient Monitoring System</h1>
-          <p className="text-muted-foreground">Monitor vital signs with connected medical devices</p>
+    <Card className="mb-4">
+      <CardHeader className="pb-2">
+        <div className="flex justify-between items-start">
+          <div>
+            <CardTitle>{device.name}</CardTitle>
+            <CardDescription>{device.model}</CardDescription>
+          </div>
+          <Badge className={statusColors[device.status] || 'bg-gray-500'}>
+            {device.status}
+          </Badge>
         </div>
-      </div>
-      
-      <Tabs defaultValue="dashboard" value={selectedTab} onValueChange={setSelectedTab} className="space-y-4">
-        <TabsList className="grid grid-cols-3 md:w-[400px]">
-          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-          <TabsTrigger value="devices">Devices</TabsTrigger>
-          <TabsTrigger value="reports">Reports</TabsTrigger>
-        </TabsList>
-        
-        {/* Dashboard Tab */}
-        <TabsContent value="dashboard" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Blood Pressure Card */}
-            <Card className="relative">
-              <CardHeader className="pb-2">
-                <div className="flex justify-between items-center">
-                  <CardTitle className="text-lg font-medium flex items-center">
-                    <Activity className="h-5 w-5 mr-2 text-medical-dark-blue" /> 
-                    Blood Pressure
-                  </CardTitle>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" 
-                          onClick={() => openAlertSettings("bp")}>
-                          <Bell className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Configure BP Alerts</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-                <CardDescription>
-                  Last 7 days readings
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {bpReadings.length > 0 ? (
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center py-3 px-4 bg-muted/50 rounded-lg">
-                      <span className="text-sm font-medium">Latest Reading</span>
-                      <Badge variant="outline" className="font-mono">
-                        {formatReadingDate(bpReadings[0].timestamp)}
-                      </Badge>
-                    </div>
-                    
-                    <div className="flex justify-center gap-4 items-center">
-                      <div className="text-center">
-                        <div className={`text-3xl font-bold ${getBPColor(bpReadings[0].systolic, bpReadings[0].diastolic)}`}>
-                          {bpReadings[0].systolic}/{bpReadings[0].diastolic}
-                        </div>
-                        <div className="text-sm text-muted-foreground">mmHg</div>
-                      </div>
-                      <Separator orientation="vertical" className="h-12" />
-                      <div className="text-center">
-                        <div className="text-2xl font-semibold">
-                          {bpReadings[0].pulse}
-                        </div>
-                        <div className="text-sm text-muted-foreground">BPM</div>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <div className="text-sm font-medium mb-2">History</div>
-                      {bpReadings.slice(0, 5).map((reading, index) => (
-                        <div key={reading.id} className="flex justify-between items-center py-2 border-b border-muted last:border-0">
-                          <div className="text-sm">
-                            {formatReadingDate(reading.timestamp)}
-                          </div>
-                          <div className="flex gap-3 items-center">
-                            <span className={`font-mono ${getBPColor(reading.systolic, reading.diastolic)}`}>
-                              {reading.systolic}/{reading.diastolic}
-                            </span>
-                            <span className="text-sm text-muted-foreground">
-                              {reading.pulse} BPM
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="py-8 text-center">
-                    <div className="text-muted-foreground">No readings available</div>
-                    <Button variant="outline" className="mt-4" onClick={() => setSelectedTab("devices")}>
-                      Configure Device
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-            
-            {/* Glucose Card */}
-            <Card>
-              <CardHeader className="pb-2">
-                <div className="flex justify-between items-center">
-                  <CardTitle className="text-lg font-medium flex items-center">
-                    <Droplet className="h-5 w-5 mr-2 text-medical-dark-blue" /> 
-                    Blood Glucose
-                  </CardTitle>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" 
-                          onClick={() => openAlertSettings("glucose")}>
-                          <Bell className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Configure Glucose Alerts</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-                <CardDescription>
-                  Last 7 days readings
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {glucoseReadings.length > 0 ? (
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center py-3 px-4 bg-muted/50 rounded-lg">
-                      <div>
-                        <span className="text-sm font-medium">Latest Reading</span>
-                        <Badge className="ml-2">{glucoseReadings[0].type}</Badge>
-                      </div>
-                      <Badge variant="outline" className="font-mono">
-                        {formatReadingDate(glucoseReadings[0].timestamp)}
-                      </Badge>
-                    </div>
-                    
-                    <div className="flex justify-center">
-                      <div className="text-center">
-                        <div className={`text-3xl font-bold ${getGlucoseColor(glucoseReadings[0].value, glucoseReadings[0].type)}`}>
-                          {glucoseReadings[0].value}
-                        </div>
-                        <div className="text-sm text-muted-foreground">mg/dL</div>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <div className="text-sm font-medium mb-2">History</div>
-                      {glucoseReadings.slice(0, 5).map((reading, index) => (
-                        <div key={reading.id} className="flex justify-between items-center py-2 border-b border-muted last:border-0">
-                          <div className="flex items-center gap-2">
-                            <div className="text-sm">
-                              {formatReadingDate(reading.timestamp)}
-                            </div>
-                            <Badge variant="outline" className="text-xs">
-                              {reading.type}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center">
-                            <span className={`font-mono ${getGlucoseColor(reading.value, reading.type)}`}>
-                              {reading.value}
-                            </span>
-                            <span className="text-sm text-muted-foreground ml-1">
-                              mg/dL
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="py-8 text-center">
-                    <div className="text-muted-foreground">No readings available</div>
-                    <Button variant="outline" className="mt-4" onClick={() => setSelectedTab("devices")}>
-                      Configure Device
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-          
-          {/* Patient Selection Card */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg font-medium">Patient Selection</CardTitle>
-              <CardDescription>
-                Select a patient to view their monitoring data
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="patient">Patient</Label>
-                    <Select defaultValue="15">
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select Patient" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {patients?.map(patient => (
-                          <SelectItem key={patient.id} value={patient.id.toString()}>
-                            {patient.firstName} {patient.lastName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="date-range">Date Range</Label>
-                    <Select defaultValue="7d">
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select Range" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="24h">Last 24 Hours</SelectItem>
-                        <SelectItem value="7d">Last 7 Days</SelectItem>
-                        <SelectItem value="30d">Last 30 Days</SelectItem>
-                        <SelectItem value="custom">Custom Range</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex items-end">
-                    <Button className="w-full">
-                      Update Dashboard
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          {/* System Status Card */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg font-medium flex items-center">
-                <Shield className="h-5 w-5 mr-2 text-medical-dark-blue" /> 
-                System Status
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="flex items-center p-3 bg-muted/50 rounded-lg">
-                  <div className="mr-4">
-                    <Bluetooth className="h-5 w-5 text-emerald-500" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium">Device Connection</div>
-                    <div className="text-sm text-muted-foreground">
-                      {devices.filter(d => d.status === "connected").length} of {devices.length} connected
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="flex items-center p-3 bg-muted/50 rounded-lg">
-                  <div className="mr-4">
-                    <Activity className="h-5 w-5 text-emerald-500" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium">Data Syncing</div>
-                    <div className="text-sm text-muted-foreground">
-                      Last sync: {new Date().toLocaleTimeString()}
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="flex items-center p-3 bg-muted/50 rounded-lg">
-                  <div className="mr-4">
-                    <Bell className="h-5 w-5 text-emerald-500" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium">Alerts</div>
-                    <div className="text-sm text-muted-foreground">
-                      All systems operational
-                    </div>
-                  </div>
-                  <Button variant="ghost" size="sm" className="ml-auto" onClick={sendTestAlert}>
-                    Test
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        {/* Devices Tab */}
-        <TabsContent value="devices" className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h2 className="text-xl font-semibold">Connected Devices</h2>
-            <Button onClick={() => setShowAddDevice(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Device
-            </Button>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {devices.map(device => (
-              <Card key={device.id}>
-                <CardHeader className="pb-2">
-                  <div className="flex justify-between items-center">
-                    <CardTitle className="text-lg font-medium flex items-center">
-                      {device.type === "bp" ? (
-                        <Activity className="h-5 w-5 mr-2 text-medical-dark-blue" />
-                      ) : (
-                        <Droplet className="h-5 w-5 mr-2 text-medical-dark-blue" />
-                      )}
-                      {device.name}
-                    </CardTitle>
-                    <Badge 
-                      variant={device.status === "connected" ? "default" : "outline"}
-                      className={device.status === "connected" ? "bg-emerald-500 hover:bg-emerald-500/90" : ""}
-                    >
-                      {device.status === "connected" ? "Connected" : "Disconnected"}
-                    </Badge>
-                  </div>
-                  <CardDescription>
-                    {device.model}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {device.lastReading && (
-                      <>
-                        <div className="text-sm text-muted-foreground">
-                          Last Reading: {formatReadingDate(device.lastReading.timestamp)}
-                        </div>
-                        <div className="text-2xl font-bold text-center">
-                          {device.lastReading.value} <span className="text-sm text-muted-foreground">{device.lastReading.unit}</span>
-                        </div>
-                      </>
-                    )}
-                    
-                    <div className="flex justify-between">
-                      <Button variant="outline" size="sm" onClick={() => toggleDeviceConnection(device.id)}>
-                        {device.status === "connected" ? "Disconnect" : "Connect"}
-                      </Button>
-                      <div className="space-x-2">
-                        <Button variant="outline" size="sm" onClick={() => openDeviceConfig(device)}>
-                          <Settings className="h-4 w-4" />
-                        </Button>
-                        <Button variant="outline" size="sm" className="text-medical-red" onClick={() => removeDevice(device.id)}>
-                          <Trash className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-            
-            {devices.length === 0 && (
-              <Card className="col-span-full">
-                <CardContent className="py-8 text-center">
-                  <div className="text-muted-foreground">No devices connected</div>
-                  <Button className="mt-4" onClick={() => setShowAddDevice(true)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Your First Device
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg font-medium">Recommended FDA-Cleared Devices</CardTitle>
-              <CardDescription>
-                These devices are compatible with our monitoring system
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-base font-semibold mb-2">Blood Pressure Monitors</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="p-4 border rounded-lg">
-                      <div className="font-medium">iHealth Track Connected Blood Pressure Monitor</div>
-                      <div className="text-sm text-muted-foreground my-1">FDA 510(k) cleared, Bluetooth connectivity</div>
-                      <div className="text-sm">$29.99 per unit</div>
-                      <div className="mt-2 flex justify-end">
-                        <Button variant="outline" size="sm" onClick={() => pairDevice("bp", "iHealth Track Connected")}>
-                          Pair Device
-                        </Button>
-                      </div>
-                    </div>
-                    
-                    <div className="p-4 border rounded-lg">
-                      <div className="font-medium">Wellue BP2A Wireless Smart Blood Pressure Monitor</div>
-                      <div className="text-sm text-muted-foreground my-1">FDA cleared, one-piece cuff design</div>
-                      <div className="text-sm">$81.99 per unit</div>
-                      <div className="mt-2 flex justify-end">
-                        <Button variant="outline" size="sm" onClick={() => pairDevice("bp", "Wellue BP2A Wireless")}>
-                          Pair Device
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div>
-                  <h3 className="text-base font-semibold mb-2">Glucose Monitors</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="p-4 border rounded-lg">
-                      <div className="font-medium">CareSens N Plus Bluetooth Blood Glucose Monitor</div>
-                      <div className="text-sm text-muted-foreground my-1">FDA cleared, includes 100 test strips</div>
-                      <div className="text-sm">$39.99 per unit</div>
-                      <div className="mt-2 flex justify-end">
-                        <Button variant="outline" size="sm" onClick={() => pairDevice("glucose", "CareSens N Plus")}>
-                          Pair Device
-                        </Button>
-                      </div>
-                    </div>
-                    
-                    <div className="p-4 border rounded-lg">
-                      <div className="font-medium">GluNEO Smart GDH-FAD Autocoding Bluetooth Glucose Meter</div>
-                      <div className="text-sm text-muted-foreground my-1">FDA and CE approved, 5-second result display</div>
-                      <div className="text-sm">Contact supplier for pricing</div>
-                      <div className="mt-2 flex justify-end">
-                        <Button variant="outline" size="sm" onClick={() => pairDevice("glucose", "GluNEO Smart GDH-FAD")}>
-                          Pair Device
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        {/* Reports Tab */}
-        <TabsContent value="reports" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-2 space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg font-medium">Blood Pressure Report</CardTitle>
-                  <CardDescription>
-                    Weekly summary and trends analysis
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="aspect-[2/1] bg-muted/50 rounded-lg flex items-center justify-center text-muted-foreground">
-                    BP readings visualization chart will appear here
-                  </div>
-                  
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="p-3 border rounded-lg text-center">
-                      <div className="text-sm text-muted-foreground">Average</div>
-                      <div className="text-xl font-bold">122/78</div>
-                    </div>
-                    <div className="p-3 border rounded-lg text-center">
-                      <div className="text-sm text-muted-foreground">Highest</div>
-                      <div className="text-xl font-bold text-medical-red">138/89</div>
-                    </div>
-                    <div className="p-3 border rounded-lg text-center">
-                      <div className="text-sm text-muted-foreground">Lowest</div>
-                      <div className="text-xl font-bold text-blue-500">104/65</div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex justify-end">
-                    <Button variant="outline" size="sm" className="mr-2">
-                      <Download className="h-4 w-4 mr-2" />
-                      Export PDF
-                    </Button>
-                    <Button size="sm">
-                      Generate Report
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg font-medium">Glucose Monitoring Report</CardTitle>
-                  <CardDescription>
-                    Weekly summary and meal-related patterns
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="aspect-[2/1] bg-muted/50 rounded-lg flex items-center justify-center text-muted-foreground">
-                    Glucose readings visualization chart will appear here
-                  </div>
-                  
-                  <div className="grid grid-cols-4 gap-4">
-                    <div className="p-3 border rounded-lg text-center">
-                      <div className="text-sm text-muted-foreground">Fasting</div>
-                      <div className="text-xl font-bold">102</div>
-                    </div>
-                    <div className="p-3 border rounded-lg text-center">
-                      <div className="text-sm text-muted-foreground">Pre-meal</div>
-                      <div className="text-xl font-bold">110</div>
-                    </div>
-                    <div className="p-3 border rounded-lg text-center">
-                      <div className="text-sm text-muted-foreground">Post-meal</div>
-                      <div className="text-xl font-bold text-medical-red">142</div>
-                    </div>
-                    <div className="p-3 border rounded-lg text-center">
-                      <div className="text-sm text-muted-foreground">Average</div>
-                      <div className="text-xl font-bold">117</div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex justify-end">
-                    <Button variant="outline" size="sm" className="mr-2">
-                      <Download className="h-4 w-4 mr-2" />
-                      Export PDF
-                    </Button>
-                    <Button size="sm">
-                      Generate Report
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-            
-            <div className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg font-medium">Report Options</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Patient</Label>
-                    <Select defaultValue="15">
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select Patient" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {patients?.map(patient => (
-                          <SelectItem key={patient.id} value={patient.id.toString()}>
-                            {patient.firstName} {patient.lastName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label>Time Range</Label>
-                    <Select defaultValue="7days">
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select Time Range" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="24hours">Last 24 Hours</SelectItem>
-                        <SelectItem value="7days">Last 7 Days</SelectItem>
-                        <SelectItem value="30days">Last 30 Days</SelectItem>
-                        <SelectItem value="90days">Last 90 Days</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label>Report Type</Label>
-                    <Select defaultValue="all">
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select Report Type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Measurements</SelectItem>
-                        <SelectItem value="bp">Blood Pressure Only</SelectItem>
-                        <SelectItem value="glucose">Glucose Only</SelectItem>
-                        <SelectItem value="custom">Custom Report</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <Button className="w-full">Update Reports</Button>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg font-medium">Saved Reports</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center py-2 border-b">
-                      <div>
-                        <div className="font-medium">Monthly BP Summary</div>
-                        <div className="text-sm text-muted-foreground">Apr 1 - Apr 30, 2025</div>
-                      </div>
-                      <Button variant="ghost" size="sm">
-                        <Download className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    
-                    <div className="flex justify-between items-center py-2 border-b">
-                      <div>
-                        <div className="font-medium">Quarterly Health Checkup</div>
-                        <div className="text-sm text-muted-foreground">Jan - Mar 2025</div>
-                      </div>
-                      <Button variant="ghost" size="sm">
-                        <Download className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    
-                    <div className="flex justify-between items-center py-2">
-                      <div>
-                        <div className="font-medium">Medication Effectiveness</div>
-                        <div className="text-sm text-muted-foreground">Last 14 days</div>
-                      </div>
-                      <Button variant="ghost" size="sm">
-                        <Download className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </TabsContent>
-      </Tabs>
-      
-      {/* Add Device Dialog */}
-      <Dialog open={showAddDevice} onOpenChange={setShowAddDevice}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add New Device</DialogTitle>
-            <DialogDescription>
-              Pair a new medical device with the monitoring system.
-            </DialogDescription>
-          </DialogHeader>
+      </CardHeader>
+      <CardContent className="pb-2">
+        <div className="text-sm text-gray-500">
+          <div>Type: {device.type === 'bp' ? 'Blood Pressure Monitor' : 'Glucose Meter'}</div>
+          <div>Last Connected: {device.lastConnected ? new Date(device.lastConnected).toLocaleString() : 'Never'}</div>
+        </div>
+      </CardContent>
+      <CardFooter className="flex justify-between pt-2">
+        <Button variant="outline" size="sm" onClick={() => onDelete(device.id)}>
+          <Trash className="h-4 w-4 mr-2" />
+          Remove
+        </Button>
+        <Button size="sm" onClick={() => onAddReading(device)}>
+          <Activity className="h-4 w-4 mr-2" />
+          Add Reading
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+};
+
+const AddDeviceDialog = ({ patientId, isOpen, onClose, onAdd }) => {
+  const [formData, setFormData] = useState({
+    name: '',
+    type: 'bp',
+    model: '',
+    status: 'disconnected'
+  });
+
+  const handleChange = (field, value) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onAdd({ ...formData, patientId });
+    onClose();
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add New Device</DialogTitle>
+          <DialogDescription>
+            Enter the details of the FDA-cleared medical device you want to add.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="device-type">Device Type</Label>
-              <Select defaultValue="bp">
-                <SelectTrigger>
-                  <SelectValue placeholder="Select Device Type" />
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="name" className="text-right">
+                Name
+              </Label>
+              <Input
+                id="name"
+                value={formData.name}
+                onChange={(e) => handleChange('name', e.target.value)}
+                className="col-span-3"
+                required
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="type" className="text-right">
+                Type
+              </Label>
+              <Select
+                value={formData.type}
+                onValueChange={(value) => handleChange('type', value)}
+              >
+                <SelectTrigger id="type" className="col-span-3">
+                  <SelectValue placeholder="Select device type" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="bp">Blood Pressure Monitor</SelectItem>
-                  <SelectItem value="glucose">Glucose Monitor</SelectItem>
+                  <SelectItem value="glucose">Glucose Meter</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="device-model">Device Model</Label>
-              <Select defaultValue="ihealth">
-                <SelectTrigger>
-                  <SelectValue placeholder="Select Device Model" />
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="model" className="text-right">
+                Model
+              </Label>
+              <Input
+                id="model"
+                value={formData.model}
+                onChange={(e) => handleChange('model', e.target.value)}
+                className="col-span-3"
+                required
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="status" className="text-right">
+                Status
+              </Label>
+              <Select
+                value={formData.status}
+                onValueChange={(value) => handleChange('status', value)}
+              >
+                <SelectTrigger id="status" className="col-span-3">
+                  <SelectValue placeholder="Select device status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ihealth">iHealth Track Connected</SelectItem>
-                  <SelectItem value="wellue">Wellue BP2A Wireless</SelectItem>
-                  <SelectItem value="caresens">CareSens N Plus</SelectItem>
-                  <SelectItem value="gluneo">GluNEO Smart GDH-FAD</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
+                  <SelectItem value="connected">Connected</SelectItem>
+                  <SelectItem value="disconnected">Disconnected</SelectItem>
+                  <SelectItem value="pairing">Pairing</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="device-name">Custom Device Name (Optional)</Label>
-              <Input id="device-name" placeholder="e.g. Living Room BP Monitor" />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddDevice(false)}>Cancel</Button>
-            <Button onClick={() => pairDevice("bp", "iHealth Track Connected")}>
-              <Bluetooth className="h-4 w-4 mr-2" />
-              Start Pairing
-            </Button>
+            <Button type="submit">Add Device</Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      
-      {/* Configure Device Dialog */}
-      <Dialog open={showConfigureDevice} onOpenChange={setShowConfigureDevice}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Configure Device</DialogTitle>
-            <DialogDescription>
-              {selectedDevice?.name} settings
-            </DialogDescription>
-          </DialogHeader>
-          
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+const AddReadingDialog = ({ device, isOpen, onClose, onAdd }) => {
+  const [formData, setFormData] = useState(
+    device?.type === 'bp'
+      ? { systolic: '', diastolic: '', pulse: '', notes: '' }
+      : { value: '', type: 'random', notes: '' }
+  );
+
+  const handleChange = (field, value) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    
+    // For BP readings
+    if (device?.type === 'bp') {
+      onAdd({
+        deviceId: device.id,
+        patientId: device.patientId,
+        systolic: parseInt(formData.systolic),
+        diastolic: parseInt(formData.diastolic),
+        pulse: parseInt(formData.pulse),
+        notes: formData.notes
+      }, 'bp');
+    } 
+    // For glucose readings
+    else {
+      onAdd({
+        deviceId: device.id,
+        patientId: device.patientId,
+        value: parseInt(formData.value),
+        type: formData.type,
+        notes: formData.notes
+      }, 'glucose');
+    }
+    
+    onClose();
+  };
+
+  if (!device) return null;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add New Reading</DialogTitle>
+          <DialogDescription>
+            {device.type === 'bp' 
+              ? 'Enter blood pressure and pulse information.' 
+              : 'Enter blood glucose reading details.'}
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="device-rename">Device Name</Label>
-              <Input id="device-rename" defaultValue={selectedDevice?.name} />
-            </div>
-            
-            <div className="space-y-2">
-              <Label>Measurement Schedule</Label>
-              <Select defaultValue="manual">
-                <SelectTrigger>
-                  <SelectValue placeholder="Select Schedule" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="manual">Manual Only</SelectItem>
-                  <SelectItem value="morning">Morning Reminder</SelectItem>
-                  <SelectItem value="evening">Evening Reminder</SelectItem>
-                  <SelectItem value="both">Morning & Evening</SelectItem>
-                  <SelectItem value="custom">Custom Schedule</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label>Sync Frequency</Label>
-              <Select defaultValue="auto">
-                <SelectTrigger>
-                  <SelectValue placeholder="Select Sync Frequency" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="auto">Automatic (Real-time)</SelectItem>
-                  <SelectItem value="daily">Once Daily</SelectItem>
-                  <SelectItem value="manual">Manual Sync Only</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="flex items-center justify-between">
-              <Label htmlFor="auto-sync">Auto Sync on Connection</Label>
-              <Switch id="auto-sync" defaultChecked />
-            </div>
-            
-            <div className="flex items-center justify-between">
-              <Label htmlFor="auto-upload">Auto Upload to Cloud</Label>
-              <Switch id="auto-upload" defaultChecked />
+            {/* Blood Pressure Form Fields */}
+            {device.type === 'bp' && (
+              <>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="systolic" className="text-right">
+                    Systolic (mmHg)
+                  </Label>
+                  <Input
+                    id="systolic"
+                    value={formData.systolic}
+                    onChange={(e) => handleChange('systolic', e.target.value)}
+                    className="col-span-3"
+                    type="number"
+                    required
+                    min="70"
+                    max="250"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="diastolic" className="text-right">
+                    Diastolic (mmHg)
+                  </Label>
+                  <Input
+                    id="diastolic"
+                    value={formData.diastolic}
+                    onChange={(e) => handleChange('diastolic', e.target.value)}
+                    className="col-span-3"
+                    type="number"
+                    required
+                    min="40"
+                    max="180"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="pulse" className="text-right">
+                    Pulse (bpm)
+                  </Label>
+                  <Input
+                    id="pulse"
+                    value={formData.pulse}
+                    onChange={(e) => handleChange('pulse', e.target.value)}
+                    className="col-span-3"
+                    type="number"
+                    required
+                    min="30"
+                    max="220"
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Glucose Form Fields */}
+            {device.type === 'glucose' && (
+              <>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="value" className="text-right">
+                    Glucose (mg/dL)
+                  </Label>
+                  <Input
+                    id="value"
+                    value={formData.value}
+                    onChange={(e) => handleChange('value', e.target.value)}
+                    className="col-span-3"
+                    type="number"
+                    required
+                    min="20"
+                    max="600"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="type" className="text-right">
+                    Reading Type
+                  </Label>
+                  <Select
+                    value={formData.type}
+                    onValueChange={(value) => handleChange('type', value)}
+                  >
+                    <SelectTrigger id="type" className="col-span-3">
+                      <SelectValue placeholder="Select reading type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fasting">Fasting</SelectItem>
+                      <SelectItem value="pre-meal">Pre-Meal</SelectItem>
+                      <SelectItem value="post-meal">Post-Meal</SelectItem>
+                      <SelectItem value="random">Random</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+
+            {/* Common Fields */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="notes" className="text-right">
+                Notes
+              </Label>
+              <Input
+                id="notes"
+                value={formData.notes}
+                onChange={(e) => handleChange('notes', e.target.value)}
+                className="col-span-3"
+              />
             </div>
           </div>
-          
-          <DialogFooter className="flex justify-between sm:justify-between">
-            <Button variant="outline" type="button" onClick={() => setShowConfigureDevice(false)}>
-              Cancel
-            </Button>
-            <div className="flex gap-2">
-              <Button variant="outline" type="button">
-                <RotateCcw className="h-4 w-4 mr-2" />
-                Reset Device
-              </Button>
-              <Button type="submit">
-                Save Changes
-              </Button>
-            </div>
+          <DialogFooter>
+            <Button type="submit">Save Reading</Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+const ReadingsTab = ({ readings, type }) => {
+  if (!readings || readings.length === 0) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-gray-500">No readings available.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {type === 'bp' ? (
+        // BP Readings
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead className="bg-muted">
+              <tr>
+                <th className="px-4 py-2 text-left">Date</th>
+                <th className="px-4 py-2 text-left">Systolic</th>
+                <th className="px-4 py-2 text-left">Diastolic</th>
+                <th className="px-4 py-2 text-left">Pulse</th>
+                <th className="px-4 py-2 text-left">Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              {readings.map((reading) => (
+                <tr key={reading.id} className="border-b">
+                  <td className="px-4 py-2">{new Date(reading.timestamp).toLocaleString()}</td>
+                  <td className="px-4 py-2">{reading.systolic} mmHg</td>
+                  <td className="px-4 py-2">{reading.diastolic} mmHg</td>
+                  <td className="px-4 py-2">{reading.pulse} bpm</td>
+                  <td className="px-4 py-2">{reading.notes || '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        // Glucose Readings
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead className="bg-muted">
+              <tr>
+                <th className="px-4 py-2 text-left">Date</th>
+                <th className="px-4 py-2 text-left">Glucose</th>
+                <th className="px-4 py-2 text-left">Type</th>
+                <th className="px-4 py-2 text-left">Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              {readings.map((reading) => (
+                <tr key={reading.id} className="border-b">
+                  <td className="px-4 py-2">{new Date(reading.timestamp).toLocaleString()}</td>
+                  <td className="px-4 py-2">{reading.value} mg/dL</td>
+                  <td className="px-4 py-2">
+                    <Badge variant="outline">{reading.type}</Badge>
+                  </td>
+                  <td className="px-4 py-2">{reading.notes || '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const AlertSettingsDialog = ({ patientId, deviceType, isOpen, onClose, onSave }) => {
+  const { toast } = useToast();
+  
+  // Fetch existing settings if available
+  const { data: existingSettings } = useQuery({
+    queryKey: ['/api/monitoring/alert-settings', patientId, deviceType],
+    queryFn: async () => {
+      if (!patientId || !deviceType) return null;
       
-      {/* Alert Settings Dialog */}
-      <Dialog open={showAlertSettings} onOpenChange={setShowAlertSettings}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {alertType === "bp" ? "Blood Pressure Alert Settings" : "Glucose Alert Settings"}
-            </DialogTitle>
-            <DialogDescription>
-              Configure when alerts should be triggered and how they are delivered.
-            </DialogDescription>
-          </DialogHeader>
-          
+      try {
+        const response = await fetch(`/api/monitoring/alert-settings/${patientId}/${deviceType}`);
+        if (response.ok) {
+          return await response.json();
+        }
+        return null;
+      } catch (error) {
+        console.error('Failed to fetch alert settings:', error);
+        return null;
+      }
+    },
+    enabled: !!patientId && !!deviceType && isOpen
+  });
+  
+  const [formData, setFormData] = useState({
+    patientId,
+    deviceType,
+    thresholds: deviceType === 'bp' 
+      ? { systolicHigh: 140, systolicLow: 90, diastolicHigh: 90, diastolicLow: 60, pulseHigh: 100, pulseLow: 60 } 
+      : { high: 180, low: 70 },
+    notifyPatient: true,
+    notifyDoctor: true,
+    notifyCaregivers: false,
+    notifyFamily: false,
+    enabled: true
+  });
+  
+  // Update form with existing settings when available
+  React.useEffect(() => {
+    if (existingSettings) {
+      setFormData(existingSettings);
+    }
+  }, [existingSettings]);
+  
+  const handleThresholdChange = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      thresholds: {
+        ...prev.thresholds,
+        [field]: parseInt(value)
+      }
+    }));
+  };
+  
+  const handleChange = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+  
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    
+    onSave({
+      ...formData,
+      patientId,
+      deviceType
+    });
+    
+    toast({
+      title: "Alert settings saved",
+      description: "Your alert threshold settings have been successfully saved."
+    });
+    
+    onClose();
+  };
+  
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle>Configure Alert Thresholds</DialogTitle>
+          <DialogDescription>
+            Set thresholds for when alerts should be triggered for abnormal readings.
+          </DialogDescription>
+        </DialogHeader>
+        
+        <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
-            {alertType === "bp" ? (
+            {deviceType === 'bp' ? (
+              /* Blood Pressure Thresholds */
               <>
-                <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <Label>Systolic High Threshold (mmHg)</Label>
-                      <span className="text-sm font-medium">{alertSettings.bp.systolicHigh}</span>
-                    </div>
-                    <Slider 
-                      defaultValue={[alertSettings.bp.systolicHigh]} 
-                      max={200} 
-                      min={100} 
-                      step={5}
-                      onValueChange={(value) => {
-                        setAlertSettings({
-                          ...alertSettings,
-                          bp: { ...alertSettings.bp, systolicHigh: value[0] }
-                        })
-                      }}
+                    <Label htmlFor="systolicHigh">Systolic High (mmHg)</Label>
+                    <Input
+                      id="systolicHigh"
+                      type="number"
+                      value={formData.thresholds.systolicHigh}
+                      onChange={(e) => handleThresholdChange('systolicHigh', e.target.value)}
+                      min="100"
+                      max="220"
                     />
                   </div>
-                  
                   <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <Label>Systolic Low Threshold (mmHg)</Label>
-                      <span className="text-sm font-medium">{alertSettings.bp.systolicLow}</span>
-                    </div>
-                    <Slider 
-                      defaultValue={[alertSettings.bp.systolicLow]} 
-                      max={100} 
-                      min={70} 
-                      step={5}
-                      onValueChange={(value) => {
-                        setAlertSettings({
-                          ...alertSettings,
-                          bp: { ...alertSettings.bp, systolicLow: value[0] }
-                        })
-                      }}
+                    <Label htmlFor="systolicLow">Systolic Low (mmHg)</Label>
+                    <Input
+                      id="systolicLow"
+                      type="number"
+                      value={formData.thresholds.systolicLow}
+                      onChange={(e) => handleThresholdChange('systolicLow', e.target.value)}
+                      min="70"
+                      max="140"
                     />
                   </div>
-                  
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <Label>Diastolic High Threshold (mmHg)</Label>
-                      <span className="text-sm font-medium">{alertSettings.bp.diastolicHigh}</span>
-                    </div>
-                    <Slider 
-                      defaultValue={[alertSettings.bp.diastolicHigh]} 
-                      max={120} 
-                      min={70} 
-                      step={5}
-                      onValueChange={(value) => {
-                        setAlertSettings({
-                          ...alertSettings,
-                          bp: { ...alertSettings.bp, diastolicHigh: value[0] }
-                        })
-                      }}
+                    <Label htmlFor="diastolicHigh">Diastolic High (mmHg)</Label>
+                    <Input
+                      id="diastolicHigh"
+                      type="number"
+                      value={formData.thresholds.diastolicHigh}
+                      onChange={(e) => handleThresholdChange('diastolicHigh', e.target.value)}
+                      min="70"
+                      max="120"
                     />
                   </div>
-                  
                   <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <Label>Diastolic Low Threshold (mmHg)</Label>
-                      <span className="text-sm font-medium">{alertSettings.bp.diastolicLow}</span>
-                    </div>
-                    <Slider 
-                      defaultValue={[alertSettings.bp.diastolicLow]} 
-                      max={70} 
-                      min={40} 
-                      step={5}
-                      onValueChange={(value) => {
-                        setAlertSettings({
-                          ...alertSettings,
-                          bp: { ...alertSettings.bp, diastolicLow: value[0] }
-                        })
-                      }}
+                    <Label htmlFor="diastolicLow">Diastolic Low (mmHg)</Label>
+                    <Input
+                      id="diastolicLow"
+                      type="number"
+                      value={formData.thresholds.diastolicLow}
+                      onChange={(e) => handleThresholdChange('diastolicLow', e.target.value)}
+                      min="40"
+                      max="80"
+                    />
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="pulseHigh">Pulse High (bpm)</Label>
+                    <Input
+                      id="pulseHigh"
+                      type="number"
+                      value={formData.thresholds.pulseHigh}
+                      onChange={(e) => handleThresholdChange('pulseHigh', e.target.value)}
+                      min="80"
+                      max="200"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="pulseLow">Pulse Low (bpm)</Label>
+                    <Input
+                      id="pulseLow"
+                      type="number"
+                      value={formData.thresholds.pulseLow}
+                      onChange={(e) => handleThresholdChange('pulseLow', e.target.value)}
+                      min="40"
+                      max="70"
                     />
                   </div>
                 </div>
               </>
             ) : (
-              <>
-                <div className="space-y-4">
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <Label>Fasting High Threshold (mg/dL)</Label>
-                      <span className="text-sm font-medium">{alertSettings.glucose.fastingHigh}</span>
-                    </div>
-                    <Slider 
-                      defaultValue={[alertSettings.glucose.fastingHigh]} 
-                      max={200} 
-                      min={100} 
-                      step={5}
-                      onValueChange={(value) => {
-                        setAlertSettings({
-                          ...alertSettings,
-                          glucose: { ...alertSettings.glucose, fastingHigh: value[0] }
-                        })
-                      }}
-                    />
-                  </div>
-                  
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <Label>Fasting Low Threshold (mg/dL)</Label>
-                      <span className="text-sm font-medium">{alertSettings.glucose.fastingLow}</span>
-                    </div>
-                    <Slider 
-                      defaultValue={[alertSettings.glucose.fastingLow]} 
-                      max={80} 
-                      min={50} 
-                      step={5}
-                      onValueChange={(value) => {
-                        setAlertSettings({
-                          ...alertSettings,
-                          glucose: { ...alertSettings.glucose, fastingLow: value[0] }
-                        })
-                      }}
-                    />
-                  </div>
-                  
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <Label>Post-Meal High Threshold (mg/dL)</Label>
-                      <span className="text-sm font-medium">{alertSettings.glucose.postMealHigh}</span>
-                    </div>
-                    <Slider 
-                      defaultValue={[alertSettings.glucose.postMealHigh]} 
-                      max={250} 
-                      min={140} 
-                      step={5}
-                      onValueChange={(value) => {
-                        setAlertSettings({
-                          ...alertSettings,
-                          glucose: { ...alertSettings.glucose, postMealHigh: value[0] }
-                        })
-                      }}
-                    />
-                  </div>
+              /* Glucose Thresholds */
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="high">Glucose High (mg/dL)</Label>
+                  <Input
+                    id="high"
+                    type="number"
+                    value={formData.thresholds.high}
+                    onChange={(e) => handleThresholdChange('high', e.target.value)}
+                    min="120"
+                    max="300"
+                  />
                 </div>
-              </>
+                <div>
+                  <Label htmlFor="low">Glucose Low (mg/dL)</Label>
+                  <Input
+                    id="low"
+                    type="number"
+                    value={formData.thresholds.low}
+                    onChange={(e) => handleThresholdChange('low', e.target.value)}
+                    min="40"
+                    max="100"
+                  />
+                </div>
+              </div>
             )}
             
-            <Separator />
-            
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="alerts-enabled">Enable Alerts</Label>
-                <Switch 
-                  id="alerts-enabled" 
-                  checked={alertType === "bp" ? alertSettings.bp.enabled : alertSettings.glucose.enabled}
-                  onCheckedChange={(checked) => {
-                    if (alertType === "bp") {
-                      setAlertSettings({
-                        ...alertSettings,
-                        bp: { ...alertSettings.bp, enabled: checked }
-                      });
-                    } else {
-                      setAlertSettings({
-                        ...alertSettings,
-                        glucose: { ...alertSettings.glucose, enabled: checked }
-                      });
-                    }
-                  }}
-                />
-              </div>
-              
-              <div className="space-y-1">
-                <Label>Alert Recipients</Label>
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox id="notify-patient" defaultChecked />
-                    <Label htmlFor="notify-patient" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                      Patient
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox id="notify-doctor" defaultChecked />
-                    <Label htmlFor="notify-doctor" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                      Doctor
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox id="notify-caregiver" />
-                    <Label htmlFor="notify-caregiver" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                      Caregiver
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox id="notify-family" />
-                    <Label htmlFor="notify-family" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                      Family
-                    </Label>
-                  </div>
+            <div className="grid gap-2 pt-4">
+              <h4 className="text-sm font-medium">Notification Settings</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="notifyPatient"
+                    checked={formData.notifyPatient}
+                    onChange={(e) => handleChange('notifyPatient', e.target.checked)}
+                    className="rounded"
+                  />
+                  <Label htmlFor="notifyPatient">Notify Patient</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="notifyDoctor"
+                    checked={formData.notifyDoctor}
+                    onChange={(e) => handleChange('notifyDoctor', e.target.checked)}
+                    className="rounded"
+                  />
+                  <Label htmlFor="notifyDoctor">Notify Doctor</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="notifyCaregivers"
+                    checked={formData.notifyCaregivers}
+                    onChange={(e) => handleChange('notifyCaregivers', e.target.checked)}
+                    className="rounded"
+                  />
+                  <Label htmlFor="notifyCaregivers">Notify Caregivers</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="notifyFamily"
+                    checked={formData.notifyFamily}
+                    onChange={(e) => handleChange('notifyFamily', e.target.checked)}
+                    className="rounded"
+                  />
+                  <Label htmlFor="notifyFamily">Notify Family</Label>
                 </div>
               </div>
+            </div>
+            
+            <div className="flex items-center space-x-2 pt-4">
+              <input
+                type="checkbox"
+                id="enabled"
+                checked={formData.enabled}
+                onChange={(e) => handleChange('enabled', e.target.checked)}
+                className="rounded"
+              />
+              <Label htmlFor="enabled">Enable Alerts</Label>
             </div>
           </div>
           
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAlertSettings(false)}>Cancel</Button>
-            <Button onClick={() => {
-              setShowAlertSettings(false);
-              toast({
-                title: "Alert Settings Updated",
-                description: `Your ${alertType === "bp" ? "blood pressure" : "glucose"} alert settings have been saved.`,
-              });
-            }}>
-              Save Settings
-            </Button>
+            <Button type="submit">Save Settings</Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+export default function MonitoringPage() {
+  const [location, setLocation] = useLocation();
+  const { toast } = useToast();
+  
+  const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
+  const [isAddDeviceDialogOpen, setIsAddDeviceDialogOpen] = useState(false);
+  const [selectedDevice, setSelectedDevice] = useState(null);
+  const [isAddReadingDialogOpen, setIsAddReadingDialogOpen] = useState(false);
+  const [activeTabType, setActiveTabType] = useState<'bp' | 'glucose'>('bp');
+  const [isAlertSettingsOpen, setIsAlertSettingsOpen] = useState(false);
+
+  // Fetch patients data
+  const { data: patients, isLoading: isLoadingPatients } = useQuery({
+    queryKey: ['/api/patients'],
+    select: (data) => data || []
+  });
+
+  // Fetch devices for selected patient
+  const { data: devices, isLoading: isLoadingDevices } = useQuery({
+    queryKey: ['/api/monitoring/devices', selectedPatientId],
+    queryFn: async () => {
+      if (!selectedPatientId) return [];
+      const response = await fetch(`/api/monitoring/devices/${selectedPatientId}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch devices');
+      }
+      return response.json();
+    },
+    enabled: !!selectedPatientId
+  });
+
+  // Fetch BP readings for selected patient
+  const { data: bpReadings, isLoading: isLoadingBpReadings } = useQuery({
+    queryKey: ['/api/monitoring/bp-readings', selectedPatientId],
+    queryFn: async () => {
+      if (!selectedPatientId) return [];
+      const response = await fetch(`/api/monitoring/bp-readings/${selectedPatientId}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch BP readings');
+      }
+      return response.json();
+    },
+    enabled: !!selectedPatientId
+  });
+
+  // Fetch glucose readings for selected patient
+  const { data: glucoseReadings, isLoading: isLoadingGlucoseReadings } = useQuery({
+    queryKey: ['/api/monitoring/glucose-readings', selectedPatientId],
+    queryFn: async () => {
+      if (!selectedPatientId) return [];
+      const response = await fetch(`/api/monitoring/glucose-readings/${selectedPatientId}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch glucose readings');
+      }
+      return response.json();
+    },
+    enabled: !!selectedPatientId
+  });
+
+  // Set first patient as selected if none is selected
+  React.useEffect(() => {
+    if (patients?.length && !selectedPatientId) {
+      setSelectedPatientId(patients[0].id);
+    }
+  }, [patients, selectedPatientId]);
+
+  // Handle adding a new device
+  const handleAddDevice = async (deviceData) => {
+    try {
+      const response = await fetch('/api/monitoring/device', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(deviceData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add device');
+      }
+
+      // Invalidate device query to refetch the updated list
+      queryClient.invalidateQueries({ queryKey: ['/api/monitoring/devices', selectedPatientId] });
+
+      toast({
+        title: 'Device Added',
+        description: 'The device has been successfully added.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Handle deleting a device
+  const handleDeleteDevice = async (deviceId) => {
+    try {
+      const response = await fetch(`/api/monitoring/device/${deviceId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete device');
+      }
+
+      // Invalidate device query to refetch the updated list
+      queryClient.invalidateQueries({ queryKey: ['/api/monitoring/devices', selectedPatientId] });
+
+      toast({
+        title: 'Device Removed',
+        description: 'The device has been successfully removed.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Handle adding a reading
+  const handleAddReading = async (readingData, type) => {
+    try {
+      const endpoint = type === 'bp' ? '/api/monitoring/bp-reading' : '/api/monitoring/glucose-reading';
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(readingData),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to add ${type === 'bp' ? 'blood pressure' : 'glucose'} reading`);
+      }
+
+      // Invalidate readings queries to refetch the updated list
+      if (type === 'bp') {
+        queryClient.invalidateQueries({ queryKey: ['/api/monitoring/bp-readings', selectedPatientId] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['/api/monitoring/glucose-readings', selectedPatientId] });
+      }
+
+      toast({
+        title: 'Reading Added',
+        description: `The ${type === 'bp' ? 'blood pressure' : 'glucose'} reading has been successfully added.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Handle saving alert settings
+  const handleSaveAlertSettings = async (settingsData) => {
+    try {
+      const response = await fetch('/api/monitoring/alert-settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(settingsData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save alert settings');
+      }
+
+      // Invalidate alert settings query
+      queryClient.invalidateQueries({ 
+        queryKey: ['/api/monitoring/alert-settings', selectedPatientId, activeTabType] 
+      });
+
+      toast({
+        title: 'Settings Saved',
+        description: 'Alert thresholds have been successfully saved.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  return (
+    <div className="container mx-auto py-6">
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-2xl font-bold">Patient Monitoring</h1>
+          <p className="text-gray-500">
+            Track and manage patient health metrics from FDA-cleared devices
+          </p>
+        </div>
+        <div className="flex space-x-2">
+          <Button
+            variant="outline"
+            onClick={() => setIsAlertSettingsOpen(true)}
+            disabled={!selectedPatientId}
+          >
+            Configure Alerts
+          </Button>
+          <Button
+            onClick={() => setIsAddDeviceDialogOpen(true)}
+            disabled={!selectedPatientId}
+          >
+            <Plus className="h-4 w-4 mr-2" /> Add Device
+          </Button>
+        </div>
+      </div>
+
+      <PatientSelector
+        patients={patients}
+        selectedPatientId={selectedPatientId}
+        onSelectPatient={setSelectedPatientId}
+      />
+
+      {selectedPatientId && (
+        <Tabs defaultValue="devices" className="mt-6">
+          <TabsList>
+            <TabsTrigger value="devices">Devices</TabsTrigger>
+            <TabsTrigger value="readings">Readings</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="devices">
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {devices?.map((device) => (
+                <DeviceCard
+                  key={device.id}
+                  device={device}
+                  onDelete={handleDeleteDevice}
+                  onAddReading={(device) => {
+                    setSelectedDevice(device);
+                    setIsAddReadingDialogOpen(true);
+                  }}
+                />
+              ))}
+              
+              {!isLoadingDevices && (!devices || devices.length === 0) && (
+                <div className="col-span-full text-center py-10">
+                  <p className="text-gray-500 mb-4">No devices added yet</p>
+                  <Button onClick={() => setIsAddDeviceDialogOpen(true)}>
+                    Add Your First Device
+                  </Button>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="readings">
+            <Tabs defaultValue="bp" className="mt-6" onValueChange={(value) => setActiveTabType(value as 'bp' | 'glucose')}>
+              <TabsList>
+                <TabsTrigger value="bp">Blood Pressure</TabsTrigger>
+                <TabsTrigger value="glucose">Glucose</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="bp">
+                <ReadingsTab readings={bpReadings} type="bp" />
+              </TabsContent>
+              
+              <TabsContent value="glucose">
+                <ReadingsTab readings={glucoseReadings} type="glucose" />
+              </TabsContent>
+            </Tabs>
+          </TabsContent>
+        </Tabs>
+      )}
+
+      {/* Add Device Dialog */}
+      {selectedPatientId && (
+        <AddDeviceDialog
+          patientId={selectedPatientId}
+          isOpen={isAddDeviceDialogOpen}
+          onClose={() => setIsAddDeviceDialogOpen(false)}
+          onAdd={handleAddDevice}
+        />
+      )}
+
+      {/* Add Reading Dialog */}
+      {selectedDevice && (
+        <AddReadingDialog
+          device={selectedDevice}
+          isOpen={isAddReadingDialogOpen}
+          onClose={() => {
+            setIsAddReadingDialogOpen(false);
+            setSelectedDevice(null);
+          }}
+          onAdd={handleAddReading}
+        />
+      )}
+
+      {/* Alert Settings Dialog */}
+      {selectedPatientId && (
+        <AlertSettingsDialog
+          patientId={selectedPatientId}
+          deviceType={activeTabType}
+          isOpen={isAlertSettingsOpen}
+          onClose={() => setIsAlertSettingsOpen(false)}
+          onSave={handleSaveAlertSettings}
+        />
+      )}
     </div>
   );
 }
