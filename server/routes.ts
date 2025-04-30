@@ -5,6 +5,7 @@ import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { aiRouter } from "./routes/ai";
 import { emailRouter } from "./routes/email";
+import { monitoringRouter } from "./routes/monitoring";
 import { 
   insertPatientSchema, 
   insertAppointmentSchema, 
@@ -38,6 +39,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Register Email settings routes
   app.use('/api/settings', emailRouter);
+  
+  // Register Patient Monitoring routes
+  app.use('/api/monitoring', monitoringRouter);
 
   // Patients routes
   app.get("/api/patients", async (req, res) => {

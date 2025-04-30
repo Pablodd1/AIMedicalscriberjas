@@ -1240,9 +1240,9 @@ export default function MonitoringSystem() {
                   </div>
                   <div className="flex items-center space-x-2">
                     <Checkbox id="notify-family" />
-                    <label htmlFor="notify-family" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                    <Label htmlFor="notify-family" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
                       Family
-                    </label>
+                    </Label>
                   </div>
                 </div>
               </div>

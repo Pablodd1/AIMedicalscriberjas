@@ -96,6 +96,24 @@ export interface IStorage {
   createRecordingSession(session: InsertRecordingSession): Promise<RecordingSession>;
   updateRecordingSession(id: number, updates: Partial<RecordingSession>): Promise<RecordingSession | undefined>;
   deleteRecordingSession(id: number): Promise<boolean>;
+  // Device monitoring methods
+  getDevices(patientId: number): Promise<Device[]>;
+  getDevice(id: number): Promise<Device | undefined>;
+  createDevice(device: InsertDevice): Promise<Device>;
+  updateDevice(id: number, updates: Partial<Device>): Promise<Device | undefined>;
+  deleteDevice(id: number): Promise<boolean>;
+  // Blood pressure readings
+  getBpReadings(patientId: number, limit?: number): Promise<BpReading[]>;
+  getBpReadingsByDevice(deviceId: number, limit?: number): Promise<BpReading[]>;
+  createBpReading(reading: InsertBpReading): Promise<BpReading>;
+  // Glucose readings
+  getGlucoseReadings(patientId: number, limit?: number): Promise<GlucoseReading[]>;
+  getGlucoseReadingsByDevice(deviceId: number, limit?: number): Promise<GlucoseReading[]>;
+  createGlucoseReading(reading: InsertGlucoseReading): Promise<GlucoseReading>;
+  // Alert settings
+  getAlertSettings(patientId: number, deviceType: string): Promise<AlertSetting | undefined>;
+  saveAlertSettings(settings: InsertAlertSetting): Promise<AlertSetting>;
+  updateAlertSettings(id: number, updates: Partial<AlertSetting>): Promise<AlertSetting | undefined>;
   sessionStore: session.Store;
 }
 

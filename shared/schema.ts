@@ -1,4 +1,16 @@
-import { pgTable, text, serial, integer, boolean, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { 
+  pgTable, 
+  text, 
+  serial, 
+  integer, 
+  boolean, 
+  timestamp, 
+  pgEnum,
+  varchar,
+  date,
+  real,
+  json
+} from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -370,3 +382,142 @@ export const recordingSessionRelations = relations(recordingSessions, ({ one }) 
     references: [users.id],
   }),
 }));
+
+// Device monitoring models
+export const deviceTypeEnum = pgEnum('device_type', ['bp', 'glucose']);
+export const deviceStatusEnum = pgEnum('device_status', ['connected', 'disconnected', 'pairing']);
+
+export const devices = pgTable("devices", {
+  id: serial("id").primaryKey(),
+  patientId: integer("patient_id").references(() => patients.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 100 }).notNull(),
+  type: deviceTypeEnum("type").notNull(),
+  model: varchar("model", { length: 100 }).notNull(),
+  status: deviceStatusEnum("status").default("disconnected").notNull(),
+  lastConnected: timestamp("last_connected"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull()
+});
+
+export const bpReadings = pgTable("bp_readings", {
+  id: serial("id").primaryKey(),
+  deviceId: integer("device_id").references(() => devices.id, { onDelete: "cascade" }),
+  patientId: integer("patient_id").references(() => patients.id, { onDelete: "cascade" }),
+  systolic: integer("systolic").notNull(),
+  diastolic: integer("diastolic").notNull(),
+  pulse: integer("pulse").notNull(),
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+  notes: text("notes")
+});
+
+export const glucoseReadingTypeEnum = pgEnum('glucose_reading_type', ['fasting', 'pre-meal', 'post-meal', 'random']);
+
+export const glucoseReadings = pgTable("glucose_readings", {
+  id: serial("id").primaryKey(),
+  deviceId: integer("device_id").references(() => devices.id, { onDelete: "cascade" }),
+  patientId: integer("patient_id").references(() => patients.id, { onDelete: "cascade" }),
+  value: integer("value").notNull(),
+  type: glucoseReadingTypeEnum("type").default("random").notNull(),
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+  notes: text("notes")
+});
+
+export const alertSettings = pgTable("alert_settings", {
+  id: serial("id").primaryKey(),
+  patientId: integer("patient_id").references(() => patients.id, { onDelete: "cascade" }),
+  deviceType: deviceTypeEnum("device_type").notNull(),
+  thresholds: json("thresholds").notNull(),
+  notifyPatient: boolean("notify_patient").default(true).notNull(),
+  notifyDoctor: boolean("notify_doctor").default(true).notNull(),
+  notifyCaregivers: boolean("notify_caregivers").default(false),
+  notifyFamily: boolean("notify_family").default(false),
+  enabled: boolean("enabled").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull()
+});
+
+// Relation definitions
+export const deviceRelations = relations(devices, ({ one, many }) => ({
+  patient: one(patients, {
+    fields: [devices.patientId],
+    references: [patients.id],
+  }),
+  bpReadings: many(bpReadings),
+  glucoseReadings: many(glucoseReadings)
+}));
+
+export const bpReadingRelations = relations(bpReadings, ({ one }) => ({
+  device: one(devices, {
+    fields: [bpReadings.deviceId],
+    references: [devices.id],
+  }),
+  patient: one(patients, {
+    fields: [bpReadings.patientId],
+    references: [patients.id],
+  })
+}));
+
+export const glucoseReadingRelations = relations(glucoseReadings, ({ one }) => ({
+  device: one(devices, {
+    fields: [glucoseReadings.deviceId],
+    references: [devices.id],
+  }),
+  patient: one(patients, {
+    fields: [glucoseReadings.patientId],
+    references: [patients.id],
+  })
+}));
+
+export const alertSettingRelations = relations(alertSettings, ({ one }) => ({
+  patient: one(patients, {
+    fields: [alertSettings.patientId],
+    references: [patients.id],
+  })
+}));
+
+// Types and schemas for device monitoring
+export const insertDeviceSchema = createInsertSchema(devices).pick({
+  patientId: true,
+  name: true,
+  type: true,
+  model: true,
+  status: true
+});
+
+export const insertBpReadingSchema = createInsertSchema(bpReadings).pick({
+  deviceId: true,
+  patientId: true,
+  systolic: true, 
+  diastolic: true,
+  pulse: true,
+  notes: true
+});
+
+export const insertGlucoseReadingSchema = createInsertSchema(glucoseReadings).pick({
+  deviceId: true,
+  patientId: true,
+  value: true,
+  type: true,
+  notes: true
+});
+
+export const insertAlertSettingSchema = createInsertSchema(alertSettings).pick({
+  patientId: true,
+  deviceType: true,
+  thresholds: true,
+  notifyPatient: true,
+  notifyDoctor: true,
+  notifyCaregivers: true,
+  notifyFamily: true,
+  enabled: true
+});
+
+export type Device = typeof devices.$inferSelect;
+export type BpReading = typeof bpReadings.$inferSelect;
+export type GlucoseReading = typeof glucoseReadings.$inferSelect;
+export type AlertSetting = typeof alertSettings.$inferSelect;
+
+export type InsertDevice = z.infer<typeof insertDeviceSchema>;
+export type InsertBpReading = z.infer<typeof insertBpReadingSchema>;
+export type InsertGlucoseReading = z.infer<typeof insertGlucoseReadingSchema>;
+export type InsertAlertSetting = z.infer<typeof insertAlertSettingSchema>;
