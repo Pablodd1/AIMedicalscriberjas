@@ -39,6 +39,7 @@ const navigation = [
   { name: "Quick Notes", href: "/quick-notes", icon: PenTool },
   { name: "Patient Intake", href: "/patient-intake", icon: ClipboardList },
   { name: "Telemedicine", href: "/telemedicine", icon: Video },
+  { name: "Patient Monitoring", href: "/monitoring", icon: Activity },
   { name: "AI Assistant", href: "/assistant", icon: Bot },
   { name: "Billing", href: "/billing", icon: CreditCard },
   { name: "Analytics", href: "/analytics", icon: LineChart },
@@ -80,6 +81,7 @@ export default function Sidebar() {
                 <item.icon className={cn("h-5 w-5", {
                   "text-medical-yellow": isActive && item.name === "Billing",
                   "text-medical-red": isActive && item.name === "Telemedicine",
+                  "text-medical-yellow": isActive && item.name === "Patient Monitoring",
                 })} />
                 {!isCollapsed && item.name}
               </Button>
