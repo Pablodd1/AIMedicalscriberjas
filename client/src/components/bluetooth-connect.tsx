@@ -8,7 +8,8 @@ import {
   getDeviceInfo,
   isBluetoothAvailable,
   readBloodPressureData,
-  readGlucoseData
+  readGlucoseData,
+  requestDevice
 } from '@/lib/bluetooth';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
@@ -37,7 +38,7 @@ export default function BluetoothConnect({
   const [isDeviceDialogOpen, setIsDeviceDialogOpen] = useState(false);
   const [customDeviceName, setCustomDeviceName] = useState('');
 
-  const connectDevice = async () => {
+  const connectDevice = async (allowAllDevices = false) => {
     if (!isBluetoothAvailable()) {
       toast({
         title: 'Bluetooth Not Available',
@@ -52,26 +53,42 @@ export default function BluetoothConnect({
     try {
       let bluetoothDevice: BluetoothDevice | null = null;
       
-      if (deviceType === 'bp') {
-        bluetoothDevice = await connectBloodPressureMonitor();
+      if (allowAllDevices) {
+        // Allow any Bluetooth device for testing (AirPods, headphones, etc.)
+        bluetoothDevice = await requestDevice([], true);
       } else {
-        bluetoothDevice = await connectGlucoseMeter();
+        // Connect to FDA-cleared medical devices
+        if (deviceType === 'bp') {
+          bluetoothDevice = await connectBloodPressureMonitor();
+        } else {
+          bluetoothDevice = await connectGlucoseMeter();
+        }
       }
       
       if (bluetoothDevice) {
         setDevice(bluetoothDevice);
         
-        // Get device info
-        const info = await getDeviceInfo(bluetoothDevice);
-        setDeviceInfo(info);
+        try {
+          // Try to get device info - this might fail for non-medical devices
+          const info = await getDeviceInfo(bluetoothDevice);
+          setDeviceInfo(info);
+        } catch (infoError) {
+          console.warn('Could not get detailed device info:', infoError);
+          // For non-medical devices, use basic info
+          setDeviceInfo({ 
+            manufacturer: "Unknown", 
+            model: "Generic Bluetooth Device" 
+          });
+        }
         
         // Open dialog to customize device name
-        setCustomDeviceName(`${info.manufacturer} ${info.model}`);
+        const displayName = bluetoothDevice.name || 'Bluetooth Device';
+        setCustomDeviceName(displayName);
         setIsDeviceDialogOpen(true);
         
         toast({
           title: 'Device Connected',
-          description: `Connected to ${bluetoothDevice.name || 'medical device'}`,
+          description: `Connected to ${displayName}`,
         });
       } else {
         toast({
@@ -195,22 +212,40 @@ export default function BluetoothConnect({
 
   return (
     <div className="mb-4">
-      <div className="flex space-x-2">
-        <Button
-          variant="outline"
-          onClick={connectDevice}
-          disabled={isConnecting}
-          className="flex-1"
-        >
-          <Bluetooth className="h-4 w-4 mr-2" />
-          {isConnecting ? 'Connecting...' : 'Connect FDA Device'}
-        </Button>
+      <div className="flex flex-col space-y-2">
+        <div className="flex space-x-2">
+          <Button
+            variant="outline"
+            onClick={(e) => {
+              e.preventDefault();
+              connectDevice(false);
+            }}
+            disabled={isConnecting}
+            className="flex-1"
+          >
+            <Bluetooth className="h-4 w-4 mr-2" />
+            {isConnecting ? 'Connecting...' : 'Connect FDA Device'}
+          </Button>
+          
+          <Button
+            variant="outline"
+            onClick={(e) => {
+              e.preventDefault();
+              connectDevice(true);
+            }}
+            disabled={isConnecting}
+            className="flex-1"
+          >
+            <Bluetooth className="h-4 w-4 mr-2" />
+            Any Bluetooth Device
+          </Button>
+        </div>
         
         {device && (
           <Button
             onClick={readData}
             disabled={isReading || !device}
-            className="flex-1"
+            className="w-full"
           >
             <Activity className="h-4 w-4 mr-2" />
             {isReading ? 'Reading...' : 'Get Reading'}
@@ -222,9 +257,9 @@ export default function BluetoothConnect({
       <Dialog open={isDeviceDialogOpen} onOpenChange={setIsDeviceDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>New Device Found</DialogTitle>
+            <DialogTitle>New Bluetooth Device Found</DialogTitle>
             <DialogDescription>
-              Customize the name for this medical device. This will help you identify it later.
+              Customize the name for this device. This will help you identify it later.
             </DialogDescription>
           </DialogHeader>
           

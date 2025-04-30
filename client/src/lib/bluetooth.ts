@@ -34,23 +34,44 @@ export const isBluetoothAvailable = (): boolean => {
 /**
  * Request a Bluetooth device with specified services
  * @param serviceUUIDs Array of service UUIDs to request
+ * @param allowAllDevices Whether to allow all Bluetooth devices (for testing)
  * @returns Connected Bluetooth device or null if connection failed
  */
 export const requestDevice = async (
-  serviceUUIDs: string[]
+  serviceUUIDs: string[] = [],
+  allowAllDevices: boolean = false
 ): Promise<BluetoothDevice | null> => {
   if (!isBluetoothAvailable()) {
     throw new Error("Bluetooth not supported by this browser");
   }
   
   try {
-    // Request a device matching the filter criteria
-    const device = await navigator.bluetooth.requestDevice({
-      filters: [
-        { services: serviceUUIDs }
-      ],
-      optionalServices: [BLE_SERVICES.DEVICE_INFO.SERVICE]
-    });
+    let requestOptions: RequestDeviceOptions;
+    
+    if (allowAllDevices) {
+      // Accept all devices for testing purposes
+      requestOptions = {
+        acceptAllDevices: true,
+        optionalServices: [
+          ...serviceUUIDs,
+          BLE_SERVICES.DEVICE_INFO.SERVICE,
+          // Add common services that many Bluetooth devices might have
+          '00001800-0000-1000-8000-00805f9b34fb', // Generic Access
+          '00001801-0000-1000-8000-00805f9b34fb'  // Generic Attribute
+        ]
+      };
+    } else {
+      // Request only devices with specific services
+      requestOptions = {
+        filters: [
+          { services: serviceUUIDs }
+        ],
+        optionalServices: [BLE_SERVICES.DEVICE_INFO.SERVICE]
+      };
+    }
+    
+    // Request a device 
+    const device = await navigator.bluetooth.requestDevice(requestOptions);
     
     return device;
   } catch (error) {
