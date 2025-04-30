@@ -11,8 +11,9 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle, Activity, Plus, Trash } from 'lucide-react';
+import { AlertCircle, Activity, Plus, Trash, Bluetooth } from 'lucide-react';
 import { queryClient } from '@/lib/queryClient';
+import BluetoothConnect from '@/components/bluetooth-connect';
 
 const PatientSelector = ({ patients, selectedPatientId, onSelectPatient }) => {
   if (!patients?.length) {
@@ -918,6 +919,43 @@ export default function MonitoringPage() {
           </TabsList>
           
           <TabsContent value="devices">
+            {selectedPatientId && (
+              <Card className="mb-6">
+                <CardHeader>
+                  <CardTitle>Bluetooth Integration</CardTitle>
+                  <CardDescription>
+                    Connect to FDA-cleared medical devices via Bluetooth to automatically record readings
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Tabs defaultValue="bp">
+                    <TabsList className="mb-4">
+                      <TabsTrigger value="bp">Blood Pressure Monitor</TabsTrigger>
+                      <TabsTrigger value="glucose">Glucose Meter</TabsTrigger>
+                    </TabsList>
+                    
+                    <TabsContent value="bp">
+                      <BluetoothConnect 
+                        patientId={selectedPatientId}
+                        deviceType="bp"
+                        onDeviceConnected={handleAddDevice}
+                        onReadingReceived={(readingData) => handleAddReading(readingData, 'bp')}
+                      />
+                    </TabsContent>
+                    
+                    <TabsContent value="glucose">
+                      <BluetoothConnect 
+                        patientId={selectedPatientId}
+                        deviceType="glucose"
+                        onDeviceConnected={handleAddDevice}
+                        onReadingReceived={(readingData) => handleAddReading(readingData, 'glucose')}
+                      />
+                    </TabsContent>
+                  </Tabs>
+                </CardContent>
+              </Card>
+            )}
+            
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {devices?.map((device) => (
                 <DeviceCard
