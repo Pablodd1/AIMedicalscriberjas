@@ -123,6 +123,7 @@ function Router() {
       <ProtectedRoute path="/settings" component={SettingsPage} />
       <ProtectedRoute path="/patient-intake" component={PatientIntakePage} />
       <ProtectedRoute path="/monitoring" component={MonitoringPage} />
+      <ProtectedRoute path="/lab-interpreter" component={LabInterpreterPage} />
       
       {/* Public Routes - accessible without authentication */}
       <Route path="/auth" component={AuthPage} />

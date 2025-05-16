@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Loader2, FileUp, Settings2, Database, BookText, RotateCw, BotIcon, UserIcon, Upload, Settings, ChevronRight, DownloadIcon } from 'lucide-react';
+import { Loader2, FileUp, Settings2, Database, BookText, RotateCw, BotIcon, UserIcon, Upload, Settings, ChevronRight, DownloadIcon, UploadCloud } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 
 interface Patient {
@@ -656,7 +656,7 @@ export default function LabInterpreter() {
                           disabled={withPatient && !selectedPatientId}
                         />
                         <div className="flex flex-col items-center justify-center gap-2">
-                          <UploadIcon className="h-8 w-8 text-muted-foreground" />
+                          <UploadCloud className="h-8 w-8 text-muted-foreground" />
                           <p className="text-sm font-medium">Click to upload or drag and drop</p>
                           <p className="text-xs text-muted-foreground">PDF or Image (max 10MB)</p>
                         </div>

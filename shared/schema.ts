@@ -588,6 +588,8 @@ export const insertLabReportSchema = createInsertSchema(labReports).pick({
   fileName: true,
   filePath: true,
   title: true,
+  analysis: true,
+  recommendations: true,
 });
 
 // Types for lab interpreter

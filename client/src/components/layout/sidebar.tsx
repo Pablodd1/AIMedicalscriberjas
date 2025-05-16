@@ -40,6 +40,7 @@ const navigation = [
   { name: "Patient Intake", href: "/patient-intake", icon: ClipboardList },
   { name: "Telemedicine", href: "/telemedicine", icon: Video },
   { name: "Patient Monitoring", href: "/monitoring", icon: Activity },
+  { name: "Lab Interpreter", href: "/lab-interpreter", icon: Flask },
   { name: "AI Assistant", href: "/assistant", icon: Bot },
   { name: "Billing", href: "/billing", icon: CreditCard },
   { name: "Analytics", href: "/analytics", icon: LineChart },

@@ -348,15 +348,17 @@ labInterpreterRouter.post('/analyze', async (req, res) => {
     
     // Save to database if patient is selected
     if (withPatient && patientId && patient) {
-      const doctorId = req.session.userId;
-      await storage.createLabReport({
-        patientId,
-        doctorId,
-        reportData: reportText,
-        reportType: 'text',
-        title: `Lab Report Analysis - ${patient.firstName} ${patient.lastName}`,
-        analysis
-      });
+      const doctorId = req.user?.id;
+      if (doctorId) {
+        await storage.createLabReport({
+          patientId,
+          doctorId,
+          reportData: reportText,
+          reportType: 'text',
+          title: `Lab Report Analysis - ${patient.firstName} ${patient.lastName}`,
+          analysis: analysis
+        });
+      }
     }
     
     return res.json({ analysis });
@@ -461,17 +463,19 @@ labInterpreterRouter.post('/analyze/upload', upload.single('labReport'), async (
     
     // Save to database if patient is selected
     if (withPatient === 'true' && patientId && patient) {
-      const doctorId = req.session.userId;
-      await storage.createLabReport({
-        patientId: parseInt(patientId),
-        doctorId,
-        reportData: extractedText,
-        reportType: req.file.mimetype.startsWith('image/') ? 'image' : 'pdf',
-        fileName: req.file.originalname,
-        filePath: req.file.path,
-        title: `Lab Report Analysis - ${patient.firstName} ${patient.lastName}`,
-        analysis
-      });
+      const doctorId = req.user?.id;
+      if (doctorId) {
+        await storage.createLabReport({
+          patientId: parseInt(patientId),
+          doctorId,
+          reportData: extractedText,
+          reportType: req.file.mimetype.startsWith('image/') ? 'image' : 'pdf',
+          fileName: req.file.originalname,
+          filePath: req.file.path,
+          title: `Lab Report Analysis - ${patient.firstName} ${patient.lastName}`,
+          analysis: analysis
+        });
+      }
     } else {
       // Clean up the uploaded file if not saving to database
       if (fs.existsSync(req.file.path)) {
