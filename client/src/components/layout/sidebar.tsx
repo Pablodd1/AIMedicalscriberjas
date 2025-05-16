@@ -141,16 +141,17 @@ export default function Sidebar() {
             </div>
           )}
         </div>
-        <Button
-          variant="outline"
-          className={cn("w-full justify-start gap-2 bg-medical-red hover:bg-medical-red/90 text-white border-medical-red", {
-            "justify-center": isCollapsed,
-          })}
-          onClick={() => logoutMutation.mutate()}
-        >
-          <LogOut className="h-5 w-5" />
-          {!isCollapsed && "Logout"}
-        </Button>
+        <a href="/api/logout" style={{ width: "100%" }}>
+          <Button
+            variant="outline"
+            className={cn("w-full justify-start gap-2 bg-medical-red hover:bg-medical-red/90 text-white border-medical-red", {
+              "justify-center": isCollapsed,
+            })}
+          >
+            <LogOut className="h-5 w-5" />
+            {!isCollapsed && "Logout"}
+          </Button>
+        </a>
       </div>
     </>
   );
