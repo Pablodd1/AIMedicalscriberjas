@@ -207,14 +207,17 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       
       const compositeStream = new MediaStream(compositeTracks);
       
-      // 5. Set up the recorder with high quality
+      // 5. Set up the recorder with high quality optimized for conversation capture
       let options = {};
       
       // Try different video/audio formats in order of preference
+      // Using codecs that prioritize speech clarity and reliability
       const mimeTypes = [
-        'video/webm;codecs=vp9,opus',
-        'video/webm;codecs=vp8,opus',
-        'video/webm',
+        'video/webm;codecs=vp9,opus', // Best quality, opus is excellent for speech
+        'video/webm;codecs=vp8,opus', 
+        'audio/webm;codecs=opus',     // Audio-only fallback with opus codec
+        'video/webm',                 // Generic fallbacks
+        'audio/webm',
         'video/mp4'
       ];
       
@@ -222,9 +225,16 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
         if (MediaRecorder.isTypeSupported(mimeType)) {
           options = {
             mimeType,
-            videoBitsPerSecond: 2500000, // 2.5 Mbps
-            audioBitsPerSecond: 128000    // 128 kbps
+            videoBitsPerSecond: 2500000, // 2.5 Mbps for video
+            audioBitsPerSecond: 128000   // 128 kbps - good for speech clarity
           };
+          
+          // If using audio-only format, increase audio quality
+          if (mimeType.startsWith('audio/')) {
+            options.audioBitsPerSecond = 192000; // Higher quality for audio-only
+          }
+          
+          console.log(`Using recording format: ${mimeType}`);
           break;
         }
       }
@@ -281,7 +291,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       };
       
       // Start recording
-      mediaRecorder.start(1000); // Collect data every second
+      mediaRecorder.start(500); // Collect data every 500ms for more reliable speech capture
       setIsRecording(true);
       
       // Update recorded time every second
