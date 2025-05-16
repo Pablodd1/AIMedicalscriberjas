@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Loader2, FileUp, Settings2, Database, BookText, RotateCw, BotIcon, UserIcon, Upload, Settings, ChevronRight, DownloadIcon, UploadCloud, FileText, FileSpreadsheet, Clipboard, ChevronDown } from 'lucide-react';
+import { Loader2, FileUp, Settings2, Database, BookText, RotateCw, BotIcon, UserIcon, Upload, Settings, ChevronRight, DownloadIcon, UploadCloud, FileText, FileSpreadsheet, Clipboard, ChevronDown, Maximize, Minimize } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { apiRequest } from '@/lib/queryClient';
 
@@ -59,6 +59,7 @@ export default function LabInterpreter() {
   const [isLoadingSettings, setIsLoadingSettings] = useState(false);
   const [knowledgeBase, setKnowledgeBase] = useState<KnowledgeBaseItem[]>([]);
   const [isLoadingKnowledgeBase, setIsLoadingKnowledgeBase] = useState(false);
+  const [isFullScreenMode, setIsFullScreenMode] = useState(false);
   
   // Form values for settings
   const [systemPrompt, setSystemPrompt] = useState('');
@@ -563,6 +564,24 @@ export default function LabInterpreter() {
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-lg font-medium">Lab Test References</h3>
                   <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsFullScreenMode(!isFullScreenMode)}
+                    >
+                      {isFullScreenMode ? (
+                        <>
+                          <Minimize className="mr-2 h-4 w-4" />
+                          <span className="hidden sm:inline">Exit Fullscreen</span>
+                        </>
+                      ) : (
+                        <>
+                          <Maximize className="mr-2 h-4 w-4" />
+                          <span className="hidden sm:inline">Fullscreen</span>
+                        </>
+                      )}
+                    </Button>
+                    
                     {knowledgeBase.length > 0 && (
                       <Button 
                         variant="destructive" 
@@ -605,7 +624,7 @@ export default function LabInterpreter() {
                           ) : (
                             <Upload className="mr-2 h-4 w-4" />
                           )}
-                          Import Data
+                          <span className="hidden sm:inline">Import Data</span>
                           <ChevronDown className="ml-2 h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
