@@ -103,9 +103,11 @@ export default function LabInterpreter() {
         const response = await apiRequest('GET', '/api/lab-interpreter/settings');
         const data = await response.json();
         setSettings(data);
-        setSystemPrompt(data.systemPrompt);
-        setWithPatientPrompt(data.withPatientPrompt);
-        setWithoutPatientPrompt(data.withoutPatientPrompt);
+        
+        // Map the database field names to our client field names
+        setSystemPrompt(data.system_prompt || data.systemPrompt || '');
+        setWithPatientPrompt(data.with_patient_prompt || data.withPatientPrompt || '');
+        setWithoutPatientPrompt(data.without_patient_prompt || data.withoutPatientPrompt || '');
       } catch (error) {
         console.error('Error fetching settings:', error);
         toast({

@@ -649,12 +649,25 @@ labInterpreterRouter.get('/settings', async (req, res) => {
     if (!settings) {
       // Return default settings if none are found
       return res.json({
+        system_prompt: 'You are a medical lab report interpreter. Your task is to analyze lab test results and provide insights based on medical knowledge and the provided reference ranges. Be factual and evidence-based in your analysis.',
+        with_patient_prompt: 'Analyze this lab report for ${patientName} (ID: ${patientId}). Reference this data against the known values in the knowledge base. Provide a detailed interpretation of abnormal values, possible implications, and recommendations.',
+        without_patient_prompt: 'Analyze this lab report. Reference this data against the known values in the knowledge base. Provide a detailed interpretation of abnormal values, possible implications, and recommendations.',
+        // Add client-side field names for compatibility
         systemPrompt: 'You are a medical lab report interpreter. Your task is to analyze lab test results and provide insights based on medical knowledge and the provided reference ranges. Be factual and evidence-based in your analysis.',
         withPatientPrompt: 'Analyze this lab report for ${patientName} (ID: ${patientId}). Reference this data against the known values in the knowledge base. Provide a detailed interpretation of abnormal values, possible implications, and recommendations.',
         withoutPatientPrompt: 'Analyze this lab report. Reference this data against the known values in the knowledge base. Provide a detailed interpretation of abnormal values, possible implications, and recommendations.'
       });
     }
-    return res.json(settings);
+    
+    // Add client-side field names to make it compatible with the frontend
+    const response = {
+      ...settings,
+      systemPrompt: settings.system_prompt,
+      withPatientPrompt: settings.with_patient_prompt,
+      withoutPatientPrompt: settings.without_patient_prompt
+    };
+    
+    return res.json(response);
   } catch (error) {
     console.error('Error fetching lab interpreter settings:', error);
     return res.status(500).json({ error: 'Failed to fetch lab interpreter settings' });
@@ -676,7 +689,15 @@ labInterpreterRouter.post('/settings', async (req, res) => {
       without_patient_prompt: withoutPatientPrompt
     });
     
-    return res.json(settings);
+    // Add client-side field names to make it compatible with the frontend
+    const response = {
+      ...settings,
+      systemPrompt: settings.system_prompt,
+      withPatientPrompt: settings.with_patient_prompt,
+      withoutPatientPrompt: settings.without_patient_prompt
+    };
+    
+    return res.json(response);
   } catch (error) {
     console.error('Error saving lab interpreter settings:', error);
     return res.status(500).json({ error: 'Failed to save lab interpreter settings' });
