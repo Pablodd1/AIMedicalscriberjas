@@ -538,15 +538,33 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
 
   const initializeMedia = async () => {
     try {
+      // Request high-quality video and audio with specific constraints
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: true, 
-        audio: true 
+        video: { 
+          width: { ideal: 1280, min: 640 },
+          height: { ideal: 720, min: 480 },
+          frameRate: { ideal: 30, min: 24 },
+          facingMode: "user"
+        }, 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 48000,
+          channelCount: 2
+        }
       });
 
       localStreamRef.current = stream;
 
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
+        // Enable picture-in-picture for local video
+        localVideoRef.current.onloadedmetadata = () => {
+          if (localVideoRef.current) {
+            localVideoRef.current.play().catch(e => console.error("Could not play local video:", e));
+          }
+        };
       }
 
       setConnected(true);
