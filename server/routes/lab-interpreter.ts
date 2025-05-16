@@ -217,15 +217,105 @@ labInterpreterRouter.delete('/knowledge-base/:id', async (req, res) => {
   }
 });
 
-// Import knowledge base from Excel file
-labInterpreterRouter.post('/knowledge-base/import', upload.single('knowledgeBase'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
+// Helper function to parse text format for knowledge base
+function parseTextFormat(text: string): any[] {
+  // Split the text by double newlines (paragraph breaks)
+  const entries = text.split(/\n\s*\n/).filter(entry => entry.trim().length > 0);
+  
+  return entries.map(entry => {
+    const lines = entry.split('\n');
+    const result: any = {
+      test_name: '',
+      marker: '',
+      normal_range_low: null,
+      normal_range_high: null,
+      unit: '',
+      interpretation: '',
+      recommendations: ''
+    };
+    
+    for (const line of lines) {
+      const [key, value] = line.split(':').map(s => s.trim());
+      
+      if (!key || !value) continue;
+      
+      if (/test|name/i.test(key)) {
+        result.test_name = value;
+      } else if (/marker|analyte|parameter/i.test(key)) {
+        result.marker = value;
+      } else if (/range|normal/i.test(key)) {
+        // Try to parse range values
+        const rangeMatch = value.match(/([\d\.]+)\s*-\s*([\d\.]+)\s*(\w+)?/);
+        if (rangeMatch) {
+          result.normal_range_low = parseFloat(rangeMatch[1]);
+          result.normal_range_high = parseFloat(rangeMatch[2]);
+          if (rangeMatch[3]) {
+            result.unit = rangeMatch[3];
+          }
+        }
+      } else if (/unit/i.test(key)) {
+        result.unit = value;
+      } else if (/interpret|desc|meaning/i.test(key)) {
+        result.interpretation = value;
+      } else if (/recommend|advice|suggest/i.test(key)) {
+        result.recommendations = value;
+      } else if (/min|low/i.test(key)) {
+        result.normal_range_low = parseFloat(value);
+      } else if (/max|high/i.test(key)) {
+        result.normal_range_high = parseFloat(value);
+      }
     }
     
-    // Parse Excel file
-    const data = parseExcelFile(req.file.path);
+    return result;
+  });
+}
+
+// Import knowledge base - supports multiple formats
+labInterpreterRouter.post('/knowledge-base/import', upload.single('file'), async (req, res) => {
+  try {
+    let data: any[] = [];
+    const importType = req.body.importType || 'excel';
+    
+    if (importType === 'excel') {
+      // Excel file import
+      if (!req.file) {
+        return res.status(400).json({ error: 'No Excel file uploaded' });
+      }
+      
+      // Check if it's an Excel file
+      if (!req.file.originalname.match(/\.(xlsx|xls)$/i)) {
+        return res.status(400).json({ error: 'Uploaded file is not an Excel file' });
+      }
+      
+      data = parseExcelFile(req.file.path);
+      
+      // Clean up uploaded file when done
+      fs.unlinkSync(req.file.path);
+    } 
+    else if (importType === 'text') {
+      // Text file import
+      if (!req.file) {
+        return res.status(400).json({ error: 'No text file uploaded' });
+      }
+      
+      // Read the text file
+      const textContent = fs.readFileSync(req.file.path, 'utf-8');
+      data = parseTextFormat(textContent);
+      
+      // Clean up uploaded file when done
+      fs.unlinkSync(req.file.path);
+    }
+    else if (importType === 'paste') {
+      // Text content directly pasted
+      if (!req.body.textContent) {
+        return res.status(400).json({ error: 'No text content provided' });
+      }
+      
+      data = parseTextFormat(req.body.textContent);
+    }
+    else {
+      return res.status(400).json({ error: 'Invalid import type' });
+    }
     
     // Validate and clean data
     const validatedData = data.map(item => {
@@ -238,14 +328,11 @@ labInterpreterRouter.post('/knowledge-base/import', upload.single('knowledgeBase
     }).filter(Boolean);
     
     if (validatedData.length === 0) {
-      return res.status(400).json({ error: 'No valid data found in file' });
+      return res.status(400).json({ error: 'No valid data found in the imported content' });
     }
     
     // Import data
     const itemsImported = await storage.importLabKnowledgeBase(validatedData);
-    
-    // Clean up uploaded file
-    fs.unlinkSync(req.file.path);
     
     return res.status(201).json({ 
       message: 'Knowledge base imported successfully',
