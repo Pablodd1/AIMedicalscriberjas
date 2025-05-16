@@ -134,9 +134,17 @@ adminRouter.delete('/users/:userId', async (req: Request, res: Response) => {
 // This is necessary as we're using the isActive field for user management
 adminRouter.get('/update-schema', async (req: Request, res: Response) => {
   try {
-    // We already have isActive in our schema
-    // Just return success as this is a maintenance endpoint
-    return res.json({ message: 'Schema already up to date' });
+    // We are using the db directly from the pool since we already have the isActive field in our schema
+    // This is just for verification purposes
+    const result = await pool.query(
+      "SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'is_active'"
+    );
+    
+    if (result.rows.length === 0) {
+      // Just in case, if column doesn't exist, add it
+      await pool.query("ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT TRUE");
+      return res.json({ message: 'Schema updated successfully' });
+    }
     
     return res.json({ message: 'Schema already up to date' });
   } catch (error) {

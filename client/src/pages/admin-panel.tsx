@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useToast } from '@/hooks/use-toast';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -15,7 +17,26 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,24 +48,18 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { useLocation, useRoute } from 'wouter';
-import { 
-  UserPlus, 
-  UserCheck, 
-  UserX, 
-  Edit, 
-  Trash, 
-  Users, 
-  Shield, 
-  ShieldOff, 
-  Eye, 
-  EyeOff, 
-  Clock,
-  RefreshCw,
-  CheckCircle,
-  XCircle
-} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { toast } from '@/hooks/use-toast';
+import { apiRequest } from '@/lib/queryClient';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Loader2, Check, X, Trash2, UserPlus, UserCog, Shield, Users } from 'lucide-react';
 
 interface User {
   id: number;
@@ -57,69 +72,65 @@ interface User {
   lastLogin: string | null;
 }
 
-const AdminPanel = () => {
-  const [authenticated, setAuthenticated] = useState(false);
-  const [password, setPassword] = useState('');
-  const [loginError, setLoginError] = useState('');
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [, setLocation] = useLocation();
-
-  const handleLogin = () => {
-    if (password === 'admin@@@') {
-      setAuthenticated(true);
-      setLoginError('');
-    } else {
-      setLoginError('Invalid password');
-    }
+interface AdminStats {
+  totalUsers: number;
+  activeUsers: number;
+  inactiveUsers: number;
+  usersByRole: {
+    admin: number;
+    doctor: number;
+    assistant: number;
+    patient: number;
   };
+  totalPatients: number;
+}
 
-  // Get all users query
-  const { 
-    data: users = [], 
-    isLoading, 
-    isError,
-    refetch
-  } = useQuery<User[]>({
-    queryKey: ['/api/admin/users'],
-    queryFn: async () => {
-      if (!authenticated) return [];
-      
-      const response = await fetch('/api/admin/users', {
-        credentials: 'include',
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch users');
-      }
-      
-      return response.json();
+const AdminLoginSchema = z.object({
+  password: z.string().min(1, { message: 'Password is required' }),
+});
+
+const AdminPanel = () => {
+  const queryClient = useQueryClient();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  const adminLoginForm = useForm<z.infer<typeof AdminLoginSchema>>({
+    resolver: zodResolver(AdminLoginSchema),
+    defaultValues: {
+      password: '',
     },
-    enabled: authenticated,
   });
 
-  // Toggle user active status mutation
-  const toggleActiveMutation = useMutation({
+  const { data: users, isLoading: isLoadingUsers } = useQuery({
+    queryKey: ['/api/admin/users'],
+    queryFn: async () => {
+      if (!isAuthenticated) return [] as User[];
+      const response = await apiRequest('/api/admin/users', 'GET');
+      return response as User[];
+    },
+    enabled: isAuthenticated,
+  });
+
+  const { data: stats, isLoading: isLoadingStats } = useQuery({
+    queryKey: ['/api/admin/dashboard'],
+    queryFn: async () => {
+      if (!isAuthenticated) return null;
+      const response = await apiRequest('/api/admin/dashboard');
+      return response as AdminStats;
+    },
+    enabled: isAuthenticated,
+  });
+
+  const updateUserStatusMutation = useMutation({
     mutationFn: async ({ userId, isActive }: { userId: number; isActive: boolean }) => {
-      const response = await fetch(`/api/admin/users/${userId}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ isActive }),
-        credentials: 'include',
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to update user status');
-      }
-      
-      return response.json();
+      const response = await apiRequest(`/api/admin/users/${userId}/status`, 'PATCH', { isActive });
+      return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/dashboard'] });
       toast({
         title: 'User status updated',
         description: 'The user status has been updated successfully.',
@@ -127,64 +138,45 @@ const AdminPanel = () => {
     },
     onError: (error) => {
       toast({
-        title: 'Update failed',
-        description: error.message || 'There was an error updating the user status.',
+        title: 'Error updating user status',
+        description: 'There was an error updating the user status. Please try again.',
         variant: 'destructive',
       });
     },
   });
 
-  // Update user role mutation
-  const updateRoleMutation = useMutation({
+  const updateUserRoleMutation = useMutation({
     mutationFn: async ({ userId, role }: { userId: number; role: string }) => {
-      const response = await fetch(`/api/admin/users/${userId}/role`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ role }),
-        credentials: 'include',
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to update user role');
-      }
-      
-      return response.json();
+      const response = await apiRequest(`/api/admin/users/${userId}/role`, 'PATCH', { role });
+      return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/dashboard'] });
+      setShowEditDialog(false);
       toast({
         title: 'User role updated',
         description: 'The user role has been updated successfully.',
       });
-      setEditDialogOpen(false);
     },
     onError: (error) => {
       toast({
-        title: 'Update failed',
-        description: error.message || 'There was an error updating the user role.',
+        title: 'Error updating user role',
+        description: 'There was an error updating the user role. Please try again.',
         variant: 'destructive',
       });
     },
   });
 
-  // Delete user mutation
   const deleteUserMutation = useMutation({
     mutationFn: async (userId: number) => {
-      const response = await fetch(`/api/admin/users/${userId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to delete user');
-      }
-      
-      return response.json();
+      const response = await apiRequest(`/api/admin/users/${userId}`, 'DELETE');
+      return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/dashboard'] });
+      setShowDeleteDialog(false);
       toast({
         title: 'User deleted',
         description: 'The user has been deleted successfully.',
@@ -192,287 +184,375 @@ const AdminPanel = () => {
     },
     onError: (error) => {
       toast({
-        title: 'Delete failed',
-        description: error.message || 'There was an error deleting the user.',
+        title: 'Error deleting user',
+        description: 'There was an error deleting the user. Please try again.',
         variant: 'destructive',
       });
     },
   });
 
-  const handleToggleActive = (userId: number, currentStatus: boolean) => {
-    toggleActiveMutation.mutate({ userId, isActive: !currentStatus });
-  };
-
-  const handleRoleChange = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentUser) return;
-    
-    const target = e.target as HTMLFormElement;
-    const role = target.role.value;
-    
-    updateRoleMutation.mutate({ userId: currentUser.id, role });
-  };
-
-  const openEditDialog = (user: User) => {
-    setCurrentUser(user);
-    setEditDialogOpen(true);
-  };
-
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return 'Never';
-    
-    const date = new Date(dateString);
-    return date.toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  const getRoleBadgeVariant = (role: string) => {
-    switch (role) {
-      case 'admin':
-        return 'destructive';
-      case 'doctor':
-        return 'default';
-      case 'assistant':
-        return 'secondary';
-      case 'patient':
-        return 'outline';
-      default:
-        return 'outline';
+  const handleAdminLogin = (data: z.infer<typeof AdminLoginSchema>) => {
+    if (data.password === 'admin@@@') {
+      setIsAuthenticated(true);
+      toast({
+        title: 'Authentication successful',
+        description: 'You are now authenticated as an admin.',
+      });
+    } else {
+      toast({
+        title: 'Authentication failed',
+        description: 'The password you entered is incorrect.',
+        variant: 'destructive',
+      });
     }
   };
 
-  if (!authenticated) {
+  const handleUserStatusToggle = (userId: number, isActive: boolean) => {
+    updateUserStatusMutation.mutate({ userId, isActive: !isActive });
+  };
+
+  const openEditDialog = (user: User) => {
+    setSelectedUser(user);
+    setShowEditDialog(true);
+  };
+
+  const openDeleteDialog = (user: User) => {
+    setSelectedUser(user);
+    setShowDeleteDialog(true);
+  };
+
+  const handleRoleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    if (selectedUser) {
+      updateUserRoleMutation.mutate({
+        userId: selectedUser.id,
+        role: e.target.value,
+      });
+    }
+  };
+
+  const handleDeleteUser = () => {
+    if (selectedUser) {
+      deleteUserMutation.mutate(selectedUser.id);
+    }
+  };
+
+  if (!isAuthenticated) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-100">
-        <Card className="w-full max-w-md">
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <Card className="w-[350px]">
           <CardHeader>
-            <CardTitle>Admin Panel Login</CardTitle>
+            <CardTitle>Admin Authentication</CardTitle>
             <CardDescription>
-              Enter the admin password to access the panel
+              Enter the admin password to access the admin panel.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+            <Form {...adminLoginForm}>
+              <form onSubmit={adminLoginForm.handleSubmit(handleAdminLogin)} className="space-y-4">
+                <FormField
+                  control={adminLoginForm.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Password</FormLabel>
+                      <FormControl>
+                        <Input type="password" placeholder="Enter admin password" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              {loginError && (
-                <p className="text-sm text-red-500">{loginError}</p>
-              )}
-            </div>
+                <Button type="submit" className="w-full">
+                  Log In
+                </Button>
+              </form>
+            </Form>
           </CardContent>
-          <CardFooter>
-            <Button onClick={handleLogin} className="w-full">
-              <Shield className="mr-2 h-4 w-4" />
-              Login to Admin Panel
-            </Button>
-          </CardFooter>
         </Card>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Admin Panel</h1>
-          <p className="text-gray-500">Manage users and permissions</p>
-        </div>
-        <div className="flex items-center space-x-4">
-          <Button onClick={() => setLocation('/')} variant="outline">
-            Back to Dashboard
-          </Button>
-          <Button onClick={() => refetch()}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh
-          </Button>
-        </div>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <Users className="mr-2 h-5 w-5" />
-            User Management
-          </CardTitle>
-          <CardDescription>
-            View and manage all users in the system
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center p-6">
-              <p>Loading users...</p>
-            </div>
-          ) : isError ? (
-            <div className="bg-red-50 p-4 rounded-md">
-              <p className="text-red-600">Error loading users. Please try again.</p>
-            </div>
-          ) : users.length === 0 ? (
-            <div className="text-center p-6">
-              <Users className="mx-auto h-12 w-12 text-gray-400" />
-              <p className="mt-2 text-gray-600">No users found</p>
-            </div>
-          ) : (
-            <ScrollArea className="h-[600px]">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ID</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Username</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead>Last Login</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {users.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell>{user.id}</TableCell>
-                      <TableCell className="font-medium">{user.name}</TableCell>
-                      <TableCell>{user.username}</TableCell>
-                      <TableCell>{user.email}</TableCell>
-                      <TableCell>
-                        <Badge variant={getRoleBadgeVariant(user.role)}>
-                          {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <Switch
-                            checked={user.isActive}
-                            onCheckedChange={() => handleToggleActive(user.id, user.isActive)}
-                            disabled={user.role === 'admin' && user.id === 1} // Can't deactivate the main admin
-                          />
-                          <span className={user.isActive ? 'text-green-600' : 'text-red-600'}>
-                            {user.isActive ? 'Active' : 'Inactive'}
-                          </span>
+    <div className="container mx-auto py-8">
+      <h1 className="text-3xl font-bold mb-6">Admin Panel</h1>
+      
+      <Tabs defaultValue="users">
+        <TabsList className="mb-4">
+          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+          <TabsTrigger value="users">User Management</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="dashboard">
+          <Card>
+            <CardHeader>
+              <CardTitle>System Dashboard</CardTitle>
+              <CardDescription>
+                Overview of system statistics and user information.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingStats ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : stats ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base font-medium">Total Users</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{stats.totalUsers}</div>
+                      <div className="flex items-center mt-1 text-sm text-muted-foreground">
+                        <div className="flex-1">
+                          <span className="text-green-500 font-medium">{stats.activeUsers}</span> active
                         </div>
-                      </TableCell>
-                      <TableCell>{formatDate(user.createdAt)}</TableCell>
-                      <TableCell>{formatDate(user.lastLogin)}</TableCell>
-                      <TableCell>
-                        <div className="flex space-x-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openEditDialog(user)}
-                            title="Edit user"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="text-red-600 hover:text-red-700"
-                                title="Delete user"
-                                disabled={user.role === 'admin' && user.id === 1} // Can't delete the main admin
+                        <div>
+                          <span className="text-red-500 font-medium">{stats.inactiveUsers}</span> inactive
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base font-medium">Doctors</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{stats.usersByRole.doctor}</div>
+                      <div className="text-sm text-muted-foreground mt-1">
+                        {Math.round((stats.usersByRole.doctor / stats.totalUsers) * 100)}% of users
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base font-medium">Patients</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{stats.usersByRole.patient}</div>
+                      <div className="text-sm text-muted-foreground mt-1">
+                        {Math.round((stats.usersByRole.patient / stats.totalUsers) * 100)}% of users
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base font-medium">Staff</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">
+                        {stats.usersByRole.admin + stats.usersByRole.assistant}
+                      </div>
+                      <div className="flex items-center mt-1 text-sm text-muted-foreground">
+                        <div className="flex-1">
+                          <span className="font-medium">{stats.usersByRole.admin}</span> admins
+                        </div>
+                        <div>
+                          <span className="font-medium">{stats.usersByRole.assistant}</span> assistants
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  Failed to load dashboard statistics
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="users">
+          <Card>
+            <CardHeader>
+              <CardTitle>User Management</CardTitle>
+              <CardDescription>
+                Manage user accounts, permissions, and status.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingUsers ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : users && users.length > 0 ? (
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Role</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {users.map((user) => (
+                        <TableRow key={user.id}>
+                          <TableCell>
+                            <div className="font-medium">{user.name}</div>
+                            <div className="text-sm text-muted-foreground">@{user.username}</div>
+                          </TableCell>
+                          <TableCell>{user.email}</TableCell>
+                          <TableCell>
+                            <Badge variant={
+                              user.role === 'admin' ? 'destructive' : 
+                              user.role === 'doctor' ? 'default' : 
+                              user.role === 'assistant' ? 'secondary' : 
+                              'outline'
+                            }>
+                              {user.role}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center space-x-2">
+                              <Switch
+                                checked={user.isActive}
+                                disabled={user.id === 1} // Cannot change status of main admin
+                                onCheckedChange={() => handleUserStatusToggle(user.id, user.isActive)}
+                              />
+                              <span className={user.isActive ? 'text-green-600' : 'text-red-600'}>
+                                {user.isActive ? 'Active' : 'Inactive'}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => openEditDialog(user)}
+                                disabled={user.id === 1} // Cannot edit main admin
                               >
-                                <Trash className="h-4 w-4" />
+                                <UserCog className="h-4 w-4 mr-1" />
+                                Edit
                               </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Delete User</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Are you sure you want to delete this user? This action cannot be undone.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  className="bg-red-600 hover:bg-red-700"
-                                  onClick={() => deleteUserMutation.mutate(user.id)}
-                                >
-                                  Delete
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </ScrollArea>
-          )}
-        </CardContent>
-      </Card>
+                              <Button 
+                                variant="destructive" 
+                                size="sm" 
+                                onClick={() => openDeleteDialog(user)}
+                                disabled={user.id === 1} // Cannot delete main admin
+                              >
+                                <Trash2 className="h-4 w-4 mr-1" />
+                                Delete
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  No users found
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Edit User Dialog */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit User</DialogTitle>
             <DialogDescription>
-              Update user role and permissions
+              Update user role and permissions.
             </DialogDescription>
           </DialogHeader>
-          {currentUser && (
-            <form onSubmit={handleRoleChange}>
-              <div className="grid gap-4 py-4">
-                <div>
-                  <Label htmlFor="currentRole">Current Role</Label>
-                  <div className="flex items-center h-10 px-4 rounded-md border border-input mt-1">
-                    <Badge variant={getRoleBadgeVariant(currentUser.role)}>
-                      {currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1)}
-                    </Badge>
-                  </div>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="role">New Role</Label>
-                  <select
-                    id="role"
-                    name="role"
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    defaultValue={currentUser.role}
-                  >
-                    <option value="doctor">Doctor</option>
-                    <option value="admin">Admin</option>
-                    <option value="assistant">Assistant</option>
-                    <option value="patient">Patient</option>
-                  </select>
-                </div>
+          
+          {selectedUser && (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="userName">Name</Label>
+                <Input id="userName" value={selectedUser.name} disabled />
               </div>
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setEditDialogOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={updateRoleMutation.isPending}
-                >
-                  {updateRoleMutation.isPending ? 'Saving...' : 'Save Changes'}
-                </Button>
-              </DialogFooter>
-            </form>
+              
+              <div>
+                <Label htmlFor="userEmail">Email</Label>
+                <Input id="userEmail" value={selectedUser.email} disabled />
+              </div>
+              
+              <div>
+                <Label htmlFor="userRole">Role</Label>
+                <Select defaultValue={selectedUser.role} onValueChange={(value) => {
+                  if (selectedUser) {
+                    updateUserRoleMutation.mutate({
+                      userId: selectedUser.id,
+                      role: value
+                    });
+                  }
+                }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="doctor">Doctor</SelectItem>
+                    <SelectItem value="admin">Administrator</SelectItem>
+                    <SelectItem value="assistant">Assistant</SelectItem>
+                    <SelectItem value="patient">Patient</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="user-active"
+                  checked={selectedUser.isActive}
+                  onCheckedChange={(checked) => {
+                    updateUserStatusMutation.mutate({
+                      userId: selectedUser.id,
+                      isActive: checked
+                    });
+                  }}
+                />
+                <Label htmlFor="user-active">
+                  {selectedUser.isActive ? 'User is active' : 'User is inactive'}
+                </Label>
+              </div>
+            </div>
           )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => setShowEditDialog(false)}>
+              Done
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete User Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the user account
+              and remove their data from our servers.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteUser}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
