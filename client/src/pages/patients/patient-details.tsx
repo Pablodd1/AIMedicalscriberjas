@@ -35,6 +35,7 @@ import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { DocumentManager } from "@/components/patient-documents/document-manager";
 
 interface PatientDetailsProps {
   patientId: number;
@@ -254,97 +255,74 @@ export default function PatientDetails({ patientId }: PatientDetailsProps) {
           <TabsContent value="documents">
             <Card>
               <CardContent className="p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-medium">Medical Documents</h3>
-                  <Button variant="outline" size="sm">
-                    <FileWarning className="h-4 w-4 mr-2" />
-                    Upload Document
-                  </Button>
-                </div>
-                <div className="space-y-4">
-                  {[
-                    { name: "Blood Test Results", type: "PDF", date: "2024-03-01" },
-                    { name: "X-Ray Report", type: "Image", date: "2024-02-15" },
-                    { name: "Vaccination Record", type: "PDF", date: "2024-01-20" }
-                  ].map((document, i) => (
-                    <div key={i} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <FileWarning className="h-5 w-5 text-muted-foreground" />
-                        <div>
-                          <p className="font-medium">{document.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            Added: {format(new Date(document.date), "PPP")}
-                          </p>
-                        </div>
-                      </div>
-                      <Badge variant="outline">{document.type}</Badge>
-                    </div>
-                  ))}
-                </div>
-                
-                <div className="mt-8">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-medium">Medical Notes</h3>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => window.location.href = "/notes"}
-                    >
-                      <FileText className="h-4 w-4 mr-2" />
-                      Create New Note
-                    </Button>
-                  </div>
+                <div className="space-y-8">
+                  {/* Document Manager */}
+                  <DocumentManager patientId={patientId} />
                   
-                  {/* Patient Notes Section */}
-                  {isLoadingNotes ? (
-                    <div className="flex justify-center items-center p-8 border rounded-lg">
-                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : !medicalNotes || medicalNotes.length === 0 ? (
-                    <div className="text-center p-8 text-muted-foreground border rounded-lg">
-                      <FileText className="h-10 w-10 mx-auto mb-2 text-muted-foreground" />
-                      <p>No medical notes found for this patient</p>
+                  {/* Medical Notes Section */}
+                  <div className="mt-8">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg font-medium">Medical Notes</h3>
                       <Button 
                         variant="outline" 
-                        className="mt-2"
+                        size="sm"
                         onClick={() => window.location.href = "/notes"}
                       >
+                        <FileText className="h-4 w-4 mr-2" />
                         Create New Note
                       </Button>
                     </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {medicalNotes.map((note) => (
-                        <div key={note.id} className="p-4 border rounded-lg">
-                          <div className="flex justify-between items-start mb-2">
-                            <div>
-                              <h4 className="font-medium">{note.title || 'Medical Note'}</h4>
-                              <p className="text-sm text-muted-foreground">
-                                {note.createdAt ? format(new Date(note.createdAt), "PPP p") : 'No date'}
-                              </p>
+                    
+                    {isLoadingNotes ? (
+                      <div className="flex justify-center items-center p-8 border rounded-lg">
+                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : !medicalNotes || medicalNotes.length === 0 ? (
+                      <div className="text-center p-8 text-muted-foreground border rounded-lg">
+                        <FileText className="h-10 w-10 mx-auto mb-2 text-muted-foreground" />
+                        <p>No medical notes found for this patient</p>
+                        <Button 
+                          variant="outline" 
+                          className="mt-2"
+                          onClick={() => window.location.href = "/notes"}
+                        >
+                          Create New Note
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {medicalNotes.map((note) => (
+                          <div key={note.id} className="p-4 border rounded-lg">
+                            <div className="flex justify-between items-start mb-2">
+                              <div>
+                                <h4 className="font-medium">{note.title || 'Medical Note'}</h4>
+                                <p className="text-sm text-muted-foreground">
+                                  {note.createdAt ? format(new Date(note.createdAt), "PPP p") : 'No date'}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleCopyNote(note.content, note.id)}
+                                >
+                                  {copiedNote === note.id ? (
+                                    <Check className="h-4 w-4 text-green-500" />
+                                  ) : (
+                                    <Copy className="h-4 w-4" />
+                                  )}
+                                </Button>
+                                <Badge variant="outline">{note.type || 'Note'}</Badge>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleCopyNote(note.content, note.id)}
-                              >
-                                {copiedNote === note.id ? (
-                                  <Check className="h-4 w-4 text-green-500" />
-                                ) : (
-                                  <Copy className="h-4 w-4" />
-                                )}
-                              </Button>
-                              <Badge variant="outline">{note.type || 'Note'}</Badge>
+                            <div className="mt-2 p-3 bg-muted/50 rounded-md max-h-60 overflow-y-auto">
+                              <pre className="whitespace-pre-wrap font-sans text-sm">{note.content}</pre>
                             </div>
                           </div>
-                          <div className="mt-2 p-3 bg-muted/50 rounded-md max-h-60 overflow-y-auto">
-                            <pre className="whitespace-pre-wrap font-sans text-sm">{note.content}</pre>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>

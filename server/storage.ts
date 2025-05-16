@@ -1044,6 +1044,20 @@ export class DatabaseStorage implements IStorage {
     }
   }
   
+  async updatePatientDocument(id: number, updates: Partial<PatientDocument>): Promise<PatientDocument | undefined> {
+    try {
+      const [updated] = await db
+        .update(patientDocuments)
+        .set(updates)
+        .where(eq(patientDocuments.id, id))
+        .returning();
+      return updated;
+    } catch (error) {
+      console.error("Error updating patient document:", error);
+      return undefined;
+    }
+  }
+  
   async deletePatientDocument(id: number): Promise<boolean> {
     try {
       const result = await db
