@@ -370,6 +370,29 @@ labInterpreterRouter.delete('/knowledge-base/:id', async (req, res) => {
   }
 });
 
+// Delete all knowledge base items
+labInterpreterRouter.delete('/knowledge-base', async (req, res) => {
+  try {
+    // Get all knowledge base items
+    const items = await storage.getLabKnowledgeBase();
+    
+    // Delete each item
+    let deletedCount = 0;
+    for (const item of items) {
+      const deleted = await storage.deleteLabKnowledgeBaseItem(item.id);
+      if (deleted) deletedCount++;
+    }
+    
+    return res.status(200).json({ 
+      message: 'Knowledge base cleared successfully', 
+      deletedCount 
+    });
+  } catch (error) {
+    console.error('Error clearing knowledge base:', error);
+    return res.status(500).json({ error: 'Failed to clear knowledge base' });
+  }
+});
+
 // Helper function to parse text format for knowledge base
 function parseTextFormat(text: string): any[] {
   // Split the text by double newlines (paragraph breaks)
