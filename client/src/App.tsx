@@ -26,6 +26,7 @@ import Billing from "@/pages/billing";
 import PatientIntake from "@/pages/patient-intake";
 import MonitoringSystem from "@/pages/monitoring";
 import LabInterpreter from "@/pages/lab-interpreter";
+import AdminPanel from "@/pages/admin-panel";
 
 // Wrapper components for each page with the MainLayout
 const DashboardPage = () => (
@@ -124,6 +125,7 @@ function Router() {
       <ProtectedRoute path="/patient-intake" component={PatientIntakePage} />
       <ProtectedRoute path="/monitoring" component={MonitoringPage} />
       <ProtectedRoute path="/lab-interpreter" component={LabInterpreterPage} />
+      <Route path="/admin" component={AdminPanel} />
       
       {/* Public Routes - accessible without authentication */}
       <Route path="/auth" component={AuthPage} />

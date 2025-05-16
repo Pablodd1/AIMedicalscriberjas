@@ -8,6 +8,7 @@ import { emailRouter } from "./routes/email";
 import { monitoringRouter } from "./routes/monitoring";
 import { labInterpreterRouter } from "./routes/lab-interpreter";
 import { patientDocumentsRouter } from "./routes/patient-documents-updated";
+import { adminRouter } from "./routes/admin";
 import multer from "multer";
 
 // Extend the global namespace to include our media storage
@@ -65,6 +66,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     next();
   }, patientDocumentsRouter);
+  
+  // Register Admin routes
+  app.use('/api/admin', adminRouter);
 
   // Patients routes
   app.get("/api/patients", async (req, res) => {
