@@ -658,29 +658,47 @@ export default function LabInterpreter() {
                     <table className="w-full">
                       <thead>
                         <tr className="sticky top-0 bg-background border-b">
-                          <th className="text-left p-2 text-sm font-medium">Test Name</th>
-                          <th className="text-left p-2 text-sm font-medium">Marker</th>
-                          <th className="text-left p-2 text-sm font-medium">Normal Range</th>
-                          <th className="text-left p-2 text-sm font-medium">Unit</th>
+                          <th className="text-left p-2 text-sm font-medium">Organ System</th>
+                          <th className="text-left p-2 text-sm font-medium">Disease/Condition</th>
+                          <th className="text-left p-2 text-sm font-medium w-1/2">Recommendations</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {knowledgeBase.map((item) => (
-                          <tr key={item.id} className="border-b">
-                            <td className="p-2 text-sm">{item.testName}</td>
-                            <td className="p-2 text-sm">{item.marker}</td>
-                            <td className="p-2 text-sm">
-                              {item.normalRangeLow !== null && item.normalRangeHigh !== null 
-                                ? `${item.normalRangeLow} - ${item.normalRangeHigh}`
-                                : item.normalRangeLow !== null
-                                  ? `> ${item.normalRangeLow}`
-                                  : item.normalRangeHigh !== null
-                                    ? `< ${item.normalRangeHigh}`
-                                    : 'N/A'}
-                            </td>
-                            <td className="p-2 text-sm">{item.unit || 'N/A'}</td>
-                          </tr>
-                        ))}
+                        {knowledgeBase.map((item) => {
+                          // Extract peptides and formulas from recommendations if they exist
+                          let peptides = '';
+                          let formulas = '';
+                          
+                          if (item.recommendations) {
+                            const parts = item.recommendations.split('|');
+                            if (parts.length > 1) {
+                              peptides = parts[0].trim();
+                              formulas = parts[1].trim();
+                            } else {
+                              formulas = item.recommendations;
+                            }
+                          }
+                          
+                          return (
+                            <tr key={item.id} className="border-b hover:bg-muted/50">
+                              <td className="p-2 text-sm font-medium">{item.testName}</td>
+                              <td className="p-2 text-sm">{item.marker}</td>
+                              <td className="p-2 text-sm">
+                                {peptides && (
+                                  <div className="mb-1">
+                                    <span className="font-medium text-xs text-blue-500">Peptides:</span> {peptides}
+                                  </div>
+                                )}
+                                {formulas && (
+                                  <div>
+                                    <span className="font-medium text-xs text-green-500">Formulas:</span> {formulas}
+                                  </div>
+                                )}
+                                {!peptides && !formulas && item.recommendations}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   )}
