@@ -104,29 +104,95 @@ function detectDiseasesReferenceFormat(data: any[]) {
 
 // Parse the Disease-Product reference format
 function parseDiseaseProductReference(data: any[]) {
+  console.log("Processing disease-product reference format");
+  
+  // Look at first row to understand the structure
+  if (data.length > 0) {
+    console.log("Sample row keys:", Object.keys(data[0]));
+    console.log("Sample row values:", Object.values(data[0]));
+  }
+  
   return data.filter(row => {
     // Skip completely empty rows
-    const values = Object.values(row).filter(Boolean);
+    const values = Object.values(row).filter(v => v !== null && v !== undefined && v !== '');
     return values.length > 0;
   }).map((row: any) => {
     const keys = Object.keys(row);
+    let disease = '';
+    let organ = '';
+    let product = '';
+    let description = '';
     
-    // Try to intelligently determine column mappings
-    const diseaseKey = keys.find(k => /disease|condition|disorder/i.test(k)) || 'Disease';
-    const organKey = keys.find(k => /organ|system|category/i.test(k)) || 'Organ System';
-    const productKey = keys.find(k => /product|supplement|peptide|treatment|medicine/i.test(k)) || 'Product';
-    const descriptionKey = keys.find(k => /description|details|info|about/i.test(k)) || 'Description';
-    const dosageKey = keys.find(k => /dosage|dose|amount/i.test(k)) || 'Dosage';
+    // Simple handling for two-column format (likely Disease -> Product/Supplements)
+    if (keys.length === 2) {
+      disease = String(row[keys[0]] || '').trim();
+      product = String(row[keys[1]] || '').trim();
+      organ = 'General';
+    } else {
+      // Try to intelligently determine column mappings by header names
+      const diseaseKey = keys.find(k => /disease|condition|disorder/i.test(k));
+      const organKey = keys.find(k => /organ|system|category/i.test(k));
+      const productKey = keys.find(k => /product|supplement|peptide|treatment|medicine/i.test(k));
+      const descriptionKey = keys.find(k => /description|details|info|about/i.test(k));
+      
+      // If we found column headers, use them
+      if (diseaseKey) disease = String(row[diseaseKey] || '').trim();
+      if (organKey) organ = String(row[organKey] || '').trim();
+      if (productKey) product = String(row[productKey] || '').trim();
+      if (descriptionKey) description = String(row[descriptionKey] || '').trim();
+      
+      // If we don't have clear headers, make educated guesses based on content
+      if (!disease && !organ && !product) {
+        // First non-empty column is often disease/condition
+        for (const key of keys) {
+          const value = String(row[key] || '').trim();
+          if (value) {
+            if (!disease) {
+              disease = value;
+            } else if (!product) {
+              product = value;
+            } else if (!organ) {
+              // If value contains "system" or similar terms, it's likely an organ system
+              if (/system|organ|body|area/i.test(value)) {
+                organ = value;
+              } else {
+                // Otherwise, append to product
+                product += ', ' + value;
+              }
+            }
+          }
+        }
+      }
+    }
     
-    // Map to our schema
+    // Use the first column as marker if disease is still empty
+    if (!disease && keys.length > 0) {
+      disease = String(row[keys[0]] || '').trim();
+    }
+    
+    // Use the second column as recommendations if product is still empty
+    if (!product && keys.length > 1) {
+      product = String(row[keys[1]] || '').trim();
+    }
+    
+    // Default values for empty fields
+    if (!organ) organ = 'General';
+    if (!disease) disease = 'Unspecified Condition';
+    
+    // Combine interpretation from disease and description
+    let interpretation = disease;
+    if (description) {
+      interpretation += ': ' + description;
+    }
+    
     return {
-      test_name: String(row[organKey] || '').trim() || 'Organ System',
-      marker: String(row[diseaseKey] || '').trim() || 'Disease',
+      test_name: organ || 'Organ System',
+      marker: disease || 'Disease/Condition',
       normal_range_low: null,
       normal_range_high: null,
-      unit: String(row[dosageKey] || '').trim(),
-      interpretation: String(row[descriptionKey] || row[diseaseKey] || '').trim(),
-      recommendations: String(row[productKey] || '').trim()
+      unit: '',
+      interpretation: interpretation || 'See recommendations',
+      recommendations: product || ''
     };
   });
 }
@@ -164,11 +230,11 @@ function parseStandardLabFormat(data: any[]) {
 const labKnowledgeBaseItemSchema = z.object({
   test_name: z.string().min(1, 'Test name is required'),
   marker: z.string().min(1, 'Marker is required'),
-  normal_range_low: z.number().nullable(),
-  normal_range_high: z.number().nullable(),
-  unit: z.string().optional(),
+  normal_range_low: z.number().nullable().optional(),
+  normal_range_high: z.number().nullable().optional(),
+  unit: z.string().nullable().optional(),
   interpretation: z.string().min(1, 'Interpretation is required'),
-  recommendations: z.string().optional()
+  recommendations: z.string().nullable().optional()
 });
 
 // Get knowledge base data
@@ -278,22 +344,64 @@ function parseTextFormat(text: string): any[] {
   // Split the text by double newlines (paragraph breaks)
   const entries = text.split(/\n\s*\n/).filter(entry => entry.trim().length > 0);
   
+  // If no clear entries are found, try a different approach for disease-product reference format
+  if (entries.length === 0 || (entries.length === 1 && !entries[0].includes(':'))) {
+    return parseFreeformDiseaseProductText(text);
+  }
+  
   return entries.map(entry => {
     const lines = entry.split('\n');
     const result: any = {
-      test_name: '',
-      marker: '',
+      test_name: 'Default Test',
+      marker: 'Default Marker',
       normal_range_low: null,
       normal_range_high: null,
       unit: '',
-      interpretation: '',
+      interpretation: 'See recommendations',
       recommendations: ''
     };
     
-    for (const line of lines) {
-      const [key, value] = line.split(':').map(s => s.trim());
+    // Check if this entry might be a disease-product reference
+    const isDiseaseProductFormat = lines.some(line => 
+      /disease|condition|organ|system|product|supplement|peptide/i.test(line)
+    );
+    
+    if (isDiseaseProductFormat) {
+      let disease = '';
+      let product = '';
+      let organ = '';
       
-      if (!key || !value) continue;
+      for (const line of lines) {
+        if (/disease|condition/i.test(line)) {
+          const parts = line.split(':');
+          if (parts.length > 1) disease = parts[1].trim();
+          else disease = line.trim();
+        } else if (/product|supplement|peptide/i.test(line)) {
+          const parts = line.split(':');
+          if (parts.length > 1) product = parts[1].trim();
+          else product = line.trim();
+        } else if (/organ|system/i.test(line)) {
+          const parts = line.split(':');
+          if (parts.length > 1) organ = parts[1].trim();
+          else organ = line.trim();
+        }
+      }
+      
+      result.test_name = organ || 'Organ System';
+      result.marker = disease || 'Disease/Condition';
+      result.interpretation = disease ? `Condition: ${disease}` : 'See recommendations';
+      result.recommendations = product || '';
+      
+      return result;
+    }
+    
+    // Standard lab test format processing
+    for (const line of lines) {
+      const parts = line.split(':');
+      const key = parts[0] ? parts[0].trim() : '';
+      const value = parts.length > 1 ? parts.slice(1).join(':').trim() : line.trim();
+      
+      if (!value) continue;
       
       if (/test|name/i.test(key)) {
         result.test_name = value;
@@ -319,11 +427,88 @@ function parseTextFormat(text: string): any[] {
         result.normal_range_low = parseFloat(value);
       } else if (/max|high/i.test(key)) {
         result.normal_range_high = parseFloat(value);
+      } else if (/disease|condition/i.test(key)) {
+        result.marker = value;
+        if (!result.interpretation || result.interpretation === 'See recommendations') {
+          result.interpretation = `Condition: ${value}`;
+        }
+      } else if (/product|supplement|peptide/i.test(key)) {
+        result.recommendations = value;
+      } else if (/organ|system/i.test(key)) {
+        result.test_name = value;
       }
     }
     
     return result;
   });
+}
+
+// Parse free-form text that might contain disease-product information
+function parseFreeformDiseaseProductText(text: string): any[] {
+  const lines = text.split('\n').filter(line => line.trim().length > 0);
+  const results: any[] = [];
+  
+  // Try to identify different sections or items
+  let currentDisease = '';
+  let currentOrgan = 'General';
+  let currentProduct = '';
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    
+    // Try to identify if this line is a disease/condition, organ system, or product
+    if (/^[A-Z][a-zA-Z\s]+:/.test(line) || /^[A-Z][a-zA-Z\s]+$/.test(line)) {
+      // This looks like a header - disease, organ, etc.
+      if (currentDisease && (currentProduct || i === lines.length - 1)) {
+        // Save the previous entry before starting a new one
+        results.push({
+          test_name: currentOrgan || 'Organ System',
+          marker: currentDisease || 'Disease',
+          normal_range_low: null,
+          normal_range_high: null,
+          unit: '',
+          interpretation: currentDisease ? `Condition: ${currentDisease}` : 'See recommendations',
+          recommendations: currentProduct || ''
+        });
+        
+        // Reset for new entry
+        currentProduct = '';
+      }
+      
+      // Determine what type of header this is
+      if (/system|organ|category/i.test(line)) {
+        currentOrgan = line.replace(/:/g, '').trim();
+      } else {
+        currentDisease = line.replace(/:/g, '').trim();
+      }
+    } else if (currentDisease && !/^[A-Z][a-zA-Z\s]+:/.test(line)) {
+      // This is likely a product/recommendation
+      currentProduct += (currentProduct ? ', ' : '') + line;
+    }
+  }
+  
+  // Add the last entry
+  if (currentDisease || currentProduct) {
+    results.push({
+      test_name: currentOrgan || 'Organ System',
+      marker: currentDisease || 'Disease',
+      normal_range_low: null,
+      normal_range_high: null,
+      unit: '',
+      interpretation: currentDisease ? `Condition: ${currentDisease}` : 'See recommendations',
+      recommendations: currentProduct || ''
+    });
+  }
+  
+  return results.length > 0 ? results : [{
+    test_name: 'Default Category',
+    marker: 'Default Disease',
+    normal_range_low: null,
+    normal_range_high: null,
+    unit: '',
+    interpretation: 'Imported from text',
+    recommendations: text.trim().substring(0, 200) + (text.length > 200 ? '...' : '')
+  }];
 }
 
 // Import knowledge base - supports multiple formats
