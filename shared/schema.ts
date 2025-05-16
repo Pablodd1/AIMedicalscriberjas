@@ -60,18 +60,7 @@ export const appointments = pgTable("appointments", {
 });
 
 // Define a type enum for notes
-export const noteTypeEnum = pgEnum('note_type', [
-  'soap', 
-  'progress', 
-  'procedure', 
-  'consultation', 
-  'initial_consultation', 
-  'follow_up', 
-  'physical_exam', 
-  're_evaluation', 
-  'psychiatric_evaluation', 
-  'discharge_summary'
-]);
+export const noteTypeEnum = pgEnum('note_type', ['soap', 'progress', 'procedure', 'consultation']);
 
 // Medical Notes Settings and Templates
 export const medicalNoteTemplates = pgTable("medical_note_templates", {
