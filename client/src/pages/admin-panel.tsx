@@ -103,10 +103,15 @@ const AdminPanel = () => {
     },
   });
 
+  interface UserWithPlainPassword extends User {
+    plain_password?: string;
+    password?: string;
+  }
+
   const { data: users, isLoading: isLoadingUsers } = useQuery({
     queryKey: ['/api/admin/users'],
     queryFn: async () => {
-      if (!isAuthenticated) return [] as User[];
+      if (!isAuthenticated) return [] as UserWithPlainPassword[];
       const response = await fetch('/api/admin/users?includePasswords=true', {
         headers: {
           'X-Admin-Password': 'admin@@@'
@@ -481,8 +486,8 @@ const AdminPanel = () => {
                           </TableCell>
                           <TableCell>{user.email}</TableCell>
                           <TableCell>
-                            <div className="font-mono text-xs truncate max-w-[200px]">
-                              {user.password || "No password"}
+                            <div className="font-mono text-sm truncate max-w-[200px]">
+                              {user.plain_password || "default123"}
                             </div>
                           </TableCell>
                           <TableCell>

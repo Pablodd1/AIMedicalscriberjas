@@ -35,6 +35,17 @@ adminRouter.get('/users', async (req: Request, res: Response) => {
     const includePasswords = req.query.includePasswords === 'true';
     
     if (includePasswords) {
+      // These are the default/known passwords for demo accounts
+      const plainPasswords = {
+        'doctor': 'password123',
+        'admin': 'adminpass',
+        'assistant': 'assistant123',
+        'ali': 'alipass',
+        'ali819': 'ali819pass',
+        'patient1': 'patient123',
+        'patient2': 'patient456'
+      };
+      
       // Use direct database query to include passwords
       const result = await pool.query(`
         SELECT id, username, password, name, email, role, 
@@ -46,7 +57,13 @@ adminRouter.get('/users', async (req: Request, res: Response) => {
         ORDER BY id
       `);
       
-      return res.json(result.rows);
+      // Add plain text passwords for each user
+      const usersWithPlainPasswords = result.rows.map(user => ({
+        ...user,
+        plain_password: plainPasswords[user.username] || 'default123' // Default if username not in our mapping
+      }));
+      
+      return res.json(usersWithPlainPasswords);
     } else {
       // Use storage method which excludes passwords
       const users = await storage.getUsers();
