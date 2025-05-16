@@ -1023,8 +1023,9 @@ labInterpreterRouter.post('/save-report', async (req, res) => {
       patientId,
       doctorId,
       reportData,
-      analysisResult,
-      createdAt: new Date()
+      reportType: "text",
+      analysis: analysisResult,
+      title: "Lab Report Analysis"
     });
     
     return res.json({ 

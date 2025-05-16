@@ -318,15 +318,42 @@ export default function LabInterpreter() {
       }
       
       // Parse analysis if it's a JSON string
+      let parsedResult;
       try {
-        setAnalysisResult(typeof data.analysis === 'string' ? JSON.parse(data.analysis) : data.analysis);
+        parsedResult = typeof data.analysis === 'string' ? JSON.parse(data.analysis) : data.analysis;
+        setAnalysisResult(parsedResult);
       } catch (e) {
         console.error('Error parsing analysis:', e);
-        setAnalysisResult({ content: data.analysis });
+        parsedResult = { content: data.analysis };
+        setAnalysisResult(parsedResult);
       }
       
       // Switch to results tab
       setActiveTab('results');
+      
+      // Save the report if a patient is selected
+      if (withPatient && selectedPatientId) {
+        try {
+          // Save the lab report analysis to patient records
+          const saveResponse = await apiRequest('POST', '/api/lab-interpreter/save-report', {
+            patientId: parseInt(selectedPatientId),
+            reportData: inputText,
+            analysisResult: data.analysis
+          });
+          
+          const saveData = await saveResponse.json();
+          
+          if (saveData.success) {
+            toast({
+              title: 'Report Saved to Patient Record',
+              description: 'The lab report analysis has been saved to the patient\'s medical record.'
+            });
+          }
+        } catch (saveError) {
+          console.error('Error saving report to patient records:', saveError);
+          // Continue even if saving fails
+        }
+      }
       
       toast({
         title: 'Analysis Complete',
