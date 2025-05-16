@@ -563,6 +563,40 @@ export default function LabInterpreter() {
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-lg font-medium">Lab Test References</h3>
                   <div className="flex items-center gap-2">
+                    {knowledgeBase.length > 0 && (
+                      <Button 
+                        variant="destructive" 
+                        size="sm"
+                        onClick={() => {
+                          if (confirm('Are you sure you want to delete all knowledge base items? This action cannot be undone.')) {
+                            fetch('/api/lab-interpreter/knowledge-base', {
+                              method: 'DELETE',
+                            })
+                            .then(response => {
+                              if (response.ok) {
+                                loadKnowledgeBase();
+                                toast({
+                                  title: 'Knowledge Base Cleared',
+                                  description: 'All items have been deleted',
+                                });
+                              } else {
+                                throw new Error('Failed to clear knowledge base');
+                              }
+                            })
+                            .catch(error => {
+                              console.error('Error clearing knowledge base:', error);
+                              toast({
+                                title: 'Error',
+                                description: 'Failed to clear knowledge base',
+                                variant: 'destructive'
+                              });
+                            });
+                          }
+                        }}
+                      >
+                        Clear All
+                      </Button>
+                    )}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="outline" size="sm">
