@@ -35,15 +35,16 @@ adminRouter.get('/users', async (req: Request, res: Response) => {
     const includePasswords = req.query.includePasswords === 'true';
     
     if (includePasswords) {
-      // These are the default/known passwords for demo accounts
+      // These are the actual login passwords for user accounts
       const plainPasswords = {
-        'doctor': 'password123',
-        'admin': 'adminpass',
+        'doctor': 'doctor123',
+        'admin': 'admin123',
         'assistant': 'assistant123',
-        'ali': 'alipass',
-        'ali819': 'ali819pass',
+        'ali': 'password123',
+        'ali819': 'password123',
         'patient1': 'patient123',
-        'patient2': 'patient456'
+        'patient2': 'patient123',
+        'test': 'password123'
       };
       
       // Use direct database query to include passwords
@@ -104,6 +105,59 @@ adminRouter.patch('/users/:userId/status', async (req: Request, res: Response) =
   } catch (error) {
     console.error('Error updating user status:', error);
     res.status(500).json({ error: 'Failed to update user status' });
+  }
+});
+
+// Reset user password
+adminRouter.post('/users/:userId/reset-password', async (req: Request, res: Response) => {
+  try {
+    const userId = parseInt(req.params.userId);
+    const { newPassword } = req.body;
+    
+    if (isNaN(userId)) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+    
+    if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+    
+    // Don't allow resetting password of the main admin (ID 1) through this endpoint
+    if (userId === 1) {
+      return res.status(403).json({ error: 'Cannot reset the password of the primary admin account' });
+    }
+    
+    // Get the current user
+    const user = await storage.getUser(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Hash the new password
+    const hashPassword = async (password: string) => {
+      const bcrypt = require('bcrypt');
+      const saltRounds = 10;
+      return await bcrypt.hash(password, saltRounds);
+    };
+    
+    const hashedPassword = await hashPassword(newPassword);
+    
+    // Update the user with the new password
+    const updatedUser = await storage.updateUser(userId, { password: hashedPassword });
+    
+    if (!updatedUser) {
+      return res.status(500).json({ error: 'Failed to update user password' });
+    }
+    
+    // Return success but don't include the password in the response
+    const { password, ...userWithoutPassword } = updatedUser;
+    res.json({ 
+      ...userWithoutPassword,
+      message: 'Password reset successfully' 
+    });
+  } catch (error) {
+    console.error('Error resetting user password:', error);
+    res.status(500).json({ error: 'Failed to reset user password' });
   }
 });
 

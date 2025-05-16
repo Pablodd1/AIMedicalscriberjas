@@ -95,6 +95,8 @@ const AdminPanel = () => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showResetPasswordDialog, setShowResetPasswordDialog] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
 
   const adminLoginForm = useForm<z.infer<typeof AdminLoginSchema>>({
     resolver: zodResolver(AdminLoginSchema),
@@ -207,6 +209,39 @@ const AdminPanel = () => {
     },
   });
 
+  const resetPasswordMutation = useMutation({
+    mutationFn: async ({ userId, password }: { userId: number; password: string }) => {
+      const response = await fetch(`/api/admin/users/${userId}/reset-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Password': 'admin@@@'
+        },
+        body: JSON.stringify({ newPassword: password }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to reset password');
+      }
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+      setShowResetPasswordDialog(false);
+      setNewPassword('');
+      toast({
+        title: 'Password reset successful',
+        description: 'The user password has been reset.',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Error resetting password',
+        description: 'There was an error resetting the password. Please try again.',
+        variant: 'destructive',
+      });
+    },
+  });
+
   const deleteUserMutation = useMutation({
     mutationFn: async (userId: number) => {
       const response = await fetch(`/api/admin/users/${userId}`, {
@@ -289,6 +324,27 @@ const AdminPanel = () => {
   const openDeleteDialog = (user: User) => {
     setSelectedUser(user);
     setShowDeleteDialog(true);
+  };
+  
+  const openResetPasswordDialog = (user: User) => {
+    setSelectedUser(user);
+    setNewPassword('');
+    setShowResetPasswordDialog(true);
+  };
+  
+  const handleResetPassword = () => {
+    if (selectedUser && newPassword.length >= 6) {
+      resetPasswordMutation.mutate({
+        userId: selectedUser.id,
+        password: newPassword
+      });
+    } else {
+      toast({
+        title: 'Invalid password',
+        description: 'Password must be at least 6 characters long.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleRoleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
