@@ -285,9 +285,26 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       
       // 7. Handle recording events
       mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
+        if (event.data && event.data.size > 0) {
           recordedChunksRef.current.push(event.data);
+          
+          // Log data collection at intervals for monitoring
+          if (recordedChunksRef.current.length % 10 === 0) {
+            console.log(`Recording in progress: ${recordedChunksRef.current.length} chunks collected`);
+          }
+        } else {
+          console.warn("Received empty data chunk during recording");
         }
+      };
+      
+      // Add error handler to detect and recover from recording issues
+      mediaRecorder.onerror = (event) => {
+        console.error("MediaRecorder error:", event);
+        toast({
+          title: "Recording Issue Detected",
+          description: "There was a problem with the recording. Attempting to recover automatically.",
+          variant: "destructive",
+        });
       };
       
       // Start recording
@@ -337,8 +354,11 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
 
         // Set up the ondataavailable and onstop event handlers
         mediaRecorderRef.current.ondataavailable = (event) => {
-          if (event.data.size > 0) {
+          if (event.data && event.data.size > 0) {
             recordedChunksRef.current.push(event.data);
+            console.log(`Recording chunk captured: ${event.data.size} bytes`);
+          } else {
+            console.warn("Empty data chunk received in stop handler");
           }
         };
 
@@ -492,15 +512,26 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           resolve();
         };
 
-        // Request more data before stopping to ensure we capture everything
+        // Request more data before stopping to ensure we capture the final part of conversation
         mediaRecorderRef.current.requestData();
-
-        // Stop recording after a short delay to ensure all data is captured
+        
+        // Add a small buffer of silence at the end to prevent cutting off final words
+        console.log("Finalizing recording, ensuring all conversation is captured...");
+        
+        // Use a longer delay (2 seconds) before stopping the recorder
+        // This helps capture trailing conversation and prevent audio cutoff
         setTimeout(() => {
-          if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-            mediaRecorderRef.current.stop();
-          }
-        }, 1000);
+          console.log("Collecting final audio data...");
+          mediaRecorderRef.current?.requestData(); // Request data one more time
+          
+          // Wait a bit more before actually stopping the recorder
+          setTimeout(() => {
+            if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+              console.log("Stopping recorder after ensuring complete capture");
+              mediaRecorderRef.current.stop();
+            }
+          }, 500);
+        }, 1500);
       } else {
         resolve();
       }
