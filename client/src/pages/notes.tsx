@@ -37,6 +37,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogTrigger,
+  DialogDescription
 } from "@/components/ui/dialog";
 import {
   Tabs,
@@ -54,7 +56,7 @@ export default function Notes() {
   const [noteTitle, setNoteTitle] = useState("");
   const [showConsultationModal, setShowConsultationModal] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [selectedNoteType, setSelectedNoteType] = useState<string>("soap");
+  const [selectedNoteType, setSelectedNoteType] = useState<"soap" | "progress" | "procedure" | "consultation">("soap");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [templateContent, setTemplateContent] = useState("");
   const { toast } = useToast();
@@ -287,7 +289,7 @@ Plan:
                   <Label htmlFor="noteType">Note Type</Label>
                   <Select
                     value={selectedNoteType}
-                    onValueChange={setSelectedNoteType}
+                    onValueChange={(value) => setSelectedNoteType(value as "soap" | "progress" | "procedure" | "consultation")}
                   >
                     <SelectTrigger id="noteType">
                       <SelectValue placeholder="Select Note Type" />
@@ -342,7 +344,7 @@ Plan:
                       title: title,
                       systemPrompt: systemPrompt || selectedTemplate?.systemPrompt || "",
                       template: templateContent || selectedTemplate?.template || ""
-                    });
+                    } as InsertMedicalNoteTemplate);
                   }}
                   disabled={saveTemplateMutation.isPending}
                 >
