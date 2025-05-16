@@ -150,6 +150,139 @@ export default function LabInterpreter() {
     }
   };
   
+  // Speech recognition and recording functions
+  const startRecording = () => {
+    try {
+      // Add TypeScript declarations for the Web Speech API
+      const SpeechRecognition = window.SpeechRecognition || 
+                              (window as any).webkitSpeechRecognition ||
+                              (window as any).mozSpeechRecognition || 
+                              (window as any).msSpeechRecognition;
+      
+      if (!SpeechRecognition) {
+        toast({
+          title: 'Not Supported',
+          description: 'Speech recognition is not supported in your browser. Try using Chrome.',
+          variant: 'destructive'
+        });
+        return;
+      }
+      
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = true;
+      recognitionRef.current.interimResults = true;
+      
+      recognitionRef.current.onresult = (event: any) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+        
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript + ' ';
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+        
+        setTranscript(prevTranscript => {
+          const newTranscript = prevTranscript + finalTranscript;
+          return newTranscript;
+        });
+      };
+      
+      recognitionRef.current.onerror = (event: any) => {
+        console.error('Speech recognition error', event.error);
+        if (event.error === 'not-allowed') {
+          toast({
+            title: 'Permission Denied',
+            description: 'Microphone access is needed for recording. Please allow microphone access.',
+            variant: 'destructive'
+          });
+          stopRecording();
+        }
+      };
+      
+      recognitionRef.current.start();
+      setIsRecording(true);
+      setRecordingTime(0);
+      
+      // Start timer
+      timerRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+      
+      toast({
+        title: 'Recording Started',
+        description: 'Your voice is now being recorded and transcribed.'
+      });
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      toast({
+        title: 'Recording Failed',
+        description: 'There was an error starting the voice recording.',
+        variant: 'destructive'
+      });
+    }
+  };
+  
+  const stopRecording = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      clearInterval(timerRef.current);
+      setIsRecording(false);
+      
+      toast({
+        title: 'Recording Stopped',
+        description: 'Your recording has been transcribed.'
+      });
+    }
+  };
+  
+  const saveTranscriptToPatient = async () => {
+    if (!withPatient || !selectedPatientId || !transcript.trim()) {
+      toast({
+        title: 'Cannot Save',
+        description: withPatient 
+          ? 'There is no transcript to save.' 
+          : 'You need to select a patient to save this transcript.',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    try {
+      setIsSavingTranscript(true);
+      
+      const response = await apiRequest('POST', '/api/lab-interpreter/save-transcript', {
+        patientId: parseInt(selectedPatientId),
+        transcript,
+        reportId: analysisResult?.reportId || null,
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to save transcript');
+      }
+      
+      toast({
+        title: 'Transcript Saved',
+        description: 'The recorded transcript has been saved to the patient record.'
+      });
+      
+      // Clear transcript after saving
+      setTranscript('');
+    } catch (error) {
+      console.error('Error saving transcript:', error);
+      toast({
+        title: 'Save Failed',
+        description: 'Failed to save the transcript to patient record.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsSavingTranscript(false);
+    }
+  };
+  
   useEffect(() => {
     // Load knowledge base data when the dialog is opened
     if (isKnowledgeBaseOpen) {
@@ -337,6 +470,13 @@ export default function LabInterpreter() {
     // Reset pasted text and close dialog
     setPastedText('');
     setIsImportDialogOpen(false);
+  };
+  
+  // Format recording time (mm:ss)
+  const formatTime = (seconds: number): string => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
   
   // Common import knowledge base function
@@ -991,6 +1131,81 @@ export default function LabInterpreter() {
                       )}
                     </CardContent>
                   </Card>
+                  
+                  {/* Voice Recording Section */}
+                  {analysisResult && (
+                    <Card className="mt-4">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="flex items-center justify-between">
+                          <span>Voice Notes</span>
+                          <div className="space-x-2">
+                            {transcript.trim() && (
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(transcript);
+                                  toast({
+                                    title: 'Copied',
+                                    description: 'Transcript copied to clipboard'
+                                  });
+                                }}
+                              >
+                                <Clipboard className="h-4 w-4 mr-1" />
+                                Copy
+                              </Button>
+                            )}
+                            {withPatient && transcript.trim() && (
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={saveTranscriptToPatient}
+                                disabled={isSavingTranscript}
+                              >
+                                {isSavingTranscript ? (
+                                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                                ) : (
+                                  <Save className="h-4 w-4 mr-1" />
+                                )}
+                                Save to Patient
+                              </Button>
+                            )}
+                            <Button
+                              variant={isRecording ? "destructive" : "default"}
+                              size="sm"
+                              onClick={isRecording ? stopRecording : startRecording}
+                            >
+                              {isRecording ? (
+                                <>
+                                  <MicOff className="h-4 w-4 mr-1" />
+                                  Stop Recording ({formatTime(recordingTime)})
+                                </>
+                              ) : (
+                                <>
+                                  <Mic className="h-4 w-4 mr-1" />
+                                  Start Recording
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </CardTitle>
+                        <CardDescription>
+                          Record your voice notes about this lab report. The text will be transcribed automatically.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        {transcript ? (
+                          <ScrollArea className="h-48 w-full rounded-md border p-4">
+                            {transcript}
+                          </ScrollArea>
+                        ) : (
+                          <div className="h-48 w-full rounded-md border flex items-center justify-center text-muted-foreground">
+                            {isRecording ? 'Listening... Speak now.' : 'No recorded transcript yet. Click "Start Recording" to begin.'}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
                 </TabsContent>
               </Tabs>
             </div>
