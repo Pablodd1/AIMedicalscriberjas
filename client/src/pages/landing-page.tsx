@@ -59,6 +59,9 @@ export default function LandingPage() {
             <a href="/register">
               <Button>Sign Up</Button>
             </a>
+            <a href="/api/logout">
+              <Button variant="destructive">Logout</Button>
+            </a>
           </div>
         </div>
       </header>
