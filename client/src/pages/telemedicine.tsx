@@ -399,14 +399,22 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             const filePrefix = isVideoRecording ? 'video' : 'audio';
             downloadLink.download = `${filePrefix}_consultation_${patient.firstName}_${timestamp}.${fileExt}`;
 
-            // Save recording session in database
+            // Determine recording type based on the media format
+            const recordingType = isVideoRecording ? 'both' : 'audio';
+            
+            // Log recording information
+            console.log(`Saving ${recordingType} recording: ${fileExt} format, ${recordingBlob.size} bytes`);
+
+            // Save recording session in database with recording type information
             const recordingSessionData = {
               roomId,
               patientId: patient.id,
               startTime: new Date(Date.now() - (recordedTime * 1000)).toISOString(),
               endTime: new Date().toISOString(),
               duration: recordedTime,
-              status: 'completed'
+              status: 'completed',
+              recordingType: recordingType,
+              mediaFormat: fileExt
             };
             
             // Submit recording session to server
@@ -1547,10 +1555,11 @@ interface RecordingDetailsDialogProps {
 
 function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetailsDialogProps) {
   const { toast } = useToast();
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   // Use the recording data directly to get real-time updates
   const generateTranscriptMutation = useMutation({
@@ -1610,90 +1619,105 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
   };
 
   // Load audio recording
-  const loadAudioRecording = async () => {
+  const loadRecording = async () => {
     if (!recording || !recording.id) return;
     
     setIsLoading(true);
     try {
-      // Fetch the audio recording from the server
-      const response = await fetch(`/api/telemedicine/recordings/${recording.id}/audio`);
+      // Determine which type of recording to fetch based on recording type
+      const isVideo = recording.recordingType === 'video' || recording.recordingType === 'both';
+      const endpoint = isVideo 
+        ? `/api/telemedicine/recordings/${recording.id}/video`
+        : `/api/telemedicine/recordings/${recording.id}/audio`;
+      
+      console.log(`Loading ${isVideo ? 'video' : 'audio'} recording from ${endpoint}`);
+      
+      // Fetch the recording from the server
+      const response = await fetch(endpoint);
       
       if (!response.ok) {
-        // Create a sample audio using the Web Audio API if server doesn't have recording
-        createSampleAudio();
+        // Create a sample recording if server doesn't have one
+        createSampleRecording();
         return;
       }
       
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
-      setAudioUrl(url);
+      setMediaUrl(url);
     } catch (error) {
-      console.error('Error loading audio recording:', error);
+      console.error('Error loading recording:', error);
       toast({
-        title: "Failed to load audio",
-        description: "Could not retrieve the consultation audio. Using a sample instead.",
+        title: "Failed to load recording",
+        description: "Could not retrieve the consultation recording. Using a sample instead.",
         variant: "destructive",
       });
-      // Create a sample audio as fallback
-      createSampleAudio();
+      // Create a sample recording as fallback
+      createSampleRecording();
     } finally {
       setIsLoading(false);
     }
   };
   
-  // Create a sample audio as fallback when actual recording is not available
-  const createSampleAudio = () => {
-    // For demo purposes, we'll create a sample audio blob
+  // Create a sample recording as fallback when actual recording is not available
+  const createSampleRecording = () => {
+    // For demo purposes, we'll create a sample media blob
     // In production, this would be replaced with actual recording data
     try {
-      // Sample audio file - can be replaced with any sample audio for testing
-      fetch('/audio/sample-consultation.mp3')
+      const isVideo = recording.recordingType === 'video' || recording.recordingType === 'both';
+      const samplePath = isVideo ? '/video/sample-consultation.webm' : '/audio/sample-consultation.mp3';
+      
+      // Try to fetch a sample file
+      fetch(samplePath)
         .then(response => {
           if (!response.ok) {
-            throw new Error('Sample audio not found');
+            throw new Error('Sample media file not found');
           }
           return response.blob();
         })
         .then(blob => {
           const url = URL.createObjectURL(blob);
-          setAudioUrl(url);
+          setMediaUrl(url);
         })
         .catch(() => {
-          // If sample file not found, use console audio notifications
-          console.log('Could not load sample audio file');
+          // If sample file not found, show notification
+          console.log(`Could not load sample ${isVideo ? 'video' : 'audio'} file`);
           toast({
-            title: "Audio Unavailable",
-            description: "No audio recording is available for this consultation.",
+            title: "Recording Unavailable",
+            description: `No ${isVideo ? 'video' : 'audio'} recording is available for this consultation.`,
             variant: "default",
           });
         });
     } catch (error) {
-      console.error('Error creating sample audio:', error);
+      console.error('Error creating sample recording:', error);
     }
   };
   
-  // Toggle play/pause audio
-  const toggleAudio = () => {
-    if (!audioRef.current) return;
+  // Toggle play/pause media (audio or video)
+  const togglePlayback = () => {
+    // Determine which media element to control based on recording type
+    const isVideo = recording.recordingType === 'video' || recording.recordingType === 'both';
+    const mediaElement = isVideo ? videoRef.current : audioRef.current;
+    
+    if (!mediaElement) return;
     
     if (isPlaying) {
-      audioRef.current.pause();
+      mediaElement.pause();
     } else {
-      audioRef.current.play();
+      mediaElement.play();
     }
     setIsPlaying(!isPlaying);
   };
   
-  // Cleanup audio URL on dialog close
+  // Cleanup media URL on dialog close
   useEffect(() => {
     if (isOpen && recording) {
-      loadAudioRecording();
+      loadRecording();
     }
     
     return () => {
-      if (audioUrl) {
-        URL.revokeObjectURL(audioUrl);
-        setAudioUrl(null);
+      if (mediaUrl) {
+        URL.revokeObjectURL(mediaUrl);
+        setMediaUrl(null);
       }
       setIsPlaying(false);
     };
@@ -1762,15 +1786,83 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
             </div>
           </div>
           
-          {/* Audio Player */}
+          {/* Media Player Section - For both audio and video */}
           <div className="border rounded-lg p-4 bg-muted/20">
-            <h4 className="text-sm font-medium mb-3">Consultation Audio</h4>
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-sm font-medium">Consultation Recording</h4>
+              
+              {!isLoading && (recording.recordingType === 'both' || recording.recordingType === 'video') && (
+                <Badge variant="outline" className="text-xs">
+                  <Video className="h-3 w-3 mr-1" />
+                  Video Available
+                </Badge>
+              )}
+            </div>
             
             {isLoading ? (
               <div className="flex items-center justify-center h-16">
                 <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full"></div>
               </div>
+            ) : (recording.recordingType === 'both' || recording.recordingType === 'video') ? (
+              // Video Player
+              <div className="flex flex-col gap-4">
+                <div className="aspect-video bg-black rounded-md overflow-hidden relative">
+                  <video 
+                    ref={videoRef}
+                    src={mediaUrl || undefined} 
+                    className="w-full h-full object-contain"
+                    controls
+                    poster="/images/video-placeholder.jpg"
+                  />
+                  
+                  {!mediaUrl && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
+                      <FileText className="h-12 w-12 mb-2 opacity-50" />
+                      <p className="text-sm opacity-70">Video recording available in consultation history</p>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="flex justify-between">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={togglePlayback}
+                    disabled={!mediaUrl}
+                  >
+                    {isPlaying ? (
+                      <>
+                        <Pause className="h-4 w-4 mr-2" />
+                        Pause
+                      </>
+                    ) : (
+                      <>
+                        <Play className="h-4 w-4 mr-2" />
+                        Play
+                      </>
+                    )}
+                  </Button>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (mediaUrl) {
+                        const a = document.createElement('a');
+                        a.href = mediaUrl;
+                        a.download = `consultation_${recording.roomId}_video.${recording.mediaFormat || 'webm'}`;
+                        a.click();
+                      }
+                    }}
+                    disabled={!mediaUrl}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Download Recording
+                  </Button>
+                </div>
+              </div>
             ) : audioUrl ? (
+              // Audio Player (when only audio is available)
               <div className="flex flex-col gap-2">
                 <audio ref={audioRef} src={audioUrl} className="hidden" />
                 <div className="flex items-center justify-between">
@@ -1807,7 +1899,7 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
                       if (audioUrl) {
                         const a = document.createElement('a');
                         a.href = audioUrl;
-                        a.download = `consultation_${recording.roomId}.mp3`;
+                        a.download = `consultation_${recording.roomId}_audio.${recording.mediaFormat || 'webm'}`;
                         a.click();
                       }
                     }}
@@ -1818,7 +1910,7 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
               </div>
             ) : (
               <div className="flex items-center justify-center h-16 text-muted-foreground">
-                <p>No audio recording available for this consultation</p>
+                <p>No recording available for this consultation</p>
               </div>
             )}
           </div>
@@ -1897,6 +1989,10 @@ interface RecordingSession {
   transcript?: string | null;
   notes?: string | null;
   patient?: any; // Patient data will be included from API
+  recordingType?: 'audio' | 'video' | 'both';
+  mediaFormat?: string;
+  audioUrl?: string;
+  videoUrl?: string;
 }
 
 export default function Telemedicine() {
