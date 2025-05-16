@@ -56,7 +56,11 @@ export default function Notes() {
   const [noteTitle, setNoteTitle] = useState("");
   const [showConsultationModal, setShowConsultationModal] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [selectedNoteType, setSelectedNoteType] = useState<"soap" | "progress" | "procedure" | "consultation">("soap");
+  const [selectedNoteType, setSelectedNoteType] = useState<
+    "soap" | "progress" | "procedure" | "consultation" | 
+    "initial_consultation" | "follow_up" | "physical_exam" | 
+    "re_evaluation" | "psychiatric_evaluation" | "discharge_summary"
+  >("soap");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [templateContent, setTemplateContent] = useState("");
   const { toast } = useToast();
@@ -299,6 +303,12 @@ Plan:
                       <SelectItem value="progress">Progress Note</SelectItem>
                       <SelectItem value="procedure">Procedure Note</SelectItem>
                       <SelectItem value="consultation">Consultation Note</SelectItem>
+                      <SelectItem value="initial_consultation">Initial Consultation</SelectItem>
+                      <SelectItem value="follow_up">Follow-up Visit</SelectItem>
+                      <SelectItem value="physical_exam">Physical Examination</SelectItem>
+                      <SelectItem value="re_evaluation">Re-evaluation Note</SelectItem>
+                      <SelectItem value="psychiatric_evaluation">Psychiatric Evaluation</SelectItem>
+                      <SelectItem value="discharge_summary">Discharge Summary</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
