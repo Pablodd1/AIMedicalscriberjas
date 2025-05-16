@@ -1000,9 +1000,9 @@ labInterpreterRouter.delete('/reports/:id', async (req, res) => {
 // Route for saving lab report analysis to patient records
 labInterpreterRouter.post('/save-report', async (req, res) => {
   try {
-    const { patientId, reportData, analysisResult } = req.body;
+    const { patientId, reportData, analysis } = req.body;
     
-    if (!patientId || !reportData || !analysisResult) {
+    if (!patientId || !reportData || !analysis) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
     
@@ -1024,7 +1024,7 @@ labInterpreterRouter.post('/save-report', async (req, res) => {
       doctorId,
       reportData,
       reportType: "text",
-      analysis: analysisResult,
+      analysis: analysis,
       title: "Lab Report Analysis"
     });
     

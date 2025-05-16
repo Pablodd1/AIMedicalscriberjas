@@ -338,7 +338,7 @@ export default function LabInterpreter() {
           const saveResponse = await apiRequest('POST', '/api/lab-interpreter/save-report', {
             patientId: parseInt(selectedPatientId),
             reportData: inputText,
-            analysisResult: data.analysis
+            analysis: data.analysis
           });
           
           const saveData = await saveResponse.json();
