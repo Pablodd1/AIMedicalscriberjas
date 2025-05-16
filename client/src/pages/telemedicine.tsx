@@ -231,7 +231,10 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           
           // If using audio-only format, increase audio quality
           if (mimeType.startsWith('audio/')) {
-            options.audioBitsPerSecond = 192000; // Higher quality for audio-only
+            options = {
+              ...options,
+              audioBitsPerSecond: 192000 // Higher quality for audio-only
+            };
           }
           
           console.log(`Using recording format: ${mimeType}`);
