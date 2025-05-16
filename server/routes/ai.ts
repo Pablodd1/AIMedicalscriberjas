@@ -181,16 +181,46 @@ aiRouter.post('/transcribe', upload.single('audio'), async (req, res) => {
       return res.status(400).json({ error: 'No audio file provided' });
     }
     
-    // Since we can't use OpenAI's Whisper API directly due to the Node.js environment,
-    // let's take a simpler approach for the prototype
-    // In a real implementation, we'd use temp files or a cloud storage solution
-    // For now, just return a mock transcript for demonstration
+    console.log(`Received audio file for transcription: ${req.file.originalname}, size: ${req.file.size} bytes`);
     
-    return res.json({ 
-      transcript: "This is a simulated transcript for your audio file. In a production environment, " +
-                 "this would be processed by the OpenAI Whisper API. To use the actual transcription " +
-                 "functionality, proper file handling with temp files would be implemented."
-    });
+    // Check if we have access to the OpenAI API
+    if (!process.env.OPENAI_API_KEY) {
+      console.warn('OpenAI API key not available for transcription');
+      return res.json({ 
+        text: "Unable to generate transcription: OpenAI API key not configured. " +
+              "Using consultation chat messages as backup transcript."
+      });
+    }
+    
+    try {
+      // Convert the audio buffer to a base64 string - required by OpenAI API
+      const fileBase64 = req.file.buffer.toString('base64');
+      
+      // Create a temporary file URL that OpenAI can access
+      const audioData = `data:${req.file.mimetype};base64,${fileBase64}`;
+      
+      // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+      const transcript = await openai.audio.transcriptions.create({
+        file: await fetch(audioData).then(r => r.blob()),
+        model: "whisper-1",
+        language: "en",
+        response_format: "text"
+      });
+      
+      console.log('Transcription completed successfully');
+      
+      return res.json({ 
+        text: transcript.text || "No speech detected in the recording."
+      });
+    } catch (transcriptionError) {
+      console.error('OpenAI transcription error:', transcriptionError);
+      
+      // If we can't transcribe with OpenAI, return a fallback response
+      return res.json({ 
+        text: "Could not transcribe audio with OpenAI Whisper. Error: " + 
+              (transcriptionError.message || "Unknown error")
+      });
+    }
   } catch (error) {
     console.error('Transcription API error:', error);
     return res.status(500).json({ error: 'Failed to transcribe audio' });
