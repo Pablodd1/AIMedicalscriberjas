@@ -17,6 +17,7 @@ import {
   labKnowledgeBase,
   labInterpreterSettings,
   labReports,
+  patientDocuments,
   type User, 
   type InsertUser, 
   type Patient, 
@@ -50,7 +51,9 @@ import {
   type LabInterpreterSettings,
   type InsertLabInterpreterSettings,
   type LabReport,
-  type InsertLabReport
+  type InsertLabReport,
+  type PatientDocument,
+  type InsertPatientDocument
 } from "@shared/schema";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
@@ -154,6 +157,13 @@ export interface IStorage {
   createLabReport(report: InsertLabReport): Promise<LabReport>;
   updateLabReport(id: number, updates: Partial<LabReport>): Promise<LabReport | undefined>;
   deleteLabReport(id: number): Promise<boolean>;
+  
+  // Patient Document methods
+  getPatientDocuments(patientId: number): Promise<PatientDocument[]>;
+  getPatientDocument(id: number): Promise<PatientDocument | undefined>;
+  createPatientDocument(document: InsertPatientDocument): Promise<PatientDocument>;
+  updatePatientDocument(id: number, updates: Partial<PatientDocument>): Promise<PatientDocument | undefined>;
+  deletePatientDocument(id: number): Promise<boolean>;
 
   sessionStore: session.Store;
 }
