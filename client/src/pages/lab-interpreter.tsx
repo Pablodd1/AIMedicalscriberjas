@@ -553,7 +553,7 @@ export default function LabInterpreter() {
                 <Database className="h-4 w-4" />
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[700px]">
+            <DialogContent className={isFullScreenMode ? "max-w-[95vw] h-[95vh] max-h-[95vh]" : "sm:max-w-[700px]"}>
               <DialogHeader>
                 <DialogTitle>Knowledge Base Management</DialogTitle>
                 <DialogDescription>
@@ -660,7 +660,7 @@ export default function LabInterpreter() {
                   </div>
                 </div>
                 
-                <div className="h-[350px] rounded-md border flex flex-col">
+                <div className={isFullScreenMode ? "flex-1 rounded-md border" : "h-[350px] rounded-md border flex flex-col"}>
                   {isLoadingKnowledgeBase ? (
                     <div className="flex justify-center items-center h-full">
                       <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -676,18 +676,18 @@ export default function LabInterpreter() {
                   ) : (
                     <div className="overflow-auto h-full">
                       <div className="inline-block min-w-full align-middle">
-                        <table className="min-w-full border-collapse text-xs">
+                        <table className="min-w-full border-collapse text-xs table-fixed w-full">
                           <thead>
                             <tr className="sticky top-0 bg-background border-b z-10">
-                              <th className="p-1 px-2 text-left font-medium bg-blue-100/50 min-w-[120px]">Organ and Organ Systems</th>
-                              <th className="p-1 px-2 text-left font-medium bg-blue-100/50 min-w-[120px]">Disease States</th>
-                              <th className="p-1 px-2 text-left font-medium bg-green-100/50 min-w-[120px]">Primary Peptide</th>
-                              <th className="p-1 px-2 text-left font-medium bg-green-100/50 min-w-[120px]">Secondary Peptide</th>
-                              <th className="p-1 px-2 text-left font-medium bg-orange-100/50 min-w-[120px]">Primary Formula</th>
-                              <th className="p-1 px-2 text-left font-medium bg-orange-100/50 min-w-[120px]">Secondary Formula</th>
-                              <th className="p-1 px-2 text-left font-medium bg-purple-100/50 min-w-[120px]">Support Formula 2</th>
-                              <th className="p-1 px-2 text-left font-medium bg-purple-100/50 min-w-[120px]">Support Formula 3</th>
-                              <th className="p-1 px-2 text-left font-medium bg-purple-100/50 min-w-[120px]">Support Formula 4</th>
+                              <th className="p-1 px-2 text-left font-medium bg-blue-100/50 w-[80px] md:w-[100px]">Organ System</th>
+                              <th className="p-1 px-2 text-left font-medium bg-blue-100/50 w-[80px] md:w-[100px]">Disease</th>
+                              <th className="p-1 px-2 text-left font-medium bg-green-100/50 w-[80px] md:w-[100px]">Primary Peptide</th>
+                              <th className="p-1 px-2 text-left font-medium bg-green-100/50 w-[80px] md:w-[100px]">Secondary Peptide</th>
+                              <th className="p-1 px-2 text-left font-medium bg-orange-100/50 w-[80px] md:w-[100px]">Primary Formula</th>
+                              <th className="p-1 px-2 text-left font-medium bg-orange-100/50 w-[80px] md:w-[100px]">Secondary Formula</th>
+                              <th className="p-1 px-2 text-left font-medium bg-purple-100/50 w-[80px] md:w-[100px]">Support Formula 2</th>
+                              <th className="p-1 px-2 text-left font-medium bg-purple-100/50 w-[80px] md:w-[100px]">Support Formula 3</th>
+                              <th className="p-1 px-2 text-left font-medium bg-purple-100/50 w-[80px] md:w-[100px]">Support Formula 4</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -757,15 +757,15 @@ export default function LabInterpreter() {
                               
                               return (
                                 <tr key={item.id} className="border-b hover:bg-muted/50">
-                                  <td className="p-1 px-2 font-medium bg-blue-50/50 whitespace-normal text-xs">{item.testName}</td>
-                                  <td className="p-1 px-2 bg-blue-50/50 whitespace-normal text-xs">{item.marker}</td>
-                                  <td className="p-1 px-2 bg-green-50/50 whitespace-normal text-xs">{columnData['Primary Peptide']}</td>
-                                  <td className="p-1 px-2 bg-green-50/50 whitespace-normal text-xs">{columnData['Secondary Peptide']}</td>
-                                  <td className="p-1 px-2 bg-orange-50/50 whitespace-normal text-xs">{columnData['Primary Formula']}</td>
-                                  <td className="p-1 px-2 bg-orange-50/50 whitespace-normal text-xs">{columnData['Secondary Formula']}</td>
-                                  <td className="p-1 px-2 bg-purple-50/50 whitespace-normal text-xs">{columnData['Support Formula 2']}</td>
-                                  <td className="p-1 px-2 bg-purple-50/50 whitespace-normal text-xs">{columnData['Support Formula 3']}</td>
-                                  <td className="p-1 px-2 bg-purple-50/50 whitespace-normal text-xs">{columnData['Support Formula 4']}</td>
+                                  <td className="p-1 px-2 font-medium bg-blue-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate" title={item.testName}>{item.testName}</td>
+                                  <td className="p-1 px-2 bg-blue-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate" title={item.marker}>{item.marker}</td>
+                                  <td className="p-1 px-2 bg-green-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate" title={columnData['Primary Peptide']}>{columnData['Primary Peptide']}</td>
+                                  <td className="p-1 px-2 bg-green-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate" title={columnData['Secondary Peptide']}>{columnData['Secondary Peptide']}</td>
+                                  <td className="p-1 px-2 bg-orange-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate" title={columnData['Primary Formula']}>{columnData['Primary Formula']}</td>
+                                  <td className="p-1 px-2 bg-orange-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate" title={columnData['Secondary Formula']}>{columnData['Secondary Formula']}</td>
+                                  <td className="p-1 px-2 bg-purple-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate" title={columnData['Support Formula 2']}>{columnData['Support Formula 2']}</td>
+                                  <td className="p-1 px-2 bg-purple-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate" title={columnData['Support Formula 3']}>{columnData['Support Formula 3']}</td>
+                                  <td className="p-1 px-2 bg-purple-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate" title={columnData['Support Formula 4']}>{columnData['Support Formula 4']}</td>
                                 </tr>
                               );
                             })}
