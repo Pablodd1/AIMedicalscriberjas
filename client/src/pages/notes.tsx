@@ -31,15 +31,14 @@ import { Patient, InsertMedicalNote, MedicalNoteTemplate, InsertMedicalNoteTempl
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
 import { ConsultationModal } from "@/components/consultation-modal";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogTrigger,
-  DialogDescription
-} from "@/components/ui/dialog";
+// Import individual dialog components
+import { Dialog } from "@/components/ui/dialog";
+import { DialogContent } from "@/components/ui/dialog";
+import { DialogHeader } from "@/components/ui/dialog";
+import { DialogTitle } from "@/components/ui/dialog";
+import { DialogFooter } from "@/components/ui/dialog";
+import { DialogTrigger } from "@/components/ui/dialog";
+import { DialogDescription } from "@/components/ui/dialog";
 import {
   Tabs,
   TabsContent,
