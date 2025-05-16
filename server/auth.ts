@@ -71,8 +71,13 @@ export function setupAuth(app: Express) {
     new LocalStrategy(async (username, password, done) => {
       try {
         const user = await storage.getUserByUsername(username);
+        // Check if user exists, password is correct, and account is active
         if (!user || !(await comparePasswords(password, user.password))) {
-          return done(null, false);
+          return done(null, false, { message: 'Invalid username or password' });
+        } else if (user.isActive === false) {
+          return done(null, false, { 
+            message: 'Your account has been deactivated. Please contact AIMS admin to regain access: 786-643-2099 or email jasmelacosta@gmail.com' 
+          });
         } else {
           // Type cast the user to Express.User interface
           return done(null, user as Express.User);
@@ -143,7 +148,8 @@ export function setupAuth(app: Express) {
         return next(err);
       }
       if (!user) {
-        return res.status(401).json({ message: "Invalid username or password" });
+        // Return the specific error message from authentication failure
+        return res.status(401).json({ message: info?.message || "Invalid username or password" });
       }
       req.login(user, (err: Error | null) => {
         if (err) {
