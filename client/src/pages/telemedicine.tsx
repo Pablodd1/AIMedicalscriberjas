@@ -22,7 +22,9 @@ import {
   Loader2,
   Printer,
   Download,
-  StopCircle
+  StopCircle,
+  Play,
+  Pause
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -1656,18 +1658,28 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
     };
   }, [isOpen, recording?.id]);
   
-  // Handle audio events
+  // Handle audio events and progress updates
   useEffect(() => {
     const handleAudioEnded = () => {
       setIsPlaying(false);
     };
     
+    const handleTimeUpdate = () => {
+      const progressBar = document.getElementById('audio-progress-bar');
+      if (progressBar && audioRef.current) {
+        const percent = (audioRef.current.currentTime / audioRef.current.duration) * 100;
+        progressBar.style.width = `${percent}%`;
+      }
+    };
+    
     const audioElement = audioRef.current;
     if (audioElement) {
       audioElement.addEventListener('ended', handleAudioEnded);
+      audioElement.addEventListener('timeupdate', handleTimeUpdate);
       
       return () => {
         audioElement.removeEventListener('ended', handleAudioEnded);
+        audioElement.removeEventListener('timeupdate', handleTimeUpdate);
       };
     }
   }, []);
@@ -1742,6 +1754,7 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
                           width: audioRef.current ? 
                             `${(audioRef.current.currentTime / audioRef.current.duration * 100) || 0}%` : '0%' 
                         }}
+                        id="audio-progress-bar"
                       ></div>
                     </div>
                   </div>
