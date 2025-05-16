@@ -5,7 +5,7 @@ import path from 'path';
 import fs from 'fs';
 import OpenAI from 'openai';
 import { z } from 'zod';
-import * as xlsx from 'xlsx';
+import xlsx from 'xlsx';
 
 // Create router
 export const labInterpreterRouter = Router();
@@ -70,12 +70,12 @@ function parseExcelFile(filePath: string) {
     const worksheet = workbook.Sheets[sheetName];
     const data = xlsx.utils.sheet_to_json(worksheet);
     
-    // Transform data to match our schema
+    // Transform data to match our database schema
     return data.map((row: any) => ({
-      testName: row.testName || row['Test Name'] || row.test || row.Test || '',
+      test_name: row.testName || row['Test Name'] || row.test || row.Test || '',
       marker: row.marker || row.Marker || row.test_marker || row['Test Marker'] || '',
-      normalRangeLow: parseFloat(row.normalRangeLow || row['Normal Range Low'] || row.min || row.Min || '0') || null,
-      normalRangeHigh: parseFloat(row.normalRangeHigh || row['Normal Range High'] || row.max || row.Max || '0') || null,
+      normal_range_low: parseFloat(row.normalRangeLow || row['Normal Range Low'] || row.min || row.Min || '0') || null,
+      normal_range_high: parseFloat(row.normalRangeHigh || row['Normal Range High'] || row.max || row.Max || '0') || null,
       unit: row.unit || row.Unit || row.units || row.Units || '',
       interpretation: row.interpretation || row.Interpretation || row.desc || row.Desc || row.description || row.Description || '',
       recommendations: row.recommendations || row.Recommendations || row.advice || row.Advice || ''
