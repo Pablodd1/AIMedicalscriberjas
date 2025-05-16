@@ -1165,17 +1165,19 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
               ref={remoteVideoRef}
               autoPlay
               playsInline
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain bg-black rounded-lg"
+              style={{ minHeight: "360px", maxHeight: "calc(100vh - 14rem)" }}
             />
 
             {/* Local video (pip) - Moved to top-right corner */}
-            <div className="absolute top-4 right-4 w-1/4 max-w-[180px] min-w-[120px] rounded-lg overflow-hidden shadow-lg border-2 border-background z-10">
+            <div className="absolute top-4 right-4 w-1/4 max-w-[180px] min-w-[120px] rounded-lg overflow-hidden shadow-lg border-2 border-white z-10 bg-black">
               <video
                 ref={localVideoRef}
                 autoPlay
                 playsInline
                 muted
-                className="w-full h-full object-cover bg-black"
+                className="w-full h-full object-contain bg-black"
+                style={{ aspectRatio: "4/3", minHeight: "100px" }}
               />
               <div className="absolute bottom-0 left-0 right-0 bg-black/50 p-1 text-white text-xs text-center">
                 You
