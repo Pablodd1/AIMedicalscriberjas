@@ -53,6 +53,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Register Patient Monitoring routes
   app.use('/api/monitoring', monitoringRouter);
+  
+  // Register Lab Interpreter routes
+  app.use('/api/lab-interpreter', labInterpreterRouter);
 
   // Patients routes
   app.get("/api/patients", async (req, res) => {

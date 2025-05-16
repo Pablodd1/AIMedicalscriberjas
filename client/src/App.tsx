@@ -25,6 +25,7 @@ import Settings from "@/pages/settings";
 import Billing from "@/pages/billing";
 import PatientIntake from "@/pages/patient-intake";
 import MonitoringSystem from "@/pages/monitoring";
+import LabInterpreter from "@/pages/lab-interpreter";
 
 // Wrapper components for each page with the MainLayout
 const DashboardPage = () => (
@@ -96,6 +97,12 @@ const PatientIntakePage = () => (
 const MonitoringPage = () => (
   <MainLayout>
     <MonitoringSystem />
+  </MainLayout>
+);
+
+const LabInterpreterPage = () => (
+  <MainLayout>
+    <LabInterpreter />
   </MainLayout>
 );
 
