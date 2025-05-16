@@ -74,6 +74,9 @@ export function DocumentManager({ patientId }: DocumentManagerProps) {
       const response = await fetch(`/api/patient-documents/${patientId}/upload`, {
         method: 'POST',
         body: formData,
+        headers: {
+          // Don't set Content-Type with FormData - browser will add it with boundary
+        },
         credentials: 'include',
       });
       
