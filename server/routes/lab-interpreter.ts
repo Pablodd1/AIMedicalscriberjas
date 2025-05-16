@@ -70,16 +70,34 @@ function parseExcelFile(filePath: string) {
     const worksheet = workbook.Sheets[sheetName];
     const data = xlsx.utils.sheet_to_json(worksheet);
     
+    console.log("Excel Data headers:", Object.keys(data[0] || {}));
+    
     // Transform data to match our database schema
-    return data.map((row: any) => ({
-      test_name: row.testName || row['Test Name'] || row.test || row.Test || '',
-      marker: row.marker || row.Marker || row.test_marker || row['Test Marker'] || '',
-      normal_range_low: parseFloat(row.normalRangeLow || row['Normal Range Low'] || row.min || row.Min || '0') || null,
-      normal_range_high: parseFloat(row.normalRangeHigh || row['Normal Range High'] || row.max || row.Max || '0') || null,
-      unit: row.unit || row.Unit || row.units || row.Units || '',
-      interpretation: row.interpretation || row.Interpretation || row.desc || row.Desc || row.description || row.Description || '',
-      recommendations: row.recommendations || row.Recommendations || row.advice || row.Advice || ''
-    }));
+    return data.filter(row => {
+      // Skip completely empty rows
+      const values = Object.values(row).filter(Boolean);
+      return values.length > 0;
+    }).map((row: any) => {
+      // Create a valid object from the Excel data
+      const keys = Object.keys(row);
+      const testNameKey = keys.find(k => /test|name|test.*name/i.test(k)) || 'Test Name';
+      const markerKey = keys.find(k => /marker|analyte|param/i.test(k)) || 'Marker';
+      const minKey = keys.find(k => /low|min|lower|bottom/i.test(k)) || 'Min';
+      const maxKey = keys.find(k => /high|max|upper|top/i.test(k)) || 'Max';
+      const unitKey = keys.find(k => /unit/i.test(k)) || 'Unit';
+      const interpretKey = keys.find(k => /interpret|desc|mean/i.test(k)) || 'Interpretation';
+      const recKey = keys.find(k => /rec|advice|suggest/i.test(k)) || 'Recommendations';
+      
+      return {
+        test_name: String(row[testNameKey] || '').trim(),
+        marker: String(row[markerKey] || '').trim(),
+        normal_range_low: parseFloat(String(row[minKey] || '0')) || null,
+        normal_range_high: parseFloat(String(row[maxKey] || '0')) || null,
+        unit: String(row[unitKey] || '').trim(),
+        interpretation: String(row[interpretKey] || '').trim(),
+        recommendations: String(row[recKey] || '').trim()
+      };
+    });
   } catch (error) {
     console.error('Error parsing Excel file:', error);
     throw new Error('Failed to parse Excel file');
