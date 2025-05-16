@@ -132,17 +132,45 @@ function parseDiseaseProductReference(data: any[]) {
       product = String(row[keys[1]] || '').trim();
       organ = 'General';
     } else {
-      // Try to intelligently determine column mappings by header names
-      const diseaseKey = keys.find(k => /disease|condition|disorder/i.test(k));
-      const organKey = keys.find(k => /organ|system|category/i.test(k));
-      const productKey = keys.find(k => /product|supplement|peptide|treatment|medicine/i.test(k));
-      const descriptionKey = keys.find(k => /description|details|info|about/i.test(k));
+      // Try to intelligently determine column mappings by header names for disease-product reference format
+      const organKey = keys.find(k => /organ.+system|system/i.test(k));
+      const diseaseKey = keys.find(k => /disease|state/i.test(k));
+      
+      // Look for peptide and formula columns
+      const primaryPeptideKey = keys.find(k => /primary.+peptide/i.test(k));
+      const secondaryPeptideKey = keys.find(k => /secondary.+peptide/i.test(k));
+      const primaryFormulaKey = keys.find(k => /primary.+formula/i.test(k));
+      const secondaryFormulaKey = keys.find(k => /secondary.+formula/i.test(k));
+      const supportFormula1Key = keys.find(k => /support.+formula.+1|support.+formula$/i.test(k));
+      const supportFormula2Key = keys.find(k => /support.+formula.+2/i.test(k));
+      const supportFormula3Key = keys.find(k => /support.+formula.+3/i.test(k));
+      const supportFormula4Key = keys.find(k => /support.+formula.+4/i.test(k));
       
       // If we found column headers, use them
       if (diseaseKey) disease = String(row[diseaseKey] || '').trim();
       if (organKey) organ = String(row[organKey] || '').trim();
-      if (productKey) product = String(row[productKey] || '').trim();
-      if (descriptionKey) description = String(row[descriptionKey] || '').trim();
+      
+      // Collect peptides and formulas
+      const peptides = [];
+      if (primaryPeptideKey && row[primaryPeptideKey]) peptides.push(String(row[primaryPeptideKey]).trim());
+      if (secondaryPeptideKey && row[secondaryPeptideKey]) peptides.push(String(row[secondaryPeptideKey]).trim());
+      
+      const formulas = [];
+      if (primaryFormulaKey && row[primaryFormulaKey]) formulas.push(String(row[primaryFormulaKey]).trim());
+      if (secondaryFormulaKey && row[secondaryFormulaKey]) formulas.push(String(row[secondaryFormulaKey]).trim());
+      if (supportFormula1Key && row[supportFormula1Key]) formulas.push(String(row[supportFormula1Key]).trim());
+      if (supportFormula2Key && row[supportFormula2Key]) formulas.push(String(row[supportFormula2Key]).trim());
+      if (supportFormula3Key && row[supportFormula3Key]) formulas.push(String(row[supportFormula3Key]).trim());
+      if (supportFormula4Key && row[supportFormula4Key]) formulas.push(String(row[supportFormula4Key]).trim());
+      
+      // Combine peptides and formulas for product recommendation
+      if (peptides.length > 0) {
+        product += (product ? ' | ' : '') + 'Peptides: ' + peptides.join(', ');
+      }
+      
+      if (formulas.length > 0) {
+        product += (product ? ' | ' : '') + 'Formulas: ' + formulas.join(', ');
+      }
       
       // If we don't have clear headers, make educated guesses based on content
       if (!disease && !organ && !product) {
