@@ -14,7 +14,8 @@ import {
   UserPlus,
   Stethoscope,
   ClipboardList,
-  MessageSquare
+  MessageSquare,
+  Settings
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
@@ -26,7 +27,7 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Patient, InsertMedicalNote } from "@shared/schema";
+import { Patient, InsertMedicalNote, MedicalNoteTemplate, InsertMedicalNoteTemplate } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
 import { ConsultationModal } from "@/components/consultation-modal";
@@ -52,6 +53,10 @@ export default function Notes() {
   const [showNoteSuccess, setShowNoteSuccess] = useState(false);
   const [noteTitle, setNoteTitle] = useState("");
   const [showConsultationModal, setShowConsultationModal] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [selectedNoteType, setSelectedNoteType] = useState<string>("soap");
+  const [systemPrompt, setSystemPrompt] = useState("");
+  const [templateContent, setTemplateContent] = useState("");
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -89,8 +94,16 @@ Plan:
     queryKey: ["/api/patients"],
   });
 
+  // Fetch note templates
+  const { data: noteTemplates, isLoading: isLoadingTemplates } = useQuery<MedicalNoteTemplate[]>({
+    queryKey: ["/api/medical-note-templates"],
+  });
+
   // Get selected patient details
   const selectedPatient = patients?.find(patient => patient.id === selectedPatientId);
+  
+  // Get selected template
+  const selectedTemplate = noteTemplates?.find(template => template.type === selectedNoteType);
 
   // Create medical note mutation
   const createNoteMutation = useMutation({
@@ -104,6 +117,38 @@ Plan:
       toast({
         title: "Success",
         description: "Medical note saved successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+  
+  // Save template mutation
+  const saveTemplateMutation = useMutation({
+    mutationFn: async (templateData: InsertMedicalNoteTemplate) => {
+      let url = "/api/medical-note-templates";
+      let method = "POST";
+      
+      // If template already exists, update it instead
+      if (selectedTemplate?.id) {
+        url = `/api/medical-note-templates/${selectedTemplate.id}`;
+        method = "PUT";
+      }
+      
+      const res = await apiRequest(method, url, templateData);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/medical-note-templates"] });
+      setIsSettingsOpen(false);
+      toast({
+        title: "Success",
+        description: "Template settings saved successfully",
       });
     },
     onError: (error: Error) => {
@@ -224,6 +269,95 @@ Plan:
           <p className="text-muted-foreground">Generate and manage medical notes with AI assistance</p>
         </div>
         <div className="flex gap-2">
+          <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="icon">
+                <Settings className="h-4 w-4" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[625px]">
+              <DialogHeader>
+                <DialogTitle>Medical Notes Settings</DialogTitle>
+                <DialogDescription>
+                  Configure templates and prompts used for note generation
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="noteType">Note Type</Label>
+                  <Select
+                    value={selectedNoteType}
+                    onValueChange={setSelectedNoteType}
+                  >
+                    <SelectTrigger id="noteType">
+                      <SelectValue placeholder="Select Note Type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="soap">SOAP Note</SelectItem>
+                      <SelectItem value="progress">Progress Note</SelectItem>
+                      <SelectItem value="procedure">Procedure Note</SelectItem>
+                      <SelectItem value="consultation">Consultation Note</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="systemPrompt">System Prompt</Label>
+                  <Textarea
+                    id="systemPrompt"
+                    rows={4}
+                    value={systemPrompt || (selectedTemplate?.systemPrompt || "")}
+                    onChange={(e) => setSystemPrompt(e.target.value)}
+                    placeholder="Enter system prompt for the AI..."
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    This is the main instruction for the AI assistant when generating this type of note.
+                  </p>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="templateContent">Template Structure</Label>
+                  <Textarea
+                    id="templateContent"
+                    rows={8}
+                    value={templateContent || (selectedTemplate?.template || "")}
+                    onChange={(e) => setTemplateContent(e.target.value)}
+                    placeholder="Enter the template structure for this note type..."
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    This is the structure that will be used when creating this type of note.
+                  </p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsSettingsOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={() => {
+                    const title = selectedNoteType.charAt(0).toUpperCase() + selectedNoteType.slice(1) + " Note Template";
+                    saveTemplateMutation.mutate({
+                      type: selectedNoteType,
+                      title: title,
+                      systemPrompt: systemPrompt || selectedTemplate?.systemPrompt || "",
+                      template: templateContent || selectedTemplate?.template || ""
+                    });
+                  }}
+                  disabled={saveTemplateMutation.isPending}
+                >
+                  {saveTemplateMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Settings"
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           <Select 
             value={selectedPatientId?.toString() || ""}
             onValueChange={(value) => setSelectedPatientId(parseInt(value))}
