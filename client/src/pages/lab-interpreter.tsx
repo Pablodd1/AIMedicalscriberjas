@@ -12,7 +12,8 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Loader2, FileUp, Settings2, Database, BookText, RotateCw, BotIcon, UserIcon, Upload, Settings, ChevronRight, DownloadIcon, UploadCloud } from 'lucide-react';
+import { Loader2, FileUp, Settings2, Database, BookText, RotateCw, BotIcon, UserIcon, Upload, Settings, ChevronRight, DownloadIcon, UploadCloud, FileText, FileSpreadsheet, Clipboard, ChevronDown } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { apiRequest } from '@/lib/queryClient';
 
 interface Patient {
@@ -265,13 +266,70 @@ export default function LabInterpreter() {
   };
   
   // Handle knowledge base upload
-  const handleKnowledgeBaseUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // State for the knowledge base import dialog
+  const [importMode, setImportMode] = useState<'excel' | 'text' | 'paste'>('excel');
+  const [pastedText, setPastedText] = useState('');
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const textFileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Handle knowledge base upload - Excel file
+  const handleExcelFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     
     const formData = new FormData();
-    formData.append('knowledgeBase', file);
+    formData.append('file', file);
+    formData.append('importType', 'excel');
     
+    await importKnowledgeBase(formData);
+    
+    // Reset file input
+    if (knowledgeBaseFileRef.current) {
+      knowledgeBaseFileRef.current.value = '';
+    }
+  };
+  
+  // Handle knowledge base upload - Text file
+  const handleTextFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('importType', 'text');
+    
+    await importKnowledgeBase(formData);
+    
+    // Reset file input
+    if (textFileInputRef.current) {
+      textFileInputRef.current.value = '';
+    }
+  };
+  
+  // Handle knowledge base paste text submit
+  const handlePastedTextSubmit = async () => {
+    if (!pastedText.trim()) {
+      toast({
+        title: 'Input Required',
+        description: 'Please enter knowledge base data to import',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    const formData = new FormData();
+    formData.append('textContent', pastedText);
+    formData.append('importType', 'paste');
+    
+    await importKnowledgeBase(formData);
+    
+    // Reset pasted text and close dialog
+    setPastedText('');
+    setIsImportDialogOpen(false);
+  };
+  
+  // Common import knowledge base function
+  const importKnowledgeBase = async (formData: FormData) => {
     try {
       setIsLoadingKnowledgeBase(true);
       
@@ -294,6 +352,9 @@ export default function LabInterpreter() {
         title: 'Knowledge Base Imported',
         description: `Successfully imported ${data.itemsImported} items to the knowledge base`,
       });
+      
+      // Close import dialog if open
+      setIsImportDialogOpen(false);
     } catch (error) {
       console.error('Error importing knowledge base:', error);
       toast({
@@ -303,10 +364,6 @@ export default function LabInterpreter() {
       });
     } finally {
       setIsLoadingKnowledgeBase(false);
-      // Reset file input
-      if (knowledgeBaseFileRef.current) {
-        knowledgeBaseFileRef.current.value = '';
-      }
     }
   };
   
@@ -506,24 +563,45 @@ export default function LabInterpreter() {
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-lg font-medium">Lab Test References</h3>
                   <div className="flex items-center gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => knowledgeBaseFileRef.current?.click()}
-                      disabled={isLoadingKnowledgeBase}
-                    >
-                      {isLoadingKnowledgeBase ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Upload className="mr-2 h-4 w-4" />
-                      )}
-                      Import Excel
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          {isLoadingKnowledgeBase ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <Upload className="mr-2 h-4 w-4" />
+                          )}
+                          Import Data
+                          <ChevronDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => knowledgeBaseFileRef.current?.click()}>
+                          <FileSpreadsheet className="mr-2 h-4 w-4" />
+                          <span>Import Excel File</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => textFileInputRef.current?.click()}>
+                          <FileText className="mr-2 h-4 w-4" />
+                          <span>Import Text File</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setIsImportDialogOpen(true)}>
+                          <Clipboard className="mr-2 h-4 w-4" />
+                          <span>Paste Text</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                     <input 
                       type="file"
                       accept=".xlsx,.xls"
                       ref={knowledgeBaseFileRef}
-                      onChange={handleKnowledgeBaseUpload}
+                      onChange={handleExcelFileUpload}
+                      className="hidden"
+                    />
+                    <input 
+                      type="file"
+                      accept=".txt,.text"
+                      ref={textFileInputRef}
+                      onChange={handleTextFileUpload}
                       className="hidden"
                     />
                   </div>
