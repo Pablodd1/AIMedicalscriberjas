@@ -3,6 +3,17 @@ import { storage } from '../storage';
 import { eq } from 'drizzle-orm';
 import { users } from '@shared/schema';
 import { pool } from '../db';
+import { scrypt, randomBytes } from 'crypto';
+import { promisify } from 'util';
+
+// Password hashing function (same implementation as in auth.ts)
+const scryptAsync = promisify(scrypt);
+
+async function hashPassword(password: string) {
+  const salt = randomBytes(16).toString("hex");
+  const buf = (await scryptAsync(password, salt, 64)) as Buffer;
+  return `${buf.toString("hex")}.${salt}`;
+}
 
 export const adminRouter = Router();
 
@@ -133,9 +144,7 @@ adminRouter.post('/users/:userId/reset-password', async (req: Request, res: Resp
       return res.status(404).json({ error: 'User not found' });
     }
     
-    // Import hashPassword from auth.ts
-    const { hashPassword } = await import('../auth');
-    
+    // Use our hashPassword function defined at the top of the file
     const hashedPassword = await hashPassword(newPassword);
     
     // Update the user with the new password
