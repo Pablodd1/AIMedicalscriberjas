@@ -1663,7 +1663,7 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
     // For demo purposes, we'll create a sample media blob
     // In production, this would be replaced with actual recording data
     try {
-      const isVideo = recording.recordingType === 'video' || recording.recordingType === 'both';
+      const isVideo = recording?.recordingType === 'video' || recording?.recordingType === 'both';
       const samplePath = isVideo ? '/video/sample-consultation.webm' : '/audio/sample-consultation.mp3';
       
       // Try to fetch a sample file
@@ -1695,7 +1695,7 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
   // Toggle play/pause media (audio or video)
   const togglePlayback = () => {
     // Determine which media element to control based on recording type
-    const isVideo = recording.recordingType === 'video' || recording.recordingType === 'both';
+    const isVideo = recording?.recordingType === 'video' || recording?.recordingType === 'both';
     const mediaElement = isVideo ? videoRef.current : audioRef.current;
     
     if (!mediaElement) return;
@@ -1723,31 +1723,39 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
     };
   }, [isOpen, recording?.id]);
   
-  // Handle audio events and progress updates
+  // Handle media events and progress updates (for both audio and video)
   useEffect(() => {
-    const handleAudioEnded = () => {
+    const handleMediaEnded = () => {
       setIsPlaying(false);
     };
     
     const handleTimeUpdate = () => {
       const progressBar = document.getElementById('audio-progress-bar');
-      if (progressBar && audioRef.current) {
-        const percent = (audioRef.current.currentTime / audioRef.current.duration) * 100;
+      
+      // Determine which media element to use based on recording type
+      const isVideo = recording?.recordingType === 'video' || recording?.recordingType === 'both';
+      const mediaElement = isVideo ? videoRef.current : audioRef.current;
+      
+      if (progressBar && mediaElement) {
+        const percent = (mediaElement.currentTime / mediaElement.duration) * 100;
         progressBar.style.width = `${percent}%`;
       }
     };
     
-    const audioElement = audioRef.current;
-    if (audioElement) {
-      audioElement.addEventListener('ended', handleAudioEnded);
-      audioElement.addEventListener('timeupdate', handleTimeUpdate);
+    // Add event listeners to the appropriate media element (audio or video)
+    const isVideo = recording?.recordingType === 'video' || recording?.recordingType === 'both';
+    const mediaElement = isVideo ? videoRef.current : audioRef.current;
+    
+    if (mediaElement) {
+      mediaElement.addEventListener('ended', handleMediaEnded);
+      mediaElement.addEventListener('timeupdate', handleTimeUpdate);
       
       return () => {
-        audioElement.removeEventListener('ended', handleAudioEnded);
-        audioElement.removeEventListener('timeupdate', handleTimeUpdate);
+        mediaElement.removeEventListener('ended', handleMediaEnded);
+        mediaElement.removeEventListener('timeupdate', handleTimeUpdate);
       };
     }
-  }, []);
+  }, [recording?.recordingType]);
   
   if (!recording) return null;
 
@@ -1861,16 +1869,16 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
                   </Button>
                 </div>
               </div>
-            ) : audioUrl ? (
+            ) : mediaUrl ? (
               // Audio Player (when only audio is available)
               <div className="flex flex-col gap-2">
-                <audio ref={audioRef} src={audioUrl} className="hidden" />
+                <audio ref={audioRef} src={mediaUrl} className="hidden" />
                 <div className="flex items-center justify-between">
                   <Button 
                     variant="outline" 
                     size="sm" 
                     className="w-12 h-12 rounded-full"
-                    onClick={toggleAudio}
+                    onClick={togglePlayback}
                   >
                     {isPlaying ? (
                       <Pause className="h-6 w-6" />
@@ -1896,9 +1904,9 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
                     variant="ghost"
                     size="sm"
                     onClick={() => {
-                      if (audioUrl) {
+                      if (mediaUrl) {
                         const a = document.createElement('a');
-                        a.href = audioUrl;
+                        a.href = mediaUrl;
                         a.download = `consultation_${recording.roomId}_audio.${recording.mediaFormat || 'webm'}`;
                         a.click();
                       }
