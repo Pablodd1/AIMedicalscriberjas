@@ -53,12 +53,12 @@ export default function LandingPage() {
         <div className="flex justify-between items-center">
           <div className="text-2xl font-bold">AIMS Medical Platform</div>
           <div className="space-x-4">
-            <Link href="/login">
+            <a href="/login">
               <Button variant="outline">Login</Button>
-            </Link>
-            <Link href="/register">
+            </a>
+            <a href="/register">
               <Button>Sign Up</Button>
-            </Link>
+            </a>
           </div>
         </div>
       </header>
