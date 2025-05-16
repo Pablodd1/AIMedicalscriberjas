@@ -76,9 +76,15 @@ export function setupAuth(app: Express) {
           return done(null, false, { message: 'Invalid username or password' });
         } 
         
-        // Make sure to prevent login if isActive is not explicitly true
-        // This handles all cases: null, undefined, and false
-        if (user.isActive !== true) {
+        // Debug output for user status
+        console.log('User login attempt:', {
+          username: user.username, 
+          isActive: user.isActive,
+          isActiveType: typeof user.isActive
+        });
+        
+        // Check if user is inactive by explicitly checking for false
+        if (user.isActive === false) {
           return done(null, false, { 
             message: 'Your account has been deactivated. Please contact AIMS admin to regain access: 786-643-2099 or email jasmelacosta@gmail.com' 
           });

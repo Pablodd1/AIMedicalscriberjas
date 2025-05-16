@@ -98,6 +98,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
   licenseNumber: true,
   avatar: true,
   bio: true,
+  isActive: true,
 });
 
 export const insertPatientSchema = createInsertSchema(patients).pick({
