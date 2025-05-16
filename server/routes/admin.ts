@@ -133,12 +133,8 @@ adminRouter.post('/users/:userId/reset-password', async (req: Request, res: Resp
       return res.status(404).json({ error: 'User not found' });
     }
     
-    // Hash the new password
-    const hashPassword = async (password: string) => {
-      const bcrypt = require('bcrypt');
-      const saltRounds = 10;
-      return await bcrypt.hash(password, saltRounds);
-    };
+    // Import hashPassword from auth.ts
+    const { hashPassword } = await import('../auth');
     
     const hashedPassword = await hashPassword(newPassword);
     
