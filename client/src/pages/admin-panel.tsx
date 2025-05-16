@@ -340,7 +340,21 @@ const AdminPanel = () => {
 
   return (
     <div className="container mx-auto py-8">
-      <h1 className="text-3xl font-bold mb-6">Admin Panel</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">Admin Panel</h1>
+        <Button 
+          variant="outline" 
+          onClick={() => {
+            setIsAuthenticated(false);
+            toast({
+              title: 'Logged out',
+              description: 'You have been logged out of the admin panel.'
+            });
+          }}
+        >
+          Logout
+        </Button>
+      </div>
       
       <Tabs defaultValue="users">
         <TabsList className="mb-4">
