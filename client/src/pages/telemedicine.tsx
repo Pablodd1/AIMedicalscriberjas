@@ -367,53 +367,46 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
         mediaRecorderRef.current.onstop = async () => {
           setIsRecording(false);
           
-          let recordingBlob: Blob;
-          let backupTranscriptText = "";
-          let recordingUrl: string;
-          let downloadLink: HTMLAnchorElement;
-          let isVideoRecording: boolean;
-          let fileExt: string;
-          let filePrefix: string;
-          let recordingType: string;
+          // Determine the best MIME type based on what we recorded
+          const mimeType = mediaRecorderRef.current?.mimeType || 'video/webm';
+          const isVideoRecording = mimeType.includes('video');
           
+          // Generate the recording blob with appropriate type
+          const recordingBlob = new Blob(recordedChunksRef.current, { type: mimeType });
+
+          // Create a simple transcript if API fails
+          let backupTranscriptText = "";
+
+          // Save transcriptions to backup transcript even if API fails
+          liveTranscriptions.forEach(item => {
+            backupTranscriptText += `${item.speaker}: ${item.text}\n`;
+          });
+
+          toast({
+            title: "Processing Recording",
+            description: "Preparing the consultation recording and generating transcript...",
+          });
+
           try {
-            // Determine the best MIME type based on what we recorded
-            const mimeType = mediaRecorderRef.current?.mimeType || 'video/webm';
-            isVideoRecording = mimeType.includes('video');
-            
-            // Generate the recording blob with appropriate type
-            recordingBlob = new Blob(recordedChunksRef.current, { type: mimeType });
-  
-            // Get basic conversation transcript from live transcriptions
-            liveTranscriptions.forEach(item => {
-              backupTranscriptText += `${item.speaker}: ${item.text}\n`;
-            });
-  
             // Create a downloadable URL for the recording
-            recordingUrl = URL.createObjectURL(recordingBlob);
-  
-            // Create a download link for immediate download option
-            downloadLink = document.createElement('a');
+            const recordingUrl = URL.createObjectURL(recordingBlob);
+
+            // Create a download link
+            const downloadLink = document.createElement('a');
             downloadLink.href = recordingUrl;
             
             // Set appropriate filename and extension
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            fileExt = isVideoRecording ? 'webm' : 'ogg';
-            filePrefix = isVideoRecording ? 'video' : 'audio';
+            const fileExt = isVideoRecording ? 'webm' : 'ogg';
+            const filePrefix = isVideoRecording ? 'video' : 'audio';
             downloadLink.download = `${filePrefix}_consultation_${patient.firstName}_${timestamp}.${fileExt}`;
-  
+
             // Determine recording type based on the media format
-            recordingType = isVideoRecording ? 'both' : 'audio';
+            const recordingType = isVideoRecording ? 'both' : 'audio';
             
             // Log recording information
             console.log(`Saving ${recordingType} recording: ${fileExt} format, ${recordingBlob.size} bytes`);
-  
-            toast({
-              title: "Saving Recording",
-              description: "Storing your consultation recording...",
-            });
 
-          try {
             // Save recording session in database with recording type information
             const recordingSessionData = {
               roomId,
@@ -423,11 +416,10 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
               duration: recordedTime,
               status: 'completed',
               recordingType: recordingType,
-              mediaFormat: fileExt,
-              transcript: backupTranscriptText // Save the basic transcript immediately
+              mediaFormat: fileExt
             };
             
-            // Step 1: Create the database record
+            // Submit recording session to server to create the record
             const recordingResponse = await fetch('/api/telemedicine/recordings', {
               method: 'POST',
               headers: {
@@ -437,36 +429,105 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             });
             
             if (!recordingResponse.ok) {
-              throw new Error('Failed to save recording details');
+              console.warn('Failed to save recording session:', await recordingResponse.text());
+              throw new Error('Failed to save recording session data');
             }
             
+            // Get the recording ID from the response
             const recordingData = await recordingResponse.json();
             
-            // Step 2: Upload the actual media file
-            toast({
-              title: "Uploading Recording",
-              description: `Saving your ${isVideoRecording ? 'video' : 'audio'} recording...`,
-            });
-            
-            const mediaFormData = new FormData();
-            mediaFormData.append('media', recordingBlob, `${recordingType}_${recordingData.id}.${fileExt}`);
-            mediaFormData.append('type', isVideoRecording ? 'video' : 'audio');
-            
-            const mediaUploadResponse = await fetch(`/api/telemedicine/recordings/${recordingData.id}/media`, {
-              method: 'POST',
-              body: mediaFormData,
-            });
-            
-            if (!mediaUploadResponse.ok) {
-              throw new Error('Failed to upload media file');
+            if (!recordingData.id) {
+              throw new Error('No recording ID returned from server');
             }
             
-            // Show success message
-            toast({
-              title: "Recording Saved",
-              description: "Your consultation recording has been saved successfully.",
-            });
+            // Extract audio track for transcription (if we have video)
+            let audioBlob = recordingBlob;
             
+            if (isVideoRecording) {
+              // For video, we need to extract audio for transcription
+              // But we'll also keep the video for download
+              toast({
+                title: "Uploading Recording",
+                description: "Saving video recording to the server...",
+              });
+              
+              // Upload the video file to the server
+              const videoFormData = new FormData();
+              videoFormData.append('media', recordingBlob, `video_${recordingData.id}.${fileExt}`);
+              videoFormData.append('type', 'video');
+              
+              try {
+                const videoUploadResponse = await fetch(`/api/telemedicine/recordings/${recordingData.id}/media`, {
+                  method: 'POST',
+                  body: videoFormData,
+                });
+                
+                if (!videoUploadResponse.ok) {
+                  console.warn('Failed to upload video file:', await videoUploadResponse.text());
+                } else {
+                  console.log('Video recording uploaded successfully');
+                }
+              } catch (error) {
+                console.error('Error uploading video recording:', error);
+              }
+            } else {
+              // Upload the audio file to the server
+              const audioFormData = new FormData();
+              audioFormData.append('media', audioBlob, `audio_${recordingData.id}.${fileExt}`);
+              audioFormData.append('type', 'audio');
+              
+              try {
+                const audioUploadResponse = await fetch(`/api/telemedicine/recordings/${recordingData.id}/media`, {
+                  method: 'POST',
+                  body: audioFormData,
+                });
+                
+                if (!audioUploadResponse.ok) {
+                  console.warn('Failed to upload audio file:', await audioUploadResponse.text());
+                } else {
+                  console.log('Audio recording uploaded successfully');
+                }
+              } catch (error) {
+                console.error('Error uploading audio recording:', error);
+              }
+            }
+
+            // Send the audio to the backend for transcription
+            const formData = new FormData();
+            formData.append('audio', audioBlob, 'consultation.webm');
+
+            const response = await fetch('/api/ai/transcribe', {
+              method: 'POST',
+              body: formData,
+            });
+
+            if (!response.ok) {
+              throw new Error(`Transcription failed: ${response.status}`);
+            }
+
+            const data = await response.json();
+            setTranscription(data.text);
+
+            // Update transcript in the recording session
+            if (recordingResponse.ok) {
+              const recordingData = await recordingResponse.json();
+              
+              if (recordingData.id) {
+                await fetch(`/api/telemedicine/recordings/${recordingData.id}/transcript`, {
+                  method: 'PATCH',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({ transcript: data.text }),
+                });
+              }
+            }
+
+            toast({
+              title: "Transcription Complete",
+              description: "Your consultation recording is ready with full transcription.",
+            });
+
             // Offer to download the recording file
             toast({
               title: `${isVideoRecording ? 'Video' : 'Audio'} Recording Ready`,
@@ -479,63 +540,11 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
               </div>,
               duration: 10000,
             });
-            
-            // Optional: Ask if user wants AI transcript generation (separate process)
-            const generateTranscript = window.confirm(
-              "Would you like to generate an AI transcript from this recording?\n" +
-              "This can be done later from the consultation history as well."
-            );
-            
-            if (generateTranscript) {
-              toast({
-                title: "Generating Transcript",
-                description: "Processing recording for transcript generation...",
-              });
-              
-              // Send for AI transcription
-              try {
-                const transcriptFormData = new FormData();
-                transcriptFormData.append('audio', recordingBlob, 'recording.webm');
-                
-                const transcriptResponse = await fetch('/api/ai/transcribe', {
-                  method: 'POST',
-                  body: transcriptFormData,
-                });
-                
-                if (!transcriptResponse.ok) {
-                  throw new Error('Transcript generation failed');
-                }
-                
-                const transcriptData = await transcriptResponse.json();
-                
-                // Update the recording with the AI transcript
-                await fetch(`/api/telemedicine/recordings/${recordingData.id}/transcript`, {
-                  method: 'PATCH',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({
-                    transcript: transcriptData.text
-                  }),
-                });
-                
-                toast({
-                  title: "Transcript Generated",
-                  description: "AI transcript is now available in consultation history.",
-                });
-              } catch (error) {
-                console.error('Error generating transcript:', error);
-                toast({
-                  title: "Transcript Generation Failed",
-                  description: "Could not generate AI transcript. You can try again from the history.",
-                  variant: "destructive",
-                });
-              }
-            }
+
           } catch (error) {
             console.error('Error processing recording:', error);
-            
-            // Create download link for the recording regardless of server errors
+
+            // Create download link for the recording regardless of transcription failure
             const recordingUrl = URL.createObjectURL(recordingBlob);
             const downloadLink = document.createElement('a');
             downloadLink.href = recordingUrl;

@@ -591,21 +591,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateRecordingSession(id: number, updates: Partial<RecordingSession>): Promise<RecordingSession | undefined> {
-    try {
-      console.log(`Updating recording session ${id} with:`, updates);
-      
-      const [updatedSession] = await db
-        .update(recordingSessions)
-        .set(updates)
-        .where(eq(recordingSessions.id, id))
-        .returning();
-      
-      console.log(`Updated recording session successfully:`, updatedSession);
-      return updatedSession;
-    } catch (error) {
-      console.error(`Error updating recording session ${id}:`, error);
-      throw error;
-    }
+    const [updatedSession] = await db
+      .update(recordingSessions)
+      .set(updates)
+      .where(eq(recordingSessions.id, id))
+      .returning();
+    
+    return updatedSession;
   }
   
   async deleteRecordingSession(id: number): Promise<boolean> {
