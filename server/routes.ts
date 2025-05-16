@@ -756,11 +756,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Check if the recording exists in our temporary storage
-      if ((global as any).mediaStorage && (global as any).mediaStorage.has(`${recordingId}_audio`)) {
-        const mediaFile = (global as any).mediaStorage.get(`${recordingId}_audio`);
-        res.setHeader('Content-Type', mediaFile.contentType);
-        res.setHeader('Content-Disposition', `attachment; filename="${mediaFile.filename}"`);
-        return res.send(mediaFile.data);
+      if (global.mediaStorage && global.mediaStorage.has(`${recordingId}_audio`)) {
+        const mediaFile = global.mediaStorage.get(`${recordingId}_audio`);
+        if (mediaFile) {
+          res.setHeader('Content-Type', mediaFile.contentType);
+          res.setHeader('Content-Disposition', `attachment; filename="${mediaFile.filename}"`);
+          return res.send(mediaFile.data);
+        }
       }
       
       // If not found in our temporary storage, return a not found response
@@ -797,11 +799,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Check if the video exists in our temporary storage
-      if ((global as any).mediaStorage && (global as any).mediaStorage.has(`${recordingId}_video`)) {
-        const mediaFile = (global as any).mediaStorage.get(`${recordingId}_video`);
-        res.setHeader('Content-Type', mediaFile.contentType);
-        res.setHeader('Content-Disposition', `attachment; filename="${mediaFile.filename}"`);
-        return res.send(mediaFile.data);
+      if (global.mediaStorage && global.mediaStorage.has(`${recordingId}_video`)) {
+        const mediaFile = global.mediaStorage.get(`${recordingId}_video`);
+        if (mediaFile) {
+          res.setHeader('Content-Type', mediaFile.contentType);
+          res.setHeader('Content-Disposition', `attachment; filename="${mediaFile.filename}"`);
+          return res.send(mediaFile.data);
+        }
       }
       
       // If not found in our temporary storage, return a not found response
