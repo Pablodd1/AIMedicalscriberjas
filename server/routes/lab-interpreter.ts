@@ -723,15 +723,15 @@ labInterpreterRouter.post('/analyze', async (req, res) => {
     const knowledgeBase = await storage.getLabKnowledgeBase();
     
     // Default prompts if settings not found
-    const systemPrompt = settings?.systemPrompt || 'You are a medical lab report interpreter. Your task is to analyze lab test results and provide insights based on medical knowledge and the provided reference ranges. Be factual and evidence-based in your analysis.';
-    let userPrompt = settings?.withoutPatientPrompt || 'Analyze this lab report. Provide a detailed interpretation of abnormal values, possible implications, and recommendations.';
+    const systemPrompt = settings?.system_prompt || settings?.systemPrompt || 'You are a medical lab report interpreter. Your task is to analyze lab test results and provide insights based on medical knowledge and the provided reference ranges. Be factual and evidence-based in your analysis.';
+    let userPrompt = settings?.without_patient_prompt || settings?.withoutPatientPrompt || 'Analyze this lab report. Provide a detailed interpretation of abnormal values, possible implications, and recommendations.';
     
     let patient = null;
     if (withPatient && patientId) {
       // Get patient info if needed
       patient = await storage.getPatient(patientId);
       if (patient) {
-        userPrompt = settings?.withPatientPrompt || 'Analyze this lab report for the patient. Provide a detailed interpretation of abnormal values, possible implications, and recommendations.';
+        userPrompt = settings?.with_patient_prompt || settings?.withPatientPrompt || 'Analyze this lab report for the patient. Provide a detailed interpretation of abnormal values, possible implications, and recommendations.';
         // Replace placeholders with actual patient info
         userPrompt = userPrompt
           .replace('${patientName}', `${patient.firstName} ${patient.lastName}`)
