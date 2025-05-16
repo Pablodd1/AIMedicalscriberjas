@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,7 +20,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { FolderOpen, File, Download, Trash2, Edit, FileText, FileImage, FilePlus, FileUp } from 'lucide-react';
 
-interface Document {
+interface PatientDocument {
   id: number;
   patientId: number;
   doctorId: number;
@@ -45,7 +44,7 @@ export function DocumentManager({ patientId }: DocumentManagerProps) {
   const queryClient = useQueryClient();
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [currentDocument, setCurrentDocument] = useState<Document | null>(null);
+  const [currentDocument, setCurrentDocument] = useState<PatientDocument | null>(null);
   
   // Form state
   const [title, setTitle] = useState('');
@@ -54,18 +53,35 @@ export function DocumentManager({ patientId }: DocumentManagerProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
   // Fetch documents
-  const { data: documents = [], isLoading, isError } = useQuery({
+  const { data: documents = [], isLoading, isError } = useQuery<PatientDocument[]>({
     queryKey: ['/api/patient-documents', patientId],
-    queryFn: () => apiRequest(`/api/patient-documents/${patientId}`),
+    queryFn: async () => {
+      const response = await fetch(`/api/patient-documents/${patientId}`, {
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch documents');
+      }
+      
+      return response.json();
+    },
   });
   
   // Upload document mutation
   const uploadMutation = useMutation({
     mutationFn: async (formData: FormData) => {
-      return apiRequest(`/api/patient-documents/${patientId}/upload`, {
+      const response = await fetch(`/api/patient-documents/${patientId}/upload`, {
         method: 'POST',
         body: formData,
-      }, false);
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to upload document');
+      }
+      
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/patient-documents', patientId] });
@@ -88,14 +104,21 @@ export function DocumentManager({ patientId }: DocumentManagerProps) {
   
   // Update document mutation
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: Partial<Document> }) => {
-      return apiRequest(`/api/patient-documents/${patientId}/documents/${id}`, {
+    mutationFn: async ({ id, data }: { id: number; data: Partial<PatientDocument> }) => {
+      const response = await fetch(`/api/patient-documents/${patientId}/documents/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(data),
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
       });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update document');
+      }
+      
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/patient-documents', patientId] });
@@ -119,9 +142,16 @@ export function DocumentManager({ patientId }: DocumentManagerProps) {
   // Delete document mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      return apiRequest(`/api/patient-documents/${patientId}/documents/${id}`, {
+      const response = await fetch(`/api/patient-documents/${patientId}/documents/${id}`, {
         method: 'DELETE',
+        credentials: 'include',
       });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete document');
+      }
+      
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/patient-documents', patientId] });
@@ -205,7 +235,7 @@ export function DocumentManager({ patientId }: DocumentManagerProps) {
   };
   
   // Handle document download
-  const handleDownload = (doc: Document) => {
+  const handleDownload = (doc: PatientDocument) => {
     window.open(`/api/patient-documents/${patientId}/download/${doc.id}`, '_blank');
   };
   
@@ -219,7 +249,7 @@ export function DocumentManager({ patientId }: DocumentManagerProps) {
   };
   
   // Open edit dialog with document data
-  const openEditDialog = (doc: Document) => {
+  const openEditDialog = (doc: PatientDocument) => {
     setCurrentDocument(doc);
     setTitle(doc.title);
     setDescription(doc.description || '');
@@ -258,7 +288,7 @@ export function DocumentManager({ patientId }: DocumentManagerProps) {
   };
   
   // Group documents by type
-  const groupedDocuments = documents.reduce<Record<string, Document[]>>((acc, doc) => {
+  const groupedDocuments = documents.reduce<Record<string, PatientDocument[]>>((acc: Record<string, PatientDocument[]>, doc: PatientDocument) => {
     const type = doc.fileType;
     if (!acc[type]) {
       acc[type] = [];
@@ -377,8 +407,8 @@ export function DocumentManager({ patientId }: DocumentManagerProps) {
                         <p className="text-sm text-gray-700 mb-2">{doc.description}</p>
                       )}
                       <div className="flex flex-wrap gap-1 mt-2">
-                        {doc.tags.map((tag, i) => (
-                          <Badge key={i} variant="outline" className="text-xs">
+                        {doc.tags.map((tag, index) => (
+                          <Badge key={index} variant="outline" className="text-xs">
                             {tag}
                           </Badge>
                         ))}
@@ -464,8 +494,8 @@ export function DocumentManager({ patientId }: DocumentManagerProps) {
                           <p className="text-sm text-gray-700 mb-2">{doc.description}</p>
                         )}
                         <div className="flex flex-wrap gap-1 mt-2">
-                          {doc.tags.map((tag, i) => (
-                            <Badge key={i} variant="outline" className="text-xs">
+                          {doc.tags.map((tag, index) => (
+                            <Badge key={index} variant="outline" className="text-xs">
                               {tag}
                             </Badge>
                           ))}
