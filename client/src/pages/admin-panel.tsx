@@ -107,7 +107,11 @@ const AdminPanel = () => {
     queryKey: ['/api/admin/users'],
     queryFn: async () => {
       if (!isAuthenticated) return [] as User[];
-      const response = await fetch('/api/admin/users');
+      const response = await fetch('/api/admin/users', {
+        headers: {
+          'X-Admin-Password': 'admin@@@'
+        }
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch users');
       }
@@ -120,7 +124,11 @@ const AdminPanel = () => {
     queryKey: ['/api/admin/dashboard'],
     queryFn: async () => {
       if (!isAuthenticated) return null;
-      const response = await fetch('/api/admin/dashboard');
+      const response = await fetch('/api/admin/dashboard', {
+        headers: {
+          'X-Admin-Password': 'admin@@@'
+        }
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch dashboard data');
       }
@@ -135,6 +143,7 @@ const AdminPanel = () => {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
+          'X-Admin-Password': 'admin@@@'
         },
         body: JSON.stringify({ isActive }),
       });
@@ -166,6 +175,7 @@ const AdminPanel = () => {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
+          'X-Admin-Password': 'admin@@@'
         },
         body: JSON.stringify({ role }),
       });
@@ -196,6 +206,9 @@ const AdminPanel = () => {
     mutationFn: async (userId: number) => {
       const response = await fetch(`/api/admin/users/${userId}`, {
         method: 'DELETE',
+        headers: {
+          'X-Admin-Password': 'admin@@@'
+        }
       });
       if (!response.ok) {
         throw new Error('Failed to delete user');
@@ -220,17 +233,40 @@ const AdminPanel = () => {
     },
   });
 
-  const handleAdminLogin = (data: z.infer<typeof AdminLoginSchema>) => {
-    if (data.password === 'admin@@@') {
-      setIsAuthenticated(true);
+  const handleAdminLogin = async (data: z.infer<typeof AdminLoginSchema>) => {
+    try {
+      // First try regular login if the user is already logged in and is an admin
+      const userResponse = await fetch('/api/user');
+      if (userResponse.ok) {
+        const userData = await userResponse.json();
+        if (userData.role === 'admin') {
+          setIsAuthenticated(true);
+          toast({
+            title: 'Authentication successful',
+            description: 'You are now authenticated as an admin.',
+          });
+          return;
+        }
+      }
+      
+      // Alternative password-based login for direct admin access
+      if (data.password === 'admin@@@') {
+        setIsAuthenticated(true);
+        toast({
+          title: 'Authentication successful',
+          description: 'You are now authenticated as an admin using direct access.',
+        });
+      } else {
+        toast({
+          title: 'Authentication failed',
+          description: 'The password you entered is incorrect.',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
       toast({
-        title: 'Authentication successful',
-        description: 'You are now authenticated as an admin.',
-      });
-    } else {
-      toast({
-        title: 'Authentication failed',
-        description: 'The password you entered is incorrect.',
+        title: 'Authentication error',
+        description: 'There was an error during authentication.',
         variant: 'destructive',
       });
     }

@@ -8,9 +8,9 @@ export const adminRouter = Router();
 
 // Middleware to check if user has admin access
 const checkAdminAccess = (req: Request, res: Response, next: Function) => {
-  // For direct admin panel access with password, we bypass the auth check
-  // This is handled on the frontend with the password 'admin@@@'
-  if (req.path === '/') {
+  // Special case for direct password access through frontend
+  const adminPassword = req.headers['x-admin-password'];
+  if (adminPassword === 'admin@@@') {
     return next();
   }
   
