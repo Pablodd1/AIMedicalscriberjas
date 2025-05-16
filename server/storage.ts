@@ -61,7 +61,7 @@ import {
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { db, pool } from "./db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, asc } from "drizzle-orm";
 
 // Use connect-pg-simple for session storage with PostgreSQL
 const PostgresSessionStore = connectPg(session);
@@ -947,6 +947,87 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error("Error fetching lab reports:", error);
       return [];
+    }
+  }
+
+  // Medical Note Templates methods
+  async getMedicalNoteTemplates(): Promise<MedicalNoteTemplate[]> {
+    try {
+      return await db
+        .select()
+        .from(medicalNoteTemplates)
+        .orderBy(asc(medicalNoteTemplates.type));
+    } catch (error) {
+      console.error("Error fetching medical note templates:", error);
+      return [];
+    }
+  }
+
+  async getMedicalNoteTemplatesByType(type: string): Promise<MedicalNoteTemplate[]> {
+    try {
+      return await db
+        .select()
+        .from(medicalNoteTemplates)
+        .where(eq(medicalNoteTemplates.type, type))
+        .orderBy(asc(medicalNoteTemplates.createdAt));
+    } catch (error) {
+      console.error("Error fetching medical note templates by type:", error);
+      return [];
+    }
+  }
+
+  async getMedicalNoteTemplate(id: number): Promise<MedicalNoteTemplate | undefined> {
+    try {
+      const [template] = await db
+        .select()
+        .from(medicalNoteTemplates)
+        .where(eq(medicalNoteTemplates.id, id));
+      return template;
+    } catch (error) {
+      console.error("Error fetching medical note template:", error);
+      return undefined;
+    }
+  }
+
+  async createMedicalNoteTemplate(template: InsertMedicalNoteTemplate): Promise<MedicalNoteTemplate> {
+    try {
+      const [newTemplate] = await db
+        .insert(medicalNoteTemplates)
+        .values(template)
+        .returning();
+      return newTemplate;
+    } catch (error) {
+      console.error("Error creating medical note template:", error);
+      throw error;
+    }
+  }
+
+  async updateMedicalNoteTemplate(id: number, updates: Partial<MedicalNoteTemplate>): Promise<MedicalNoteTemplate | undefined> {
+    try {
+      const [updated] = await db
+        .update(medicalNoteTemplates)
+        .set({
+          ...updates,
+          updatedAt: new Date()
+        })
+        .where(eq(medicalNoteTemplates.id, id))
+        .returning();
+      return updated;
+    } catch (error) {
+      console.error("Error updating medical note template:", error);
+      return undefined;
+    }
+  }
+
+  async deleteMedicalNoteTemplate(id: number): Promise<boolean> {
+    try {
+      const result = await db
+        .delete(medicalNoteTemplates)
+        .where(eq(medicalNoteTemplates.id, id));
+      return result.rowCount > 0;
+    } catch (error) {
+      console.error("Error deleting medical note template:", error);
+      return false;
     }
   }
 

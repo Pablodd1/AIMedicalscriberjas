@@ -27,6 +27,7 @@ import {
   insertInvoiceSchema,
   insertIntakeFormSchema,
   insertIntakeFormResponseSchema,
+  insertMedicalNoteTemplateSchema,
   type RecordingSession
 } from "@shared/schema";
 
@@ -360,6 +361,116 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error creating medical note from consultation:", error);
       res.status(500).json({ message: "Failed to create medical note from consultation" });
+    }
+  });
+  
+  // Medical Note Templates routes
+  app.get("/api/medical-note-templates", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const templates = await storage.getMedicalNoteTemplates();
+      res.json(templates);
+    } catch (error) {
+      console.error("Error fetching medical note templates:", error);
+      res.status(500).json({ message: "Failed to fetch medical note templates" });
+    }
+  });
+  
+  app.get("/api/medical-note-templates/type/:type", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const type = req.params.type;
+      const templates = await storage.getMedicalNoteTemplatesByType(type);
+      res.json(templates);
+    } catch (error) {
+      console.error("Error fetching medical note templates by type:", error);
+      res.status(500).json({ message: "Failed to fetch medical note templates" });
+    }
+  });
+  
+  app.get("/api/medical-note-templates/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const id = parseInt(req.params.id);
+      const template = await storage.getMedicalNoteTemplate(id);
+      
+      if (!template) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+      
+      res.json(template);
+    } catch (error) {
+      console.error("Error fetching medical note template:", error);
+      res.status(500).json({ message: "Failed to fetch medical note template" });
+    }
+  });
+  
+  app.post("/api/medical-note-templates", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const validation = insertMedicalNoteTemplateSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json(validation.error);
+      }
+      
+      const template = await storage.createMedicalNoteTemplate(validation.data);
+      res.status(201).json(template);
+    } catch (error) {
+      console.error("Error creating medical note template:", error);
+      res.status(500).json({ message: "Failed to create medical note template" });
+    }
+  });
+  
+  app.put("/api/medical-note-templates/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const id = parseInt(req.params.id);
+      const template = await storage.getMedicalNoteTemplate(id);
+      
+      if (!template) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+      
+      const updatedTemplate = await storage.updateMedicalNoteTemplate(id, req.body);
+      res.json(updatedTemplate);
+    } catch (error) {
+      console.error("Error updating medical note template:", error);
+      res.status(500).json({ message: "Failed to update medical note template" });
+    }
+  });
+  
+  app.delete("/api/medical-note-templates/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const id = parseInt(req.params.id);
+      const result = await storage.deleteMedicalNoteTemplate(id);
+      
+      if (!result) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+      
+      res.sendStatus(204);
+    } catch (error) {
+      console.error("Error deleting medical note template:", error);
+      res.status(500).json({ message: "Failed to delete medical note template" });
     }
   });
 
