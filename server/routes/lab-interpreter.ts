@@ -274,9 +274,9 @@ labInterpreterRouter.post('/settings', async (req, res) => {
     }
     
     const settings = await storage.saveLabInterpreterSettings({
-      systemPrompt,
-      withPatientPrompt,
-      withoutPatientPrompt
+      system_prompt: systemPrompt,
+      with_patient_prompt: withPatientPrompt,
+      without_patient_prompt: withoutPatientPrompt
     });
     
     return res.json(settings);

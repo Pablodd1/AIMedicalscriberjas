@@ -573,9 +573,9 @@ export const insertLabKnowledgeBaseSchema = createInsertSchema(labKnowledgeBase)
 });
 
 export const insertLabInterpreterSettingsSchema = createInsertSchema(labInterpreterSettings).pick({
-  systemPrompt: true,
-  withPatientPrompt: true,
-  withoutPatientPrompt: true,
+  system_prompt: true,
+  with_patient_prompt: true,
+  without_patient_prompt: true,
 });
 
 export const insertLabReportSchema = createInsertSchema(labReports).pick({
