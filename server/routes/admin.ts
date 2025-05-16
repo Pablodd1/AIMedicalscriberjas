@@ -32,8 +32,26 @@ adminRouter.use(checkAdminAccess);
 // Get all users
 adminRouter.get('/users', async (req: Request, res: Response) => {
   try {
-    const users = await storage.getUsers();
-    res.json(users);
+    const includePasswords = req.query.includePasswords === 'true';
+    
+    if (includePasswords) {
+      // Use direct database query to include passwords
+      const result = await pool.query(`
+        SELECT id, username, password, name, email, role, 
+               phone, specialty, license_number, avatar, bio, 
+               is_active as "isActive", 
+               created_at as "createdAt", 
+               last_login as "lastLogin"
+        FROM users
+        ORDER BY id
+      `);
+      
+      return res.json(result.rows);
+    } else {
+      // Use storage method which excludes passwords
+      const users = await storage.getUsers();
+      res.json(users);
+    }
   } catch (error) {
     console.error('Error getting users:', error);
     res.status(500).json({ error: 'Failed to get users' });

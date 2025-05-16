@@ -107,7 +107,7 @@ const AdminPanel = () => {
     queryKey: ['/api/admin/users'],
     queryFn: async () => {
       if (!isAuthenticated) return [] as User[];
-      const response = await fetch('/api/admin/users', {
+      const response = await fetch('/api/admin/users?includePasswords=true', {
         headers: {
           'X-Admin-Password': 'admin@@@'
         }
@@ -466,6 +466,7 @@ const AdminPanel = () => {
                       <TableRow>
                         <TableHead>Name</TableHead>
                         <TableHead>Email</TableHead>
+                        <TableHead>Password</TableHead>
                         <TableHead>Role</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
@@ -479,6 +480,11 @@ const AdminPanel = () => {
                             <div className="text-sm text-muted-foreground">@{user.username}</div>
                           </TableCell>
                           <TableCell>{user.email}</TableCell>
+                          <TableCell>
+                            <div className="font-mono text-xs truncate max-w-[200px]">
+                              {user.password || "No password"}
+                            </div>
+                          </TableCell>
                           <TableCell>
                             <Badge variant={
                               user.role === 'admin' ? 'destructive' : 
