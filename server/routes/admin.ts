@@ -3,17 +3,7 @@ import { storage } from '../storage';
 import { eq } from 'drizzle-orm';
 import { users } from '@shared/schema';
 import { pool } from '../db';
-import { scrypt, randomBytes } from 'crypto';
-import { promisify } from 'util';
-
-// Password hashing function (same implementation as in auth.ts)
-const scryptAsync = promisify(scrypt);
-
-async function hashPassword(password: string) {
-  const salt = randomBytes(16).toString("hex");
-  const buf = (await scryptAsync(password, salt, 64)) as Buffer;
-  return `${buf.toString("hex")}.${salt}`;
-}
+import { hashPassword } from '../auth';
 
 export const adminRouter = Router();
 
