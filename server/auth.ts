@@ -74,11 +74,19 @@ export function setupAuth(app: Express) {
         // Check if user exists, password is correct, and account is active
         if (!user || !(await comparePasswords(password, user.password))) {
           return done(null, false, { message: 'Invalid username or password' });
-        } else if (user.isActive === false) {
+        } 
+        
+        // Explicitly check if isActive is false or null/undefined
+        const isUserActive = user.isActive === true;
+        
+        if (!isUserActive) {
           return done(null, false, { 
             message: 'Your account has been deactivated. Please contact AIMS admin to regain access: 786-643-2099 or email jasmelacosta@gmail.com' 
           });
         } else {
+          // Update last login time
+          await storage.updateUser(user.id, { lastLogin: new Date() });
+          
           // Type cast the user to Express.User interface
           return done(null, user as Express.User);
         }
