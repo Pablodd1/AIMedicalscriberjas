@@ -208,7 +208,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       const compositeStream = new MediaStream(compositeTracks);
       
       // 5. Set up the recorder with high quality optimized for conversation capture
-      let options = {};
+      let options: MediaRecorderOptions = {};
       
       // Try different video/audio formats in order of preference
       // Using codecs that prioritize speech clarity and reliability
@@ -223,18 +223,17 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       
       for (const mimeType of mimeTypes) {
         if (MediaRecorder.isTypeSupported(mimeType)) {
-          options = {
-            mimeType,
-            videoBitsPerSecond: 2500000, // 2.5 Mbps for video
-            audioBitsPerSecond: 128000   // 128 kbps - good for speech clarity
-          };
+          // Set base options with mime type
+          options.mimeType = mimeType;
           
-          // If using audio-only format, increase audio quality
-          if (mimeType.startsWith('audio/')) {
-            options = {
-              ...options,
-              audioBitsPerSecond: 192000 // Higher quality for audio-only
-            };
+          // Add quality settings based on format type
+          if (mimeType.startsWith('video/')) {
+            // For video formats, set both video and audio quality
+            options.videoBitsPerSecond = 2500000; // 2.5 Mbps for video
+            options.audioBitsPerSecond = 128000;  // 128 kbps - good for speech clarity
+          } else if (mimeType.startsWith('audio/')) {
+            // For audio-only formats, use higher audio quality
+            options.audioBitsPerSecond = 192000;  // 192 kbps for audio-only
           }
           
           console.log(`Using recording format: ${mimeType}`);
