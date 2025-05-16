@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Link } from 'wouter';
 import {
   Card,
   CardContent,
@@ -366,45 +365,36 @@ const AdminPanel = () => {
   if (!isAuthenticated) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
-        <div className="relative w-[350px]">
-          <div className="absolute top-0 right-0 mb-4">
-            <Link href="/">
-              <Button variant="outline" size="sm">
-                ← Back to Home
-              </Button>
-            </Link>
-          </div>
-          <Card className="w-full mt-10">
-            <CardHeader>
-              <CardTitle>Admin Authentication</CardTitle>
-              <CardDescription>
-                Enter the admin password to access the admin panel.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Form {...adminLoginForm}>
-                <form onSubmit={adminLoginForm.handleSubmit(handleAdminLogin)} className="space-y-4">
-                  <FormField
-                    control={adminLoginForm.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Password</FormLabel>
-                        <FormControl>
-                          <Input type="password" placeholder="Enter admin password" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <Button type="submit" className="w-full">
-                    Log In
-                  </Button>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
-        </div>
+        <Card className="w-[350px]">
+          <CardHeader>
+            <CardTitle>Admin Authentication</CardTitle>
+            <CardDescription>
+              Enter the admin password to access the admin panel.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Form {...adminLoginForm}>
+              <form onSubmit={adminLoginForm.handleSubmit(handleAdminLogin)} className="space-y-4">
+                <FormField
+                  control={adminLoginForm.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Password</FormLabel>
+                      <FormControl>
+                        <Input type="password" placeholder="Enter admin password" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button type="submit" className="w-full">
+                  Log In
+                </Button>
+              </form>
+            </Form>
+          </CardContent>
+        </Card>
       </div>
     );
   }
