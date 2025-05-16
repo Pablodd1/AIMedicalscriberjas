@@ -40,13 +40,16 @@ const upload = multer({
   storage: fileStorage,
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
   fileFilter: (req, file, cb) => {
-    // Accept only Excel files for knowledge base and PDF/images for lab reports
+    // Accept Excel files, text files, and PDF/images
     if (file.fieldname === 'file' || file.fieldname === 'knowledgeBase') {
       if (file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
           file.mimetype === 'application/vnd.ms-excel' ||
           file.mimetype === 'application/octet-stream' ||
+          file.mimetype === 'text/plain' ||
           file.originalname.endsWith('.xlsx') ||
-          file.originalname.endsWith('.xls')) {
+          file.originalname.endsWith('.xls') ||
+          file.originalname.endsWith('.txt') ||
+          file.originalname.endsWith('.text')) {
         cb(null, true);
       } else {
         cb(null, true); // Allow all files for now to debug
@@ -539,12 +542,25 @@ labInterpreterRouter.post('/knowledge-base/import', upload.single('file'), async
         return res.status(400).json({ error: 'No text file uploaded' });
       }
       
-      // Read the text file
-      const textContent = fs.readFileSync(req.file.path, 'utf-8');
-      data = parseTextFormat(textContent);
-      
-      // Clean up uploaded file when done
-      fs.unlinkSync(req.file.path);
+      try {
+        // Read the text file with better error handling
+        console.log("Reading text file:", req.file.path);
+        const textContent = fs.readFileSync(req.file.path, 'utf-8');
+        console.log("Text file content sample:", textContent.substring(0, 100));
+        
+        // Parse the text content
+        data = parseTextFormat(textContent);
+        console.log(`Parsed ${data.length} entries from text file`);
+        
+        // Clean up uploaded file when done
+        fs.unlinkSync(req.file.path);
+      } catch (fileError) {
+        console.error('Error processing text file:', fileError);
+        return res.status(400).json({ 
+          error: 'Failed to process text file', 
+          details: fileError.message 
+        });
+      }
     }
     else if (importType === 'paste') {
       // Text content directly pasted
