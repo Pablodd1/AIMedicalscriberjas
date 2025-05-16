@@ -584,9 +584,19 @@ const AdminPanel = () => {
                                 size="sm" 
                                 onClick={() => openDeleteDialog(user)}
                                 disabled={user.id === 1} // Cannot delete main admin
+                                className="mr-1"
                               >
                                 <Trash2 className="h-4 w-4 mr-1" />
                                 Delete
+                              </Button>
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => openResetPasswordDialog(user)}
+                                disabled={user.id === 1} // Cannot reset main admin password
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 mr-1"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                                Reset
                               </Button>
                             </div>
                           </TableCell>
@@ -604,6 +614,59 @@ const AdminPanel = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Reset Password Dialog */}
+      <Dialog open={showResetPasswordDialog} onOpenChange={setShowResetPasswordDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>
+              Enter a new password for {selectedUser?.name} ({selectedUser?.username}).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="new-password">New Password</Label>
+              <Input
+                id="new-password"
+                type="text"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Enter new password (min 6 characters)"
+              />
+              <p className="text-xs text-muted-foreground">
+                Password must be at least 6 characters long.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowResetPasswordDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleResetPassword}
+              disabled={resetPasswordMutation.isPending || !newPassword || newPassword.length < 6}
+            >
+              {resetPasswordMutation.isPending ? (
+                <>
+                  <span className="mr-2">
+                    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  </span>
+                  Resetting...
+                </>
+              ) : (
+                'Reset Password'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit User Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
