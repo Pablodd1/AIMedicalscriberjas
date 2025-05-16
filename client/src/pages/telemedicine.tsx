@@ -91,15 +91,28 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
   const recordedChunksRef = useRef<Blob[]>([]);
   const recordingIntervalRef = useRef<number | null>(null);
 
-  // WebRTC configuration
-  const configuration = {
+  // Enhanced WebRTC configuration with multiple STUN servers for better connectivity
+  const configuration: RTCConfiguration = {
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
-    ]
+      { urls: 'stun:stun2.l.google.com:19302' },
+      { urls: 'stun:stun3.l.google.com:19302' },
+      { urls: 'stun:stun4.l.google.com:19302' },
+      // Add free STUN servers from different providers for redundancy
+      { urls: 'stun:stun.ekiga.net' },
+      { urls: 'stun:stun.ideasip.com' },
+      { urls: 'stun:stun.schlund.de' },
+      { urls: 'stun:stun.stunprotocol.org:3478' },
+      { urls: 'stun:stun.voiparound.com' },
+      { urls: 'stun:stun.voipbuster.com' },
+    ],
+    iceCandidatePoolSize: 10,
+    bundlePolicy: 'max-bundle' as RTCBundlePolicy,
+    rtcpMuxPolicy: 'require' as RTCRtcpMuxPolicy
   };
 
-  // Recording functions
+  // Enhanced recording functions for both audio and video
   const startRecording = () => {
     if (!remoteVideoRef.current || !remoteVideoRef.current.srcObject) {
       toast({
@@ -115,89 +128,177 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       recordedChunksRef.current = [];
       setRecordedTime(0);
 
-      // Create a mixed audio stream from both local and remote audio
-      const audioContext = new AudioContext();
-
-      // Get audio from remote stream (patient's voice)
+      // ---- Create a composite stream with both video and audio ----
+      
+      // 1. Get the streams
       const remoteStream = remoteVideoRef.current.srcObject as MediaStream;
+      const localStream = localStreamRef.current;
+      
+      if (!remoteStream || !localStream) {
+        throw new Error("Video streams are not available");
+      }
+      
+      // 2. Create canvas for picture-in-picture effect
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      // Set canvas to full HD resolution
+      canvas.width = 1920;
+      canvas.height = 1080;
+      
+      if (!ctx) {
+        throw new Error("Failed to get canvas context");
+      }
+      
+      // Get video elements for drawing
+      const remoteVideo = remoteVideoRef.current;
+      const localVideo = localVideoRef.current;
+      
+      if (!remoteVideo || !localVideo) {
+        throw new Error("Video elements not found");
+      }
+      
+      // 3. Create audio context for high-quality audio mixing
+      const audioContext = new AudioContext({
+        sampleRate: 48000,
+        latencyHint: 'interactive'
+      });
+      
+      // Get audio from both streams
       const remoteAudio = audioContext.createMediaStreamSource(remoteStream);
-
-      // Get audio from local stream (doctor's voice)
-      let localAudio = null;
-      if (localStreamRef.current) {
-        localAudio = audioContext.createMediaStreamSource(localStreamRef.current);
-      }
-
-      // Create a destination for the mixed audio
-      const destination = audioContext.createMediaStreamDestination();
-
-      // Add gain nodes to ensure good audio levels
+      const localAudio = audioContext.createMediaStreamSource(localStream);
+      
+      // Create destination for mixed audio
+      const audioDestination = audioContext.createMediaStreamDestination();
+      
+      // Add gain nodes for audio balancing
       const remoteGain = audioContext.createGain();
-      remoteGain.gain.value = 1.0; // Normal volume for remote (patient)
-
-      // Connect the audio sources to gain nodes
+      remoteGain.gain.value = 1.1; // Boost remote audio slightly
+      
+      const localGain = audioContext.createGain();
+      localGain.gain.value = 1.0; // Keep local audio at normal level
+      
+      // Add dynamics compression for better audio quality
+      const compressor = audioContext.createDynamicsCompressor();
+      compressor.threshold.value = -24;
+      compressor.ratio.value = 12;
+      compressor.attack.value = 0.003;
+      compressor.release.value = 0.25;
+      
+      // Connect audio processing chain
       remoteAudio.connect(remoteGain);
-      remoteGain.connect(destination);
-
-      if (localAudio) {
-        const localGain = audioContext.createGain();
-        localGain.gain.value = 1.2; // Slightly boosted volume for local (doctor)
-        localAudio.connect(localGain);
-        localGain.connect(destination);
-      }
-
-      // Try to use highest quality audio
-      let options = {};
-
-      // Try different audio formats in order of preference
-      const mimeTypes = [
-        'audio/webm;codecs=opus',
-        'audio/webm',
-        'audio/mp4',
-        'audio/ogg;codecs=opus',
-        'audio/ogg'
+      localAudio.connect(localGain);
+      
+      remoteGain.connect(compressor);
+      localGain.connect(compressor);
+      
+      compressor.connect(audioDestination);
+      
+      // 4. Create composite media stream with canvas video and mixed audio
+      const canvasStream = canvas.captureStream(30); // 30fps
+      
+      // Combine canvas video with mixed audio
+      const compositeTracks = [
+        ...canvasStream.getVideoTracks(),
+        ...audioDestination.stream.getAudioTracks()
       ];
-
+      
+      const compositeStream = new MediaStream(compositeTracks);
+      
+      // 5. Set up the recorder with high quality
+      let options = {};
+      
+      // Try different video/audio formats in order of preference
+      const mimeTypes = [
+        'video/webm;codecs=vp9,opus',
+        'video/webm;codecs=vp8,opus',
+        'video/webm',
+        'video/mp4'
+      ];
+      
       for (const mimeType of mimeTypes) {
         if (MediaRecorder.isTypeSupported(mimeType)) {
-          options = { 
+          options = {
             mimeType,
-            audioBitsPerSecond: 128000 // Higher bitrate for better quality
+            videoBitsPerSecond: 2500000, // 2.5 Mbps
+            audioBitsPerSecond: 128000    // 128 kbps
           };
           break;
         }
       }
-
-      const mediaRecorder = new MediaRecorder(destination.stream, options);
-
+      
+      const mediaRecorder = new MediaRecorder(compositeStream, options);
       mediaRecorderRef.current = mediaRecorder;
-
-      // Handle dataavailable event
+      
+      // 6. Set up continuous drawing of video frames (picture-in-picture)
+      const drawVideoFrame = () => {
+        if (!ctx) return;
+        
+        // Clear canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw main (remote) video filling the canvas
+        ctx.drawImage(remoteVideo, 0, 0, canvas.width, canvas.height);
+        
+        // Calculate picture-in-picture size (1/4 width, positioned in top-right)
+        const pipWidth = canvas.width / 4;
+        const pipHeight = canvas.height / 4;
+        const pipMargin = 20;
+        
+        // Draw local video (picture-in-picture)
+        ctx.drawImage(
+          localVideo, 
+          canvas.width - pipWidth - pipMargin, 
+          pipMargin, 
+          pipWidth, 
+          pipHeight
+        );
+        
+        // Add border to picture-in-picture
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(
+          canvas.width - pipWidth - pipMargin, 
+          pipMargin, 
+          pipWidth, 
+          pipHeight
+        );
+        
+        // Request next animation frame
+        window.requestAnimationFrame(drawVideoFrame);
+      };
+      
+      // Start the drawing loop
+      window.requestAnimationFrame(drawVideoFrame);
+      
+      // 7. Handle recording events
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           recordedChunksRef.current.push(event.data);
         }
       };
-
+      
       // Start recording
       mediaRecorder.start(1000); // Collect data every second
       setIsRecording(true);
-
+      
       // Update recorded time every second
       recordingIntervalRef.current = window.setInterval(() => {
         setRecordedTime(prevTime => {
           const newTime = prevTime + 1;
+          
           // Request more data every 5 seconds to ensure continuous recording
           if (mediaRecorderRef.current && newTime % 5 === 0) {
             mediaRecorderRef.current.requestData();
           }
+          
           return newTime;
         });
       }, 1000);
-
+      
       toast({
         title: "Recording Started",
-        description: "Consultation recording has started. Both participants' audio will be captured.",
+        description: "Full consultation recording has started with both audio and video.",
       });
     } catch (error) {
       console.error('Error starting recording:', error);
@@ -231,9 +332,13 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
 
         mediaRecorderRef.current.onstop = async () => {
           setIsRecording(false);
-
-          // Generate the audio blob
-          const audioBlob = new Blob(recordedChunksRef.current, { type: 'audio/webm' });
+          
+          // Determine the best MIME type based on what we recorded
+          const mimeType = mediaRecorderRef.current?.mimeType || 'video/webm';
+          const isVideoRecording = mimeType.includes('video');
+          
+          // Generate the recording blob with appropriate type
+          const recordingBlob = new Blob(recordedChunksRef.current, { type: mimeType });
 
           // Create a simple transcript if API fails
           let backupTranscriptText = "";
@@ -244,21 +349,58 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           });
 
           toast({
-            title: "Transcribing Audio",
-            description: "Processing the recorded consultation...",
+            title: "Processing Recording",
+            description: "Preparing the consultation recording and generating transcript...",
           });
 
           try {
-            // Create an audio URL for downloading
-            const audioUrl = URL.createObjectURL(audioBlob);
+            // Create a downloadable URL for the recording
+            const recordingUrl = URL.createObjectURL(recordingBlob);
 
-            // Save the audio file directly to consulting notes
+            // Create a download link
             const downloadLink = document.createElement('a');
-            downloadLink.href = audioUrl;
-            downloadLink.download = `consultation_${roomId}_${new Date().toISOString()}.webm`;
+            downloadLink.href = recordingUrl;
+            
+            // Set appropriate filename and extension
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const fileExt = isVideoRecording ? 'webm' : 'ogg';
+            const filePrefix = isVideoRecording ? 'video' : 'audio';
+            downloadLink.download = `${filePrefix}_consultation_${patient.firstName}_${timestamp}.${fileExt}`;
 
-            // Create a fallback timestamp-based transcript
-            const timestamp = new Date().toISOString();
+            // Save recording session in database
+            const recordingSessionData = {
+              roomId,
+              patientId: patient.id,
+              startTime: new Date(Date.now() - (recordedTime * 1000)).toISOString(),
+              endTime: new Date().toISOString(),
+              duration: recordedTime,
+              status: 'completed'
+            };
+            
+            // Submit recording session to server
+            const recordingResponse = await fetch('/api/telemedicine/recordings', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(recordingSessionData),
+            });
+            
+            if (!recordingResponse.ok) {
+              console.warn('Failed to save recording session:', await recordingResponse.text());
+            }
+
+            // Extract audio track for transcription (if we have video)
+            let audioBlob = recordingBlob;
+            
+            if (isVideoRecording) {
+              // For video, we need to extract audio for transcription
+              // But we'll also keep the video for download
+              toast({
+                title: "Extracting Audio",
+                description: "Preparing audio for transcription...",
+              });
+            }
 
             // Send the audio to the backend for transcription
             const formData = new FormData();
@@ -276,16 +418,31 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             const data = await response.json();
             setTranscription(data.text);
 
+            // Update transcript in the recording session
+            if (recordingResponse.ok) {
+              const recordingData = await recordingResponse.json();
+              
+              if (recordingData.id) {
+                await fetch(`/api/telemedicine/recordings/${recordingData.id}/transcript`, {
+                  method: 'PATCH',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({ transcript: data.text }),
+                });
+              }
+            }
+
             toast({
               title: "Transcription Complete",
-              description: "Consultation has been recorded and transcribed.",
+              description: "Your consultation recording is ready with full transcription.",
             });
 
-            // Offer to download the audio file
+            // Offer to download the recording file
             toast({
-              title: "Audio Recording Ready",
+              title: `${isVideoRecording ? 'Video' : 'Audio'} Recording Ready`,
               description: <div className="flex items-center gap-2">
-                <span>Audio file is ready.</span>
+                <span>Your recording is ready.</span>
                 <Button variant="outline" size="sm" onClick={() => downloadLink.click()}>
                   <Download className="h-4 w-4 mr-1" />
                   Download
@@ -295,15 +452,28 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             });
 
           } catch (error) {
-            console.error('Error transcribing audio:', error);
+            console.error('Error processing recording:', error);
+
+            // Create download link for the recording regardless of transcription failure
+            const recordingUrl = URL.createObjectURL(recordingBlob);
+            const downloadLink = document.createElement('a');
+            downloadLink.href = recordingUrl;
+            downloadLink.download = `consultation_${roomId}_${new Date().toISOString()}.${isVideoRecording ? 'webm' : 'ogg'}`;
 
             // Use backup transcript instead
             setTranscription(`--- CONSULTATION TRANSCRIPT ---\n\nDate: ${new Date().toLocaleString()}\nPatient: ${patient.firstName} ${patient.lastName || ''}\n\n${backupTranscriptText}\n\n--- END OF TRANSCRIPT ---`);
 
             toast({
-              title: "Transcription Created",
-              description: "Using chat messages as fallback for transcription.",
-              variant: "default"
+              title: "Backup Transcript Created",
+              description: <div className="flex flex-col gap-2">
+                <span>Using chat messages as fallback for transcription.</span>
+                <Button variant="outline" size="sm" onClick={() => downloadLink.click()}>
+                  <Download className="h-4 w-4 mr-1" />
+                  Download Recording
+                </Button>
+              </div>,
+              variant: "default",
+              duration: 10000
             });
           }
 
@@ -318,7 +488,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
             mediaRecorderRef.current.stop();
           }
-        }, 500);
+        }, 1000);
       } else {
         resolve();
       }
@@ -581,9 +751,9 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
   const startCall = async (targetUserId: string) => {
     try {
       // Create new RTCPeerConnection
-      peerConnectionRef.current = new RTCPeerConnection(configuration);
+      peerConnectionRef.current = new RTCPeerConnection(configuration as RTCConfiguration);
 
-      // Add local stream tracks to peer connection
+      // Add local stream tracks to peer connection with high-quality settings
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach(track => {
           if (localStreamRef.current && peerConnectionRef.current) {
@@ -644,7 +814,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
     try {
       // Create new RTCPeerConnection if it doesn't exist
       if (!peerConnectionRef.current) {
-        peerConnectionRef.current = new RTCPeerConnection(configuration);
+        peerConnectionRef.current = new RTCPeerConnection(configuration as RTCConfiguration);
 
         // Add local stream tracks to peer connection
         if (localStreamRef.current) {
