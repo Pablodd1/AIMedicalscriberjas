@@ -1302,139 +1302,146 @@ export default function LabInterpreter() {
                     </CardContent>
                   </Card>
                   
-                  {/* Follow-up Questions */}
+                  {/* Voice Recording and Follow-up Questions Side-by-Side */}
                   {analysisResult && (
-                    <Card className="mt-4">
-                      <CardHeader className="pb-3">
-                        <CardTitle>Follow-up Questions</CardTitle>
-                        <CardDescription>
-                          Ask for more specific information about the lab results or recommendations
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-4">
-                          <div className="flex gap-2">
-                            <Input
-                              placeholder="Ask about specific supplements, peptides, or lifestyle recommendations..."
-                              value={followUpQuestion}
-                              onChange={(e) => setFollowUpQuestion(e.target.value)}
-                              className="flex-1"
-                            />
-                            <Button 
-                              onClick={handleAskFollowUp} 
-                              disabled={isAskingFollowUp || !followUpQuestion.trim()}
-                            >
-                              {isAskingFollowUp ? (
-                                <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                              ) : (
-                                <ChevronRight className="h-4 w-4 mr-1" />
-                              )}
-                              Ask
-                            </Button>
-                          </div>
-                          
-                          {followUpAnswer && (
-                            <Card className="bg-muted/50">
-                              <CardContent className="pt-4">
-                                <div className="flex gap-2 items-start">
-                                  <BotIcon className="h-5 w-5 mt-0.5 text-primary" />
-                                  <div className="space-y-1">
-                                    <p className="font-medium text-sm">Your question:</p>
-                                    <p className="text-sm">{followUpQuestion}</p>
-                                    <Separator className="my-2" />
-                                    <p className="text-sm whitespace-pre-wrap">{followUpAnswer}</p>
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          )}
-                          
-                          <div className="text-sm text-muted-foreground">
-                            <p>Example questions:</p>
-                            <ul className="list-disc list-inside mt-1 space-y-1">
-                              <li>What specific supplements would you recommend for these results?</li>
-                              <li>Are there any peptides that would help with these abnormal values?</li>
-                              <li>What dietary changes should I make based on these lab findings?</li>
-                            </ul>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-                  
-                  {/* Voice Recording Section */}
-                  {analysisResult && (
-                    <Card className="mt-4">
-                      <CardHeader className="pb-3">
-                        <CardTitle className="flex items-center justify-between">
-                          <span>Voice Notes</span>
-                          <div className="space-x-2">
-                            {transcript.trim() && (
-                              <Button 
-                                variant="outline" 
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                      {/* Voice Recording Section - Left Side */}
+                      <Card>
+                        <CardHeader className="pb-3">
+                          <CardTitle className="flex items-center justify-between">
+                            <span>Voice Notes</span>
+                            <div className="space-x-2">
+                              <Button
+                                variant={isRecording ? "destructive" : "default"}
                                 size="sm"
-                                onClick={() => {
-                                  navigator.clipboard.writeText(transcript);
-                                  toast({
-                                    title: 'Copied',
-                                    description: 'Transcript copied to clipboard'
-                                  });
-                                }}
+                                onClick={isRecording ? stopRecording : startRecording}
                               >
-                                <Clipboard className="h-4 w-4 mr-1" />
-                                Copy
+                                {isRecording ? (
+                                  <>
+                                    <MicOff className="h-4 w-4 mr-1" />
+                                    Stop ({formatTime(recordingTime)})
+                                  </>
+                                ) : (
+                                  <>
+                                    <Mic className="h-4 w-4 mr-1" />
+                                    Record
+                                  </>
+                                )}
                               </Button>
-                            )}
-                            {withPatient && transcript.trim() && (
+                            </div>
+                          </CardTitle>
+                          <CardDescription>
+                            Record voice notes about this lab report
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          {transcript ? (
+                            <>
+                              <ScrollArea className="h-[200px] w-full rounded-md border p-4 mb-2">
+                                {transcript}
+                              </ScrollArea>
+                              <div className="flex gap-2 mt-2">
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  className="flex-1"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(transcript);
+                                    toast({
+                                      title: 'Copied',
+                                      description: 'Transcript copied to clipboard'
+                                    });
+                                  }}
+                                >
+                                  <Clipboard className="h-4 w-4 mr-1" />
+                                  Copy
+                                </Button>
+                                {withPatient && (
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    className="flex-1"
+                                    onClick={saveTranscriptToPatient}
+                                    disabled={isSavingTranscript}
+                                  >
+                                    {isSavingTranscript ? (
+                                      <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                                    ) : (
+                                      <Save className="h-4 w-4 mr-1" />
+                                    )}
+                                    Save to Patient
+                                  </Button>
+                                )}
+                              </div>
+                            </>
+                          ) : (
+                            <div className="h-[200px] w-full rounded-md border flex items-center justify-center text-muted-foreground">
+                              {isRecording ? 'Listening... Speak now.' : 'No recorded transcript yet. Click "Record" to begin.'}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+
+                      {/* Follow-up Questions Section - Right Side */}
+                      <Card>
+                        <CardHeader className="pb-3">
+                          <CardTitle>Follow-up Questions</CardTitle>
+                          <CardDescription>
+                            Ask for specific information about the results
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-4">
+                            <div className="flex gap-2">
+                              <Input
+                                placeholder="Ask about supplements, peptides, or recommendations..."
+                                value={followUpQuestion}
+                                onChange={(e) => setFollowUpQuestion(e.target.value)}
+                                className="flex-1"
+                              />
                               <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={saveTranscriptToPatient}
-                                disabled={isSavingTranscript}
+                                onClick={handleAskFollowUp} 
+                                disabled={isAskingFollowUp || !followUpQuestion.trim()}
                               >
-                                {isSavingTranscript ? (
+                                {isAskingFollowUp ? (
                                   <Loader2 className="h-4 w-4 animate-spin mr-1" />
                                 ) : (
-                                  <Save className="h-4 w-4 mr-1" />
+                                  <ChevronRight className="h-4 w-4 mr-1" />
                                 )}
-                                Save to Patient
+                                Ask
                               </Button>
+                            </div>
+                            
+                            {followUpAnswer ? (
+                              <ScrollArea className="h-[200px] pr-4">
+                                <Card className="bg-muted/50">
+                                  <CardContent className="pt-4">
+                                    <div className="flex gap-2 items-start">
+                                      <BotIcon className="h-5 w-5 mt-0.5 text-primary" />
+                                      <div className="space-y-1">
+                                        <p className="font-medium text-sm">Your question:</p>
+                                        <p className="text-sm">{followUpQuestion}</p>
+                                        <Separator className="my-2" />
+                                        <p className="text-sm whitespace-pre-wrap">{followUpAnswer}</p>
+                                      </div>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              </ScrollArea>
+                            ) : (
+                              <div className="text-sm text-muted-foreground space-y-2">
+                                <p>Example questions:</p>
+                                <ul className="list-disc list-inside mt-1 space-y-1">
+                                  <li>What supplements would you recommend?</li>
+                                  <li>Any peptides for these abnormal values?</li>
+                                  <li>What dietary changes should I make?</li>
+                                </ul>
+                              </div>
                             )}
-                            <Button
-                              variant={isRecording ? "destructive" : "default"}
-                              size="sm"
-                              onClick={isRecording ? stopRecording : startRecording}
-                            >
-                              {isRecording ? (
-                                <>
-                                  <MicOff className="h-4 w-4 mr-1" />
-                                  Stop Recording ({formatTime(recordingTime)})
-                                </>
-                              ) : (
-                                <>
-                                  <Mic className="h-4 w-4 mr-1" />
-                                  Start Recording
-                                </>
-                              )}
-                            </Button>
                           </div>
-                        </CardTitle>
-                        <CardDescription>
-                          Record your voice notes about this lab report. The text will be transcribed automatically.
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        {transcript ? (
-                          <ScrollArea className="h-48 w-full rounded-md border p-4">
-                            {transcript}
-                          </ScrollArea>
-                        ) : (
-                          <div className="h-48 w-full rounded-md border flex items-center justify-center text-muted-foreground">
-                            {isRecording ? 'Listening... Speak now.' : 'No recorded transcript yet. Click "Start Recording" to begin.'}
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
+                        </CardContent>
+                      </Card>
+                    </div>
                   )}
                 </TabsContent>
               </Tabs>
