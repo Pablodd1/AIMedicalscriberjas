@@ -62,6 +62,28 @@ export const appointments = pgTable("appointments", {
 // Define a type enum for notes
 export const noteTypeEnum = pgEnum('note_type', ['soap', 'progress', 'procedure', 'consultation']);
 
+// Medical Notes Settings and Templates
+export const medicalNoteTemplates = pgTable("medical_note_templates", {
+  id: serial("id").primaryKey(),
+  type: noteTypeEnum("type").notNull(),
+  title: text("title").notNull(),
+  template: text("template").notNull(),
+  systemPrompt: text("system_prompt").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Create insert schema for medical note templates
+export const insertMedicalNoteTemplateSchema = createInsertSchema(medicalNoteTemplates).pick({
+  type: true,
+  title: true,
+  template: true,
+  systemPrompt: true,
+});
+
+export type InsertMedicalNoteTemplate = z.infer<typeof insertMedicalNoteTemplateSchema>;
+export type MedicalNoteTemplate = typeof medicalNoteTemplates.$inferSelect;
+
 // Add a consultation notes table specifically for consultation recordings
 export const consultationNotes = pgTable("consultation_notes", {
   id: serial("id").primaryKey(),
