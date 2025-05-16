@@ -996,3 +996,41 @@ labInterpreterRouter.delete('/reports/:id', async (req, res) => {
     return res.status(500).json({ error: 'Failed to delete lab report' });
   }
 });
+
+// Route for saving voice recording transcript to patient records
+labInterpreterRouter.post('/save-transcript', async (req, res) => {
+  try {
+    if (!req.session?.user?.id) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+    
+    const doctorId = req.session.user.id;
+    const { patientId, transcript, reportId } = req.body;
+    
+    if (!patientId || !transcript) {
+      return res.status(400).json({ error: 'Patient ID and transcript are required' });
+    }
+    
+    // Validate patient exists
+    const patient = await storage.getPatient(patientId);
+    if (!patient) {
+      return res.status(404).json({ error: 'Patient not found' });
+    }
+    
+    // Save as a medical note
+    const note = await storage.createMedicalNote({
+      patientId,
+      doctorId,
+      title: 'Lab Interpreter Voice Notes',
+      content: transcript,
+      type: 'lab_transcript',
+      tags: ['lab_interpreter', 'voice_transcript'],
+      reportReference: reportId ? String(reportId) : undefined
+    });
+    
+    return res.json({ success: true, noteId: note.id });
+  } catch (error) {
+    console.error('Error saving transcript:', error);
+    return res.status(500).json({ error: 'Failed to save transcript' });
+  }
+});
