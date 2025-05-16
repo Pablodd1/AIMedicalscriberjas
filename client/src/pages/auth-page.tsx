@@ -25,6 +25,15 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { insertUserSchema } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from "@/components/ui/alert-dialog";
 
 // Login schema
 const loginSchema = z.object({
@@ -50,6 +59,8 @@ type RegisterFormData = z.infer<typeof registerSchema>;
 export default function AuthPage() {
   const [activeTab, setActiveTab] = useState("login");
   const { user, loginMutation, registerMutation } = useAuth();
+  const [showDeactivationAlert, setShowDeactivationAlert] = useState(false);
+  const [deactivationMessage, setDeactivationMessage] = useState("");
   
   // Login form
   const loginForm = useForm<LoginFormData>({
@@ -75,7 +86,16 @@ export default function AuthPage() {
   
   // Handle login submission
   const onLoginSubmit = (data: LoginFormData) => {
-    loginMutation.mutate(data);
+    loginMutation.mutate(data, {
+      onError: (error: any) => {
+        // Check if this is an account deactivation message
+        const errorMessage = error?.response?.data?.message || "";
+        if (errorMessage.includes("deactivated")) {
+          setDeactivationMessage(errorMessage);
+          setShowDeactivationAlert(true);
+        }
+      }
+    });
   };
   
   // Handle register submission
@@ -92,6 +112,21 @@ export default function AuthPage() {
   
   return (
     <div className="flex min-h-screen">
+      {/* Account Deactivation Alert Dialog */}
+      <AlertDialog open={showDeactivationAlert} onOpenChange={setShowDeactivationAlert}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-red-600">Account Deactivated</AlertDialogTitle>
+            <AlertDialogDescription className="text-base">
+              {deactivationMessage}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction className="w-full">Understand</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      
       {/* Left side - Auth forms */}
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
