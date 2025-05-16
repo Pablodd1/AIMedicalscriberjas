@@ -14,6 +14,9 @@ import {
   bpReadings,
   glucoseReadings,
   alertSettings,
+  labKnowledgeBase,
+  labInterpreterSettings,
+  labReports,
   type User, 
   type InsertUser, 
   type Patient, 
@@ -41,7 +44,13 @@ import {
   type GlucoseReading,
   type InsertGlucoseReading,
   type AlertSetting,
-  type InsertAlertSetting
+  type InsertAlertSetting,
+  type LabKnowledgeBase,
+  type InsertLabKnowledgeBase,
+  type LabInterpreterSettings,
+  type InsertLabInterpreterSettings,
+  type LabReport,
+  type InsertLabReport
 } from "@shared/schema";
 import session from "express-session";
 import connectPg from "connect-pg-simple";

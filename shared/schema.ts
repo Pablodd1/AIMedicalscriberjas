@@ -9,8 +9,7 @@ import {
   varchar,
   date,
   real,
-  json,
-  bytea
+  json
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -526,3 +525,87 @@ export type InsertDevice = z.infer<typeof insertDeviceSchema>;
 export type InsertBpReading = z.infer<typeof insertBpReadingSchema>;
 export type InsertGlucoseReading = z.infer<typeof insertGlucoseReadingSchema>;
 export type InsertAlertSetting = z.infer<typeof insertAlertSettingSchema>;
+
+// Lab Interpreter Assistant Knowledge Base tables
+export const labKnowledgeBase = pgTable("lab_knowledge_base", {
+  id: serial("id").primaryKey(),
+  testName: text("test_name").notNull(),
+  marker: text("marker").notNull().unique(),
+  normalRangeLow: real("normal_range_low"),
+  normalRangeHigh: real("normal_range_high"),
+  unit: text("unit"),
+  interpretation: text("interpretation").notNull(),
+  recommendations: text("recommendations"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const labInterpreterSettings = pgTable("lab_interpreter_settings", {
+  id: serial("id").primaryKey(),
+  systemPrompt: text("system_prompt").notNull(),
+  withPatientPrompt: text("with_patient_prompt"),
+  withoutPatientPrompt: text("without_patient_prompt"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const labReports = pgTable("lab_reports", {
+  id: serial("id").primaryKey(),
+  patientId: integer("patient_id").references(() => patients.id, { onDelete: 'set null' }),
+  doctorId: integer("doctor_id").references(() => users.id, { onDelete: 'set null' }).notNull(),
+  reportData: text("report_data").notNull(),
+  reportType: text("report_type").notNull().default("text"), // "text", "pdf", "image"
+  fileName: text("file_name"),
+  filePath: text("file_path"), // Store the path to the file instead of binary data
+  analysis: text("analysis"),
+  recommendations: text("recommendations"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  title: text("title").notNull().default("Lab Report"),
+});
+
+// Insert schemas for lab interpreter
+export const insertLabKnowledgeBaseSchema = createInsertSchema(labKnowledgeBase).pick({
+  testName: true,
+  marker: true,
+  normalRangeLow: true,
+  normalRangeHigh: true,
+  unit: true,
+  interpretation: true,
+  recommendations: true,
+});
+
+export const insertLabInterpreterSettingsSchema = createInsertSchema(labInterpreterSettings).pick({
+  systemPrompt: true,
+  withPatientPrompt: true,
+  withoutPatientPrompt: true,
+});
+
+export const insertLabReportSchema = createInsertSchema(labReports).pick({
+  patientId: true,
+  doctorId: true,
+  reportData: true,
+  reportType: true,
+  fileName: true,
+  filePath: true,
+  title: true,
+});
+
+// Types for lab interpreter
+export type InsertLabKnowledgeBase = z.infer<typeof insertLabKnowledgeBaseSchema>;
+export type InsertLabInterpreterSettings = z.infer<typeof insertLabInterpreterSettingsSchema>;
+export type InsertLabReport = z.infer<typeof insertLabReportSchema>;
+export type LabKnowledgeBase = typeof labKnowledgeBase.$inferSelect;
+export type LabInterpreterSettings = typeof labInterpreterSettings.$inferSelect;
+export type LabReport = typeof labReports.$inferSelect;
+
+// Relations for lab reports
+export const labReportRelations = relations(labReports, ({ one }) => ({
+  patient: one(patients, {
+    fields: [labReports.patientId],
+    references: [patients.id],
+  }),
+  doctor: one(users, {
+    fields: [labReports.doctorId],
+    references: [users.id],
+  }),
+}));
