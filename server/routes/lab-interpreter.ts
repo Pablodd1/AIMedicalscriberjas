@@ -997,6 +997,120 @@ labInterpreterRouter.delete('/reports/:id', async (req, res) => {
   }
 });
 
+// Route for saving lab report analysis to patient records
+labInterpreterRouter.post('/save-report', async (req, res) => {
+  try {
+    const { patientId, reportData, analysisResult } = req.body;
+    
+    if (!patientId || !reportData || !analysisResult) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    // Check if user is authenticated and get doctor ID
+    const doctorId = (req.session as any)?.user?.id;
+    if (!doctorId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+    
+    // Verify that patient exists
+    const patient = await storage.getPatient(patientId);
+    if (!patient) {
+      return res.status(404).json({ error: 'Patient not found' });
+    }
+    
+    // Create a new lab report record
+    const report = await storage.createLabReport({
+      patientId,
+      doctorId,
+      reportData,
+      analysisResult,
+      createdAt: new Date()
+    });
+    
+    return res.json({ 
+      success: true, 
+      reportId: report.id,
+      message: 'Lab report saved successfully'
+    });
+  } catch (error) {
+    console.error('Error saving lab report:', error);
+    return res.status(500).json({ error: 'Failed to save lab report' });
+  }
+});
+
+// Route for handling follow-up questions about lab reports
+labInterpreterRouter.post('/follow-up', async (req, res) => {
+  try {
+    const { question, analysisResult, patientInfo, patientId } = req.body;
+    
+    if (!question || !analysisResult) {
+      return res.status(400).json({ error: 'Question and analysis result are required' });
+    }
+    
+    // Check if OpenAI API key is configured
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(500).json({ error: 'OpenAI API key not configured' });
+    }
+    
+    // Create OpenAI client
+    const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    
+    // Create prompt for follow-up question
+    let prompt = `Given the following lab report analysis:\n\n${analysisResult}\n\n`;
+    
+    // Add patient info if available
+    if (patientInfo) {
+      prompt += `For ${patientInfo}.\n\n`;
+    }
+    
+    prompt += `Please answer this follow-up question: ${question}\n\n`;
+    prompt += `Focus your answer specifically on the lab report information provided. If the question asks about supplements, peptides, or lifestyle recommendations, provide detailed and specific information based on the lab findings. Be concise but thorough.`;
+    
+    // Call OpenAI
+    const response = await openaiClient.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a medical assistant specializing in lab report interpretation. Provide accurate, evidence-based answers to follow-up questions about lab reports. Focus on giving actionable advice and specific recommendations when asked. Keep responses concise and direct.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.3,
+      max_tokens: 1000
+    });
+    
+    const answer = response.choices[0].message.content;
+    
+    // Save the question and answer to patient record if patientId is provided
+    if (patientId) {
+      try {
+        const doctorId = (req.session as any)?.user?.id;
+        if (doctorId) {
+          await storage.createMedicalNote({
+            patientId,
+            doctorId,
+            title: 'Lab Report Follow-Up',
+            content: `Q: ${question}\n\nA: ${answer}`,
+            type: 'progress'
+          });
+        }
+      } catch (saveError) {
+        console.error('Error saving follow-up to patient record:', saveError);
+        // Continue even if saving fails
+      }
+    }
+    
+    return res.json({ answer });
+  } catch (error) {
+    console.error('Error processing follow-up question:', error);
+    return res.status(500).json({ error: 'Failed to process follow-up question' });
+  }
+});
+
 // Route for saving voice recording transcript to patient records
 labInterpreterRouter.post('/save-transcript', async (req, res) => {
   try {

@@ -554,6 +554,133 @@ export default function LabInterpreter() {
     }
   };
   
+  // Handle download report
+  const handleDownloadReport = () => {
+    if (!analysisResult) return;
+    
+    // Create a formatted report
+    let reportContent = '';
+    
+    // Add title and date
+    reportContent += '# Lab Report Analysis\n';
+    reportContent += `Date: ${new Date().toLocaleDateString()}\n\n`;
+    
+    // Add patient info if available
+    if (withPatient && selectedPatientId) {
+      const patient = patients.find(p => p.id === parseInt(selectedPatientId));
+      if (patient) {
+        reportContent += `## Patient Information\n`;
+        reportContent += `Name: ${patient.firstName} ${patient.lastName}\n`;
+        reportContent += `ID: ${patient.id}\n\n`;
+      }
+    }
+    
+    // Add analysis content
+    if (analysisResult.summary) {
+      reportContent += `## Summary\n${analysisResult.summary}\n\n`;
+    }
+    
+    if (analysisResult.abnormalValues && Array.isArray(analysisResult.abnormalValues)) {
+      reportContent += `## Abnormal Values\n`;
+      analysisResult.abnormalValues.forEach((value: any) => {
+        reportContent += `- ${value}\n`;
+      });
+      reportContent += '\n';
+    }
+    
+    if (analysisResult.interpretation) {
+      reportContent += `## Interpretation\n${analysisResult.interpretation}\n\n`;
+    }
+    
+    if (analysisResult.recommendations && Array.isArray(analysisResult.recommendations)) {
+      reportContent += `## Recommendations\n`;
+      analysisResult.recommendations.forEach((rec: any) => {
+        reportContent += `- ${rec}\n`;
+      });
+      reportContent += '\n';
+    }
+    
+    // If there's transcript, add it
+    if (transcript) {
+      reportContent += `## Voice Notes\n${transcript}\n\n`;
+    }
+    
+    // Create blob and download
+    const blob = new Blob([reportContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `lab-report-analysis-${new Date().toISOString().split('T')[0]}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    toast({
+      title: 'Report Downloaded',
+      description: 'The lab report analysis has been downloaded successfully.'
+    });
+  };
+  
+  // Handle follow-up question
+  const [followUpQuestion, setFollowUpQuestion] = useState('');
+  const [isAskingFollowUp, setIsAskingFollowUp] = useState(false);
+  const [followUpAnswer, setFollowUpAnswer] = useState('');
+  
+  const handleAskFollowUp = async () => {
+    if (!followUpQuestion.trim() || !analysisResult) {
+      toast({
+        title: 'Question Required',
+        description: 'Please enter a follow-up question about the lab report analysis.',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    try {
+      setIsAskingFollowUp(true);
+      setFollowUpAnswer('');
+      
+      // Get patient info if available
+      let patientInfo = '';
+      if (withPatient && selectedPatientId) {
+        const patient = patients.find(p => p.id === parseInt(selectedPatientId));
+        if (patient) {
+          patientInfo = `Patient: ${patient.firstName} ${patient.lastName} (ID: ${patient.id})`;
+        }
+      }
+      
+      const response = await apiRequest('POST', '/api/lab-interpreter/follow-up', {
+        question: followUpQuestion,
+        analysisResult: JSON.stringify(analysisResult),
+        patientInfo,
+        patientId: withPatient ? parseInt(selectedPatientId) : undefined
+      });
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      setFollowUpAnswer(data.answer);
+      
+      toast({
+        title: 'Question Answered',
+        description: 'Your follow-up question has been processed.'
+      });
+    } catch (error) {
+      console.error('Error asking follow-up question:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to process your follow-up question',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsAskingFollowUp(false);
+    }
+  };
+  
   // Render the analysis result in a structured format
   const renderAnalysisResult = () => {
     if (!analysisResult) return null;
@@ -1103,10 +1230,24 @@ export default function LabInterpreter() {
                 <TabsContent value="results">
                   <Card className="mt-4">
                     <CardHeader className="pb-3">
-                      <CardTitle>Analysis Results</CardTitle>
-                      <CardDescription>
-                        AI-powered interpretation of lab report data
-                      </CardDescription>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <CardTitle>Analysis Results</CardTitle>
+                          <CardDescription>
+                            AI-powered interpretation of lab report data
+                          </CardDescription>
+                        </div>
+                        {analysisResult && (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={handleDownloadReport}
+                          >
+                            <DownloadIcon className="h-4 w-4 mr-1" />
+                            Download Report
+                          </Button>
+                        )}
+                      </div>
                     </CardHeader>
                     <CardContent>
                       {isAnalyzing ? (
@@ -1133,6 +1274,66 @@ export default function LabInterpreter() {
                       )}
                     </CardContent>
                   </Card>
+                  
+                  {/* Follow-up Questions */}
+                  {analysisResult && (
+                    <Card className="mt-4">
+                      <CardHeader className="pb-3">
+                        <CardTitle>Follow-up Questions</CardTitle>
+                        <CardDescription>
+                          Ask for more specific information about the lab results or recommendations
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="Ask about specific supplements, peptides, or lifestyle recommendations..."
+                              value={followUpQuestion}
+                              onChange={(e) => setFollowUpQuestion(e.target.value)}
+                              className="flex-1"
+                            />
+                            <Button 
+                              onClick={handleAskFollowUp} 
+                              disabled={isAskingFollowUp || !followUpQuestion.trim()}
+                            >
+                              {isAskingFollowUp ? (
+                                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4 mr-1" />
+                              )}
+                              Ask
+                            </Button>
+                          </div>
+                          
+                          {followUpAnswer && (
+                            <Card className="bg-muted/50">
+                              <CardContent className="pt-4">
+                                <div className="flex gap-2 items-start">
+                                  <BotIcon className="h-5 w-5 mt-0.5 text-primary" />
+                                  <div className="space-y-1">
+                                    <p className="font-medium text-sm">Your question:</p>
+                                    <p className="text-sm">{followUpQuestion}</p>
+                                    <Separator className="my-2" />
+                                    <p className="text-sm whitespace-pre-wrap">{followUpAnswer}</p>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          )}
+                          
+                          <div className="text-sm text-muted-foreground">
+                            <p>Example questions:</p>
+                            <ul className="list-disc list-inside mt-1 space-y-1">
+                              <li>What specific supplements would you recommend for these results?</li>
+                              <li>Are there any peptides that would help with these abnormal values?</li>
+                              <li>What dietary changes should I make based on these lab findings?</li>
+                            </ul>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
                   
                   {/* Voice Recording Section */}
                   {analysisResult && (
