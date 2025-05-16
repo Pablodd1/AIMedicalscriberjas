@@ -72,36 +72,90 @@ function parseExcelFile(filePath: string) {
     
     console.log("Excel Data headers:", Object.keys(data[0] || {}));
     
-    // Transform data to match our database schema
-    return data.filter(row => {
-      // Skip completely empty rows
-      const values = Object.values(row).filter(Boolean);
-      return values.length > 0;
-    }).map((row: any) => {
-      // Create a valid object from the Excel data
-      const keys = Object.keys(row);
-      const testNameKey = keys.find(k => /test|name|test.*name/i.test(k)) || 'Test Name';
-      const markerKey = keys.find(k => /marker|analyte|param/i.test(k)) || 'Marker';
-      const minKey = keys.find(k => /low|min|lower|bottom/i.test(k)) || 'Min';
-      const maxKey = keys.find(k => /high|max|upper|top/i.test(k)) || 'Max';
-      const unitKey = keys.find(k => /unit/i.test(k)) || 'Unit';
-      const interpretKey = keys.find(k => /interpret|desc|mean/i.test(k)) || 'Interpretation';
-      const recKey = keys.find(k => /rec|advice|suggest/i.test(k)) || 'Recommendations';
-      
-      return {
-        test_name: String(row[testNameKey] || '').trim(),
-        marker: String(row[markerKey] || '').trim(),
-        normal_range_low: parseFloat(String(row[minKey] || '0')) || null,
-        normal_range_high: parseFloat(String(row[maxKey] || '0')) || null,
-        unit: String(row[unitKey] || '').trim(),
-        interpretation: String(row[interpretKey] || '').trim(),
-        recommendations: String(row[recKey] || '').trim()
-      };
-    });
+    // Detect file format
+    const isDiseasesFormat = detectDiseasesReferenceFormat(data);
+    
+    if (isDiseasesFormat) {
+      return parseDiseaseProductReference(data);
+    } else {
+      // Standard lab test format
+      return parseStandardLabFormat(data);
+    }
   } catch (error) {
     console.error('Error parsing Excel file:', error);
     throw new Error('Failed to parse Excel file');
   }
+}
+
+// Detect if the Excel format is a Disease-Product cross-reference
+function detectDiseasesReferenceFormat(data: any[]) {
+  if (!data.length) return false;
+  const keys = Object.keys(data[0] || {});
+  
+  // Look for keywords common in disease-product reference files
+  const isDiseaseFormat = keys.some(k => 
+    /disease|condition|disorder|organ|system|product|supplement|peptide/i.test(k)
+  );
+  
+  return isDiseaseFormat;
+}
+
+// Parse the Disease-Product reference format
+function parseDiseaseProductReference(data: any[]) {
+  return data.filter(row => {
+    // Skip completely empty rows
+    const values = Object.values(row).filter(Boolean);
+    return values.length > 0;
+  }).map((row: any) => {
+    const keys = Object.keys(row);
+    
+    // Try to intelligently determine column mappings
+    const diseaseKey = keys.find(k => /disease|condition|disorder/i.test(k)) || 'Disease';
+    const organKey = keys.find(k => /organ|system|category/i.test(k)) || 'Organ System';
+    const productKey = keys.find(k => /product|supplement|peptide|treatment|medicine/i.test(k)) || 'Product';
+    const descriptionKey = keys.find(k => /description|details|info|about/i.test(k)) || 'Description';
+    const dosageKey = keys.find(k => /dosage|dose|amount/i.test(k)) || 'Dosage';
+    
+    // Map to our schema
+    return {
+      test_name: String(row[organKey] || '').trim() || 'Organ System',
+      marker: String(row[diseaseKey] || '').trim() || 'Disease',
+      normal_range_low: null,
+      normal_range_high: null,
+      unit: String(row[dosageKey] || '').trim(),
+      interpretation: String(row[descriptionKey] || row[diseaseKey] || '').trim(),
+      recommendations: String(row[productKey] || '').trim()
+    };
+  });
+}
+
+// Parse standard lab test format
+function parseStandardLabFormat(data: any[]) {
+  return data.filter(row => {
+    // Skip completely empty rows
+    const values = Object.values(row).filter(Boolean);
+    return values.length > 0;
+  }).map((row: any) => {
+    // Create a valid object from the Excel data
+    const keys = Object.keys(row);
+    const testNameKey = keys.find(k => /test|name|test.*name/i.test(k)) || 'Test Name';
+    const markerKey = keys.find(k => /marker|analyte|param/i.test(k)) || 'Marker';
+    const minKey = keys.find(k => /low|min|lower|bottom/i.test(k)) || 'Min';
+    const maxKey = keys.find(k => /high|max|upper|top/i.test(k)) || 'Max';
+    const unitKey = keys.find(k => /unit/i.test(k)) || 'Unit';
+    const interpretKey = keys.find(k => /interpret|desc|mean/i.test(k)) || 'Interpretation';
+    const recKey = keys.find(k => /rec|advice|suggest/i.test(k)) || 'Recommendations';
+    
+    return {
+      test_name: String(row[testNameKey] || '').trim(),
+      marker: String(row[markerKey] || '').trim(),
+      normal_range_low: parseFloat(String(row[minKey] || '0')) || null,
+      normal_range_high: parseFloat(String(row[maxKey] || '0')) || null,
+      unit: String(row[unitKey] || '').trim(),
+      interpretation: String(row[interpretKey] || '').trim(),
+      recommendations: String(row[recKey] || '').trim()
+    };
+  });
 }
 
 // Validate the lab knowledge base item
