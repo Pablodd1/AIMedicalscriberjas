@@ -641,7 +641,7 @@ export default function LabInterpreter() {
                   </div>
                 </div>
                 
-                <ScrollArea className="h-[450px] rounded-md border">
+                <div className="h-[350px] rounded-md border flex flex-col">
                   {isLoadingKnowledgeBase ? (
                     <div className="flex justify-center items-center h-full">
                       <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -655,105 +655,107 @@ export default function LabInterpreter() {
                       </p>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full border-collapse text-xs">
-                        <thead>
-                          <tr className="sticky top-0 bg-background border-b">
-                            <th className="p-2 text-left font-medium bg-blue-100/50 min-w-[140px]">Organ and Organ Systems</th>
-                            <th className="p-2 text-left font-medium bg-blue-100/50 min-w-[140px]">Disease States</th>
-                            <th className="p-2 text-left font-medium bg-green-100/50 min-w-[140px]">Primary Peptide</th>
-                            <th className="p-2 text-left font-medium bg-green-100/50 min-w-[140px]">Secondary Peptide</th>
-                            <th className="p-2 text-left font-medium bg-orange-100/50 min-w-[140px]">Primary Formula</th>
-                            <th className="p-2 text-left font-medium bg-orange-100/50 min-w-[140px]">Secondary Formula</th>
-                            <th className="p-2 text-left font-medium bg-purple-100/50 min-w-[140px]">Support Formula 2</th>
-                            <th className="p-2 text-left font-medium bg-purple-100/50 min-w-[140px]">Support Formula 3</th>
-                            <th className="p-2 text-left font-medium bg-purple-100/50 min-w-[140px]">Support Formula 4</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {knowledgeBase.map((item) => {
-                            // Parse the recommendations to extract the individual column data
-                            const columnData: Record<string, string> = {
-                              'Primary Peptide': '',
-                              'Secondary Peptide': '',
-                              'Primary Formula': '',
-                              'Secondary Formula': '',
-                              'Support Formula 2': '',
-                              'Support Formula 3': '',
-                              'Support Formula 4': ''
-                            };
-                            
-                            if (item.recommendations) {
-                              // Check if it contains peptides and formulas sections
-                              const peptidesSectionMatch = item.recommendations.match(/Peptides:\s*\n([\s\S]*?)(?=\n\s*Formulas:|$)/);
-                              const formulasSectionMatch = item.recommendations.match(/Formulas:\s*\n([\s\S]*?)(?=\n\s*Additional Data:|$)/);
+                    <div className="overflow-auto h-full">
+                      <div className="inline-block min-w-full align-middle">
+                        <table className="min-w-full border-collapse text-xs">
+                          <thead>
+                            <tr className="sticky top-0 bg-background border-b z-10">
+                              <th className="p-1 px-2 text-left font-medium bg-blue-100/50 min-w-[120px]">Organ and Organ Systems</th>
+                              <th className="p-1 px-2 text-left font-medium bg-blue-100/50 min-w-[120px]">Disease States</th>
+                              <th className="p-1 px-2 text-left font-medium bg-green-100/50 min-w-[120px]">Primary Peptide</th>
+                              <th className="p-1 px-2 text-left font-medium bg-green-100/50 min-w-[120px]">Secondary Peptide</th>
+                              <th className="p-1 px-2 text-left font-medium bg-orange-100/50 min-w-[120px]">Primary Formula</th>
+                              <th className="p-1 px-2 text-left font-medium bg-orange-100/50 min-w-[120px]">Secondary Formula</th>
+                              <th className="p-1 px-2 text-left font-medium bg-purple-100/50 min-w-[120px]">Support Formula 2</th>
+                              <th className="p-1 px-2 text-left font-medium bg-purple-100/50 min-w-[120px]">Support Formula 3</th>
+                              <th className="p-1 px-2 text-left font-medium bg-purple-100/50 min-w-[120px]">Support Formula 4</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {knowledgeBase.map((item) => {
+                              // Parse the recommendations to extract the individual column data
+                              const columnData: Record<string, string> = {
+                                'Primary Peptide': '',
+                                'Secondary Peptide': '',
+                                'Primary Formula': '',
+                                'Secondary Formula': '',
+                                'Support Formula 2': '',
+                                'Support Formula 3': '',
+                                'Support Formula 4': ''
+                              };
                               
-                              if (peptidesSectionMatch) {
-                                const peptideLines = peptidesSectionMatch[1].trim().split('\n');
-                                peptideLines.forEach(line => {
-                                  const [key, value] = line.split(':').map(s => s.trim());
-                                  if (key && value && /peptide/i.test(key)) {
-                                    if (/primary/i.test(key)) {
-                                      columnData['Primary Peptide'] = value;
-                                    } else if (/secondary/i.test(key)) {
-                                      columnData['Secondary Peptide'] = value;
-                                    }
-                                  }
-                                });
-                              }
-                              
-                              if (formulasSectionMatch) {
-                                const formulaLines = formulasSectionMatch[1].trim().split('\n');
-                                formulaLines.forEach(line => {
-                                  const [key, value] = line.split(':').map(s => s.trim());
-                                  if (key && value && /formula/i.test(key)) {
-                                    if (/primary/i.test(key)) {
-                                      columnData['Primary Formula'] = value;
-                                    } else if (/secondary/i.test(key)) {
-                                      columnData['Secondary Formula'] = value;
-                                    } else if (/support.*2/i.test(key) || /formula.*2/i.test(key)) {
-                                      columnData['Support Formula 2'] = value;
-                                    } else if (/support.*3/i.test(key) || /formula.*3/i.test(key)) {
-                                      columnData['Support Formula 3'] = value;
-                                    } else if (/support.*4/i.test(key) || /formula.*4/i.test(key)) {
-                                      columnData['Support Formula 4'] = value;
-                                    }
-                                  }
-                                });
-                              }
-                              
-                              // Parse direct data from the text if we don't have structured data
-                              if (!Object.values(columnData).some(v => v)) {
-                                const lines = item.recommendations.split('\n');
-                                lines.forEach(line => {
-                                  Object.keys(columnData).forEach(key => {
-                                    if (line.includes(key) && line.includes(':')) {
-                                      columnData[key] = line.split(':')[1]?.trim() || '';
+                              if (item.recommendations) {
+                                // Check if it contains peptides and formulas sections
+                                const peptidesSectionMatch = item.recommendations.match(/Peptides:\s*\n([\s\S]*?)(?=\n\s*Formulas:|$)/);
+                                const formulasSectionMatch = item.recommendations.match(/Formulas:\s*\n([\s\S]*?)(?=\n\s*Additional Data:|$)/);
+                                
+                                if (peptidesSectionMatch) {
+                                  const peptideLines = peptidesSectionMatch[1].trim().split('\n');
+                                  peptideLines.forEach(line => {
+                                    const [key, value] = line.split(':').map(s => s.trim());
+                                    if (key && value && /peptide/i.test(key)) {
+                                      if (/primary/i.test(key)) {
+                                        columnData['Primary Peptide'] = value;
+                                      } else if (/secondary/i.test(key)) {
+                                        columnData['Secondary Peptide'] = value;
+                                      }
                                     }
                                   });
-                                });
+                                }
+                                
+                                if (formulasSectionMatch) {
+                                  const formulaLines = formulasSectionMatch[1].trim().split('\n');
+                                  formulaLines.forEach(line => {
+                                    const [key, value] = line.split(':').map(s => s.trim());
+                                    if (key && value && /formula/i.test(key)) {
+                                      if (/primary/i.test(key)) {
+                                        columnData['Primary Formula'] = value;
+                                      } else if (/secondary/i.test(key)) {
+                                        columnData['Secondary Formula'] = value;
+                                      } else if (/support.*2/i.test(key) || /formula.*2/i.test(key)) {
+                                        columnData['Support Formula 2'] = value;
+                                      } else if (/support.*3/i.test(key) || /formula.*3/i.test(key)) {
+                                        columnData['Support Formula 3'] = value;
+                                      } else if (/support.*4/i.test(key) || /formula.*4/i.test(key)) {
+                                        columnData['Support Formula 4'] = value;
+                                      }
+                                    }
+                                  });
+                                }
+                                
+                                // Parse direct data from the text if we don't have structured data
+                                if (!Object.values(columnData).some(v => v)) {
+                                  const lines = item.recommendations.split('\n');
+                                  lines.forEach(line => {
+                                    Object.keys(columnData).forEach(key => {
+                                      if (line.includes(key) && line.includes(':')) {
+                                        columnData[key] = line.split(':')[1]?.trim() || '';
+                                      }
+                                    });
+                                  });
+                                }
                               }
-                            }
-                            
-                            return (
-                              <tr key={item.id} className="border-b hover:bg-muted/50">
-                                <td className="p-2 font-medium bg-blue-50/50 whitespace-normal">{item.testName}</td>
-                                <td className="p-2 bg-blue-50/50 whitespace-normal">{item.marker}</td>
-                                <td className="p-2 bg-green-50/50 whitespace-normal">{columnData['Primary Peptide']}</td>
-                                <td className="p-2 bg-green-50/50 whitespace-normal">{columnData['Secondary Peptide']}</td>
-                                <td className="p-2 bg-orange-50/50 whitespace-normal">{columnData['Primary Formula']}</td>
-                                <td className="p-2 bg-orange-50/50 whitespace-normal">{columnData['Secondary Formula']}</td>
-                                <td className="p-2 bg-purple-50/50 whitespace-normal">{columnData['Support Formula 2']}</td>
-                                <td className="p-2 bg-purple-50/50 whitespace-normal">{columnData['Support Formula 3']}</td>
-                                <td className="p-2 bg-purple-50/50 whitespace-normal">{columnData['Support Formula 4']}</td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                              
+                              return (
+                                <tr key={item.id} className="border-b hover:bg-muted/50">
+                                  <td className="p-1 px-2 font-medium bg-blue-50/50 whitespace-normal text-xs">{item.testName}</td>
+                                  <td className="p-1 px-2 bg-blue-50/50 whitespace-normal text-xs">{item.marker}</td>
+                                  <td className="p-1 px-2 bg-green-50/50 whitespace-normal text-xs">{columnData['Primary Peptide']}</td>
+                                  <td className="p-1 px-2 bg-green-50/50 whitespace-normal text-xs">{columnData['Secondary Peptide']}</td>
+                                  <td className="p-1 px-2 bg-orange-50/50 whitespace-normal text-xs">{columnData['Primary Formula']}</td>
+                                  <td className="p-1 px-2 bg-orange-50/50 whitespace-normal text-xs">{columnData['Secondary Formula']}</td>
+                                  <td className="p-1 px-2 bg-purple-50/50 whitespace-normal text-xs">{columnData['Support Formula 2']}</td>
+                                  <td className="p-1 px-2 bg-purple-50/50 whitespace-normal text-xs">{columnData['Support Formula 3']}</td>
+                                  <td className="p-1 px-2 bg-purple-50/50 whitespace-normal text-xs">{columnData['Support Formula 4']}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   )}
-                </ScrollArea>
+                </div>
               </div>
             </DialogContent>
           </Dialog>
