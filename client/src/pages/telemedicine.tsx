@@ -367,42 +367,51 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
         mediaRecorderRef.current.onstop = async () => {
           setIsRecording(false);
           
-          // Determine the best MIME type based on what we recorded
-          const mimeType = mediaRecorderRef.current?.mimeType || 'video/webm';
-          const isVideoRecording = mimeType.includes('video');
-          
-          // Generate the recording blob with appropriate type
-          const recordingBlob = new Blob(recordedChunksRef.current, { type: mimeType });
-
-          // Get basic conversation transcript from live transcriptions
+          let recordingBlob: Blob;
           let backupTranscriptText = "";
-          liveTranscriptions.forEach(item => {
-            backupTranscriptText += `${item.speaker}: ${item.text}\n`;
-          });
-
-          // Create a downloadable URL for the recording
-          const recordingUrl = URL.createObjectURL(recordingBlob);
-
-          // Create a download link for immediate download option
-          const downloadLink = document.createElement('a');
-          downloadLink.href = recordingUrl;
+          let recordingUrl: string;
+          let downloadLink: HTMLAnchorElement;
+          let isVideoRecording: boolean;
+          let fileExt: string;
+          let filePrefix: string;
+          let recordingType: string;
           
-          // Set appropriate filename and extension
-          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-          const fileExt = isVideoRecording ? 'webm' : 'ogg';
-          const filePrefix = isVideoRecording ? 'video' : 'audio';
-          downloadLink.download = `${filePrefix}_consultation_${patient.firstName}_${timestamp}.${fileExt}`;
-
-          // Determine recording type based on the media format
-          const recordingType = isVideoRecording ? 'both' : 'audio';
-          
-          // Log recording information
-          console.log(`Saving ${recordingType} recording: ${fileExt} format, ${recordingBlob.size} bytes`);
-
-          toast({
-            title: "Saving Recording",
-            description: "Storing your consultation recording...",
-          });
+          try {
+            // Determine the best MIME type based on what we recorded
+            const mimeType = mediaRecorderRef.current?.mimeType || 'video/webm';
+            isVideoRecording = mimeType.includes('video');
+            
+            // Generate the recording blob with appropriate type
+            recordingBlob = new Blob(recordedChunksRef.current, { type: mimeType });
+  
+            // Get basic conversation transcript from live transcriptions
+            liveTranscriptions.forEach(item => {
+              backupTranscriptText += `${item.speaker}: ${item.text}\n`;
+            });
+  
+            // Create a downloadable URL for the recording
+            recordingUrl = URL.createObjectURL(recordingBlob);
+  
+            // Create a download link for immediate download option
+            downloadLink = document.createElement('a');
+            downloadLink.href = recordingUrl;
+            
+            // Set appropriate filename and extension
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            fileExt = isVideoRecording ? 'webm' : 'ogg';
+            filePrefix = isVideoRecording ? 'video' : 'audio';
+            downloadLink.download = `${filePrefix}_consultation_${patient.firstName}_${timestamp}.${fileExt}`;
+  
+            // Determine recording type based on the media format
+            recordingType = isVideoRecording ? 'both' : 'audio';
+            
+            // Log recording information
+            console.log(`Saving ${recordingType} recording: ${fileExt} format, ${recordingBlob.size} bytes`);
+  
+            toast({
+              title: "Saving Recording",
+              description: "Storing your consultation recording...",
+            });
 
           try {
             // Save recording session in database with recording type information
