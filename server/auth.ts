@@ -76,10 +76,9 @@ export function setupAuth(app: Express) {
           return done(null, false, { message: 'Invalid username or password' });
         } 
         
-        // Explicitly check if isActive is false or null/undefined
-        const isUserActive = user.isActive === true;
-        
-        if (!isUserActive) {
+        // Make sure to prevent login if isActive is not explicitly true
+        // This handles all cases: null, undefined, and false
+        if (user.isActive !== true) {
           return done(null, false, { 
             message: 'Your account has been deactivated. Please contact AIMS admin to regain access: 786-643-2099 or email jasmelacosta@gmail.com' 
           });
@@ -129,12 +128,14 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ message: "Email already in use" });
       }
 
+      // Set isActive to false by default for new users
       const user = await storage.createUser({
         username,
         password: await hashPassword(password),
         email,
         name,
-        role
+        role,
+        isActive: false // New users are inactive by default until approved by admin
       });
 
       req.login(user as Express.User, (err) => {
