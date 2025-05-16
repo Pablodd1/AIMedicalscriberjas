@@ -356,6 +356,10 @@ export const recordingSessions = pgTable("recording_sessions", {
   transcript: text("transcript"),
   notes: text("notes"),
   duration: integer("duration"), // in seconds
+  recordingType: text("recording_type").default("audio"), // audio, video, both
+  audioUrl: text("audio_url"), // URL or path to stored audio recording
+  videoUrl: text("video_url"), // URL or path to stored video recording
+  mediaFormat: text("media_format"), // Format of the recording (e.g., webm, mp4)
 });
 
 // Recording session insert schema

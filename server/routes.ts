@@ -664,6 +664,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Retrieve video recording for a telemedicine session
+  app.get('/api/telemedicine/recordings/:id/video', async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const doctorId = req.user.id;
+      const recordingId = parseInt(req.params.id);
+      
+      if (isNaN(recordingId)) {
+        return res.status(400).json({ message: 'Invalid recording ID format' });
+      }
+      
+      const recording = await storage.getRecordingSession(recordingId);
+      
+      if (!recording) {
+        return res.status(404).json({ message: 'Recording not found' });
+      }
+      
+      // Security check: Only allow the doctor who owns the recording to access it
+      if (recording.doctorId !== doctorId) {
+        return res.status(403).json({ message: 'You do not have permission to access this recording' });
+      }
+      
+      // In a real production environment, we would retrieve the video file from blob storage
+      // using the recording.roomId as the key.
+      
+      // For now, return a not found status which will trigger the frontend fallback
+      res.status(404).json({ message: 'Video recording not available yet' });
+    } catch (error) {
+      console.error('Error retrieving video recording:', error);
+      res.status(500).json({ message: 'Failed to retrieve video recording' });
+    }
+  });
+  
+  // Store video recording for a telemedicine session
+  app.post('/api/telemedicine/recordings/:id/video', async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const doctorId = req.user.id;
+      const recordingId = parseInt(req.params.id);
+      
+      if (isNaN(recordingId)) {
+        return res.status(400).json({ message: 'Invalid recording ID format' });
+      }
+      
+      const recording = await storage.getRecordingSession(recordingId);
+      
+      if (!recording) {
+        return res.status(404).json({ message: 'Recording not found' });
+      }
+      
+      // Security check: Only allow the doctor who owns the recording to modify it
+      if (recording.doctorId !== doctorId) {
+        return res.status(403).json({ message: 'You do not have permission to modify this recording' });
+      }
+      
+      // In a production environment, we would:
+      // 1. Get the video file from the request
+      // 2. Store it in blob storage
+      // 3. Update the recording record with the URL
+      
+      // For now, update the recording to indicate it has video
+      const updatedRecording = await storage.updateRecordingSession(recordingId, {
+        recordingType: req.body.hasVideo ? 'both' : 'audio',
+        mediaFormat: req.body.mediaFormat || 'webm',
+        videoUrl: req.body.videoUrl || null
+      });
+      
+      res.status(200).json(updatedRecording);
+    } catch (error) {
+      console.error('Error storing video recording:', error);
+      res.status(500).json({ message: 'Failed to store video recording' });
+    }
+  });
+  
   app.post('/api/telemedicine/rooms', async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Unauthorized" });
