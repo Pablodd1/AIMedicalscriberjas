@@ -1,6 +1,7 @@
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { CalendarIcon, FileTextIcon, FormInputIcon, MessageSquareIcon, StethoscopeIcon, FileCheckIcon, DollarSignIcon, ScrollTextIcon } from "lucide-react";
+import { CalendarIcon, FileTextIcon, FormInputIcon, MessageSquareIcon, StethoscopeIcon, FileCheckIcon, DollarSignIcon, ScrollTextIcon, LayoutDashboardIcon } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
 
 const FeatureBox = ({ 
   title, 
@@ -47,21 +48,36 @@ const FeatureBox = ({
 };
 
 export default function LandingPage() {
+  const { user, isLoading } = useAuth();
+  
   return (
     <div className="min-h-screen bg-slate-900 text-white">
       <header className="container mx-auto py-6 px-4">
         <div className="flex justify-between items-center">
           <div className="text-2xl font-bold">AIMS Medical Platform</div>
           <div className="space-x-4">
-            <a href="/login">
-              <Button variant="outline">Login</Button>
-            </a>
-            <a href="/register">
-              <Button>Sign Up</Button>
-            </a>
-            <a href="/api/logout">
-              <Button variant="destructive">Logout</Button>
-            </a>
+            {!isLoading && user ? (
+              <>
+                <a href="/dashboard">
+                  <Button className="gap-2" variant="default">
+                    <LayoutDashboardIcon size={16} />
+                    Dashboard
+                  </Button>
+                </a>
+                <a href="/api/logout">
+                  <Button variant="destructive">Logout</Button>
+                </a>
+              </>
+            ) : (
+              <>
+                <a href="/login">
+                  <Button variant="outline">Login</Button>
+                </a>
+                <a href="/register">
+                  <Button>Sign Up</Button>
+                </a>
+              </>
+            )}
           </div>
         </div>
       </header>
