@@ -1117,9 +1117,11 @@ export default function LabInterpreter() {
                           </div>
                         </div>
                       ) : analysisResult ? (
-                        <div className="space-y-4">
-                          {renderAnalysisResult()}
-                        </div>
+                        <ScrollArea className="h-[500px] pr-4">
+                          <div className="space-y-4">
+                            {renderAnalysisResult()}
+                          </div>
+                        </ScrollArea>
                       ) : (
                         <div className="flex flex-col items-center justify-center py-12 text-center">
                           <BookText className="h-12 w-12 text-muted-foreground mb-4" />

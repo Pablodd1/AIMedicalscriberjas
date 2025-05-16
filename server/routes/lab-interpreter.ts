@@ -1000,11 +1000,11 @@ labInterpreterRouter.delete('/reports/:id', async (req, res) => {
 // Route for saving voice recording transcript to patient records
 labInterpreterRouter.post('/save-transcript', async (req, res) => {
   try {
-    if (!req.session?.user?.id) {
+    // Check if user is authenticated
+    const doctorId = (req.session as any)?.user?.id;
+    if (!doctorId) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
-    
-    const doctorId = req.session.user.id;
     const { patientId, transcript, reportId } = req.body;
     
     if (!patientId || !transcript) {
@@ -1023,9 +1023,7 @@ labInterpreterRouter.post('/save-transcript', async (req, res) => {
       doctorId,
       title: 'Lab Interpreter Voice Notes',
       content: transcript,
-      type: 'lab_transcript',
-      tags: ['lab_interpreter', 'voice_transcript'],
-      reportReference: reportId ? String(reportId) : undefined
+      type: 'progress' // Using a supported note type
     });
     
     return res.json({ success: true, noteId: note.id });
