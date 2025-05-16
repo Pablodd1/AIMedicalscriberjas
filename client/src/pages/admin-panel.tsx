@@ -107,8 +107,11 @@ const AdminPanel = () => {
     queryKey: ['/api/admin/users'],
     queryFn: async () => {
       if (!isAuthenticated) return [] as User[];
-      const response = await apiRequest('/api/admin/users', 'GET');
-      return response as User[];
+      const response = await fetch('/api/admin/users');
+      if (!response.ok) {
+        throw new Error('Failed to fetch users');
+      }
+      return await response.json();
     },
     enabled: isAuthenticated,
   });
@@ -117,16 +120,28 @@ const AdminPanel = () => {
     queryKey: ['/api/admin/dashboard'],
     queryFn: async () => {
       if (!isAuthenticated) return null;
-      const response = await apiRequest('/api/admin/dashboard');
-      return response as AdminStats;
+      const response = await fetch('/api/admin/dashboard');
+      if (!response.ok) {
+        throw new Error('Failed to fetch dashboard data');
+      }
+      return await response.json();
     },
     enabled: isAuthenticated,
   });
 
   const updateUserStatusMutation = useMutation({
     mutationFn: async ({ userId, isActive }: { userId: number; isActive: boolean }) => {
-      const response = await apiRequest(`/api/admin/users/${userId}/status`, 'PATCH', { isActive });
-      return response;
+      const response = await fetch(`/api/admin/users/${userId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ isActive }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to update user status');
+      }
+      return await response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
@@ -147,8 +162,17 @@ const AdminPanel = () => {
 
   const updateUserRoleMutation = useMutation({
     mutationFn: async ({ userId, role }: { userId: number; role: string }) => {
-      const response = await apiRequest(`/api/admin/users/${userId}/role`, 'PATCH', { role });
-      return response;
+      const response = await fetch(`/api/admin/users/${userId}/role`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ role }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to update user role');
+      }
+      return await response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
@@ -170,8 +194,13 @@ const AdminPanel = () => {
 
   const deleteUserMutation = useMutation({
     mutationFn: async (userId: number) => {
-      const response = await apiRequest(`/api/admin/users/${userId}`, 'DELETE');
-      return response;
+      const response = await fetch(`/api/admin/users/${userId}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        throw new Error('Failed to delete user');
+      }
+      return await response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });

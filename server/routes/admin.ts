@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { storage } from '../storage';
 import { eq } from 'drizzle-orm';
 import { users } from '@shared/schema';
+import { pool } from '../db';
 
 export const adminRouter = Router();
 
