@@ -590,6 +590,49 @@ export const insertLabReportSchema = createInsertSchema(labReports).pick({
   recommendations: true,
 });
 
+// Patient documents table
+export const patientDocuments = pgTable("patient_documents", {
+  id: serial("id").primaryKey(),
+  patientId: integer("patient_id").references(() => patients.id, { onDelete: "cascade" }).notNull(),
+  doctorId: integer("doctor_id").references(() => users.id).notNull(),
+  filename: text("filename").notNull(),
+  originalFilename: text("original_filename").notNull(),
+  filePath: text("file_path").notNull(),
+  fileType: text("file_type").notNull(), // pdf, docx, jpg, etc.
+  fileSize: integer("file_size").notNull(), // in bytes
+  title: text("title").notNull(),
+  description: text("description"),
+  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
+  tags: text("tags").array(),
+});
+
+export const insertPatientDocumentSchema = createInsertSchema(patientDocuments).pick({
+  patientId: true,
+  doctorId: true,
+  filename: true,
+  originalFilename: true,
+  filePath: true,
+  fileType: true,
+  fileSize: true,
+  title: true,
+  description: true,
+  tags: true,
+});
+
+export type InsertPatientDocument = z.infer<typeof insertPatientDocumentSchema>;
+export type PatientDocument = typeof patientDocuments.$inferSelect;
+
+export const patientDocumentRelations = relations(patientDocuments, ({ one }) => ({
+  patient: one(patients, {
+    fields: [patientDocuments.patientId],
+    references: [patients.id],
+  }),
+  doctor: one(users, {
+    fields: [patientDocuments.doctorId],
+    references: [users.id],
+  }),
+}));
+
 // Types for lab interpreter
 export type InsertLabKnowledgeBase = z.infer<typeof insertLabKnowledgeBaseSchema>;
 export type InsertLabInterpreterSettings = z.infer<typeof insertLabInterpreterSettingsSchema>;

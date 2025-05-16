@@ -993,6 +993,72 @@ export class DatabaseStorage implements IStorage {
       return false;
     }
   }
+
+  // Patient Documents methods
+  async getPatientDocuments(patientId: number): Promise<PatientDocument[]> {
+    try {
+      return db
+        .select()
+        .from(patientDocuments)
+        .where(eq(patientDocuments.patientId, patientId))
+        .orderBy(desc(patientDocuments.uploadedAt));
+    } catch (error) {
+      console.error("Error fetching patient documents:", error);
+      return [];
+    }
+  }
+  
+  async getPatientDocument(id: number): Promise<PatientDocument | undefined> {
+    try {
+      const [document] = await db
+        .select()
+        .from(patientDocuments)
+        .where(eq(patientDocuments.id, id));
+      return document;
+    } catch (error) {
+      console.error("Error fetching patient document:", error);
+      return undefined;
+    }
+  }
+  
+  async createPatientDocument(document: InsertPatientDocument): Promise<PatientDocument> {
+    try {
+      const [newDocument] = await db
+        .insert(patientDocuments)
+        .values(document)
+        .returning();
+      return newDocument;
+    } catch (error) {
+      console.error("Error creating patient document:", error);
+      throw error;
+    }
+  }
+  
+  async deletePatientDocument(id: number): Promise<boolean> {
+    try {
+      const result = await db
+        .delete(patientDocuments)
+        .where(eq(patientDocuments.id, id));
+      return result.rowCount > 0;
+    } catch (error) {
+      console.error("Error deleting patient document:", error);
+      return false;
+    }
+  }
+  
+  async updatePatientDocument(id: number, updates: Partial<PatientDocument>): Promise<PatientDocument | undefined> {
+    try {
+      const [updatedDocument] = await db
+        .update(patientDocuments)
+        .set(updates)
+        .where(eq(patientDocuments.id, id))
+        .returning();
+      return updatedDocument;
+    } catch (error) {
+      console.error("Error updating patient document:", error);
+      return undefined;
+    }
+  }
 }
 
 // Export instance of database storage
