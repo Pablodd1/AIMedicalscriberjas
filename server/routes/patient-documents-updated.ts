@@ -118,7 +118,7 @@ patientDocumentsRouter.post('/:patientId/upload', upload.single('document'), asy
       try {
         parsedTags = Array.isArray(tags) ? tags : JSON.parse(tags);
       } catch (e) {
-        parsedTags = tags.split(',').map(tag => tag.trim());
+        parsedTags = tags.split(',').map((tag: string) => tag.trim());
       }
     }
     
@@ -156,11 +156,8 @@ patientDocumentsRouter.get('/:patientId/download/:documentId', async (req, res) 
       return res.status(400).json({ error: 'Invalid IDs' });
     }
     
-    // Check if user is authenticated
-    const userId = (req.session as any)?.user?.id;
-    if (!userId) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
+    // Authentication is handled by the middleware in routes.ts
+    const userId = req.user!.id;
     
     // Get the document
     const document = await storage.getPatientDocument(documentId);
@@ -199,11 +196,8 @@ patientDocumentsRouter.delete('/:patientId/documents/:documentId', async (req, r
       return res.status(400).json({ error: 'Invalid IDs' });
     }
     
-    // Check if user is authenticated
-    const userId = (req.session as any)?.user?.id;
-    if (!userId) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
+    // Authentication is handled by the middleware in routes.ts
+    const userId = req.user!.id;
     
     // Get the document to check ownership and get file path
     const document = await storage.getPatientDocument(documentId);
@@ -252,11 +246,8 @@ patientDocumentsRouter.patch('/:patientId/documents/:documentId', async (req, re
       return res.status(400).json({ error: 'Invalid IDs' });
     }
     
-    // Check if user is authenticated
-    const userId = (req.session as any)?.user?.id;
-    if (!userId) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
+    // Authentication is handled by the middleware in routes.ts
+    const userId = req.user!.id;
     
     // Get the document to check ownership
     const document = await storage.getPatientDocument(documentId);
@@ -285,7 +276,7 @@ patientDocumentsRouter.patch('/:patientId/documents/:documentId', async (req, re
       try {
         parsedTags = Array.isArray(tags) ? tags : JSON.parse(tags);
       } catch (e) {
-        parsedTags = tags.split(',').map(tag => tag.trim());
+        parsedTags = tags.split(',').map((tag: string) => tag.trim());
       }
       updates.tags = parsedTags;
     }

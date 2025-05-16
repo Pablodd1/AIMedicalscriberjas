@@ -7,7 +7,7 @@ import { aiRouter } from "./routes/ai";
 import { emailRouter } from "./routes/email";
 import { monitoringRouter } from "./routes/monitoring";
 import { labInterpreterRouter } from "./routes/lab-interpreter";
-import { patientDocumentsRouter } from "./routes/patient-documents";
+import { patientDocumentsRouter } from "./routes/patient-documents-updated";
 import multer from "multer";
 
 // Extend the global namespace to include our media storage
@@ -59,7 +59,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/lab-interpreter', labInterpreterRouter);
   
   // Register Patient Documents routes
-  app.use('/api/patient-documents', patientDocumentsRouter);
+  app.use('/api/patient-documents', (req, res, next) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+    next();
+  }, patientDocumentsRouter);
 
   // Patients routes
   app.get("/api/patients", async (req, res) => {
