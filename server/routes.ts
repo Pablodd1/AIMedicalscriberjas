@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from 'ws';
 import { setupAuth } from "./auth";
@@ -6,6 +6,16 @@ import { storage } from "./storage";
 import { aiRouter } from "./routes/ai";
 import { emailRouter } from "./routes/email";
 import { monitoringRouter } from "./routes/monitoring";
+import multer from "multer";
+
+// Extend the global namespace to include our media storage
+declare global {
+  var mediaStorage: Map<string, {
+    data: Buffer,
+    contentType: string,
+    filename: string
+  }>;
+}
 import { 
   insertPatientSchema, 
   insertAppointmentSchema, 
@@ -652,7 +662,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }).single('media');
       
       // Handle the file upload
-      upload(req, res, async (err) => {
+      upload(req, res, async (err: any) => {
         if (err) {
           console.error('Multer error:', err);
           return res.status(400).json({ message: 'File upload failed', error: err.message });
@@ -680,9 +690,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // In a production environment, we would store the file in blob storage
         // and update the database with the URL. For now, we'll store the data temporarily.
         
-        // Create a simple temporary storage system using Map (this is just for demo purposes)
-        if (!global.mediaStorage) {
-          global.mediaStorage = new Map();
+        // Create a simple temporary storage system (this is just for demo purposes)
+        if (typeof global.mediaStorage === 'undefined') {
+          // Define mediaStorage on global object
+          global.mediaStorage = new Map<string, {
+            data: Buffer,
+            contentType: string,
+            filename: string
+          }>();
         }
         
         // Store the media file with a unique key based on recording ID and type
@@ -741,8 +756,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Check if the recording exists in our temporary storage
-      if (global.mediaStorage && global.mediaStorage.has(`${recordingId}_audio`)) {
-        const mediaFile = global.mediaStorage.get(`${recordingId}_audio`);
+      if ((global as any).mediaStorage && (global as any).mediaStorage.has(`${recordingId}_audio`)) {
+        const mediaFile = (global as any).mediaStorage.get(`${recordingId}_audio`);
         res.setHeader('Content-Type', mediaFile.contentType);
         res.setHeader('Content-Disposition', `attachment; filename="${mediaFile.filename}"`);
         return res.send(mediaFile.data);
@@ -782,8 +797,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Check if the video exists in our temporary storage
-      if (global.mediaStorage && global.mediaStorage.has(`${recordingId}_video`)) {
-        const mediaFile = global.mediaStorage.get(`${recordingId}_video`);
+      if ((global as any).mediaStorage && (global as any).mediaStorage.has(`${recordingId}_video`)) {
+        const mediaFile = (global as any).mediaStorage.get(`${recordingId}_video`);
         res.setHeader('Content-Type', mediaFile.contentType);
         res.setHeader('Content-Disposition', `attachment; filename="${mediaFile.filename}"`);
         return res.send(mediaFile.data);
