@@ -628,6 +628,93 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Upload media (audio or video) for a telemedicine recording
+  app.post('/api/telemedicine/recordings/:id/media', async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const doctorId = req.user.id;
+      const recordingId = parseInt(req.params.id);
+      
+      if (isNaN(recordingId)) {
+        return res.status(400).json({ message: 'Invalid recording ID format' });
+      }
+      
+      // Set up multer for file handling
+      const multerStorage = multer.memoryStorage();
+      const upload = multer({ 
+        storage: multerStorage,
+        limits: {
+          fileSize: 100 * 1024 * 1024, // 100MB limit for video files
+        }
+      }).single('media');
+      
+      // Handle the file upload
+      upload(req, res, async (err) => {
+        if (err) {
+          console.error('Multer error:', err);
+          return res.status(400).json({ message: 'File upload failed', error: err.message });
+        }
+        
+        if (!req.file) {
+          return res.status(400).json({ message: 'No file uploaded' });
+        }
+        
+        // Get the recording session
+        const recording = await storage.getRecordingSession(recordingId);
+        
+        if (!recording) {
+          return res.status(404).json({ message: 'Recording not found' });
+        }
+        
+        // Security check: Only allow the doctor who owns the recording to upload to it
+        if (recording.doctorId !== doctorId) {
+          return res.status(403).json({ message: 'You do not have permission to modify this recording' });
+        }
+        
+        const mediaType = req.body.type || 'audio';
+        const fileBuffer = req.file.buffer;
+        
+        // In a production environment, we would store the file in blob storage
+        // and update the database with the URL. For now, we'll store the data temporarily.
+        
+        // Create a simple temporary storage system using Map (this is just for demo purposes)
+        if (!global.mediaStorage) {
+          global.mediaStorage = new Map();
+        }
+        
+        // Store the media file with a unique key based on recording ID and type
+        const storageKey = `${recordingId}_${mediaType}`;
+        global.mediaStorage.set(storageKey, {
+          data: fileBuffer,
+          contentType: req.file.mimetype,
+          filename: req.file.originalname
+        });
+        
+        // Update the recording session with the appropriate URL
+        const updateData: any = {};
+        if (mediaType === 'audio') {
+          updateData.audioUrl = `/api/telemedicine/recordings/${recordingId}/audio`;
+        } else {
+          updateData.videoUrl = `/api/telemedicine/recordings/${recordingId}/video`;
+        }
+        
+        // Update the database record
+        await storage.updateRecordingSession(recordingId, updateData);
+        
+        res.status(200).json({ 
+          message: `${mediaType} recording uploaded successfully`,
+          recordingId
+        });
+      });
+    } catch (error) {
+      console.error(`Error uploading recording:`, error);
+      res.status(500).json({ message: 'Failed to upload recording' });
+    }
+  });
+
   // Retrieve audio recording for a telemedicine session
   app.get('/api/telemedicine/recordings/:id/audio', async (req, res) => {
     try {
@@ -653,10 +740,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: 'You do not have permission to access this recording' });
       }
       
-      // In a real production environment, we would retrieve the audio file from blob storage
-      // using the recording.roomId as the key. 
+      // Check if the recording exists in our temporary storage
+      if (global.mediaStorage && global.mediaStorage.has(`${recordingId}_audio`)) {
+        const mediaFile = global.mediaStorage.get(`${recordingId}_audio`);
+        res.setHeader('Content-Type', mediaFile.contentType);
+        res.setHeader('Content-Disposition', `attachment; filename="${mediaFile.filename}"`);
+        return res.send(mediaFile.data);
+      }
       
-      // For now, we'll return a not found status which will trigger the frontend to handle appropriately
+      // If not found in our temporary storage, return a not found response
       res.status(404).json({ message: 'Audio recording not available yet' });
     } catch (error) {
       console.error('Error retrieving audio recording:', error);
@@ -689,10 +781,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: 'You do not have permission to access this recording' });
       }
       
-      // In a real production environment, we would retrieve the video file from blob storage
-      // using the recording.roomId as the key.
+      // Check if the video exists in our temporary storage
+      if (global.mediaStorage && global.mediaStorage.has(`${recordingId}_video`)) {
+        const mediaFile = global.mediaStorage.get(`${recordingId}_video`);
+        res.setHeader('Content-Type', mediaFile.contentType);
+        res.setHeader('Content-Disposition', `attachment; filename="${mediaFile.filename}"`);
+        return res.send(mediaFile.data);
+      }
       
-      // For now, return a not found status which will trigger the frontend fallback
+      // If not found in our temporary storage, return a not found response
       res.status(404).json({ message: 'Video recording not available yet' });
     } catch (error) {
       console.error('Error retrieving video recording:', error);

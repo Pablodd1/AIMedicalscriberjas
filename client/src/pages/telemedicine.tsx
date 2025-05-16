@@ -419,7 +419,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
               mediaFormat: fileExt
             };
             
-            // Submit recording session to server
+            // Submit recording session to server to create the record
             const recordingResponse = await fetch('/api/telemedicine/recordings', {
               method: 'POST',
               headers: {
@@ -430,8 +430,16 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             
             if (!recordingResponse.ok) {
               console.warn('Failed to save recording session:', await recordingResponse.text());
+              throw new Error('Failed to save recording session data');
             }
-
+            
+            // Get the recording ID from the response
+            const recordingData = await recordingResponse.json();
+            
+            if (!recordingData.id) {
+              throw new Error('No recording ID returned from server');
+            }
+            
             // Extract audio track for transcription (if we have video)
             let audioBlob = recordingBlob;
             
@@ -439,9 +447,49 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
               // For video, we need to extract audio for transcription
               // But we'll also keep the video for download
               toast({
-                title: "Extracting Audio",
-                description: "Preparing audio for transcription...",
+                title: "Uploading Recording",
+                description: "Saving video recording to the server...",
               });
+              
+              // Upload the video file to the server
+              const videoFormData = new FormData();
+              videoFormData.append('media', recordingBlob, `video_${recordingData.id}.${fileExt}`);
+              videoFormData.append('type', 'video');
+              
+              try {
+                const videoUploadResponse = await fetch(`/api/telemedicine/recordings/${recordingData.id}/media`, {
+                  method: 'POST',
+                  body: videoFormData,
+                });
+                
+                if (!videoUploadResponse.ok) {
+                  console.warn('Failed to upload video file:', await videoUploadResponse.text());
+                } else {
+                  console.log('Video recording uploaded successfully');
+                }
+              } catch (error) {
+                console.error('Error uploading video recording:', error);
+              }
+            } else {
+              // Upload the audio file to the server
+              const audioFormData = new FormData();
+              audioFormData.append('media', audioBlob, `audio_${recordingData.id}.${fileExt}`);
+              audioFormData.append('type', 'audio');
+              
+              try {
+                const audioUploadResponse = await fetch(`/api/telemedicine/recordings/${recordingData.id}/media`, {
+                  method: 'POST',
+                  body: audioFormData,
+                });
+                
+                if (!audioUploadResponse.ok) {
+                  console.warn('Failed to upload audio file:', await audioUploadResponse.text());
+                } else {
+                  console.log('Audio recording uploaded successfully');
+                }
+              } catch (error) {
+                console.error('Error uploading audio recording:', error);
+              }
             }
 
             // Send the audio to the backend for transcription
