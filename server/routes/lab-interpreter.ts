@@ -114,116 +114,100 @@ function parseDiseaseProductReference(data: any[]) {
     console.log("Sample row keys:", Object.keys(data[0]));
     console.log("Sample row values:", Object.values(data[0]));
   }
-  
+
   return data.filter(row => {
     // Skip completely empty rows
     const values = Object.values(row).filter(v => v !== null && v !== undefined && v !== '');
     return values.length > 0;
   }).map((row: any) => {
+    // Get all column keys from the row
     const keys = Object.keys(row);
-    let disease = '';
-    let organ = '';
-    let product = '';
-    let description = '';
     
-    // Simple handling for two-column format (likely Disease -> Product/Supplements)
-    if (keys.length === 2) {
-      disease = String(row[keys[0]] || '').trim();
-      product = String(row[keys[1]] || '').trim();
-      organ = 'General';
-    } else {
-      // Try to intelligently determine column mappings by header names for disease-product reference format
-      const organKey = keys.find(k => /organ.+system|system/i.test(k));
-      const diseaseKey = keys.find(k => /disease|state/i.test(k));
-      
-      // Look for peptide and formula columns
-      const primaryPeptideKey = keys.find(k => /primary.+peptide/i.test(k));
-      const secondaryPeptideKey = keys.find(k => /secondary.+peptide/i.test(k));
-      const primaryFormulaKey = keys.find(k => /primary.+formula/i.test(k));
-      const secondaryFormulaKey = keys.find(k => /secondary.+formula/i.test(k));
-      const supportFormula1Key = keys.find(k => /support.+formula.+1|support.+formula$/i.test(k));
-      const supportFormula2Key = keys.find(k => /support.+formula.+2/i.test(k));
-      const supportFormula3Key = keys.find(k => /support.+formula.+3/i.test(k));
-      const supportFormula4Key = keys.find(k => /support.+formula.+4/i.test(k));
-      
-      // If we found column headers, use them
-      if (diseaseKey) disease = String(row[diseaseKey] || '').trim();
-      if (organKey) organ = String(row[organKey] || '').trim();
-      
-      // Collect peptides and formulas
-      const peptides = [];
-      if (primaryPeptideKey && row[primaryPeptideKey]) peptides.push(String(row[primaryPeptideKey]).trim());
-      if (secondaryPeptideKey && row[secondaryPeptideKey]) peptides.push(String(row[secondaryPeptideKey]).trim());
-      
-      const formulas = [];
-      if (primaryFormulaKey && row[primaryFormulaKey]) formulas.push(String(row[primaryFormulaKey]).trim());
-      if (secondaryFormulaKey && row[secondaryFormulaKey]) formulas.push(String(row[secondaryFormulaKey]).trim());
-      if (supportFormula1Key && row[supportFormula1Key]) formulas.push(String(row[supportFormula1Key]).trim());
-      if (supportFormula2Key && row[supportFormula2Key]) formulas.push(String(row[supportFormula2Key]).trim());
-      if (supportFormula3Key && row[supportFormula3Key]) formulas.push(String(row[supportFormula3Key]).trim());
-      if (supportFormula4Key && row[supportFormula4Key]) formulas.push(String(row[supportFormula4Key]).trim());
-      
-      // Combine peptides and formulas for product recommendation
-      if (peptides.length > 0) {
-        product += (product ? ' | ' : '') + 'Peptides: ' + peptides.join(', ');
-      }
-      
-      if (formulas.length > 0) {
-        product += (product ? ' | ' : '') + 'Formulas: ' + formulas.join(', ');
-      }
-      
-      // If we don't have clear headers, make educated guesses based on content
-      if (!disease && !organ && !product) {
-        // First non-empty column is often disease/condition
-        for (const key of keys) {
-          const value = String(row[key] || '').trim();
-          if (value) {
-            if (!disease) {
-              disease = value;
-            } else if (!product) {
-              product = value;
-            } else if (!organ) {
-              // If value contains "system" or similar terms, it's likely an organ system
-              if (/system|organ|body|area/i.test(value)) {
-                organ = value;
-              } else {
-                // Otherwise, append to product
-                product += ', ' + value;
-              }
-            }
-          }
-        }
+    // Find organ system and disease columns
+    let organSystemKey = '';
+    let diseaseStateKey = '';
+    
+    // First try to find columns with exact expected names
+    for (const key of keys) {
+      const keyLower = key.toLowerCase();
+      if (keyLower.includes('organ') && keyLower.includes('system')) {
+        organSystemKey = key;
+      } else if (keyLower.includes('disease') && keyLower.includes('state')) {
+        diseaseStateKey = key;
       }
     }
     
-    // Use the first column as marker if disease is still empty
-    if (!disease && keys.length > 0) {
-      disease = String(row[keys[0]] || '').trim();
+    // If we didn't find the exact column names, look for similar ones
+    if (!organSystemKey) {
+      organSystemKey = keys.find(k => /organ|system|category/i.test(k)) || '';
     }
     
-    // Use the second column as recommendations if product is still empty
-    if (!product && keys.length > 1) {
-      product = String(row[keys[1]] || '').trim();
+    if (!diseaseStateKey) {
+      diseaseStateKey = keys.find(k => /disease|condition|state/i.test(k)) || '';
     }
     
-    // Default values for empty fields
-    if (!organ) organ = 'General';
-    if (!disease) disease = 'Unspecified Condition';
+    // If we still don't have keys, use the first columns
+    if (!organSystemKey && keys.length > 0) organSystemKey = keys[0];
+    if (!diseaseStateKey && keys.length > 1) diseaseStateKey = keys[1];
     
-    // Combine interpretation from disease and description
-    let interpretation = disease;
-    if (description) {
-      interpretation += ': ' + description;
+    // Extract values for organ system and disease state
+    const organSystem = organSystemKey ? String(row[organSystemKey] || '').trim() : 'General';
+    const diseaseState = diseaseStateKey ? String(row[diseaseStateKey] || '').trim() : '';
+    
+    // Collect all peptide data
+    let allPeptides = '';
+    for (const key of keys) {
+      if (/peptide/i.test(key) && row[key]) {
+        const peptideName = key.replace(/([A-Z])/g, ' $1').trim();
+        allPeptides += `${peptideName}: ${String(row[key]).trim()}\n`;
+      }
     }
     
+    // Collect all formula data
+    let allFormulas = '';
+    for (const key of keys) {
+      if (/formula/i.test(key) && row[key]) {
+        const formulaName = key.replace(/([A-Z])/g, ' $1').trim();
+        allFormulas += `${formulaName}: ${String(row[key]).trim()}\n`;
+      }
+    }
+    
+    // Build structured recommendations with all data
+    let structuredRecommendations = '';
+    
+    if (allPeptides) {
+      structuredRecommendations += "Peptides:\n" + allPeptides;
+    }
+    
+    if (allFormulas) {
+      structuredRecommendations += (structuredRecommendations ? "\n" : "") + "Formulas:\n" + allFormulas;
+    }
+    
+    // Include any other columns we haven't specifically handled
+    let otherData = '';
+    for (const key of keys) {
+      if (key !== organSystemKey && 
+          key !== diseaseStateKey && 
+          !(/peptide|formula/i.test(key)) && 
+          row[key]) {
+        const colName = key.replace(/([A-Z])/g, ' $1').trim();
+        otherData += `${colName}: ${String(row[key]).trim()}\n`;
+      }
+    }
+    
+    if (otherData) {
+      structuredRecommendations += (structuredRecommendations ? "\n" : "") + "Additional Data:\n" + otherData;
+    }
+    
+    // Return in the format expected by our database schema
     return {
-      test_name: organ || 'Organ System',
-      marker: disease || 'Disease/Condition',
+      test_name: organSystem || 'Organ System',
+      marker: diseaseState || 'Disease/Condition',
       normal_range_low: null,
       normal_range_high: null,
       unit: '',
-      interpretation: interpretation || 'See recommendations',
-      recommendations: product || ''
+      interpretation: `Condition: ${diseaseState || 'Unknown'}`,
+      recommendations: structuredRecommendations || 'No specific recommendations'
     };
   });
 }
