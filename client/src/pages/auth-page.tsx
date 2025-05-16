@@ -112,24 +112,16 @@ export default function AuthPage() {
   
   return (
     <div className="flex min-h-screen">
-      {/* Account Deactivation Alert Dialog */}
-      <AlertDialog open={showDeactivationAlert} onOpenChange={setShowDeactivationAlert}>
-        <AlertDialogContent className="max-w-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-red-600">Account Deactivated</AlertDialogTitle>
-            <AlertDialogDescription className="text-base">
-              {deactivationMessage}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction className="w-full">Understand</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      
       {/* Left side - Auth forms */}
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
+          {/* Deactivation error message - displayed when account is deactivated */}
+          {showDeactivationAlert && (
+            <div className="mb-6 p-4 bg-red-500 text-white rounded-md shadow-md">
+              <div className="font-bold text-lg mb-1">Login failed</div>
+              <div>401: {deactivationMessage}</div>
+            </div>
+          )}
           <Card>
             <CardHeader>
               <CardTitle className="text-2xl">Medical Platform</CardTitle>
