@@ -135,6 +135,26 @@ export interface IStorage {
   getAlertSettings(patientId: number, deviceType: string): Promise<AlertSetting | undefined>;
   saveAlertSettings(settings: InsertAlertSetting): Promise<AlertSetting>;
   updateAlertSettings(id: number, updates: Partial<AlertSetting>): Promise<AlertSetting | undefined>;
+  // Lab Interpreter methods
+  getLabKnowledgeBase(): Promise<LabKnowledgeBase[]>;
+  getLabKnowledgeBaseItem(id: number): Promise<LabKnowledgeBase | undefined>;
+  createLabKnowledgeBaseItem(item: InsertLabKnowledgeBase): Promise<LabKnowledgeBase>;
+  updateLabKnowledgeBaseItem(id: number, updates: Partial<LabKnowledgeBase>): Promise<LabKnowledgeBase | undefined>;
+  deleteLabKnowledgeBaseItem(id: number): Promise<boolean>;
+  importLabKnowledgeBase(items: InsertLabKnowledgeBase[]): Promise<number>;
+  
+  // Lab Interpreter Settings methods
+  getLabInterpreterSettings(): Promise<LabInterpreterSettings | undefined>;
+  saveLabInterpreterSettings(settings: InsertLabInterpreterSettings): Promise<LabInterpreterSettings>;
+  
+  // Lab Reports methods
+  getLabReports(doctorId: number): Promise<LabReport[]>;
+  getLabReportsByPatient(patientId: number): Promise<LabReport[]>;
+  getLabReport(id: number): Promise<LabReport | undefined>;
+  createLabReport(report: InsertLabReport): Promise<LabReport>;
+  updateLabReport(id: number, updates: Partial<LabReport>): Promise<LabReport | undefined>;
+  deleteLabReport(id: number): Promise<boolean>;
+
   sessionStore: session.Store;
 }
 
@@ -797,6 +817,182 @@ export class DatabaseStorage implements IStorage {
       .where(eq(alertSettings.id, id))
       .returning();
     return updatedSettings;
+  }
+
+  // Lab Interpreter methods
+  async getLabKnowledgeBase(): Promise<LabKnowledgeBase[]> {
+    try {
+      return await db.select().from(labKnowledgeBase).orderBy(labKnowledgeBase.testName);
+    } catch (error) {
+      console.error("Error fetching lab knowledge base:", error);
+      return [];
+    }
+  }
+
+  async getLabKnowledgeBaseItem(id: number): Promise<LabKnowledgeBase | undefined> {
+    try {
+      const [item] = await db.select().from(labKnowledgeBase).where(eq(labKnowledgeBase.id, id));
+      return item;
+    } catch (error) {
+      console.error("Error fetching lab knowledge base item:", error);
+      return undefined;
+    }
+  }
+
+  async createLabKnowledgeBaseItem(item: InsertLabKnowledgeBase): Promise<LabKnowledgeBase> {
+    try {
+      const [newItem] = await db.insert(labKnowledgeBase).values(item).returning();
+      return newItem;
+    } catch (error) {
+      console.error("Error creating lab knowledge base item:", error);
+      throw error;
+    }
+  }
+
+  async updateLabKnowledgeBaseItem(id: number, updates: Partial<LabKnowledgeBase>): Promise<LabKnowledgeBase | undefined> {
+    try {
+      const [updated] = await db
+        .update(labKnowledgeBase)
+        .set({
+          ...updates,
+          updatedAt: new Date()
+        })
+        .where(eq(labKnowledgeBase.id, id))
+        .returning();
+      return updated;
+    } catch (error) {
+      console.error("Error updating lab knowledge base item:", error);
+      return undefined;
+    }
+  }
+
+  async deleteLabKnowledgeBaseItem(id: number): Promise<boolean> {
+    try {
+      const result = await db.delete(labKnowledgeBase).where(eq(labKnowledgeBase.id, id));
+      return result.rowCount > 0;
+    } catch (error) {
+      console.error("Error deleting lab knowledge base item:", error);
+      return false;
+    }
+  }
+
+  async importLabKnowledgeBase(items: InsertLabKnowledgeBase[]): Promise<number> {
+    try {
+      const result = await db.insert(labKnowledgeBase).values(items).returning();
+      return result.length;
+    } catch (error) {
+      console.error("Error importing lab knowledge base:", error);
+      throw error;
+    }
+  }
+
+  // Lab Interpreter Settings methods
+  async getLabInterpreterSettings(): Promise<LabInterpreterSettings | undefined> {
+    try {
+      const [settings] = await db.select().from(labInterpreterSettings).limit(1);
+      return settings;
+    } catch (error) {
+      console.error("Error fetching lab interpreter settings:", error);
+      return undefined;
+    }
+  }
+
+  async saveLabInterpreterSettings(settings: InsertLabInterpreterSettings): Promise<LabInterpreterSettings> {
+    try {
+      // Check if settings already exist
+      const existingSettings = await this.getLabInterpreterSettings();
+      
+      if (existingSettings) {
+        // Update existing settings
+        const [updated] = await db
+          .update(labInterpreterSettings)
+          .set({
+            ...settings,
+            updatedAt: new Date()
+          })
+          .where(eq(labInterpreterSettings.id, existingSettings.id))
+          .returning();
+        return updated;
+      } else {
+        // Create new settings
+        const [newSettings] = await db.insert(labInterpreterSettings).values(settings).returning();
+        return newSettings;
+      }
+    } catch (error) {
+      console.error("Error saving lab interpreter settings:", error);
+      throw error;
+    }
+  }
+
+  // Lab Reports methods
+  async getLabReports(doctorId: number): Promise<LabReport[]> {
+    try {
+      return await db
+        .select()
+        .from(labReports)
+        .where(eq(labReports.doctorId, doctorId))
+        .orderBy(desc(labReports.createdAt));
+    } catch (error) {
+      console.error("Error fetching lab reports:", error);
+      return [];
+    }
+  }
+
+  async getLabReportsByPatient(patientId: number): Promise<LabReport[]> {
+    try {
+      return await db
+        .select()
+        .from(labReports)
+        .where(eq(labReports.patientId, patientId))
+        .orderBy(desc(labReports.createdAt));
+    } catch (error) {
+      console.error("Error fetching lab reports by patient:", error);
+      return [];
+    }
+  }
+
+  async getLabReport(id: number): Promise<LabReport | undefined> {
+    try {
+      const [report] = await db.select().from(labReports).where(eq(labReports.id, id));
+      return report;
+    } catch (error) {
+      console.error("Error fetching lab report:", error);
+      return undefined;
+    }
+  }
+
+  async createLabReport(report: InsertLabReport): Promise<LabReport> {
+    try {
+      const [newReport] = await db.insert(labReports).values(report).returning();
+      return newReport;
+    } catch (error) {
+      console.error("Error creating lab report:", error);
+      throw error;
+    }
+  }
+
+  async updateLabReport(id: number, updates: Partial<LabReport>): Promise<LabReport | undefined> {
+    try {
+      const [updated] = await db
+        .update(labReports)
+        .set(updates)
+        .where(eq(labReports.id, id))
+        .returning();
+      return updated;
+    } catch (error) {
+      console.error("Error updating lab report:", error);
+      return undefined;
+    }
+  }
+
+  async deleteLabReport(id: number): Promise<boolean> {
+    try {
+      const result = await db.delete(labReports).where(eq(labReports.id, id));
+      return result.rowCount > 0;
+    } catch (error) {
+      console.error("Error deleting lab report:", error);
+      return false;
+    }
   }
 }
 

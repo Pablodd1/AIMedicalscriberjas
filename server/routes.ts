@@ -6,6 +6,7 @@ import { storage } from "./storage";
 import { aiRouter } from "./routes/ai";
 import { emailRouter } from "./routes/email";
 import { monitoringRouter } from "./routes/monitoring";
+import { labInterpreterRouter } from "./routes/lab-interpreter";
 import multer from "multer";
 
 // Extend the global namespace to include our media storage
