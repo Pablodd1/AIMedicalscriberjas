@@ -88,10 +88,10 @@ function parseExcelFile(filePath: string) {
 
 // Validate the lab knowledge base item
 const labKnowledgeBaseItemSchema = z.object({
-  testName: z.string().min(1, 'Test name is required'),
+  test_name: z.string().min(1, 'Test name is required'),
   marker: z.string().min(1, 'Marker is required'),
-  normalRangeLow: z.number().nullable(),
-  normalRangeHigh: z.number().nullable(),
+  normal_range_low: z.number().nullable(),
+  normal_range_high: z.number().nullable(),
   unit: z.string().optional(),
   interpretation: z.string().min(1, 'Interpretation is required'),
   recommendations: z.string().optional()

@@ -822,7 +822,7 @@ export class DatabaseStorage implements IStorage {
   // Lab Interpreter methods
   async getLabKnowledgeBase(): Promise<LabKnowledgeBase[]> {
     try {
-      return await db.select().from(labKnowledgeBase).orderBy(labKnowledgeBase.testName);
+      return await db.select().from(labKnowledgeBase).orderBy(labKnowledgeBase.test_name);
     } catch (error) {
       console.error("Error fetching lab knowledge base:", error);
       return [];
@@ -854,8 +854,7 @@ export class DatabaseStorage implements IStorage {
       const [updated] = await db
         .update(labKnowledgeBase)
         .set({
-          ...updates,
-          updatedAt: new Date()
+          ...updates
         })
         .where(eq(labKnowledgeBase.id, id))
         .returning();

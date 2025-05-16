@@ -529,24 +529,22 @@ export type InsertAlertSetting = z.infer<typeof insertAlertSettingSchema>;
 // Lab Interpreter Assistant Knowledge Base tables
 export const labKnowledgeBase = pgTable("lab_knowledge_base", {
   id: serial("id").primaryKey(),
-  testName: text("test_name").notNull(),
-  marker: text("marker").notNull().unique(),
-  normalRangeLow: real("normal_range_low"),
-  normalRangeHigh: real("normal_range_high"),
+  test_name: text("test_name").notNull(),
+  marker: text("marker").notNull(),
+  normal_range_low: real("normal_range_low"),
+  normal_range_high: real("normal_range_high"),
   unit: text("unit"),
   interpretation: text("interpretation").notNull(),
   recommendations: text("recommendations"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  created_at: timestamp("created_at").notNull().defaultNow(),
 });
 
 export const labInterpreterSettings = pgTable("lab_interpreter_settings", {
   id: serial("id").primaryKey(),
-  systemPrompt: text("system_prompt").notNull(),
-  withPatientPrompt: text("with_patient_prompt"),
-  withoutPatientPrompt: text("without_patient_prompt"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  system_prompt: text("system_prompt").notNull(),
+  with_patient_prompt: text("with_patient_prompt"),
+  without_patient_prompt: text("without_patient_prompt"),
+  created_at: timestamp("created_at").notNull().defaultNow(),
 });
 
 export const labReports = pgTable("lab_reports", {
@@ -565,10 +563,10 @@ export const labReports = pgTable("lab_reports", {
 
 // Insert schemas for lab interpreter
 export const insertLabKnowledgeBaseSchema = createInsertSchema(labKnowledgeBase).pick({
-  testName: true,
+  test_name: true,
   marker: true,
-  normalRangeLow: true,
-  normalRangeHigh: true,
+  normal_range_low: true,
+  normal_range_high: true,
   unit: true,
   interpretation: true,
   recommendations: true,
