@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Redirect } from "wouter";
+import { Redirect, Link } from "wouter";
 import { 
   Card, 
   CardContent, 
@@ -122,6 +122,13 @@ export default function AuthPage() {
               <div>401: {deactivationMessage}</div>
             </div>
           )}
+          <div className="mb-4 flex justify-end">
+            <Link href="/">
+              <Button variant="outline" size="sm">
+                ← Back to Home
+              </Button>
+            </Link>
+          </div>
           <Card>
             <CardHeader>
               <CardTitle className="text-2xl">Medical Platform</CardTitle>

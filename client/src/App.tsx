@@ -12,6 +12,7 @@ import JoinConsultation from "@/pages/join-consultation";
 import ConsultationComplete from "@/pages/consultation-complete";
 import AuthPage from "@/pages/auth-page";
 import { ProtectedRoute } from "@/lib/protected-route";
+import LandingPage from "@/pages/landing-page";
 
 // Import all the page components we need
 import Dashboard from "@/pages/dashboard";
@@ -110,8 +111,10 @@ const LabInterpreterPage = () => (
 function Router() {
   return (
     <Switch>
+      {/* Landing page as root */}
+      <Route path="/" component={LandingPage} />
+      
       {/* Protected Routes - require authentication */}
-      <ProtectedRoute path="/" component={DashboardPage} />
       <ProtectedRoute path="/dashboard" component={DashboardPage} />
       <ProtectedRoute path="/patients" component={PatientsPage} />
       <ProtectedRoute path="/appointments" component={AppointmentsPage} />
@@ -128,7 +131,8 @@ function Router() {
       <Route path="/admin" component={AdminPanel} />
       
       {/* Public Routes - accessible without authentication */}
-      <Route path="/auth" component={AuthPage} />
+      <Route path="/login" component={AuthPage} />
+      <Route path="/register" component={AuthPage} />
       <Route path="/patient-join/:uniqueLink" component={PatientJoin} />
       
       {/* Public routes for telemedicine patient access */}
