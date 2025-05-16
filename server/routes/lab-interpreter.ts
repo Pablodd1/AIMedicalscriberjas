@@ -323,7 +323,7 @@ labInterpreterRouter.post('/analyze', async (req, res) => {
     
     // Prepare knowledge base for prompt
     const knowledgeBaseText = knowledgeBase.map(item => 
-      `Test: ${item.testName}\nMarker: ${item.marker}\nNormal Range: ${item.normalRangeLow || ''} - ${item.normalRangeHigh || ''} ${item.unit || ''}\nInterpretation: ${item.interpretation}\nRecommendations: ${item.recommendations || ''}`
+      `Test: ${item.test_name}\nMarker: ${item.marker}\nNormal Range: ${item.normal_range_low || ''} - ${item.normal_range_high || ''} ${item.unit || ''}\nInterpretation: ${item.interpretation}\nRecommendations: ${item.recommendations || ''}`
     ).join('\n\n');
     
     // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
@@ -438,7 +438,7 @@ labInterpreterRouter.post('/analyze/upload', upload.single('labReport'), async (
     
     // Prepare knowledge base for prompt
     const knowledgeBaseText = knowledgeBase.map(item => 
-      `Test: ${item.testName}\nMarker: ${item.marker}\nNormal Range: ${item.normalRangeLow || ''} - ${item.normalRangeHigh || ''} ${item.unit || ''}\nInterpretation: ${item.interpretation}\nRecommendations: ${item.recommendations || ''}`
+      `Test: ${item.test_name}\nMarker: ${item.marker}\nNormal Range: ${item.normal_range_low || ''} - ${item.normal_range_high || ''} ${item.unit || ''}\nInterpretation: ${item.interpretation}\nRecommendations: ${item.recommendations || ''}`
     ).join('\n\n');
     
     // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
