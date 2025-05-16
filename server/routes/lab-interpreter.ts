@@ -733,7 +733,7 @@ labInterpreterRouter.post('/analyze', async (req, res) => {
         },
         {
           role: 'user',
-          content: `Here is my knowledge base of lab test reference values and interpretations:\n\n${knowledgeBaseText}\n\nNow, ${userPrompt}\n\nLab Report:\n${reportText}`
+          content: `Here is my knowledge base of lab test reference values and interpretations:\n\n${knowledgeBaseText}\n\nNow, ${userPrompt}\n\nLab Report:\n${reportText}\n\nPlease provide your analysis as a JSON object with the following structure: { "summary": "brief overview", "abnormalValues": [], "interpretation": "detailed explanation", "recommendations": [] }`
         }
       ],
       temperature: 0.4,
@@ -848,7 +848,7 @@ labInterpreterRouter.post('/analyze/upload', upload.single('labReport'), async (
         },
         {
           role: 'user',
-          content: `Here is my knowledge base of lab test reference values and interpretations:\n\n${knowledgeBaseText}\n\nNow, ${userPrompt}\n\nLab Report:\n${extractedText}`
+          content: `Here is my knowledge base of lab test reference values and interpretations:\n\n${knowledgeBaseText}\n\nNow, ${userPrompt}\n\nLab Report:\n${extractedText}\n\nPlease provide your analysis as a JSON object with the following structure: { "summary": "brief overview", "abnormalValues": [], "interpretation": "detailed explanation", "recommendations": [] }`
         }
       ],
       temperature: 0.4,
