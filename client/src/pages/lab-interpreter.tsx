@@ -654,6 +654,64 @@ export default function LabInterpreter() {
               </div>
             </DialogContent>
           </Dialog>
+          
+          {/* Text Paste Import Dialog */}
+          <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+            <DialogContent className="sm:max-w-[600px]">
+              <DialogHeader>
+                <DialogTitle>Import Knowledge Base via Text</DialogTitle>
+                <DialogDescription>
+                  Paste lab test reference data in the following format:
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="py-4">
+                <div className="mb-4 p-3 bg-muted rounded-md">
+                  <pre className="text-xs text-muted-foreground">
+                    Test: Complete Blood Count<br/>
+                    Marker: Hemoglobin<br/>
+                    Range: 12.0-15.5 g/dL<br/>
+                    Interpretation: Hemoglobin is a protein in red blood cells<br/>
+                    Recommendations: Low levels may indicate anemia
+                    
+                    <br/><br/>
+                    
+                    Test: Liver Function<br/>
+                    Marker: ALT<br/>
+                    Range: 7-55 U/L<br/>
+                    Interpretation: Liver enzyme used to detect damage<br/>
+                    Recommendations: Elevated levels suggest liver injury
+                  </pre>
+                </div>
+                
+                <Textarea
+                  value={pastedText}
+                  onChange={(e) => setPastedText(e.target.value)}
+                  placeholder="Paste your lab test reference data here..."
+                  className="h-[200px]"
+                />
+              </div>
+              
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsImportDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handlePastedTextSubmit} disabled={isLoadingKnowledgeBase}>
+                  {isLoadingKnowledgeBase ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Importing...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="mr-2 h-4 w-4" />
+                      Import Data
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
       
