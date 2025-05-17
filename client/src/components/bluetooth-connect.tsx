@@ -55,12 +55,24 @@ export default function BluetoothConnect({
       
       if (allowAllDevices) {
         // Allow any Bluetooth device for testing (AirPods, headphones, etc.)
+        toast({
+          title: 'Bluetooth Pairing',
+          description: 'Please select any Bluetooth device from the list.'
+        });
         bluetoothDevice = await requestDevice([], true);
       } else {
         // Connect to FDA-cleared medical devices
         if (deviceType === 'bp') {
+          toast({
+            title: 'Bluetooth Pairing',
+            description: 'Looking for blood pressure monitors. Ensure your device is in pairing mode.',
+          });
           bluetoothDevice = await connectBloodPressureMonitor();
         } else {
+          toast({
+            title: 'Bluetooth Pairing',
+            description: 'Looking for glucose meters. Ensure your device is in pairing mode.',
+          });
           bluetoothDevice = await connectGlucoseMeter();
         }
       }
@@ -68,16 +80,18 @@ export default function BluetoothConnect({
       if (bluetoothDevice) {
         setDevice(bluetoothDevice);
         
+        // Try to get device info - this might fail for non-medical devices
         try {
-          // Try to get device info - this might fail for non-medical devices
+          console.log("Getting device info for:", bluetoothDevice.name);
           const info = await getDeviceInfo(bluetoothDevice);
+          console.log("Device info retrieved:", info);
           setDeviceInfo(info);
         } catch (infoError) {
           console.warn('Could not get detailed device info:', infoError);
-          // For non-medical devices, use basic info
+          // For non-medical devices, use basic info with the device name
           setDeviceInfo({ 
-            manufacturer: "Unknown", 
-            model: "Generic Bluetooth Device" 
+            manufacturer: bluetoothDevice.name?.split(' ')[0] || "Unknown", 
+            model: bluetoothDevice.name || "Generic Bluetooth Device" 
           });
         }
         
@@ -88,20 +102,32 @@ export default function BluetoothConnect({
         
         toast({
           title: 'Device Connected',
-          description: `Connected to ${displayName}`,
+          description: `Successfully connected to ${displayName}`,
         });
       } else {
         toast({
           title: 'Connection Failed',
-          description: 'Failed to connect to the device. Please try again.',
+          description: 'Failed to connect to the device. Please make sure your device is powered on and in pairing mode.',
           variant: 'destructive',
         });
       }
     } catch (error) {
       console.error('Error connecting to device:', error);
+      
+      // Provide more helpful error messages
+      let errorMessage = 'Failed to connect to the device.';
+      
+      if (error.message?.includes('User cancelled')) {
+        errorMessage = 'Device selection was cancelled.';
+      } else if (error.message?.includes('No Bluetooth device')) {
+        errorMessage = 'No compatible Bluetooth devices found. Make sure your device is powered on and in pairing mode.';
+      } else if (error.message?.includes('GATT')) {
+        errorMessage = 'Could not establish a secure connection with the device. Please try again.';
+      }
+      
       toast({
         title: 'Connection Error',
-        description: error.message || 'Failed to connect to the device.',
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {
@@ -120,17 +146,43 @@ export default function BluetoothConnect({
     }
 
     setIsReading(true);
+    toast({
+      title: 'Reading Device',
+      description: 'Please activate your device measurement now...',
+    });
     
     try {
       let readingData = null;
       
       if (deviceType === 'bp') {
+        // Show progress indicator for blood pressure readings
+        toast({
+          title: 'Taking Blood Pressure',
+          description: 'Please remain still while the measurement is in progress...',
+        });
+        
         readingData = await readBloodPressureData(device);
         
         if (readingData) {
+          // Determine blood pressure category
+          let category = "";
+          const { systolic, diastolic } = readingData;
+          
+          if (systolic < 120 && diastolic < 80) {
+            category = "Normal";
+          } else if ((systolic >= 120 && systolic <= 129) && diastolic < 80) {
+            category = "Elevated";
+          } else if ((systolic >= 130 && systolic <= 139) || (diastolic >= 80 && diastolic <= 89)) {
+            category = "Stage 1 Hypertension";
+          } else if (systolic >= 140 || diastolic >= 90) {
+            category = "Stage 2 Hypertension";
+          } else if (systolic > 180 || diastolic > 120) {
+            category = "Hypertensive Crisis";
+          }
+          
           toast({
             title: 'Reading Success',
-            description: `BP: ${readingData.systolic}/${readingData.diastolic} mmHg, Pulse: ${readingData.pulse} bpm`,
+            description: `BP: ${readingData.systolic}/${readingData.diastolic} mmHg (${category}), Pulse: ${readingData.pulse} bpm`,
           });
           
           onReadingReceived({
@@ -139,16 +191,39 @@ export default function BluetoothConnect({
             systolic: readingData.systolic,
             diastolic: readingData.diastolic,
             pulse: readingData.pulse,
-            notes: `Automated reading from ${device.name || 'Bluetooth device'}`
+            notes: `Automated reading from ${device.name || 'Bluetooth device'} - ${category}`
           });
         }
       } else {
+        // Show progress indicator for glucose readings
+        toast({
+          title: 'Reading Glucose',
+          description: 'Please place your test strip in the meter...',
+        });
+        
         readingData = await readGlucoseData(device);
         
         if (readingData) {
+          // Determine glucose range
+          let category = "";
+          const { value, type } = readingData;
+          
+          if (type === "Fasting" || type === "Pre-meal") {
+            if (value < 70) category = "Low";
+            else if (value <= 100) category = "Normal";
+            else if (value <= 125) category = "Prediabetes";
+            else category = "Diabetes";
+          } else {
+            // Post-meal
+            if (value < 70) category = "Low";
+            else if (value <= 140) category = "Normal";
+            else if (value <= 199) category = "Prediabetes";
+            else category = "Diabetes";
+          }
+          
           toast({
             title: 'Reading Success',
-            description: `Glucose: ${readingData.value} mg/dL (${readingData.type})`,
+            description: `Glucose: ${readingData.value} mg/dL (${category}) - ${readingData.type}`,
           });
           
           onReadingReceived({
@@ -156,7 +231,7 @@ export default function BluetoothConnect({
             patientId: patientId,
             value: readingData.value,
             type: readingData.type.toLowerCase(),
-            notes: `Automated reading from ${device.name || 'Bluetooth device'}`
+            notes: `Automated reading from ${device.name || 'Bluetooth device'} - ${category}`
           });
         }
       }
@@ -164,15 +239,31 @@ export default function BluetoothConnect({
       if (!readingData) {
         toast({
           title: 'Reading Failed',
-          description: 'Failed to get a reading from the device. Please try again.',
+          description: 'Failed to get a reading from the device. Make sure the device is properly connected and activated.',
           variant: 'destructive',
         });
       }
     } catch (error) {
       console.error('Error reading data:', error);
+      
+      // Provide more helpful error messages based on device type
+      let errorMessage = 'Failed to read data from the device.';
+      
+      if (deviceType === 'bp') {
+        errorMessage = 'Failed to read blood pressure. Make sure the cuff is properly positioned and the device is activated.';
+      } else {
+        errorMessage = 'Failed to read glucose level. Make sure the test strip is properly inserted and has a blood sample.';
+      }
+      
+      if (error.message?.includes('timeout')) {
+        errorMessage = 'The reading timed out. Please ensure the device is properly activated and try again.';
+      } else if (error.message?.includes('disconnected')) {
+        errorMessage = 'The device disconnected during reading. Please reconnect and try again.';
+      }
+      
       toast({
         title: 'Reading Error',
-        description: error.message || 'Failed to read data from the device.',
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {
