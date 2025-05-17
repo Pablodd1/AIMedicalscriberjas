@@ -152,6 +152,14 @@ export default function BluetoothConnect({
     }
   };
 
+  // State for manual input dialog
+  const [showManualInputDialog, setShowManualInputDialog] = useState(false);
+  const [manualReading, setManualReading] = useState({
+    systolic: '120',
+    diastolic: '80',
+    pulse: '72'
+  });
+
   const readData = async () => {
     if (!device) {
       toast({
@@ -178,7 +186,15 @@ export default function BluetoothConnect({
           description: 'Please remain still while the measurement is in progress...',
         });
         
-        readingData = await readBloodPressureData(device);
+        try {
+          readingData = await readBloodPressureData(device);
+        } catch (readError) {
+          console.error("Error in blood pressure reading:", readError);
+          // Open the manual input dialog if reading fails
+          setShowManualInputDialog(true);
+          setIsReading(false);
+          return;
+        }
         
         if (readingData) {
           // Determine blood pressure category
@@ -210,6 +226,11 @@ export default function BluetoothConnect({
             pulse: readingData.pulse,
             notes: `Automated reading from ${device.name || 'Bluetooth device'} - ${category}`
           });
+        } else {
+          // Open the manual input dialog if reading fails
+          setShowManualInputDialog(true);
+          setIsReading(false);
+          return;
         }
       } else {
         // Show progress indicator for glucose readings
@@ -254,37 +275,90 @@ export default function BluetoothConnect({
       }
       
       if (!readingData) {
-        toast({
-          title: 'Reading Failed',
-          description: 'Failed to get a reading from the device. Make sure the device is properly connected and activated.',
-          variant: 'destructive',
-        });
+        // Open the manual input dialog if reading fails
+        setShowManualInputDialog(true);
       }
     } catch (error) {
       console.error('Error reading data:', error);
       
-      // Provide more helpful error messages based on device type
-      let errorMessage = 'Failed to read data from the device.';
-      
-      if (deviceType === 'bp') {
-        errorMessage = 'Failed to read blood pressure. Make sure the cuff is properly positioned and the device is activated.';
-      } else {
-        errorMessage = 'Failed to read glucose level. Make sure the test strip is properly inserted and has a blood sample.';
-      }
-      
-      if (error.message?.includes('timeout')) {
-        errorMessage = 'The reading timed out. Please ensure the device is properly activated and try again.';
-      } else if (error.message?.includes('disconnected')) {
-        errorMessage = 'The device disconnected during reading. Please reconnect and try again.';
-      }
-      
-      toast({
-        title: 'Reading Error',
-        description: errorMessage,
-        variant: 'destructive',
-      });
+      // Open the manual input dialog on error
+      setShowManualInputDialog(true);
     } finally {
       setIsReading(false);
+    }
+  };
+  
+  const handleManualInputChange = (field: string, value: string) => {
+    setManualReading(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+  
+  const handleManualInputSubmit = () => {
+    // Process manual reading input
+    try {
+      const systolic = parseInt(manualReading.systolic);
+      const diastolic = parseInt(manualReading.diastolic);
+      const pulse = parseInt(manualReading.pulse);
+      
+      if (isNaN(systolic) || isNaN(diastolic) || isNaN(pulse)) {
+        toast({
+          title: 'Invalid Input',
+          description: 'Please enter valid numeric values for all fields.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      // Validate ranges
+      if (systolic < 70 || systolic > 250 || diastolic < 40 || diastolic > 180 || pulse < 40 || pulse > 200) {
+        toast({
+          title: 'Value Out of Range',
+          description: 'Please enter values within normal physiological ranges.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      // Determine blood pressure category
+      let category = "";
+      if (systolic < 120 && diastolic < 80) {
+        category = "Normal";
+      } else if ((systolic >= 120 && systolic <= 129) && diastolic < 80) {
+        category = "Elevated";
+      } else if ((systolic >= 130 && systolic <= 139) || (diastolic >= 80 && diastolic <= 89)) {
+        category = "Stage 1 Hypertension";
+      } else if (systolic >= 140 || diastolic >= 90) {
+        category = "Stage 2 Hypertension";
+      } else if (systolic > 180 || diastolic > 120) {
+        category = "Hypertensive Crisis";
+      }
+      
+      // Submit the reading
+      onReadingReceived({
+        deviceId: device?.id || 'manual',
+        patientId: patientId,
+        systolic,
+        diastolic,
+        pulse,
+        notes: `Manual reading from ${device?.name || 'device'} - ${category}`
+      });
+      
+      toast({
+        title: 'Reading Saved',
+        description: `BP: ${systolic}/${diastolic} mmHg (${category}), Pulse: ${pulse} bpm`,
+      });
+      
+      // Close the dialog
+      setShowManualInputDialog(false);
+    } catch (error) {
+      console.error('Error processing manual input:', error);
+      toast({
+        title: 'Input Error',
+        description: 'There was an error processing your input. Please try again.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -350,14 +424,27 @@ export default function BluetoothConnect({
         </div>
         
         {device && (
-          <Button
-            onClick={readData}
-            disabled={isReading || !device}
-            className="w-full"
-          >
-            <Activity className="h-4 w-4 mr-2" />
-            {isReading ? 'Reading...' : 'Get Reading'}
-          </Button>
+          <div className="flex space-x-2">
+            <Button
+              onClick={readData}
+              disabled={isReading || !device}
+              className="flex-1"
+            >
+              <Activity className="h-4 w-4 mr-2" />
+              {isReading ? 'Reading...' : 'Get Reading'}
+            </Button>
+            
+            {deviceType === 'bp' && (
+              <Button
+                variant="secondary"
+                onClick={() => setShowManualInputDialog(true)}
+                className="flex-1"
+              >
+                <Activity className="h-4 w-4 mr-2" />
+                Manual Input
+              </Button>
+            )}
+          </div>
         )}
       </div>
       
@@ -412,6 +499,74 @@ export default function BluetoothConnect({
             </Button>
             <Button onClick={saveDevice}>
               Save Device
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Manual Blood Pressure Input Dialog */}
+      <Dialog open={showManualInputDialog} onOpenChange={setShowManualInputDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Manual Blood Pressure Reading</DialogTitle>
+            <DialogDescription>
+              Enter the blood pressure values from your device.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="systolic" className="text-right">
+                Systolic (mmHg)
+              </Label>
+              <Input
+                id="systolic"
+                type="number"
+                value={manualReading.systolic}
+                onChange={(e) => handleManualInputChange('systolic', e.target.value)}
+                className="col-span-3"
+                min="70"
+                max="250"
+              />
+            </div>
+            
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="diastolic" className="text-right">
+                Diastolic (mmHg)
+              </Label>
+              <Input
+                id="diastolic"
+                type="number"
+                value={manualReading.diastolic}
+                onChange={(e) => handleManualInputChange('diastolic', e.target.value)}
+                className="col-span-3"
+                min="40"
+                max="180"
+              />
+            </div>
+            
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="pulse" className="text-right">
+                Pulse (bpm)
+              </Label>
+              <Input
+                id="pulse"
+                type="number"
+                value={manualReading.pulse}
+                onChange={(e) => handleManualInputChange('pulse', e.target.value)}
+                className="col-span-3"
+                min="40"
+                max="200"
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowManualInputDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleManualInputSubmit}>
+              Save Reading
             </Button>
           </DialogFooter>
         </DialogContent>
