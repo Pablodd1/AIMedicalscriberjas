@@ -48,81 +48,98 @@ export default function BluetoothConnect({
       return;
     }
 
+    // Check if Bluetooth is powered on
+    if (navigator.bluetooth.getAvailability) {
+      const isAvailable = await navigator.bluetooth.getAvailability();
+      if (!isAvailable) {
+        toast({
+          title: 'Bluetooth is Turned Off',
+          description: 'Please turn on Bluetooth on your device and try again.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
     setIsConnecting(true);
     
     try {
-      let bluetoothDevice: BluetoothDevice | null = null;
+      // Always use the most permissive approach that shows ALL devices
+      toast({
+        title: 'Bluetooth Pairing',
+        description: 'Please select your device from the list when the dialog appears. Make sure your device is turned ON and in pairing mode.',
+      });
       
-      if (allowAllDevices) {
-        // Allow any Bluetooth device for testing (AirPods, headphones, etc.)
-        toast({
-          title: 'Bluetooth Pairing',
-          description: 'Please select any Bluetooth device from the list.'
-        });
-        bluetoothDevice = await requestDevice([], true);
-      } else {
-        // Connect to FDA-cleared medical devices
-        if (deviceType === 'bp') {
-          toast({
-            title: 'Bluetooth Pairing',
-            description: 'Looking for blood pressure monitors. Ensure your device is in pairing mode.',
-          });
-          bluetoothDevice = await connectBloodPressureMonitor();
-        } else {
-          toast({
-            title: 'Bluetooth Pairing',
-            description: 'Looking for glucose meters. Ensure your device is in pairing mode.',
-          });
-          bluetoothDevice = await connectGlucoseMeter();
-        }
-      }
+      // Use connectBloodPressureMonitor for both options which now uses acceptAllDevices
+      // to ensure maximum compatibility and device visibility
+      const bluetoothDevice = await connectBloodPressureMonitor();
       
       if (bluetoothDevice) {
+        // Success - device was selected
         setDevice(bluetoothDevice);
+        console.log("Successfully connected to device:", bluetoothDevice.name || "Unnamed device");
         
-        // Try to get device info - this might fail for non-medical devices
+        // Set basic device info immediately based on the name
+        const deviceName = bluetoothDevice.name || 'Medical Device';
+        const basicInfo = { 
+          manufacturer: deviceName.split(' ')[0] || "Medical", 
+          model: deviceName
+        };
+        setDeviceInfo(basicInfo);
+        
+        // Try to get more detailed device info if possible
         try {
-          console.log("Getting device info for:", bluetoothDevice.name);
-          const info = await getDeviceInfo(bluetoothDevice);
-          console.log("Device info retrieved:", info);
-          setDeviceInfo(info);
-        } catch (infoError) {
-          console.warn('Could not get detailed device info:', infoError);
-          // For non-medical devices, use basic info with the device name
-          setDeviceInfo({ 
-            manufacturer: bluetoothDevice.name?.split(' ')[0] || "Unknown", 
-            model: bluetoothDevice.name || "Generic Bluetooth Device" 
-          });
+          console.log("Attempting to get device info...");
+          const server = await bluetoothDevice.gatt?.connect();
+          if (server) {
+            console.log("GATT server connected, trying to get device info");
+            try {
+              const info = await getDeviceInfo(bluetoothDevice);
+              console.log("Device info retrieved:", info);
+              // Only update if we got meaningful info
+              if (info.manufacturer !== "Unknown" || info.model !== "Unknown") {
+                setDeviceInfo(info);
+              }
+            } catch (infoError) {
+              console.warn('Could not get detailed device info:', infoError);
+              // Already set basic info above, so no need to set again
+            }
+          }
+        } catch (gattError) {
+          console.warn('Could not connect to GATT server for detailed info:', gattError);
+          // Already set basic info above, so we can proceed
         }
         
         // Open dialog to customize device name
-        const displayName = bluetoothDevice.name || 'Bluetooth Device';
+        const displayName = bluetoothDevice.name || 'Medical Device';
         setCustomDeviceName(displayName);
         setIsDeviceDialogOpen(true);
         
         toast({
           title: 'Device Connected',
-          description: `Successfully connected to ${displayName}`,
+          description: `Successfully connected to "${displayName}". You can now take readings.`,
         });
       } else {
         toast({
           title: 'Connection Failed',
-          description: 'Failed to connect to the device. Please make sure your device is powered on and in pairing mode.',
+          description: 'No device was selected or connection was cancelled. Please make sure your device is turned on, in pairing mode, and try again.',
           variant: 'destructive',
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error connecting to device:', error);
       
       // Provide more helpful error messages
       let errorMessage = 'Failed to connect to the device.';
       
       if (error.message?.includes('User cancelled')) {
-        errorMessage = 'Device selection was cancelled.';
+        errorMessage = 'Device selection was cancelled. Please try again.';
       } else if (error.message?.includes('No Bluetooth device')) {
-        errorMessage = 'No compatible Bluetooth devices found. Make sure your device is powered on and in pairing mode.';
+        errorMessage = 'No devices were found. Make sure Bluetooth is enabled on your device and your blood pressure monitor is turned on and in pairing mode.';
       } else if (error.message?.includes('GATT')) {
-        errorMessage = 'Could not establish a secure connection with the device. Please try again.';
+        errorMessage = 'Could not establish a secure connection with the device. Please try turning your device off and on again, then retry pairing.';
+      } else if (error.message?.includes('Bluetooth adapter is not available')) {
+        errorMessage = 'Your device\'s Bluetooth adapter is not available. Please make sure Bluetooth is turned on and permissions are granted.';
       }
       
       toast({
