@@ -230,11 +230,60 @@ export class DatabaseStorage implements IStorage {
   }
   
   async deleteUser(id: number): Promise<boolean> {
-    const result = await db
-      .delete(users)
-      .where(eq(users.id, id))
-      .returning({ id: users.id });
-    return result.length > 0;
+    try {
+      // First, check if user exists
+      const user = await this.getUser(id);
+      if (!user) {
+        console.log('User not found for deletion:', id);
+        return false;
+      }
+      
+      console.log('Attempting to delete user:', { id, username: user.username });
+      
+      // Delete related records first to handle foreign key constraints
+      // Delete patient documents if the user is a patient
+      await db.delete(patientDocuments).where(eq(patientDocuments.patientId, id));
+      
+      // Delete medical notes where user is the doctor
+      await db.delete(medicalNotes).where(eq(medicalNotes.doctorId, id));
+      
+      // Delete consultation notes where user is the doctor
+      await db.delete(consultationNotes).where(eq(consultationNotes.doctorId, id));
+      
+      // Delete appointments where user is patient or doctor
+      await db.delete(appointments).where(eq(appointments.patientId, id));
+      await db.delete(appointments).where(eq(appointments.doctorId, id));
+      
+      // Delete intake forms where user is patient or doctor
+      await db.delete(intakeForms).where(eq(intakeForms.patientId, id));
+      await db.delete(intakeForms).where(eq(intakeForms.doctorId, id));
+      
+      // Delete invoices where user is patient or doctor
+      await db.delete(invoices).where(eq(invoices.patientId, id));
+      await db.delete(invoices).where(eq(invoices.doctorId, id));
+      
+      // Delete monitoring devices and readings
+      await db.delete(devices).where(eq(devices.patientId, id));
+      await db.delete(bpReadings).where(eq(bpReadings.patientId, id));
+      await db.delete(glucoseReadings).where(eq(glucoseReadings.patientId, id));
+      
+      // Delete recording sessions
+      await db.delete(recordingSessions).where(eq(recordingSessions.doctorId, id));
+      
+      // Now delete the user
+      const result = await db
+        .delete(users)
+        .where(eq(users.id, id))
+        .returning({ id: users.id });
+      
+      const success = result.length > 0;
+      console.log('User deletion result:', { id, success });
+      
+      return success;
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      return false;
+    }
   }
 
   async getPatients(doctorId: number): Promise<Patient[]> {

@@ -72,7 +72,14 @@ export function setupAuth(app: Express) {
       try {
         console.log('Login attempt for username:', username);
         
-        const user = await storage.getUserByUsername(username);
+        // Try to find user with exact case first, then try case-insensitive
+        let user = await storage.getUserByUsername(username);
+        if (!user) {
+          // Try case-insensitive search
+          const users = await storage.getUsers();
+          user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
+        }
+        
         if (!user) {
           console.log('User not found:', username);
           return done(null, false, { message: 'Invalid username or password' });
@@ -102,12 +109,12 @@ export function setupAuth(app: Express) {
         console.log('User login attempt - account status check:', {
           username: user.username, 
           isActive: user.isActive,
-          is_active: user.is_active,
+
           userObj: JSON.stringify(user)
         });
         
         // Check if user is inactive by trying both property names
-        if (user.isActive === false || user.is_active === false) {
+        if (user.isActive === false) {
           console.log('User account is inactive:', username);
           return done(null, false, { 
             message: 'Your account has been deactivated. Please contact AIMS admin to regain access: 786-643-2099 or email jasmelacosta@gmail.com' 

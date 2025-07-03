@@ -168,7 +168,7 @@ adminRouter.post('/users/:userId/reset-password', async (req: Request, res: Resp
     // Clear any existing sessions for this user to force fresh login
     // This ensures the user starts with a clean session after password reset
     try {
-      await pool.query('DELETE FROM session WHERE sess->\'passport\'->\'user\' = $1::text', [userId.toString()]);
+      await pool.query('DELETE FROM session WHERE sess->>\'passport\' LIKE $1', [`%"user":${userId}%`]);
       console.log('Cleared existing sessions for user after password reset');
     } catch (sessionError) {
       console.warn('Could not clear existing sessions:', sessionError);
@@ -233,16 +233,20 @@ adminRouter.delete('/users/:userId', async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Cannot delete the primary admin account' });
     }
     
+    console.log('Admin delete request for user ID:', userId);
+    
     const deleted = await storage.deleteUser(userId);
     
     if (!deleted) {
+      console.log('User deletion failed for ID:', userId);
       return res.status(404).json({ error: 'User not found or could not be deleted' });
     }
     
-    res.json({ success: true });
+    console.log('User deletion successful for ID:', userId);
+    res.json({ success: true, message: 'User deleted successfully' });
   } catch (error) {
     console.error('Error deleting user:', error);
-    res.status(500).json({ error: 'Failed to delete user' });
+    res.status(500).json({ error: 'Failed to delete user: ' + (error instanceof Error ? error.message : 'Unknown error') });
   }
 });
 
