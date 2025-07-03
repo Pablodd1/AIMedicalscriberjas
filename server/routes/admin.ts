@@ -134,21 +134,52 @@ adminRouter.post('/users/:userId/reset-password', async (req: Request, res: Resp
       return res.status(404).json({ error: 'User not found' });
     }
     
+    console.log('Password reset requested for user:', {
+      userId: user.id,
+      username: user.username,
+      newPasswordLength: newPassword.length
+    });
+    
     // Use our hashPassword function defined at the top of the file
     const hashedPassword = await hashPassword(newPassword);
     
+    console.log('Generated hash for new password:', {
+      originalPassword: newPassword,
+      hashedPassword: hashedPassword.substring(0, 20) + '...',
+      hashLength: hashedPassword.length
+    });
+    
     // Update the user with the new password
-    const updatedUser = await storage.updateUser(userId, { password: hashedPassword });
+    const updatedUser = await storage.updateUser(userId, { 
+      password: hashedPassword,
+      lastLogin: null // Reset last login to ensure fresh start
+    });
     
     if (!updatedUser) {
       return res.status(500).json({ error: 'Failed to update user password' });
+    }
+    
+    console.log('Password reset successful for user:', {
+      userId: updatedUser.id,
+      username: updatedUser.username,
+      passwordUpdated: true
+    });
+    
+    // Clear any existing sessions for this user to force fresh login
+    // This ensures the user starts with a clean session after password reset
+    try {
+      await pool.query('DELETE FROM session WHERE sess->\'passport\'->\'user\' = $1::text', [userId.toString()]);
+      console.log('Cleared existing sessions for user after password reset');
+    } catch (sessionError) {
+      console.warn('Could not clear existing sessions:', sessionError);
+      // Don't fail the password reset if session clearing fails
     }
     
     // Return success but don't include the password in the response
     const { password, ...userWithoutPassword } = updatedUser;
     res.json({ 
       ...userWithoutPassword,
-      message: 'Password reset successfully' 
+      message: 'Password reset successfully. Please login with your new credentials.' 
     });
   } catch (error) {
     console.error('Error resetting user password:', error);

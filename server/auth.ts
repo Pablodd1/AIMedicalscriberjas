@@ -70,14 +70,36 @@ export function setupAuth(app: Express) {
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
+        console.log('Login attempt for username:', username);
+        
         const user = await storage.getUserByUsername(username);
-        // Check if user exists, password is correct, and account is active
-        if (!user || !(await comparePasswords(password, user.password))) {
+        if (!user) {
+          console.log('User not found:', username);
           return done(null, false, { message: 'Invalid username or password' });
-        } 
+        }
+        
+        console.log('User found, checking password:', {
+          username: user.username,
+          userId: user.id,
+          providedPasswordLength: password.length,
+          storedPasswordHash: user.password.substring(0, 20) + '...',
+          storedPasswordLength: user.password.length
+        });
+        
+        // Check if password is correct
+        const passwordMatch = await comparePasswords(password, user.password);
+        console.log('Password comparison result:', {
+          username: user.username,
+          passwordMatch: passwordMatch
+        });
+        
+        if (!passwordMatch) {
+          console.log('Password mismatch for user:', username);
+          return done(null, false, { message: 'Invalid username or password' });
+        }
         
         // Debug output for user status - checking both potential property names
-        console.log('User login attempt:', {
+        console.log('User login attempt - account status check:', {
           username: user.username, 
           isActive: user.isActive,
           is_active: user.is_active,
@@ -86,17 +108,20 @@ export function setupAuth(app: Express) {
         
         // Check if user is inactive by trying both property names
         if (user.isActive === false || user.is_active === false) {
+          console.log('User account is inactive:', username);
           return done(null, false, { 
             message: 'Your account has been deactivated. Please contact AIMS admin to regain access: 786-643-2099 or email jasmelacosta@gmail.com' 
           });
         } else {
           // Update last login time
+          console.log('Login successful, updating last login time for user:', username);
           await storage.updateUser(user.id, { lastLogin: new Date() });
           
           // Type cast the user to Express.User interface
           return done(null, user as Express.User);
         }
       } catch (error) {
+        console.error('Login error:', error);
         return done(error);
       }
     }),
