@@ -796,7 +796,7 @@ const AdminPanel = () => {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {globalApiKeyData?.hasGlobalApiKey && (
+                    {globalApiKeyData?.hasApiKey && (
                       <Alert>
                         <CheckCircle className="h-4 w-4" />
                         <AlertDescription>
@@ -811,9 +811,9 @@ const AdminPanel = () => {
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
                         <label className="text-sm font-medium">
-                          {globalApiKeyData?.hasGlobalApiKey ? 'Update API Key' : 'Set Global API Key'}
+                          {globalApiKeyData?.hasApiKey ? 'Update API Key' : 'Set Global API Key'}
                         </label>
-                        {globalApiKeyData?.hasGlobalApiKey && (
+                        {globalApiKeyData?.hasApiKey && (
                           <span className="text-xs text-muted-foreground">
                             Current: {globalApiKeyData.maskedKey}
                           </span>
@@ -821,7 +821,7 @@ const AdminPanel = () => {
                       </div>
                       <div className="flex space-x-2">
                         <Input
-                          placeholder={globalApiKeyData?.hasGlobalApiKey ? "Enter new API key to update existing one" : "sk-..."}
+                          placeholder={globalApiKeyData?.hasApiKey ? "Enter new API key to update existing one" : "sk-..."}
                           type="password"
                           value={globalApiKey}
                           onChange={(e) => setGlobalApiKey(e.target.value)}
@@ -834,9 +834,9 @@ const AdminPanel = () => {
                           {saveGlobalApiKeyMutation.isPending ? (
                             <Loader2 className="h-4 w-4 animate-spin mr-2" />
                           ) : null}
-                          {globalApiKeyData?.hasGlobalApiKey ? 'Update' : 'Save'}
+                          {globalApiKeyData?.hasApiKey ? 'Update' : 'Save'}
                         </Button>
-                        {globalApiKeyData?.hasGlobalApiKey && (
+                        {globalApiKeyData?.hasApiKey && (
                           <Button
                             variant="destructive"
                             onClick={handleDeleteGlobalApiKey}
