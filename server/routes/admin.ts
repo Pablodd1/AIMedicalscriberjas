@@ -315,7 +315,6 @@ adminRouter.get('/global-api-key', async (req: Request, res: Response) => {
 adminRouter.post('/global-api-key', async (req: Request, res: Response) => {
   try {
     const { apiKey } = req.body;
-    const userId = req.user.id;
     
     if (!apiKey || typeof apiKey !== 'string') {
       return res.status(400).json({ error: 'Valid API key is required' });
@@ -326,17 +325,23 @@ adminRouter.post('/global-api-key', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid OpenAI API key format' });
     }
     
+    // Use a default admin user ID if using header authentication
+    const userId = req.user?.id || 1; // Default to admin user ID 1
+    
     await storage.setSystemSetting('global_openai_api_key', apiKey, 'Global OpenAI API key used for accounts not using their own API key', userId);
     res.json({ success: true, message: 'Global API key updated successfully' });
   } catch (error) {
     console.error('Error updating global API key:', error);
-    res.status(500).json({ error: 'Failed to update global API key' });
+    console.error('Error details:', error.message);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ error: 'Failed to update global API key', details: error.message });
   }
 });
 
 adminRouter.delete('/global-api-key', async (req: Request, res: Response) => {
   try {
-    const userId = req.user.id;
+    // Use a default admin user ID if using header authentication
+    const userId = req.user?.id || 1; // Default to admin user ID 1
     await storage.setSystemSetting('global_openai_api_key', null, 'Global OpenAI API key used for accounts not using their own API key', userId);
     res.json({ success: true, message: 'Global API key removed successfully' });
   } catch (error) {

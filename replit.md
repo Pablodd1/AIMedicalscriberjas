@@ -165,6 +165,7 @@ This is a comprehensive AI-driven Electronic Health Records (EHR) and telemedici
 
 ```
 Changelog:
+- July 15, 2025. Fixed admin panel API key management - resolved global API key saving issue by handling authentication properly for header-based admin access. Fixed user API key setting updates to properly toggle between global and personal API key usage. Updated admin panel to display masked API keys in input field placeholder for better UX.
 - July 15, 2025. Updated Lab Interpreter to use unified API key management system consistent with rest of platform. Fixed API key validation to properly check user/global API key configuration instead of environment variables only.
 - July 15, 2025. Implemented comprehensive error handling system across all APIs with centralized error management, proper HTTP status codes, structured error responses, and OpenAI-specific error handling
 - July 03, 2025. Initial setup
