@@ -13,21 +13,53 @@ import {
   sendSuccessResponse, 
   asyncHandler,
   AppError,
-  handleDatabaseOperation
+  handleDatabaseOperation,
+  handleOpenAIError
 } from '../error-handler';
 
 // Create router
 export const labInterpreterRouter = Router();
 
-// Check if OpenAI API key is configured
-if (!process.env.OPENAI_API_KEY) {
-  console.warn("OPENAI_API_KEY is not set. Lab Interpreter feature will not work properly.");
-}
+// Helper function to get OpenAI client for a user (same as in ai.ts)
+async function getOpenAIClient(userId: number): Promise<OpenAI | null> {
+  try {
+    const user = await storage.getUser(userId);
+    if (!user) return null;
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+    // Check if user should use their own API key
+    if (user.useOwnApiKey) {
+      const userApiKey = await storage.getUserApiKey(userId);
+      if (userApiKey) {
+        return new OpenAI({
+          apiKey: userApiKey,
+        });
+      } else {
+        // User is set to use own API key but hasn't provided one
+        return null;
+      }
+    } else {
+      // User should use global API key
+      const globalApiKey = await storage.getSystemSetting('global_openai_api_key');
+      if (globalApiKey) {
+        return new OpenAI({
+          apiKey: globalApiKey,
+        });
+      }
+      
+      // Fallback to environment variable for backward compatibility
+      if (process.env.OPENAI_API_KEY) {
+        return new OpenAI({
+          apiKey: process.env.OPENAI_API_KEY,
+        });
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error getting OpenAI client:', error);
+    return null;
+  }
+}
 
 // Configure multer for file uploads
 const fileStorage = multer.diskStorage({
@@ -721,9 +753,19 @@ labInterpreterRouter.post('/analyze', requireAuth, asyncHandler(async (req, res)
     throw new AppError('Report text is required', 400, 'REPORT_TEXT_MISSING');
   }
   
-  // Check if OpenAI API key is configured
-  if (!process.env.OPENAI_API_KEY) {
-    throw new AppError('OpenAI API key not configured. Please contact your administrator or configure your personal API key.', 500, 'OPENAI_API_KEY_MISSING');
+  // Get OpenAI client for this user
+  const openai = await getOpenAIClient(req.user.id);
+  if (!openai) {
+    const user = await handleDatabaseOperation(
+      () => storage.getUser(req.user.id),
+      'Failed to fetch user data'
+    );
+    
+    const errorMessage = user?.useOwnApiKey 
+      ? 'No personal OpenAI API key found. Please add your OpenAI API key in Settings to use AI features.'
+      : 'No global OpenAI API key configured. Please contact your administrator or add your own API key in Settings.';
+    
+    throw new AppError(errorMessage, 503, 'NO_API_KEY');
   }
     
   // Get settings and knowledge base
@@ -762,24 +804,29 @@ labInterpreterRouter.post('/analyze', requireAuth, asyncHandler(async (req, res)
   ).join('\n\n');
   
   // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o",
-    messages: [
-      { 
-        role: 'system',
-        content: systemPrompt
-      },
-      {
-        role: 'user',
-        content: `Here is my knowledge base of lab test reference values and interpretations:\n\n${knowledgeBaseText}\n\nNow, ${userPrompt}\n\nLab Report:\n${reportText}\n\nIMPORTANT: Base your analysis ONLY on the knowledge base provided above. Do not use any external medical knowledge or reference ranges that are not in the knowledge base.\n\nPlease provide your analysis as a JSON object with the following structure: { "summary": "brief overview", "abnormalValues": [], "interpretation": "detailed explanation", "recommendations": [] }`
-      }
-    ],
-    temperature: 0.4,
-    max_tokens: 2000,
-    response_format: { type: "json_object" }
-  });
-  
-  const analysis = response.choices[0].message.content;
+  let analysis = '';
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { 
+          role: 'system',
+          content: systemPrompt
+        },
+        {
+          role: 'user',
+          content: `Here is my knowledge base of lab test reference values and interpretations:\n\n${knowledgeBaseText}\n\nNow, ${userPrompt}\n\nLab Report:\n${reportText}\n\nIMPORTANT: Base your analysis ONLY on the knowledge base provided above. Do not use any external medical knowledge or reference ranges that are not in the knowledge base.\n\nPlease provide your analysis as a JSON object with the following structure: { "summary": "brief overview", "abnormalValues": [], "interpretation": "detailed explanation", "recommendations": [] }`
+        }
+      ],
+      temperature: 0.4,
+      max_tokens: 2000,
+      response_format: { type: "json_object" }
+    });
+    
+    analysis = response.choices[0].message.content || '';
+  } catch (error) {
+    throw handleOpenAIError(error);
+  }
   
   // Save to database if patient is selected
   if (withPatient && patientId && patient) {
@@ -807,13 +854,24 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
   
   const { patientId, withPatient } = req.body;
   
-  // Check if OpenAI API key is configured
-  if (!process.env.OPENAI_API_KEY) {
+  // Get OpenAI client for this user
+  const openai = await getOpenAIClient(req.user.id);
+  if (!openai) {
     // Clean up the uploaded file
     if (fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
     }
-    throw new AppError('OpenAI API key not configured', 500, 'OPENAI_API_KEY_MISSING');
+    
+    const user = await handleDatabaseOperation(
+      () => storage.getUser(req.user.id),
+      'Failed to fetch user data'
+    );
+    
+    const errorMessage = user?.useOwnApiKey 
+      ? 'No personal OpenAI API key found. Please add your OpenAI API key in Settings to use AI features.'
+      : 'No global OpenAI API key configured. Please contact your administrator or add your own API key in Settings.';
+    
+    throw new AppError(errorMessage, 503, 'NO_API_KEY');
   }
 
   let extractedText = '';
@@ -828,28 +886,32 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
     if (req.file.mimetype === 'application/pdf' || req.file.mimetype.startsWith('image/')) {
       // Use OpenAI Vision API for both PDFs and images
       const fileTypeText = req.file.mimetype === 'application/pdf' ? 'PDF' : 'image';
-      const textExtractionResponse = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: "text",
-                text: `Extract all the text content from this lab report ${fileTypeText}. Include all test names, values, reference ranges, and any other relevant information. Format the data in a clean, structured way that preserves the original layout and organization.`
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:${req.file.mimetype};base64,${base64File}`
+      try {
+        const textExtractionResponse = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: "text",
+                  text: `Extract all the text content from this lab report ${fileTypeText}. Include all test names, values, reference ranges, and any other relevant information. Format the data in a clean, structured way that preserves the original layout and organization.`
+                },
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: `data:${req.file.mimetype};base64,${base64File}`
+                  }
                 }
-              }
-            ]
-          }
-        ],
-        max_tokens: 4000
-      });
-      extractedText = textExtractionResponse.choices[0].message.content || '';
+              ]
+            }
+          ],
+          max_tokens: 4000
+        });
+        extractedText = textExtractionResponse.choices[0].message.content || '';
+      } catch (error) {
+        throw handleOpenAIError(error);
+      }
     } else {
       throw new AppError('Unsupported file type. Please upload a PDF or image file.', 400, 'UNSUPPORTED_FILE_TYPE');
     }
@@ -894,24 +956,28 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
     ).join('\n\n');
     
     // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-    const analysisResponse = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        { 
-          role: 'system',
-          content: systemPrompt
-        },
-        {
-          role: 'user',
-          content: `Here is my knowledge base of lab test reference values and interpretations:\n\n${knowledgeBaseText}\n\nNow, ${userPrompt}\n\nLab Report:\n${extractedText}\n\nPlease provide your analysis as a JSON object with the following structure: { "summary": "brief overview", "abnormalValues": [], "interpretation": "detailed explanation", "recommendations": [] }`
-        }
-      ],
-      temperature: 0.4,
-      max_tokens: 2000,
-      response_format: { type: "json_object" }
-    });
-    
-    analysis = analysisResponse.choices[0].message.content || '';
+    try {
+      const analysisResponse = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { 
+            role: 'system',
+            content: systemPrompt
+          },
+          {
+            role: 'user',
+            content: `Here is my knowledge base of lab test reference values and interpretations:\n\n${knowledgeBaseText}\n\nNow, ${userPrompt}\n\nLab Report:\n${extractedText}\n\nPlease provide your analysis as a JSON object with the following structure: { "summary": "brief overview", "abnormalValues": [], "interpretation": "detailed explanation", "recommendations": [] }`
+          }
+        ],
+        temperature: 0.4,
+        max_tokens: 2000,
+        response_format: { type: "json_object" }
+      });
+      
+      analysis = analysisResponse.choices[0].message.content || '';
+    } catch (error) {
+      throw handleOpenAIError(error);
+    }
     
     // Save to database if patient is selected
     if (withPatient === 'true' && patientId && patient) {

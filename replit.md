@@ -129,7 +129,8 @@ This is a comprehensive AI-driven Electronic Health Records (EHR) and telemedici
 - **WebSocket**: Real-time communication
 
 ### AI Services
-- **OpenAI API**: GPT-4 for medical note generation and AI assistant
+- **OpenAI API**: GPT-4 for medical note generation, AI assistant, and lab interpretation
+- **Unified API Key Management**: Per-user and global API key configuration with fallback system
 - **Web Speech API**: Browser-based speech recognition
 
 ## Deployment Strategy
@@ -164,6 +165,7 @@ This is a comprehensive AI-driven Electronic Health Records (EHR) and telemedici
 
 ```
 Changelog:
+- July 15, 2025. Updated Lab Interpreter to use unified API key management system consistent with rest of platform. Fixed API key validation to properly check user/global API key configuration instead of environment variables only.
 - July 15, 2025. Implemented comprehensive error handling system across all APIs with centralized error management, proper HTTP status codes, structured error responses, and OpenAI-specific error handling
 - July 03, 2025. Initial setup
 ```
