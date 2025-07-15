@@ -512,7 +512,7 @@ const AdminPanel = () => {
 
   const openApiKeyDialog = (user: User) => {
     setSelectedUserForApiKey(user);
-    setTempApiKeySetting(user.useOwnApiKey);
+    setTempApiKeySetting(user.useOwnApiKey ?? false); // Ensure we have a boolean value
     setShowApiKeyDialog(true);
   };
 
@@ -975,7 +975,7 @@ const AdminPanel = () => {
                   type="radio"
                   id="global-key"
                   name="apiKeySource"
-                  checked={tempApiKeySetting === false}
+                  checked={tempApiKeySetting === false || (tempApiKeySetting === null && !selectedUserForApiKey?.useOwnApiKey)}
                   onChange={() => handleUpdateUserApiKeySetting(false)}
                   className="h-4 w-4"
                   disabled={updateUserApiKeySettingMutation.isPending}
@@ -996,7 +996,7 @@ const AdminPanel = () => {
                   type="radio"
                   id="personal-key"
                   name="apiKeySource"
-                  checked={tempApiKeySetting === true}
+                  checked={tempApiKeySetting === true || (tempApiKeySetting === null && selectedUserForApiKey?.useOwnApiKey)}
                   onChange={() => handleUpdateUserApiKeySetting(true)}
                   className="h-4 w-4"
                   disabled={updateUserApiKeySettingMutation.isPending}
