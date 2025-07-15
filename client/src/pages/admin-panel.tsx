@@ -375,13 +375,13 @@ const AdminPanel = () => {
       }
       return await response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       // Update the selectedUserForApiKey immediately with the new state
       if (selectedUserForApiKey && data.user) {
         setSelectedUserForApiKey(data.user);
       }
       
-      // Update the cache directly with the new user data
+      // Update the cache directly with the new user data first
       queryClient.setQueryData(['/api/admin/users'], (oldData: User[] | undefined) => {
         if (!oldData) return oldData;
         return oldData.map(user => 
@@ -389,10 +389,10 @@ const AdminPanel = () => {
         );
       });
       
-      // Force refresh the cache and refetch data with explicit cache removal
-      queryClient.removeQueries({ queryKey: ['/api/admin/users'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
-      queryClient.refetchQueries({ queryKey: ['/api/admin/users'] });
+      // Wait a moment for the UI to update, then force a complete refresh
+      setTimeout(() => {
+        queryClient.resetQueries({ queryKey: ['/api/admin/users'] });
+      }, 100);
       
       setShowApiKeyDialog(false);
       setTempApiKeySetting(null); // Reset temp state
