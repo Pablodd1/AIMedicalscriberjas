@@ -415,7 +415,7 @@ export default function PatientDetails({ patientId }: PatientDetailsProps) {
                                                   <strong>Abnormal Values:</strong>
                                                   <ul className="list-disc list-inside text-muted-foreground">
                                                     {parsed.abnormalValues.map((value: any, idx: number) => (
-                                                      <li key={idx}>{value}</li>
+                                                      <li key={idx}>{typeof value === 'object' ? JSON.stringify(value) : String(value)}</li>
                                                     ))}
                                                   </ul>
                                                 </div>
@@ -425,7 +425,7 @@ export default function PatientDetails({ patientId }: PatientDetailsProps) {
                                                   <strong>Recommendations:</strong>
                                                   <ul className="list-disc list-inside text-muted-foreground">
                                                     {parsed.recommendations.map((rec: any, idx: number) => (
-                                                      <li key={idx}>{rec}</li>
+                                                      <li key={idx}>{typeof rec === 'object' ? JSON.stringify(rec) : String(rec)}</li>
                                                     ))}
                                                   </ul>
                                                 </div>
@@ -433,11 +433,11 @@ export default function PatientDetails({ patientId }: PatientDetailsProps) {
                                             </div>
                                           );
                                         } catch (e) {
-                                          return <pre className="whitespace-pre-wrap font-sans text-sm text-muted-foreground">{report.analysis}</pre>;
+                                          return <pre className="whitespace-pre-wrap font-sans text-sm text-muted-foreground">{String(report.analysis)}</pre>;
                                         }
                                       })()
                                     ) : (
-                                      <pre className="whitespace-pre-wrap font-sans text-sm text-muted-foreground">{JSON.stringify(report.analysis, null, 2)}</pre>
+                                      <pre className="whitespace-pre-wrap font-sans text-sm text-muted-foreground">{typeof report.analysis === 'object' ? JSON.stringify(report.analysis, null, 2) : String(report.analysis)}</pre>
                                     )}
                                   </div>
                                 </div>
