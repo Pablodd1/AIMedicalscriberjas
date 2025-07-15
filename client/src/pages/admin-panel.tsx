@@ -102,7 +102,7 @@ const AdminPanel = () => {
   const [globalApiKey, setGlobalApiKey] = useState('');
   const [selectedUserForApiKey, setSelectedUserForApiKey] = useState<User | null>(null);
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
-  const [tempApiKeySetting, setTempApiKeySetting] = useState<boolean | null>(null);
+  const [tempApiKeySetting, setTempApiKeySetting] = useState<boolean>(false);
 
   const adminLoginForm = useForm<z.infer<typeof AdminLoginSchema>>({
     resolver: zodResolver(AdminLoginSchema),
@@ -375,27 +375,25 @@ const AdminPanel = () => {
       }
       return await response.json();
     },
-    onSuccess: async (data) => {
+    onSuccess: (data) => {
       // Update the selectedUserForApiKey immediately with the new state
       if (selectedUserForApiKey && data.user) {
         setSelectedUserForApiKey(data.user);
       }
       
-      // Update the cache directly with the new user data first
-      queryClient.setQueryData(['/api/admin/users'], (oldData: User[] | undefined) => {
+      // Update the cache with the new user data immediately
+      queryClient.setQueryData(['/api/admin/users'], (oldData: UserWithPlainPassword[] | undefined) => {
         if (!oldData) return oldData;
         return oldData.map(user => 
-          user.id === data.user.id ? data.user : user
+          user.id === data.user.id ? { ...user, useOwnApiKey: data.user.useOwnApiKey } : user
         );
       });
       
-      // Wait a moment for the UI to update, then force a complete refresh
-      setTimeout(() => {
-        queryClient.resetQueries({ queryKey: ['/api/admin/users'] });
-      }, 100);
+      // Force complete cache invalidation
+      queryClient.resetQueries({ queryKey: ['/api/admin/users'] });
       
       setShowApiKeyDialog(false);
-      setTempApiKeySetting(null); // Reset temp state
+      setTempApiKeySetting(false); // Reset temp state
       toast({
         title: 'API key setting updated',
         description: 'The user API key setting has been updated successfully.',
@@ -512,7 +510,7 @@ const AdminPanel = () => {
 
   const openApiKeyDialog = (user: User) => {
     setSelectedUserForApiKey(user);
-    setTempApiKeySetting(user.useOwnApiKey ?? false); // Ensure we have a boolean value
+    setTempApiKeySetting(Boolean(user.useOwnApiKey)); // Ensure we have a boolean value
     setShowApiKeyDialog(true);
   };
 
@@ -975,7 +973,7 @@ const AdminPanel = () => {
                   type="radio"
                   id="global-key"
                   name="apiKeySource"
-                  checked={tempApiKeySetting === false || (tempApiKeySetting === null && !selectedUserForApiKey?.useOwnApiKey)}
+                  checked={tempApiKeySetting === false}
                   onChange={() => handleUpdateUserApiKeySetting(false)}
                   className="h-4 w-4"
                   disabled={updateUserApiKeySettingMutation.isPending}
@@ -996,7 +994,7 @@ const AdminPanel = () => {
                   type="radio"
                   id="personal-key"
                   name="apiKeySource"
-                  checked={tempApiKeySetting === true || (tempApiKeySetting === null && selectedUserForApiKey?.useOwnApiKey)}
+                  checked={tempApiKeySetting === true}
                   onChange={() => handleUpdateUserApiKeySetting(true)}
                   className="h-4 w-4"
                   disabled={updateUserApiKeySettingMutation.isPending}
@@ -1018,7 +1016,7 @@ const AdminPanel = () => {
               variant="outline" 
               onClick={() => {
                 setShowApiKeyDialog(false);
-                setTempApiKeySetting(null);
+                setTempApiKeySetting(false);
               }}
             >
               Cancel
