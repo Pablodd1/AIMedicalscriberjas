@@ -747,10 +747,25 @@ export default function LabInterpreter() {
   const renderAnalysisResult = () => {
     if (!analysisResult) return null;
     
+    // Function to safely render any value as a string
+    const safeRender = (value: any): string => {
+      if (value === null || value === undefined) return '';
+      if (typeof value === 'string') return value;
+      if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+      if (typeof value === 'object') {
+        try {
+          return JSON.stringify(value, null, 2);
+        } catch {
+          return '[Complex Object]';
+        }
+      }
+      return String(value);
+    };
+    
     // Function to recursively render key-value pairs from the analysis result
-    const renderSection = (data: any, level = 0) => {
+    const renderSection = (data: any, level = 0): JSX.Element => {
       if (typeof data !== 'object' || data === null) {
-        return <p className="text-sm">{String(data)}</p>;
+        return <p className="text-sm">{safeRender(data)}</p>;
       }
       
       return (
@@ -759,7 +774,7 @@ export default function LabInterpreter() {
             if (key === 'content' && level === 0) {
               return (
                 <div key={key} className="space-y-2">
-                  {String(value).split('\n').map((line, i) => (
+                  {safeRender(value).split('\n').map((line, i) => (
                     <p key={i} className="text-sm">{line}</p>
                   ))}
                 </div>
@@ -777,7 +792,13 @@ export default function LabInterpreter() {
                   <ul className="list-disc list-inside space-y-1">
                     {value.map((item, index) => (
                       <li key={index} className="text-sm">
-                        {typeof item === 'object' ? renderSection(item, level + 1) : String(item)}
+                        {typeof item === 'object' ? (
+                          <div className="ml-2 mt-1">
+                            {renderSection(item, level + 1)}
+                          </div>
+                        ) : (
+                          safeRender(item)
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -799,7 +820,7 @@ export default function LabInterpreter() {
             return (
               <div key={key} className="space-y-1">
                 <h4 className="text-sm font-medium">{key.charAt(0).toUpperCase() + key.slice(1)}:</h4>
-                <p className="text-sm">{String(value)}</p>
+                <p className="text-sm">{safeRender(value)}</p>
               </div>
             );
           })}
