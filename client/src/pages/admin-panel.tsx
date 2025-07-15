@@ -386,14 +386,15 @@ const AdminPanel = () => {
         setSelectedUserForApiKey(data.user);
       }
       
-      // Force complete cache invalidation and refetch with cache busting
-      queryClient.removeQueries({ queryKey: ['/api/admin/users'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
-      
-      // Force immediate refetch with cache busting
-      setTimeout(() => {
-        queryClient.refetchQueries({ queryKey: ['/api/admin/users'] });
-      }, 50);
+      // Confirm the cache data is correct - no need to refresh since we already updated optimistically
+      queryClient.setQueryData(['/api/admin/users'], (oldData: UserWithPlainPassword[] | undefined) => {
+        if (!oldData) return oldData;
+        return oldData.map(user => 
+          user.id === data.user.id 
+            ? { ...user, useOwnApiKey: data.user.useOwnApiKey } 
+            : user
+        );
+      });
       
       setShowApiKeyDialog(false);
       setTempApiKeySetting(false); // Reset temp state
@@ -530,6 +531,17 @@ const AdminPanel = () => {
   const handleUpdateUserApiKeySetting = (useOwnApiKey: boolean) => {
     if (selectedUserForApiKey) {
       setTempApiKeySetting(useOwnApiKey); // Optimistic update for UI
+      
+      // Immediately update the cache with the new setting
+      queryClient.setQueryData(['/api/admin/users'], (oldData: UserWithPlainPassword[] | undefined) => {
+        if (!oldData) return oldData;
+        return oldData.map(user => 
+          user.id === selectedUserForApiKey.id 
+            ? { ...user, useOwnApiKey } 
+            : user
+        );
+      });
+      
       updateUserApiKeySettingMutation.mutate({
         userId: selectedUserForApiKey.id,
         useOwnApiKey

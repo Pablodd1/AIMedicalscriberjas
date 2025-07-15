@@ -582,6 +582,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete user API key
+  app.delete("/api/user/api-key", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const userId = req.user.id;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Check if user is allowed to use their own API key
+      if (!user.useOwnApiKey) {
+        return res.status(403).json({ 
+          message: "Your account is not configured to use personal API keys. Contact your administrator to enable this feature." 
+        });
+      }
+      
+      await storage.updateUserApiKey(userId, null);
+      res.json({ success: true, message: "API key removed successfully" });
+    } catch (error) {
+      console.error("Error removing user API key:", error);
+      res.status(500).json({ message: "Failed to remove API key" });
+    }
+  });
+
   app.delete("/api/user/api-key", async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
