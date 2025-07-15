@@ -474,6 +474,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // User API Key management routes
+  app.get("/api/user/api-key", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const userId = req.user.id;
+      const apiKey = await storage.getUserApiKey(userId);
+      
+      // Return masked key for security (only show first 6 chars)
+      const maskedKey = apiKey ? `${apiKey.substring(0, 6)}...` : null;
+      res.json({ hasApiKey: !!apiKey, maskedKey });
+    } catch (error) {
+      console.error("Error fetching user API key:", error);
+      res.status(500).json({ message: "Failed to fetch API key" });
+    }
+  });
+
+  app.post("/api/user/api-key", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const { apiKey } = req.body;
+      const userId = req.user.id;
+      
+      if (!apiKey || typeof apiKey !== 'string') {
+        return res.status(400).json({ message: "Valid API key is required" });
+      }
+      
+      // Basic validation for OpenAI API key format
+      if (!apiKey.startsWith('sk-') || apiKey.length < 40) {
+        return res.status(400).json({ message: "Invalid OpenAI API key format" });
+      }
+      
+      await storage.updateUserApiKey(userId, apiKey);
+      res.json({ success: true, message: "API key updated successfully" });
+    } catch (error) {
+      console.error("Error updating user API key:", error);
+      res.status(500).json({ message: "Failed to update API key" });
+    }
+  });
+
+  app.delete("/api/user/api-key", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const userId = req.user.id;
+      await storage.updateUserApiKey(userId, null);
+      res.json({ success: true, message: "API key removed successfully" });
+    } catch (error) {
+      console.error("Error removing user API key:", error);
+      res.status(500).json({ message: "Failed to remove API key" });
+    }
+  });
+
   // Telemedicine routes
   
   // Invoice routes

@@ -228,6 +228,20 @@ export class DatabaseStorage implements IStorage {
       .set({ lastLogin: new Date() })
       .where(eq(users.id, id));
   }
+
+  async updateUserApiKey(id: number, apiKey: string | null): Promise<User | undefined> {
+    const [updatedUser] = await db
+      .update(users)
+      .set({ openaiApiKey: apiKey })
+      .where(eq(users.id, id))
+      .returning();
+    return updatedUser;
+  }
+
+  async getUserApiKey(id: number): Promise<string | null> {
+    const user = await this.getUser(id);
+    return user?.openaiApiKey || null;
+  }
   
   async deleteUser(id: number): Promise<boolean> {
     try {

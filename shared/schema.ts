@@ -32,6 +32,7 @@ export const users = pgTable("users", {
   avatar: text("avatar"),
   bio: text("bio"),
   isActive: boolean("is_active").default(true),
+  openaiApiKey: text("openai_api_key"),
   createdAt: timestamp("created_at").defaultNow(),
   lastLogin: timestamp("last_login"),
 });

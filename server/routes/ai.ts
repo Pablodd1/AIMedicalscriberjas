@@ -1,13 +1,35 @@
 import { Router } from 'express';
 import OpenAI from 'openai';
 import multer from 'multer';
+import { storage } from '../storage';
 
 export const aiRouter = Router();
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Helper function to get OpenAI client for a user
+async function getOpenAIClient(userId: number): Promise<OpenAI | null> {
+  try {
+    // First try to get user's personal API key
+    const userApiKey = await storage.getUserApiKey(userId);
+    
+    if (userApiKey) {
+      return new OpenAI({
+        apiKey: userApiKey,
+      });
+    }
+    
+    // Fallback to system API key if available
+    if (process.env.OPENAI_API_KEY) {
+      return new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+      });
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error getting OpenAI client:', error);
+    return null;
+  }
+}
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -19,10 +41,22 @@ const upload = multer({
 // Route to handle chat completion
 aiRouter.post('/chat', async (req, res) => {
   try {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
     const { messages } = req.body;
+    const userId = req.user.id;
 
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: 'Messages must be provided as an array' });
+    }
+
+    const openai = await getOpenAIClient(userId);
+    if (!openai) {
+      return res.status(400).json({ 
+        error: 'No OpenAI API key found. Please add your OpenAI API key in Settings to use AI features.' 
+      });
     }
 
     // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
@@ -41,6 +75,11 @@ aiRouter.post('/chat', async (req, res) => {
     });
   } catch (error) {
     console.error('OpenAI API error:', error);
+    if (error instanceof Error && error.message.includes('Incorrect API key')) {
+      return res.status(401).json({ 
+        error: 'Invalid OpenAI API key. Please update your API key in Settings.' 
+      });
+    }
     return res.status(500).json({ error: 'Failed to get response from OpenAI' });
   }
 });
