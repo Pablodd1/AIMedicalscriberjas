@@ -306,13 +306,24 @@ export default function LabInterpreter() {
       setAnalysisResult(null);
       setReportSavedToPatient(false); // Reset saved state for new analysis
       
-      const response = await apiRequest('POST', '/api/lab-interpreter/analyze', {
-        reportText: inputText,
-        patientId: withPatient ? parseInt(selectedPatientId) : undefined,
-        withPatient
+      const response = await fetch('/api/lab-interpreter/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          reportText: inputText,
+          patientId: withPatient ? parseInt(selectedPatientId) : undefined,
+          withPatient
+        }),
       });
       
       const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || result.message || 'Analysis failed');
+      }
       
       if (!result.success) {
         throw new Error(result.error || 'Analysis failed');
@@ -333,8 +344,6 @@ export default function LabInterpreter() {
       
       // Switch to results tab
       setActiveTab('results');
-      
-      // Note: We'll save manually with the save button instead of automatically
       
       toast({
         title: 'Analysis Complete',
