@@ -102,6 +102,7 @@ const AdminPanel = () => {
   const [globalApiKey, setGlobalApiKey] = useState('');
   const [selectedUserForApiKey, setSelectedUserForApiKey] = useState<User | null>(null);
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
+  const [tempApiKeySetting, setTempApiKeySetting] = useState<boolean | null>(null);
 
   const adminLoginForm = useForm<z.infer<typeof AdminLoginSchema>>({
     resolver: zodResolver(AdminLoginSchema),
@@ -374,9 +375,18 @@ const AdminPanel = () => {
       }
       return await response.json();
     },
-    onSuccess: () => {
-      forceRefreshData();
+    onSuccess: (data) => {
+      // Update the selectedUserForApiKey immediately with the new state
+      if (selectedUserForApiKey && data.user) {
+        setSelectedUserForApiKey(data.user);
+      }
+      
+      // Force refresh the cache and refetch data
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+      queryClient.refetchQueries({ queryKey: ['/api/admin/users'] });
+      
       setShowApiKeyDialog(false);
+      setTempApiKeySetting(null); // Reset temp state
       toast({
         title: 'API key setting updated',
         description: 'The user API key setting has been updated successfully.',
@@ -493,6 +503,7 @@ const AdminPanel = () => {
 
   const openApiKeyDialog = (user: User) => {
     setSelectedUserForApiKey(user);
+    setTempApiKeySetting(user.useOwnApiKey);
     setShowApiKeyDialog(true);
   };
 
@@ -506,6 +517,7 @@ const AdminPanel = () => {
 
   const handleUpdateUserApiKeySetting = (useOwnApiKey: boolean) => {
     if (selectedUserForApiKey) {
+      setTempApiKeySetting(useOwnApiKey); // Optimistic update for UI
       updateUserApiKeySettingMutation.mutate({
         userId: selectedUserForApiKey.id,
         useOwnApiKey
@@ -952,12 +964,16 @@ const AdminPanel = () => {
                   type="radio"
                   id="global-key"
                   name="apiKeySource"
-                  checked={!selectedUserForApiKey?.useOwnApiKey}
+                  checked={tempApiKeySetting === false}
                   onChange={() => handleUpdateUserApiKeySetting(false)}
                   className="h-4 w-4"
+                  disabled={updateUserApiKeySettingMutation.isPending}
                 />
                 <Label htmlFor="global-key" className="text-sm">
                   Use Global API Key
+                  {updateUserApiKeySettingMutation.isPending && tempApiKeySetting === false && (
+                    <Loader2 className="h-3 w-3 animate-spin ml-1 inline" />
+                  )}
                 </Label>
               </div>
               <p className="text-xs text-muted-foreground ml-6">
@@ -969,12 +985,16 @@ const AdminPanel = () => {
                   type="radio"
                   id="personal-key"
                   name="apiKeySource"
-                  checked={selectedUserForApiKey?.useOwnApiKey}
+                  checked={tempApiKeySetting === true}
                   onChange={() => handleUpdateUserApiKeySetting(true)}
                   className="h-4 w-4"
+                  disabled={updateUserApiKeySettingMutation.isPending}
                 />
                 <Label htmlFor="personal-key" className="text-sm">
                   Allow Personal API Key
+                  {updateUserApiKeySettingMutation.isPending && tempApiKeySetting === true && (
+                    <Loader2 className="h-3 w-3 animate-spin ml-1 inline" />
+                  )}
                 </Label>
               </div>
               <p className="text-xs text-muted-foreground ml-6">
@@ -983,7 +1003,13 @@ const AdminPanel = () => {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowApiKeyDialog(false)}>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowApiKeyDialog(false);
+                setTempApiKeySetting(null);
+              }}
+            >
               Cancel
             </Button>
           </DialogFooter>
