@@ -185,18 +185,33 @@ export default function Settings() {
   // Save API key
   const saveApiKeyMutation = useMutation({
     mutationFn: async (data: ApiKeyFormValues) => {
-      const res = await apiRequest("POST", "/api/user/api-key", data);
-      return res.json();
+      const response = await fetch('/api/user/api-key', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(data),
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.message || 'Failed to save API key');
+      }
+      
+      return result;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/user/api-key"] });
       apiKeyForm.reset({ apiKey: "" });
       toast({
         title: "Success",
-        description: "OpenAI API key has been saved",
+        description: data.message || "OpenAI API key has been saved",
       });
     },
     onError: (error: Error) => {
+      console.error('API Key save error:', error);
       toast({
         title: "Failed to save API key",
         description: error.message,
@@ -208,14 +223,24 @@ export default function Settings() {
   // Delete API key
   const deleteApiKeyMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("DELETE", "/api/user/api-key");
-      return res.json();
+      const response = await fetch('/api/user/api-key', {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.message || 'Failed to remove API key');
+      }
+      
+      return result;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/user/api-key"] });
       toast({
         title: "Success",
-        description: "OpenAI API key has been removed",
+        description: data.message || "OpenAI API key has been removed",
       });
     },
     onError: (error: Error) => {
