@@ -800,47 +800,55 @@ const AdminPanel = () => {
                       <Alert>
                         <CheckCircle className="h-4 w-4" />
                         <AlertDescription>
-                          Global API key configured: {globalApiKeyData.maskedKey}
+                          <div className="flex items-center justify-between">
+                            <span>Global API key configured: <strong>{globalApiKeyData.maskedKey}</strong></span>
+                            <Badge variant="secondary" className="ml-2">Active</Badge>
+                          </div>
                         </AlertDescription>
                       </Alert>
                     )}
 
-                    <div className="flex space-x-2">
-                      <div className="flex-1 relative">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium">
+                          {globalApiKeyData?.hasGlobalApiKey ? 'Update API Key' : 'Set Global API Key'}
+                        </label>
+                        {globalApiKeyData?.hasGlobalApiKey && (
+                          <span className="text-xs text-muted-foreground">
+                            Current: {globalApiKeyData.maskedKey}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex space-x-2">
                         <Input
-                          placeholder={globalApiKeyData?.hasGlobalApiKey ? "Enter new API key to update" : "sk-..."}
+                          placeholder={globalApiKeyData?.hasGlobalApiKey ? "Enter new API key to update existing one" : "sk-..."}
                           type="password"
                           value={globalApiKey}
                           onChange={(e) => setGlobalApiKey(e.target.value)}
-                          className="w-full"
+                          className="flex-1"
                         />
-                        {globalApiKeyData?.hasGlobalApiKey && !globalApiKey && (
-                          <div className="absolute inset-0 flex items-center px-3 text-sm text-muted-foreground pointer-events-none">
-                            Current: {globalApiKeyData.maskedKey}
-                          </div>
-                        )}
-                      </div>
-                      <Button
-                        onClick={handleSaveGlobalApiKey}
-                        disabled={saveGlobalApiKeyMutation.isPending || !globalApiKey.trim()}
-                      >
-                        {saveGlobalApiKeyMutation.isPending ? (
-                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        ) : null}
-                        {globalApiKeyData?.hasGlobalApiKey ? 'Update' : 'Save'}
-                      </Button>
-                      {globalApiKeyData?.hasGlobalApiKey && (
                         <Button
-                          variant="destructive"
-                          onClick={handleDeleteGlobalApiKey}
-                          disabled={deleteGlobalApiKeyMutation.isPending}
+                          onClick={handleSaveGlobalApiKey}
+                          disabled={saveGlobalApiKeyMutation.isPending || !globalApiKey.trim()}
                         >
-                          {deleteGlobalApiKeyMutation.isPending ? (
+                          {saveGlobalApiKeyMutation.isPending ? (
                             <Loader2 className="h-4 w-4 animate-spin mr-2" />
                           ) : null}
-                          Remove
+                          {globalApiKeyData?.hasGlobalApiKey ? 'Update' : 'Save'}
                         </Button>
-                      )}
+                        {globalApiKeyData?.hasGlobalApiKey && (
+                          <Button
+                            variant="destructive"
+                            onClick={handleDeleteGlobalApiKey}
+                            disabled={deleteGlobalApiKeyMutation.isPending}
+                          >
+                            {deleteGlobalApiKeyMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            ) : null}
+                            Remove
+                          </Button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="text-sm text-muted-foreground">
