@@ -20,7 +20,27 @@ export async function apiRequest(
   });
 
   await throwIfResNotOk(res);
-  return res;
+  
+  // Handle structured response format for mutations
+  const result = await res.json();
+  if (result && typeof result === 'object' && 'success' in result) {
+    if (!result.success) {
+      throw new Error(result.error || 'Request failed');
+    }
+    // Return the original response but with the data in the body
+    return new Response(JSON.stringify(result.data), {
+      status: res.status,
+      statusText: res.statusText,
+      headers: res.headers
+    });
+  }
+  
+  // Return original response for legacy format
+  return new Response(JSON.stringify(result), {
+    status: res.status,
+    statusText: res.statusText,
+    headers: res.headers
+  });
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
@@ -38,7 +58,19 @@ export const getQueryFn: <T>(options: {
     }
 
     await throwIfResNotOk(res);
-    return await res.json();
+    const result = await res.json();
+    
+    // Handle new structured response format
+    if (result && typeof result === 'object' && 'success' in result) {
+      if (result.success) {
+        return result.data;
+      } else {
+        throw new Error(result.error || 'Request failed');
+      }
+    }
+    
+    // Fallback for legacy responses
+    return result;
   };
 
 export const queryClient = new QueryClient({
