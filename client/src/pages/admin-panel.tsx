@@ -56,10 +56,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Check, X, Trash2, UserPlus, UserCog, Shield, Users } from 'lucide-react';
+import { Loader2, Check, X, Trash2, UserPlus, UserCog, Shield, Users, Key, AlertCircle, CheckCircle } from 'lucide-react';
 
 interface User {
   id: number;
@@ -68,6 +69,7 @@ interface User {
   email: string;
   role: 'doctor' | 'admin' | 'assistant' | 'patient';
   isActive: boolean;
+  useOwnApiKey: boolean;
   createdAt: string;
   lastLogin: string | null;
 }
@@ -97,6 +99,9 @@ const AdminPanel = () => {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showResetPasswordDialog, setShowResetPasswordDialog] = useState(false);
   const [newPassword, setNewPassword] = useState('');
+  const [globalApiKey, setGlobalApiKey] = useState('');
+  const [selectedUserForApiKey, setSelectedUserForApiKey] = useState<User | null>(null);
+  const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
 
   const adminLoginForm = useForm<z.infer<typeof AdminLoginSchema>>({
     resolver: zodResolver(AdminLoginSchema),
@@ -138,6 +143,24 @@ const AdminPanel = () => {
       });
       if (!response.ok) {
         throw new Error('Failed to fetch dashboard data');
+      }
+      return await response.json();
+    },
+    enabled: isAuthenticated,
+  });
+
+  // API key management queries
+  const { data: globalApiKeyData, isLoading: isLoadingGlobalApiKey } = useQuery({
+    queryKey: ['/api/admin/global-api-key'],
+    queryFn: async () => {
+      if (!isAuthenticated) return null;
+      const response = await fetch('/api/admin/global-api-key', {
+        headers: {
+          'X-Admin-Password': 'admin@@@'
+        }
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch global API key');
       }
       return await response.json();
     },
@@ -273,6 +296,100 @@ const AdminPanel = () => {
     },
   });
 
+  // API key mutations
+  const saveGlobalApiKeyMutation = useMutation({
+    mutationFn: async (apiKey: string) => {
+      const response = await fetch('/api/admin/global-api-key', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Password': 'admin@@@'
+        },
+        body: JSON.stringify({ apiKey }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to save global API key');
+      }
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/global-api-key'] });
+      setGlobalApiKey('');
+      toast({
+        title: 'Global API key saved',
+        description: 'The global OpenAI API key has been saved successfully.',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Error saving API key',
+        description: 'There was an error saving the global API key. Please try again.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const deleteGlobalApiKeyMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/admin/global-api-key', {
+        method: 'DELETE',
+        headers: {
+          'X-Admin-Password': 'admin@@@'
+        }
+      });
+      if (!response.ok) {
+        throw new Error('Failed to delete global API key');
+      }
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/global-api-key'] });
+      toast({
+        title: 'Global API key removed',
+        description: 'The global OpenAI API key has been removed successfully.',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Error removing API key',
+        description: 'There was an error removing the global API key. Please try again.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const updateUserApiKeySettingMutation = useMutation({
+    mutationFn: async ({ userId, useOwnApiKey }: { userId: number; useOwnApiKey: boolean }) => {
+      const response = await fetch(`/api/admin/users/${userId}/api-key-setting`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Password': 'admin@@@'
+        },
+        body: JSON.stringify({ useOwnApiKey }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to update user API key setting');
+      }
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+      setShowApiKeyDialog(false);
+      toast({
+        title: 'API key setting updated',
+        description: 'The user API key setting has been updated successfully.',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Error updating API key setting',
+        description: 'There was an error updating the API key setting. Please try again.',
+        variant: 'destructive',
+      });
+    },
+  });
+
   const handleAdminLogin = async (data: z.infer<typeof AdminLoginSchema>) => {
     try {
       // First try regular login if the user is already logged in and is an admin
@@ -362,6 +479,31 @@ const AdminPanel = () => {
     }
   };
 
+  // API key handlers
+  const handleSaveGlobalApiKey = () => {
+    if (globalApiKey.trim()) {
+      saveGlobalApiKeyMutation.mutate(globalApiKey);
+    }
+  };
+
+  const handleDeleteGlobalApiKey = () => {
+    deleteGlobalApiKeyMutation.mutate();
+  };
+
+  const openApiKeyDialog = (user: User) => {
+    setSelectedUserForApiKey(user);
+    setShowApiKeyDialog(true);
+  };
+
+  const handleUpdateUserApiKeySetting = (useOwnApiKey: boolean) => {
+    if (selectedUserForApiKey) {
+      updateUserApiKeySettingMutation.mutate({
+        userId: selectedUserForApiKey.id,
+        useOwnApiKey
+      });
+    }
+  };
+
   if (!isAuthenticated) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
@@ -421,6 +563,7 @@ const AdminPanel = () => {
         <TabsList className="mb-4">
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="users">User Management</TabsTrigger>
+          <TabsTrigger value="api-keys">API Key Management</TabsTrigger>
         </TabsList>
         
         <TabsContent value="dashboard">
@@ -613,7 +756,206 @@ const AdminPanel = () => {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="api-keys">
+          <div className="space-y-6">
+            {/* Global API Key Management */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Key className="h-5 w-5" />
+                  Global OpenAI API Key
+                </CardTitle>
+                <CardDescription>
+                  Configure the global OpenAI API key that will be used by default for all AI features. 
+                  This key will be used for users who don't have their own personal API key configured.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {isLoadingGlobalApiKey ? (
+                  <div className="flex justify-center py-4">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {globalApiKeyData?.hasGlobalApiKey && (
+                      <Alert>
+                        <CheckCircle className="h-4 w-4" />
+                        <AlertDescription>
+                          Global API key configured: {globalApiKeyData.maskedKey}
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
+                    <div className="flex space-x-2">
+                      <Input
+                        placeholder="sk-..."
+                        type="password"
+                        value={globalApiKey}
+                        onChange={(e) => setGlobalApiKey(e.target.value)}
+                        className="flex-1"
+                      />
+                      <Button
+                        onClick={handleSaveGlobalApiKey}
+                        disabled={saveGlobalApiKeyMutation.isPending || !globalApiKey.trim()}
+                      >
+                        {saveGlobalApiKeyMutation.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : null}
+                        {globalApiKeyData?.hasGlobalApiKey ? 'Update' : 'Save'}
+                      </Button>
+                      {globalApiKeyData?.hasGlobalApiKey && (
+                        <Button
+                          variant="destructive"
+                          onClick={handleDeleteGlobalApiKey}
+                          disabled={deleteGlobalApiKeyMutation.isPending}
+                        >
+                          {deleteGlobalApiKeyMutation.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          ) : null}
+                          Remove
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className="text-sm text-muted-foreground">
+                      <h4 className="font-medium mb-2">Important Notes:</h4>
+                      <ul className="list-disc list-inside space-y-1">
+                        <li>This key will be used for all users who don't have their own personal API key</li>
+                        <li>API usage will be charged to the account associated with this key</li>
+                        <li>You can configure each user to use either this global key or their own personal key</li>
+                        <li>Get your API key from the <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">OpenAI Platform</a></li>
+                      </ul>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* User API Key Settings */}
+            <Card>
+              <CardHeader>
+                <CardTitle>User API Key Settings</CardTitle>
+                <CardDescription>
+                  Configure which users can use their own personal OpenAI API keys vs. the global API key.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isLoadingUsers ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : users && users.length > 0 ? (
+                  <div className="space-y-4">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>User</TableHead>
+                          <TableHead>Role</TableHead>
+                          <TableHead>Email</TableHead>
+                          <TableHead>API Key Source</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {users.map((user) => (
+                          <TableRow key={user.id}>
+                            <TableCell>
+                              <div>
+                                <div className="font-medium">{user.name}</div>
+                                <div className="text-sm text-muted-foreground">@{user.username}</div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
+                                {user.role}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{user.email}</TableCell>
+                            <TableCell>
+                              <Badge variant={user.useOwnApiKey ? 'outline' : 'secondary'}>
+                                {user.useOwnApiKey ? 'Personal API Key' : 'Global API Key'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openApiKeyDialog(user)}
+                              >
+                                <Key className="h-4 w-4 mr-1" />
+                                Configure
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No users found
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
       </Tabs>
+
+      {/* API Key Setting Dialog */}
+      <Dialog open={showApiKeyDialog} onOpenChange={setShowApiKeyDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Configure API Key Setting</DialogTitle>
+            <DialogDescription>
+              Choose the API key source for {selectedUserForApiKey?.name} ({selectedUserForApiKey?.username}).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="radio"
+                  id="global-key"
+                  name="apiKeySource"
+                  checked={!selectedUserForApiKey?.useOwnApiKey}
+                  onChange={() => handleUpdateUserApiKeySetting(false)}
+                  className="h-4 w-4"
+                />
+                <Label htmlFor="global-key" className="text-sm">
+                  Use Global API Key
+                </Label>
+              </div>
+              <p className="text-xs text-muted-foreground ml-6">
+                The user will use the system's global OpenAI API key for all AI features.
+              </p>
+              
+              <div className="flex items-center space-x-2">
+                <input
+                  type="radio"
+                  id="personal-key"
+                  name="apiKeySource"
+                  checked={selectedUserForApiKey?.useOwnApiKey}
+                  onChange={() => handleUpdateUserApiKeySetting(true)}
+                  className="h-4 w-4"
+                />
+                <Label htmlFor="personal-key" className="text-sm">
+                  Allow Personal API Key
+                </Label>
+              </div>
+              <p className="text-xs text-muted-foreground ml-6">
+                The user can configure their own OpenAI API key in their settings page. If no personal key is set, the global key will be used as fallback.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowApiKeyDialog(false)}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Reset Password Dialog */}
       <Dialog open={showResetPasswordDialog} onOpenChange={setShowResetPasswordDialog}>

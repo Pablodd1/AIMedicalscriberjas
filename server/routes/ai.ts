@@ -8,20 +8,35 @@ export const aiRouter = Router();
 // Helper function to get OpenAI client for a user
 async function getOpenAIClient(userId: number): Promise<OpenAI | null> {
   try {
-    // First try to get user's personal API key
-    const userApiKey = await storage.getUserApiKey(userId);
-    
-    if (userApiKey) {
-      return new OpenAI({
-        apiKey: userApiKey,
-      });
-    }
-    
-    // Fallback to system API key if available
-    if (process.env.OPENAI_API_KEY) {
-      return new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-      });
+    const user = await storage.getUser(userId);
+    if (!user) return null;
+
+    // Check if user should use their own API key
+    if (user.useOwnApiKey) {
+      const userApiKey = await storage.getUserApiKey(userId);
+      if (userApiKey) {
+        return new OpenAI({
+          apiKey: userApiKey,
+        });
+      } else {
+        // User is set to use own API key but hasn't provided one
+        return null;
+      }
+    } else {
+      // User should use global API key
+      const globalApiKey = await storage.getSystemSetting('global_openai_api_key');
+      if (globalApiKey) {
+        return new OpenAI({
+          apiKey: globalApiKey,
+        });
+      }
+      
+      // Fallback to environment variable for backward compatibility
+      if (process.env.OPENAI_API_KEY) {
+        return new OpenAI({
+          apiKey: process.env.OPENAI_API_KEY,
+        });
+      }
     }
     
     return null;
@@ -54,9 +69,12 @@ aiRouter.post('/chat', async (req, res) => {
 
     const openai = await getOpenAIClient(userId);
     if (!openai) {
-      return res.status(400).json({ 
-        error: 'No OpenAI API key found. Please add your OpenAI API key in Settings to use AI features.' 
-      });
+      const user = await storage.getUser(userId);
+      const errorMessage = user?.useOwnApiKey 
+        ? 'No personal OpenAI API key found. Please add your OpenAI API key in Settings to use AI features.'
+        : 'No global OpenAI API key configured. Please contact your administrator or add your own API key in Settings.';
+      
+      return res.status(400).json({ error: errorMessage });
     }
 
     // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
@@ -87,10 +105,25 @@ aiRouter.post('/chat', async (req, res) => {
 // Route to generate a title for a conversation
 aiRouter.post('/generate-title', async (req, res) => {
   try {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
     const { message } = req.body;
+    const userId = req.user.id;
 
     if (!message) {
       return res.status(400).json({ error: 'Message must be provided' });
+    }
+
+    const openai = await getOpenAIClient(userId);
+    if (!openai) {
+      const user = await storage.getUser(userId);
+      const errorMessage = user?.useOwnApiKey 
+        ? 'No personal OpenAI API key found. Please add your OpenAI API key in Settings to use AI features.'
+        : 'No global OpenAI API key configured. Please contact your administrator or add your own API key in Settings.';
+      
+      return res.status(400).json({ error: errorMessage });
     }
 
     // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
@@ -122,7 +155,12 @@ aiRouter.post('/generate-title', async (req, res) => {
 // Route to generate SOAP notes from transcript
 aiRouter.post('/generate-soap', async (req, res) => {
   try {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
     const { transcript, patientInfo } = req.body;
+    const userId = req.user.id;
 
     if (!transcript) {
       return res.json({ 
@@ -131,11 +169,16 @@ aiRouter.post('/generate-soap', async (req, res) => {
       });
     }
 
-    // Check if we have an OpenAI API key
-    if (!process.env.OPENAI_API_KEY) {
+    const openai = await getOpenAIClient(userId);
+    if (!openai) {
+      const user = await storage.getUser(userId);
+      const errorMessage = user?.useOwnApiKey 
+        ? 'No personal OpenAI API key found. Please add your OpenAI API key in Settings to use AI features.'
+        : 'No global OpenAI API key configured. Please contact your administrator or add your own API key in Settings.';
+      
       return res.json({
         success: false,
-        soap: "OpenAI API key not configured. Please add your OpenAI API key to use this feature."
+        soap: errorMessage
       });
     }
 

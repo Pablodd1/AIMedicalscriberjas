@@ -19,6 +19,7 @@ import {
   labReports,
   patientDocuments,
   medicalNoteTemplates,
+  systemSettings,
   type User, 
   type InsertUser, 
   type Patient, 
@@ -56,7 +57,9 @@ import {
   type LabReport,
   type InsertLabReport,
   type PatientDocument,
-  type InsertPatientDocument
+  type InsertPatientDocument,
+  type SystemSetting,
+  type InsertSystemSetting
 } from "@shared/schema";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
@@ -241,6 +244,48 @@ export class DatabaseStorage implements IStorage {
   async getUserApiKey(id: number): Promise<string | null> {
     const user = await this.getUser(id);
     return user?.openaiApiKey || null;
+  }
+
+  async updateUserApiKeySettings(id: number, useOwnApiKey: boolean): Promise<User | undefined> {
+    const [updatedUser] = await db
+      .update(users)
+      .set({ useOwnApiKey })
+      .where(eq(users.id, id))
+      .returning();
+    return updatedUser;
+  }
+
+  // System settings methods
+  async getSystemSetting(key: string): Promise<string | null> {
+    const [setting] = await db
+      .select({ value: systemSettings.settingValue })
+      .from(systemSettings)
+      .where(eq(systemSettings.settingKey, key));
+    return setting?.value || null;
+  }
+
+  async setSystemSetting(key: string, value: string | null, description?: string, updatedBy?: number): Promise<void> {
+    await db
+      .insert(systemSettings)
+      .values({
+        settingKey: key,
+        settingValue: value,
+        description,
+        updatedBy,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: systemSettings.settingKey,
+        set: {
+          settingValue: value,
+          updatedAt: new Date(),
+          updatedBy,
+        },
+      });
+  }
+
+  async getAllSystemSettings(): Promise<SystemSetting[]> {
+    return await db.select().from(systemSettings).orderBy(systemSettings.settingKey);
   }
   
   async deleteUser(id: number): Promise<boolean> {

@@ -298,3 +298,76 @@ adminRouter.get('/dashboard', async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to get dashboard data' });
   }
 });
+
+// Global API Key Management Routes
+adminRouter.get('/global-api-key', async (req: Request, res: Response) => {
+  try {
+    const globalApiKey = await storage.getSystemSetting('global_openai_api_key');
+    // Return masked key for security (only show first 6 chars)
+    const maskedKey = globalApiKey ? `${globalApiKey.substring(0, 6)}...` : null;
+    res.json({ hasApiKey: !!globalApiKey, maskedKey });
+  } catch (error) {
+    console.error('Error fetching global API key:', error);
+    res.status(500).json({ error: 'Failed to fetch global API key' });
+  }
+});
+
+adminRouter.post('/global-api-key', async (req: Request, res: Response) => {
+  try {
+    const { apiKey } = req.body;
+    const userId = req.user.id;
+    
+    if (!apiKey || typeof apiKey !== 'string') {
+      return res.status(400).json({ error: 'Valid API key is required' });
+    }
+    
+    // Basic validation for OpenAI API key format
+    if (!apiKey.startsWith('sk-') || apiKey.length < 40) {
+      return res.status(400).json({ error: 'Invalid OpenAI API key format' });
+    }
+    
+    await storage.setSystemSetting('global_openai_api_key', apiKey, 'Global OpenAI API key used for accounts not using their own API key', userId);
+    res.json({ success: true, message: 'Global API key updated successfully' });
+  } catch (error) {
+    console.error('Error updating global API key:', error);
+    res.status(500).json({ error: 'Failed to update global API key' });
+  }
+});
+
+adminRouter.delete('/global-api-key', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user.id;
+    await storage.setSystemSetting('global_openai_api_key', null, 'Global OpenAI API key used for accounts not using their own API key', userId);
+    res.json({ success: true, message: 'Global API key removed successfully' });
+  } catch (error) {
+    console.error('Error removing global API key:', error);
+    res.status(500).json({ error: 'Failed to remove global API key' });
+  }
+});
+
+// User API Key Configuration Routes
+adminRouter.put('/users/:userId/api-key-setting', async (req: Request, res: Response) => {
+  try {
+    const userId = parseInt(req.params.userId);
+    const { useOwnApiKey } = req.body;
+    
+    if (isNaN(userId)) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+    
+    if (typeof useOwnApiKey !== 'boolean') {
+      return res.status(400).json({ error: 'useOwnApiKey must be a boolean value' });
+    }
+    
+    const updatedUser = await storage.updateUserApiKeySettings(userId, useOwnApiKey);
+    
+    if (!updatedUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    res.json({ success: true, message: 'User API key setting updated successfully', user: updatedUser });
+  } catch (error) {
+    console.error('Error updating user API key setting:', error);
+    res.status(500).json({ error: 'Failed to update user API key setting' });
+  }
+});

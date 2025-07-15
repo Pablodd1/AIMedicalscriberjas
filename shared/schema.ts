@@ -33,6 +33,7 @@ export const users = pgTable("users", {
   bio: text("bio"),
   isActive: boolean("is_active").default(true),
   openaiApiKey: text("openai_api_key"),
+  useOwnApiKey: boolean("use_own_api_key").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   lastLogin: timestamp("last_login"),
 });
@@ -62,6 +63,16 @@ export const appointments = pgTable("appointments", {
 
 // Define a type enum for notes
 export const noteTypeEnum = pgEnum('note_type', ['soap', 'progress', 'procedure', 'consultation']);
+
+// Global system settings table
+export const systemSettings = pgTable("system_settings", {
+  id: serial("id").primaryKey(),
+  settingKey: text("setting_key").notNull().unique(),
+  settingValue: text("setting_value"),
+  description: text("description"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedBy: integer("updated_by"),
+});
 
 // Medical Notes Settings and Templates
 export const medicalNoteTemplates = pgTable("medical_note_templates", {
@@ -676,3 +687,14 @@ export const labReportRelations = relations(labReports, ({ one }) => ({
     references: [users.id],
   }),
 }));
+
+// System settings types and schemas
+export const insertSystemSettingSchema = createInsertSchema(systemSettings).pick({
+  settingKey: true,
+  settingValue: true,
+  description: true,
+  updatedBy: true,
+});
+
+export type SystemSetting = typeof systemSettings.$inferSelect;
+export type InsertSystemSetting = z.infer<typeof insertSystemSettingSchema>;

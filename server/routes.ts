@@ -482,11 +482,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const userId = req.user.id;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Only return API key info if user is configured to use their own API key
+      if (!user.useOwnApiKey) {
+        return res.json({ 
+          canUseOwnApiKey: false, 
+          useOwnApiKey: false,
+          message: "Your account is configured to use the global API key. Contact your administrator to enable personal API key usage." 
+        });
+      }
+      
       const apiKey = await storage.getUserApiKey(userId);
       
       // Return masked key for security (only show first 6 chars)
       const maskedKey = apiKey ? `${apiKey.substring(0, 6)}...` : null;
-      res.json({ hasApiKey: !!apiKey, maskedKey });
+      res.json({ 
+        canUseOwnApiKey: true,
+        useOwnApiKey: true,
+        hasApiKey: !!apiKey, 
+        maskedKey 
+      });
     } catch (error) {
       console.error("Error fetching user API key:", error);
       res.status(500).json({ message: "Failed to fetch API key" });
@@ -501,6 +521,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const { apiKey } = req.body;
       const userId = req.user.id;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Check if user is allowed to use their own API key
+      if (!user.useOwnApiKey) {
+        return res.status(403).json({ 
+          message: "Your account is not configured to use personal API keys. Contact your administrator to enable this feature." 
+        });
+      }
       
       if (!apiKey || typeof apiKey !== 'string') {
         return res.status(400).json({ message: "Valid API key is required" });
@@ -526,6 +558,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const userId = req.user.id;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Check if user is allowed to manage their own API key
+      if (!user.useOwnApiKey) {
+        return res.status(403).json({ 
+          message: "Your account is not configured to use personal API keys. Contact your administrator to enable this feature." 
+        });
+      }
+      
       await storage.updateUserApiKey(userId, null);
       res.json({ success: true, message: "API key removed successfully" });
     } catch (error) {

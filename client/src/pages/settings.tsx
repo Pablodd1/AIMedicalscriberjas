@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Form,
   FormControl,
@@ -20,6 +21,7 @@ import {
 } from "@/components/ui/form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { Key, AlertCircle, CheckCircle } from "lucide-react";
 
 // Email settings form schema
 const emailSettingsSchema = z.object({
@@ -36,8 +38,14 @@ const emailTemplateSchema = z.object({
   appointmentRescheduled: z.string().min(10, { message: "Template content is required" }),
 });
 
+// API key form schema
+const apiKeySchema = z.object({
+  apiKey: z.string().min(40, { message: "OpenAI API key is required" }).startsWith("sk-", { message: "Invalid OpenAI API key format" }),
+});
+
 type EmailSettingsFormValues = z.infer<typeof emailSettingsSchema>;
 type EmailTemplateFormValues = z.infer<typeof emailTemplateSchema>;
+type ApiKeyFormValues = z.infer<typeof apiKeySchema>;
 
 export default function Settings() {
   const { toast } = useToast();
@@ -61,6 +69,14 @@ export default function Settings() {
       appointmentReminder: "Dear {{patientName}},\n\nThis is a reminder of your upcoming appointment on {{appointmentDate}} at {{appointmentTime}}.\n\nRegards,\n{{doctorName}}",
       appointmentCancellation: "Dear {{patientName}},\n\nYour appointment scheduled for {{appointmentDate}} at {{appointmentTime}} has been cancelled.\n\nRegards,\n{{doctorName}}",
       appointmentRescheduled: "Dear {{patientName}},\n\nYour appointment has been rescheduled to {{appointmentDate}} at {{appointmentTime}}.\n\nRegards,\n{{doctorName}}",
+    }
+  });
+
+  // API key form
+  const apiKeyForm = useForm<ApiKeyFormValues>({
+    resolver: zodResolver(apiKeySchema),
+    defaultValues: {
+      apiKey: "",
     }
   });
 
@@ -113,6 +129,15 @@ export default function Settings() {
     retry: false,
   });
 
+  // Fetch API key settings
+  const { data: apiKeyData, isLoading: isLoadingApiKey } = useQuery({
+    queryKey: ["/api/user/api-key"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/user/api-key");
+      return res.json();
+    },
+  });
+
   // Save email settings
   const saveEmailSettingsMutation = useMutation({
     mutationFn: async (data: EmailSettingsFormValues) => {
@@ -157,6 +182,51 @@ export default function Settings() {
     },
   });
 
+  // Save API key
+  const saveApiKeyMutation = useMutation({
+    mutationFn: async (data: ApiKeyFormValues) => {
+      const res = await apiRequest("POST", "/api/user/api-key", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/api-key"] });
+      apiKeyForm.reset({ apiKey: "" });
+      toast({
+        title: "Success",
+        description: "OpenAI API key has been saved",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to save API key",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Delete API key
+  const deleteApiKeyMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("DELETE", "/api/user/api-key");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/api-key"] });
+      toast({
+        title: "Success",
+        description: "OpenAI API key has been removed",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to remove API key",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   // Submit handlers
   const onSubmitEmailSettings = (data: EmailSettingsFormValues) => {
     saveEmailSettingsMutation.mutate(data);
@@ -164,6 +234,14 @@ export default function Settings() {
 
   const onSubmitEmailTemplates = (data: EmailTemplateFormValues) => {
     saveEmailTemplatesMutation.mutate(data);
+  };
+
+  const onSubmitApiKey = (data: ApiKeyFormValues) => {
+    saveApiKeyMutation.mutate(data);
+  };
+
+  const handleDeleteApiKey = () => {
+    deleteApiKeyMutation.mutate();
   };
 
   // Test email handler
@@ -200,9 +278,10 @@ export default function Settings() {
       </div>
 
       <Tabs defaultValue="general" value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid grid-cols-2 w-full">
+        <TabsList className="grid grid-cols-3 w-full">
           <TabsTrigger value="general">Email Configuration</TabsTrigger>
           <TabsTrigger value="templates">Email Templates</TabsTrigger>
+          <TabsTrigger value="api-key">OpenAI API Key</TabsTrigger>
         </TabsList>
         
         <TabsContent value="general" className="mt-4">
@@ -378,6 +457,99 @@ export default function Settings() {
                   </Button>
                 </form>
               </Form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="api-key" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Key className="h-5 w-5" />
+                OpenAI API Key Management
+              </CardTitle>
+              <CardDescription>
+                Manage your personal OpenAI API key for AI-powered features like medical note generation and AI assistant.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {isLoadingApiKey ? (
+                <div>Loading API key settings...</div>
+              ) : !apiKeyData?.canUseOwnApiKey ? (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    {apiKeyData?.message || "Your account is not configured to use personal API keys. Contact your administrator to enable this feature."}
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <div className="space-y-6">
+                  {apiKeyData?.hasApiKey && (
+                    <Alert>
+                      <CheckCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        API key configured: {apiKeyData.maskedKey}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  <Form {...apiKeyForm}>
+                    <form onSubmit={apiKeyForm.handleSubmit(onSubmitApiKey)} className="space-y-4">
+                      <FormField
+                        control={apiKeyForm.control}
+                        name="apiKey"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>OpenAI API Key</FormLabel>
+                            <FormControl>
+                              <Input 
+                                placeholder="sk-..." 
+                                type="password"
+                                {...field} 
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              Enter your OpenAI API key. This will be used for all AI features including medical note generation and the AI assistant.
+                              You can get your API key from the <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">OpenAI Platform</a>.
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <div className="flex space-x-2">
+                        <Button 
+                          type="submit" 
+                          disabled={saveApiKeyMutation.isPending || !apiKeyForm.formState.isDirty}
+                        >
+                          {saveApiKeyMutation.isPending ? "Saving..." : apiKeyData?.hasApiKey ? "Update API Key" : "Save API Key"}
+                        </Button>
+                        
+                        {apiKeyData?.hasApiKey && (
+                          <Button 
+                            type="button" 
+                            variant="destructive" 
+                            onClick={handleDeleteApiKey}
+                            disabled={deleteApiKeyMutation.isPending}
+                          >
+                            {deleteApiKeyMutation.isPending ? "Removing..." : "Remove API Key"}
+                          </Button>
+                        )}
+                      </div>
+                    </form>
+                  </Form>
+
+                  <div className="text-sm text-muted-foreground">
+                    <h4 className="font-medium mb-2">Important Notes:</h4>
+                    <ul className="list-disc list-inside space-y-1">
+                      <li>Your API key is stored securely and encrypted</li>
+                      <li>Only you can see or modify your personal API key</li>
+                      <li>API usage will be charged to your OpenAI account</li>
+                      <li>If no personal API key is set, the system will use the global API key (if available)</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
