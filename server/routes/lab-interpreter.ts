@@ -6,6 +6,14 @@ import fs from 'fs';
 import OpenAI from 'openai';
 import { z } from 'zod';
 import xlsx from 'xlsx';
+import { 
+  requireAuth, 
+  sendErrorResponse, 
+  sendSuccessResponse, 
+  asyncHandler,
+  AppError,
+  handleDatabaseOperation
+} from '../error-handler';
 
 // Create router
 export const labInterpreterRouter = Router();
@@ -998,46 +1006,42 @@ labInterpreterRouter.delete('/reports/:id', async (req, res) => {
 });
 
 // Route for saving lab report analysis to patient records
-labInterpreterRouter.post('/save-report', async (req, res) => {
-  try {
-    const { patientId, reportData, analysis } = req.body;
-    
-    if (!patientId || !reportData || !analysis) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-    
-    // Check if user is authenticated and get doctor ID
-    const doctorId = (req.session as any)?.user?.id;
-    if (!doctorId) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-    
-    // Verify that patient exists
-    const patient = await storage.getPatient(patientId);
-    if (!patient) {
-      return res.status(404).json({ error: 'Patient not found' });
-    }
-    
-    // Create a new lab report record
-    const report = await storage.createLabReport({
+labInterpreterRouter.post('/save-report', requireAuth, asyncHandler(async (req, res) => {
+  const { patientId, reportData, analysis, title } = req.body;
+  
+  if (!patientId || !reportData || !analysis) {
+    throw new AppError('Missing required fields: patientId, reportData, and analysis are required', 400, 'MISSING_FIELDS');
+  }
+  
+  // Verify that patient exists
+  const patient = await handleDatabaseOperation(
+    () => storage.getPatient(patientId),
+    'Failed to verify patient existence'
+  );
+  
+  if (!patient) {
+    throw new AppError('Patient not found', 404, 'PATIENT_NOT_FOUND');
+  }
+  
+  // Create a new lab report record
+  const report = await handleDatabaseOperation(
+    () => storage.createLabReport({
       patientId,
-      doctorId,
+      doctorId: req.user.id,
       reportData,
       reportType: "text",
       analysis: analysis,
-      title: "Lab Report Analysis"
-    });
-    
-    return res.json({ 
-      success: true, 
-      reportId: report.id,
-      message: 'Lab report saved successfully'
-    });
-  } catch (error) {
-    console.error('Error saving lab report:', error);
-    return res.status(500).json({ error: 'Failed to save lab report' });
-  }
-});
+      title: title || "Lab Report Analysis"
+    }),
+    'Failed to save lab report'
+  );
+  
+  sendSuccessResponse(res, { 
+    reportId: report.id,
+    title: report.title,
+    createdAt: report.createdAt
+  }, 'Lab report saved successfully');
+}));
 
 // Route for handling follow-up questions about lab reports
 labInterpreterRouter.post('/follow-up', async (req, res) => {

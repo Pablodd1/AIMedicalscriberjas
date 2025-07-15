@@ -193,14 +193,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     sendSuccessResponse(res, notes);
   }));
 
-  app.get("/api/patients/:patientId/medical-notes", async (req, res) => {
+  app.get("/api/patients/:patientId/medical-notes", requireAuth, asyncHandler(async (req, res) => {
     const patientId = parseInt(req.params.patientId);
-    const patient = await storage.getPatient(patientId);
-    if (!patient) return res.sendStatus(404);
+    if (isNaN(patientId)) {
+      throw new AppError('Invalid patient ID', 400, 'INVALID_PATIENT_ID');
+    }
     
-    const notes = await storage.getMedicalNotesByPatient(patientId);
-    res.json(notes);
-  });
+    const notes = await handleDatabaseOperation(
+      () => storage.getMedicalNotesByPatient(patientId),
+      'Failed to fetch medical notes'
+    );
+    
+    sendSuccessResponse(res, notes);
+  }));
+
+  app.get("/api/patients/:patientId/lab-reports", requireAuth, asyncHandler(async (req, res) => {
+    const patientId = parseInt(req.params.patientId);
+    if (isNaN(patientId)) {
+      throw new AppError('Invalid patient ID', 400, 'INVALID_PATIENT_ID');
+    }
+    
+    const labReports = await handleDatabaseOperation(
+      () => storage.getLabReportsByPatient(patientId),
+      'Failed to fetch lab reports'
+    );
+    
+    sendSuccessResponse(res, labReports);
+  }));
 
   app.get("/api/medical-notes/:id", async (req, res) => {
     const note = await storage.getMedicalNote(parseInt(req.params.id));

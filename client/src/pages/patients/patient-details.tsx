@@ -29,7 +29,9 @@ import {
   Heart,
   Loader2,
   Copy,
-  Check
+  Check,
+  FlaskConical,
+  Calendar
 } from "lucide-react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +57,11 @@ export default function PatientDetails({ patientId }: PatientDetailsProps) {
 
   const { data: medicalNotes, isLoading: isLoadingNotes } = useQuery<MedicalNote[]>({
     queryKey: [`/api/patients/${patientId}/medical-notes`],
+    enabled: !!patientId,
+  });
+
+  const { data: labReports, isLoading: isLoadingLabReports } = useQuery<any[]>({
+    queryKey: [`/api/patients/${patientId}/lab-reports`],
     enabled: !!patientId,
   });
 
@@ -318,6 +325,124 @@ export default function PatientDetails({ patientId }: PatientDetailsProps) {
                             <div className="mt-2 p-3 bg-muted/50 rounded-md max-h-60 overflow-y-auto">
                               <pre className="whitespace-pre-wrap font-sans text-sm">{note.content}</pre>
                             </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Lab Reports Section */}
+                  <div className="mt-8">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg font-medium">Lab Reports</h3>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => window.location.href = "/lab-interpreter"}
+                      >
+                        <FlaskConical className="h-4 w-4 mr-2" />
+                        Analyze New Report
+                      </Button>
+                    </div>
+                    
+                    {isLoadingLabReports ? (
+                      <div className="flex justify-center items-center p-8 border rounded-lg">
+                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : !labReports || labReports.length === 0 ? (
+                      <div className="text-center p-8 text-muted-foreground border rounded-lg">
+                        <FlaskConical className="h-10 w-10 mx-auto mb-2 text-muted-foreground" />
+                        <p>No lab reports found for this patient</p>
+                        <Button 
+                          variant="outline" 
+                          className="mt-2"
+                          onClick={() => window.location.href = "/lab-interpreter"}
+                        >
+                          Analyze New Report
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {labReports.map((report) => (
+                          <div key={report.id} className="p-4 border rounded-lg">
+                            <div className="flex justify-between items-start mb-2">
+                              <div>
+                                <h4 className="font-medium">{report.title || 'Lab Report'}</h4>
+                                <p className="text-sm text-muted-foreground">
+                                  {report.createdAt ? format(new Date(report.createdAt), "PPP p") : 'No date'}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    const reportContent = `${report.title}\n\nOriginal Data:\n${report.reportData}\n\nAnalysis:\n${report.analysis}`;
+                                    navigator.clipboard.writeText(reportContent);
+                                    toast({
+                                      title: "Copied",
+                                      description: "Lab report copied to clipboard",
+                                    });
+                                  }}
+                                >
+                                  <Copy className="h-4 w-4" />
+                                </Button>
+                                <Badge variant="outline">
+                                  <FlaskConical className="h-3 w-3 mr-1" />
+                                  {report.reportType || 'Lab'}
+                                </Badge>
+                              </div>
+                            </div>
+                            {report.analysis && (
+                              <div className="mt-2">
+                                <div className="p-3 bg-blue-50 rounded-md max-h-60 overflow-y-auto">
+                                  <h5 className="font-medium text-sm mb-2">Analysis Results:</h5>
+                                  <div className="text-sm">
+                                    {typeof report.analysis === 'string' ? (
+                                      (() => {
+                                        try {
+                                          const parsed = JSON.parse(report.analysis);
+                                          return (
+                                            <div className="space-y-2">
+                                              {parsed.summary && (
+                                                <div>
+                                                  <strong>Summary:</strong>
+                                                  <p className="text-muted-foreground">{parsed.summary}</p>
+                                                </div>
+                                              )}
+                                              {parsed.abnormalValues && Array.isArray(parsed.abnormalValues) && parsed.abnormalValues.length > 0 && (
+                                                <div>
+                                                  <strong>Abnormal Values:</strong>
+                                                  <ul className="list-disc list-inside text-muted-foreground">
+                                                    {parsed.abnormalValues.map((value: any, idx: number) => (
+                                                      <li key={idx}>{value}</li>
+                                                    ))}
+                                                  </ul>
+                                                </div>
+                                              )}
+                                              {parsed.recommendations && Array.isArray(parsed.recommendations) && parsed.recommendations.length > 0 && (
+                                                <div>
+                                                  <strong>Recommendations:</strong>
+                                                  <ul className="list-disc list-inside text-muted-foreground">
+                                                    {parsed.recommendations.map((rec: any, idx: number) => (
+                                                      <li key={idx}>{rec}</li>
+                                                    ))}
+                                                  </ul>
+                                                </div>
+                                              )}
+                                            </div>
+                                          );
+                                        } catch (e) {
+                                          return <pre className="whitespace-pre-wrap font-sans text-sm text-muted-foreground">{report.analysis}</pre>;
+                                        }
+                                      })()
+                                    ) : (
+                                      <pre className="whitespace-pre-wrap font-sans text-sm text-muted-foreground">{JSON.stringify(report.analysis, null, 2)}</pre>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>

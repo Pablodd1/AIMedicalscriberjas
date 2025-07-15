@@ -304,6 +304,7 @@ export default function LabInterpreter() {
     try {
       setIsAnalyzing(true);
       setAnalysisResult(null);
+      setReportSavedToPatient(false); // Reset saved state for new analysis
       
       const response = await apiRequest('POST', '/api/lab-interpreter/analyze', {
         reportText: inputText,
@@ -331,29 +332,7 @@ export default function LabInterpreter() {
       // Switch to results tab
       setActiveTab('results');
       
-      // Save the report if a patient is selected
-      if (withPatient && selectedPatientId) {
-        try {
-          // Save the lab report analysis to patient records
-          const saveResponse = await apiRequest('POST', '/api/lab-interpreter/save-report', {
-            patientId: parseInt(selectedPatientId),
-            reportData: inputText,
-            analysis: data.analysis
-          });
-          
-          const saveData = await saveResponse.json();
-          
-          if (saveData.success) {
-            toast({
-              title: 'Report Saved to Patient Record',
-              description: 'The lab report analysis has been saved to the patient\'s medical record.'
-            });
-          }
-        } catch (saveError) {
-          console.error('Error saving report to patient records:', saveError);
-          // Continue even if saving fails
-        }
-      }
+      // Note: We'll save manually with the save button instead of automatically
       
       toast({
         title: 'Analysis Complete',
@@ -648,11 +627,54 @@ export default function LabInterpreter() {
       description: 'The lab report analysis has been downloaded successfully.'
     });
   };
+
+  // Handle saving report to patient
+  const handleSaveReportToPatient = async () => {
+    if (!withPatient || !selectedPatientId || !analysisResult) {
+      toast({
+        title: 'Cannot Save',
+        description: 'Please select a patient and ensure analysis results are available.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    try {
+      setIsSavingReport(true);
+      
+      const response = await apiRequest('POST', '/api/lab-interpreter/save-report', {
+        patientId: parseInt(selectedPatientId),
+        reportData: inputText,
+        analysis: JSON.stringify(analysisResult),
+        title: `Lab Report Analysis - ${new Date().toLocaleDateString()}`
+      });
+      
+      const result = await response.json();
+      
+      setReportSavedToPatient(true);
+      
+      toast({
+        title: 'Report Saved Successfully',
+        description: 'The lab report analysis has been saved to the patient\'s medical record.'
+      });
+    } catch (error) {
+      console.error('Error saving report to patient:', error);
+      toast({
+        title: 'Save Failed',
+        description: error instanceof Error ? error.message : 'Failed to save report to patient record.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsSavingReport(false);
+    }
+  };
   
   // Handle follow-up question
   const [followUpQuestion, setFollowUpQuestion] = useState('');
   const [isAskingFollowUp, setIsAskingFollowUp] = useState(false);
   const [followUpAnswer, setFollowUpAnswer] = useState('');
+  const [isSavingReport, setIsSavingReport] = useState(false);
+  const [reportSavedToPatient, setReportSavedToPatient] = useState(false);
   
   const handleAskFollowUp = async () => {
     if (!followUpQuestion.trim() || !analysisResult) {
@@ -1265,14 +1287,41 @@ export default function LabInterpreter() {
                           </CardDescription>
                         </div>
                         {analysisResult && (
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={handleDownloadReport}
-                          >
-                            <DownloadIcon className="h-4 w-4 mr-1" />
-                            Download Report
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            {withPatient && selectedPatientId && (
+                              <Button 
+                                variant={reportSavedToPatient ? "secondary" : "default"} 
+                                size="sm"
+                                onClick={handleSaveReportToPatient}
+                                disabled={isSavingReport || reportSavedToPatient}
+                              >
+                                {isSavingReport ? (
+                                  <>
+                                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                    Saving...
+                                  </>
+                                ) : reportSavedToPatient ? (
+                                  <>
+                                    <Save className="h-4 w-4 mr-1" />
+                                    Saved ✓
+                                  </>
+                                ) : (
+                                  <>
+                                    <Save className="h-4 w-4 mr-1" />
+                                    Save to Patient
+                                  </>
+                                )}
+                              </Button>
+                            )}
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={handleDownloadReport}
+                            >
+                              <DownloadIcon className="h-4 w-4 mr-1" />
+                              Download Report
+                            </Button>
+                          </div>
                         )}
                       </div>
                     </CardHeader>
