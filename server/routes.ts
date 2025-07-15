@@ -9,6 +9,16 @@ import { monitoringRouter } from "./routes/monitoring";
 import { labInterpreterRouter } from "./routes/lab-interpreter";
 import { patientDocumentsRouter } from "./routes/patient-documents-updated";
 import { adminRouter } from "./routes/admin";
+import { 
+  globalErrorHandler, 
+  requireAuth, 
+  sendErrorResponse, 
+  sendSuccessResponse, 
+  asyncHandler,
+  validateRequestBody,
+  handleDatabaseOperation,
+  AppError
+} from "./error-handler";
 import multer from "multer";
 
 // Extend the global namespace to include our media storage
@@ -61,125 +71,127 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/lab-interpreter', labInterpreterRouter);
   
   // Register Patient Documents routes
-  app.use('/api/patient-documents', (req, res, next) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-    next();
-  }, patientDocumentsRouter);
+  app.use('/api/patient-documents', requireAuth, patientDocumentsRouter);
   
   // Register Admin routes
   app.use('/api/admin', adminRouter);
 
+  // Test error handling endpoint for validation
+  app.get('/api/test-error', asyncHandler(async (req, res) => {
+    throw new AppError('This is a test error', 400, 'TEST_ERROR');
+  }));
+
   // Patients routes
-  app.get("/api/patients", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    const doctorId = req.user.id;
-    const patients = await storage.getPatients(doctorId);
-    res.json(patients);
-  });
+  app.get("/api/patients", requireAuth, asyncHandler(async (req, res) => {
+    const patients = await handleDatabaseOperation(
+      () => storage.getPatients(req.user.id),
+      'Failed to fetch patients'
+    );
+    sendSuccessResponse(res, patients);
+  }));
 
-  app.get("/api/patients/:id", async (req, res) => {
-    const patient = await storage.getPatient(parseInt(req.params.id));
-    if (!patient) return res.sendStatus(404);
-    res.json(patient);
-  });
-
-  app.post("/api/patients", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Unauthorized" });
+  app.get("/api/patients/:id", requireAuth, asyncHandler(async (req, res) => {
+    const patientId = parseInt(req.params.id);
+    if (isNaN(patientId)) {
+      throw new AppError('Invalid patient ID', 400, 'INVALID_PATIENT_ID');
     }
-    const doctorId = req.user.id;
     
-    const validation = insertPatientSchema.safeParse(req.body);
-    if (!validation.success) {
-      return res.status(400).json(validation.error);
+    const patient = await handleDatabaseOperation(
+      () => storage.getPatient(patientId),
+      'Failed to fetch patient'
+    );
+    
+    if (!patient) {
+      throw new AppError('Patient not found', 404, 'PATIENT_NOT_FOUND');
     }
-    const patient = await storage.createPatient({
-      ...validation.data,
-      createdBy: doctorId,
-    });
-    res.status(201).json(patient);
-  });
+    
+    sendSuccessResponse(res, patient);
+  }));
+
+  app.post("/api/patients", requireAuth, asyncHandler(async (req, res) => {
+    const validation = validateRequestBody(insertPatientSchema, req.body);
+    if (!validation.success) {
+      throw new AppError(validation.error!, 400, 'VALIDATION_ERROR');
+    }
+    
+    const patient = await handleDatabaseOperation(
+      () => storage.createPatient({
+        ...validation.data,
+        createdBy: req.user.id,
+      }),
+      'Failed to create patient'
+    );
+    
+    sendSuccessResponse(res, patient, 'Patient created successfully', 201);
+  }));
 
   // Appointments routes
-  app.get("/api/appointments", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Unauthorized" });
+  app.get("/api/appointments", requireAuth, asyncHandler(async (req, res) => {
+    const appointments = await handleDatabaseOperation(
+      () => storage.getAppointments(req.user.id),
+      'Failed to fetch appointments'
+    );
+    sendSuccessResponse(res, appointments);
+  }));
+
+  app.post("/api/appointments", requireAuth, asyncHandler(async (req, res) => {
+    // Convert numeric timestamp to Date object for PostgreSQL timestamp
+    let appointmentData = req.body;
+    if (typeof appointmentData.date === 'number') {
+      appointmentData = {
+        ...appointmentData,
+        date: new Date(appointmentData.date)
+      };
     }
-    const doctorId = req.user.id;
+
+    const validation = validateRequestBody(insertAppointmentSchema, appointmentData);
+    if (!validation.success) {
+      throw new AppError(validation.error!, 400, 'VALIDATION_ERROR');
+    }
     
-    const appointments = await storage.getAppointments(doctorId);
-    res.json(appointments);
-  });
-
-  app.post("/api/appointments", async (req, res) => {
-    try {
-      if (!req.isAuthenticated()) {
-        return res.status(401).json({ message: "Unauthorized" });
-      }
-      const doctorId = req.user.id;
-      
-      // Convert numeric timestamp to Date object for PostgreSQL timestamp
-      let appointmentData = req.body;
-      if (typeof appointmentData.date === 'number') {
-        appointmentData = {
-          ...appointmentData,
-          date: new Date(appointmentData.date)
-        };
-      }
-
-      const validation = insertAppointmentSchema.safeParse(appointmentData);
-      if (!validation.success) {
-        return res.status(400).json(validation.error);
-      }
-      
-      const appointment = await storage.createAppointment({
+    const appointment = await handleDatabaseOperation(
+      () => storage.createAppointment({
         ...validation.data,
-        doctorId: doctorId,
-      });
-      res.status(201).json(appointment);
-    } catch (error) {
-      console.error("Error creating appointment:", error);
-      res.status(500).json({ message: "Failed to create appointment" });
-    }
-  });
+        doctorId: req.user.id,
+      }),
+      'Failed to create appointment'
+    );
+    
+    sendSuccessResponse(res, appointment, 'Appointment created successfully', 201);
+  }));
 
   // Update appointment status
-  app.patch("/api/appointments/:id", async (req, res) => {
-    try {
-      const appointmentId = parseInt(req.params.id);
-      const { status } = req.body;
-      
-      if (!status) {
-        return res.status(400).json({ message: "Status is required" });
-      }
-      
-      const updatedAppointment = await storage.updateAppointmentStatus(appointmentId, status);
-      
-      if (!updatedAppointment) {
-        return res.status(404).json({ message: "Appointment not found" });
-      }
-      
-      res.json(updatedAppointment);
-    } catch (error) {
-      console.error("Error updating appointment status:", error);
-      res.status(500).json({ message: "Failed to update appointment status" });
+  app.patch("/api/appointments/:id", requireAuth, asyncHandler(async (req, res) => {
+    const appointmentId = parseInt(req.params.id);
+    if (isNaN(appointmentId)) {
+      throw new AppError('Invalid appointment ID', 400, 'INVALID_APPOINTMENT_ID');
     }
-  });
+    
+    const { status } = req.body;
+    if (!status) {
+      throw new AppError('Status is required', 400, 'STATUS_REQUIRED');
+    }
+    
+    const updatedAppointment = await handleDatabaseOperation(
+      () => storage.updateAppointmentStatus(appointmentId, status),
+      'Failed to update appointment status'
+    );
+    
+    if (!updatedAppointment) {
+      throw new AppError('Appointment not found', 404, 'APPOINTMENT_NOT_FOUND');
+    }
+    
+    sendSuccessResponse(res, updatedAppointment, 'Appointment status updated successfully');
+  }));
 
   // Medical Notes routes
-  app.get("/api/medical-notes", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    const doctorId = req.user.id;
-    
-    const notes = await storage.getMedicalNotes(doctorId);
-    res.json(notes);
-  });
+  app.get("/api/medical-notes", requireAuth, asyncHandler(async (req, res) => {
+    const notes = await handleDatabaseOperation(
+      () => storage.getMedicalNotes(req.user.id),
+      'Failed to fetch medical notes'
+    );
+    sendSuccessResponse(res, notes);
+  }));
 
   app.get("/api/patients/:patientId/medical-notes", async (req, res) => {
     const patientId = parseInt(req.params.patientId);

@@ -1,19 +1,28 @@
 import { Router } from 'express';
 import OpenAI from 'openai';
 import multer from 'multer';
-import { storage } from '../storage';
+import { storage as dbStorage } from '../storage';
+import { 
+  requireAuth, 
+  sendErrorResponse, 
+  sendSuccessResponse, 
+  asyncHandler,
+  handleOpenAIError,
+  AppError,
+  handleDatabaseOperation
+} from '../error-handler';
 
 export const aiRouter = Router();
 
 // Helper function to get OpenAI client for a user
 async function getOpenAIClient(userId: number): Promise<OpenAI | null> {
   try {
-    const user = await storage.getUser(userId);
+    const user = await dbStorage.getUser(userId);
     if (!user) return null;
 
     // Check if user should use their own API key
     if (user.useOwnApiKey) {
-      const userApiKey = await storage.getUserApiKey(userId);
+      const userApiKey = await dbStorage.getUserApiKey(userId);
       if (userApiKey) {
         return new OpenAI({
           apiKey: userApiKey,
@@ -24,7 +33,7 @@ async function getOpenAIClient(userId: number): Promise<OpenAI | null> {
       }
     } else {
       // User should use global API key
-      const globalApiKey = await storage.getSystemSetting('global_openai_api_key');
+      const globalApiKey = await dbStorage.getSystemSetting('global_openai_api_key');
       if (globalApiKey) {
         return new OpenAI({
           apiKey: globalApiKey,
@@ -47,36 +56,40 @@ async function getOpenAIClient(userId: number): Promise<OpenAI | null> {
 }
 
 // Configure multer for file uploads
-const storage = multer.memoryStorage();
+const multerStorage = multer.memoryStorage();
 const upload = multer({ 
-  storage,
+  storage: multerStorage,
   limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
 });
 
 // Route to handle chat completion
-aiRouter.post('/chat', async (req, res) => {
+aiRouter.post('/chat', requireAuth, asyncHandler(async (req, res) => {
+  const { messages } = req.body;
+  const userId = req.user.id;
+
+  if (!messages || !Array.isArray(messages)) {
+    throw new AppError('Messages must be provided as an array', 400, 'INVALID_MESSAGES');
+  }
+
+  if (messages.length === 0) {
+    throw new AppError('At least one message is required', 400, 'EMPTY_MESSAGES');
+  }
+
+  const openai = await getOpenAIClient(userId);
+  if (!openai) {
+    const user = await handleDatabaseOperation(
+      () => dbStorage.getUser(userId),
+      'Failed to fetch user data'
+    );
+    
+    const errorMessage = user?.useOwnApiKey 
+      ? 'No personal OpenAI API key found. Please add your OpenAI API key in Settings to use AI features.'
+      : 'No global OpenAI API key configured. Please contact your administrator or add your own API key in Settings.';
+    
+    throw new AppError(errorMessage, 503, 'NO_API_KEY');
+  }
+
   try {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-
-    const { messages } = req.body;
-    const userId = req.user.id;
-
-    if (!messages || !Array.isArray(messages)) {
-      return res.status(400).json({ error: 'Messages must be provided as an array' });
-    }
-
-    const openai = await getOpenAIClient(userId);
-    if (!openai) {
-      const user = await storage.getUser(userId);
-      const errorMessage = user?.useOwnApiKey 
-        ? 'No personal OpenAI API key found. Please add your OpenAI API key in Settings to use AI features.'
-        : 'No global OpenAI API key configured. Please contact your administrator or add your own API key in Settings.';
-      
-      return res.status(400).json({ error: errorMessage });
-    }
-
     // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -85,22 +98,20 @@ aiRouter.post('/chat', async (req, res) => {
       max_tokens: 1000
     });
 
-    const assistantMessage = response.choices[0].message;
+    const assistantMessage = response.choices[0]?.message;
+    if (!assistantMessage?.content) {
+      throw new AppError('No response generated from AI service', 500, 'NO_AI_RESPONSE');
+    }
     
-    return res.json({
+    sendSuccessResponse(res, {
       content: assistantMessage.content,
       role: 'assistant'
-    });
+    }, 'Chat completion successful');
   } catch (error) {
     console.error('OpenAI API error:', error);
-    if (error instanceof Error && error.message.includes('Incorrect API key')) {
-      return res.status(401).json({ 
-        error: 'Invalid OpenAI API key. Please update your API key in Settings.' 
-      });
-    }
-    return res.status(500).json({ error: 'Failed to get response from OpenAI' });
+    throw handleOpenAIError(error);
   }
-});
+}));
 
 // Route to generate a title for a conversation
 aiRouter.post('/generate-title', async (req, res) => {
@@ -118,7 +129,7 @@ aiRouter.post('/generate-title', async (req, res) => {
 
     const openai = await getOpenAIClient(userId);
     if (!openai) {
-      const user = await storage.getUser(userId);
+      const user = await dbStorage.getUser(userId);
       const errorMessage = user?.useOwnApiKey 
         ? 'No personal OpenAI API key found. Please add your OpenAI API key in Settings to use AI features.'
         : 'No global OpenAI API key configured. Please contact your administrator or add your own API key in Settings.';
@@ -171,7 +182,7 @@ aiRouter.post('/generate-soap', async (req, res) => {
 
     const openai = await getOpenAIClient(userId);
     if (!openai) {
-      const user = await storage.getUser(userId);
+      const user = await dbStorage.getUser(userId);
       const errorMessage = user?.useOwnApiKey 
         ? 'No personal OpenAI API key found. Please add your OpenAI API key in Settings to use AI features.'
         : 'No global OpenAI API key configured. Please contact your administrator or add your own API key in Settings.';
