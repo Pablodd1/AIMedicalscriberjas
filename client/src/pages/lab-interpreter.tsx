@@ -372,11 +372,13 @@ export default function LabInterpreter() {
         credentials: 'include'
       });
       
-      const data = await response.json();
+      const result = await response.json();
       
-      if (data.error) {
-        throw new Error(data.error);
+      if (!result.success) {
+        throw new Error(result.error || 'Upload failed');
       }
+      
+      const data = result.data;
       
       // Set the extracted text in the input field
       setInputText(data.extractedText);

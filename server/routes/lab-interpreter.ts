@@ -6,6 +6,7 @@ import fs from 'fs';
 import OpenAI from 'openai';
 import { z } from 'zod';
 import xlsx from 'xlsx';
+// PDF parsing removed - using OpenAI Vision API for better accuracy
 import { 
   requireAuth, 
   sendErrorResponse, 
@@ -795,66 +796,87 @@ labInterpreterRouter.post('/analyze', async (req, res) => {
 });
 
 // Upload and analyze lab report file
-labInterpreterRouter.post('/analyze/upload', upload.single('labReport'), async (req, res) => {
+labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labReport'), asyncHandler(async (req, res) => {
+  if (!req.file) {
+    throw new AppError('No file uploaded', 400, 'NO_FILE_UPLOADED');
+  }
+  
+  const { patientId, withPatient } = req.body;
+  
+  // Check if OpenAI API key is configured
+  if (!process.env.OPENAI_API_KEY) {
+    // Clean up the uploaded file
+    if (fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    throw new AppError('OpenAI API key not configured', 500, 'OPENAI_API_KEY_MISSING');
+  }
+
+  let extractedText = '';
+  let analysis = '';
+
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    }
     
-    const { patientId, withPatient } = req.body;
-    
-    // Check if OpenAI API key is configured
-    if (!process.env.OPENAI_API_KEY) {
-      // Clean up the uploaded file
-      if (fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
-      }
-      return res.status(500).json({ error: 'OpenAI API key not configured' });
-    }
-    
-    // Extract text from file using OpenAI's Vision API
+    // Extract text from file using OpenAI Vision API for all supported formats
     const fileBuffer = fs.readFileSync(req.file.path);
     const base64File = fileBuffer.toString('base64');
     
-    // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-    const textExtractionResponse = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: "text",
-              text: "Extract all the text content from this lab report. Include all test names, values, reference ranges, and any other relevant information. Format the data in a clean, structured way."
-            },
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:${req.file.mimetype};base64,${base64File}`
+    if (req.file.mimetype === 'application/pdf' || req.file.mimetype.startsWith('image/')) {
+      // Use OpenAI Vision API for both PDFs and images
+      const fileTypeText = req.file.mimetype === 'application/pdf' ? 'PDF' : 'image';
+      const textExtractionResponse = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: "text",
+                text: `Extract all the text content from this lab report ${fileTypeText}. Include all test names, values, reference ranges, and any other relevant information. Format the data in a clean, structured way that preserves the original layout and organization.`
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:${req.file.mimetype};base64,${base64File}`
+                }
               }
-            }
-          ]
-        }
-      ],
-      max_tokens: 4000
-    });
+            ]
+          }
+        ],
+        max_tokens: 4000
+      });
+      extractedText = textExtractionResponse.choices[0].message.content || '';
+    } else {
+      throw new AppError('Unsupported file type. Please upload a PDF or image file.', 400, 'UNSUPPORTED_FILE_TYPE');
+    }
     
-    const extractedText = textExtractionResponse.choices[0].message.content;
+    if (!extractedText.trim()) {
+      throw new AppError('No text could be extracted from the uploaded file. Please ensure the file contains readable lab report data.', 400, 'NO_TEXT_EXTRACTED');
+    }
     
     // Get settings and knowledge base
-    const settings = await storage.getLabInterpreterSettings();
-    const knowledgeBase = await storage.getLabKnowledgeBase();
+    const settings = await handleDatabaseOperation(
+      () => storage.getLabInterpreterSettings(),
+      'Failed to get lab interpreter settings'
+    );
+    const knowledgeBase = await handleDatabaseOperation(
+      () => storage.getLabKnowledgeBase(),
+      'Failed to get knowledge base'
+    );
     
     // Default prompts if settings not found
-    const systemPrompt = settings?.systemPrompt || 'You are a medical lab report interpreter. Your task is to analyze lab test results and provide insights based on medical knowledge and the provided reference ranges. Be factual and evidence-based in your analysis.';
-    let userPrompt = settings?.withoutPatientPrompt || 'Analyze this lab report. Provide a detailed interpretation of abnormal values, possible implications, and recommendations.';
+    const systemPrompt = settings?.system_prompt || 'You are a medical lab report interpreter. Your task is to analyze lab test results and provide insights based on medical knowledge and the provided reference ranges. Be factual and evidence-based in your analysis.';
+    let userPrompt = settings?.without_patient_prompt || 'Analyze this lab report. Provide a detailed interpretation of abnormal values, possible implications, and recommendations.';
     
     let patient = null;
     if (withPatient === 'true' && patientId) {
       // Get patient info if needed
-      patient = await storage.getPatient(parseInt(patientId));
+      patient = await handleDatabaseOperation(
+        () => storage.getPatient(parseInt(patientId)),
+        'Failed to get patient information'
+      );
       if (patient) {
-        userPrompt = settings?.withPatientPrompt || 'Analyze this lab report for the patient. Provide a detailed interpretation of abnormal values, possible implications, and recommendations.';
+        userPrompt = settings?.with_patient_prompt || 'Analyze this lab report for the patient. Provide a detailed interpretation of abnormal values, possible implications, and recommendations.';
         // Replace placeholders with actual patient info
         userPrompt = userPrompt
           .replace('${patientName}', `${patient.firstName} ${patient.lastName}`)
@@ -885,23 +907,23 @@ labInterpreterRouter.post('/analyze/upload', upload.single('labReport'), async (
       response_format: { type: "json_object" }
     });
     
-    const analysis = analysisResponse.choices[0].message.content;
+    analysis = analysisResponse.choices[0].message.content || '';
     
     // Save to database if patient is selected
     if (withPatient === 'true' && patientId && patient) {
-      const doctorId = req.user?.id;
-      if (doctorId) {
-        await storage.createLabReport({
+      await handleDatabaseOperation(
+        () => storage.createLabReport({
           patientId: parseInt(patientId),
-          doctorId,
+          doctorId: req.user.id,
           reportData: extractedText,
           reportType: req.file.mimetype.startsWith('image/') ? 'image' : 'pdf',
           fileName: req.file.originalname,
           filePath: req.file.path,
           title: `Lab Report Analysis - ${patient.firstName} ${patient.lastName}`,
           analysis: analysis
-        });
-      }
+        }),
+        'Failed to save lab report to database'
+      );
     } else {
       // Clean up the uploaded file if not saving to database
       if (fs.existsSync(req.file.path)) {
@@ -909,21 +931,21 @@ labInterpreterRouter.post('/analyze/upload', upload.single('labReport'), async (
       }
     }
     
-    return res.json({ 
+    sendSuccessResponse(res, { 
       extractedText,
       analysis 
-    });
-  } catch (error) {
-    console.error('Error analyzing lab report file:', error);
+    }, 'Lab report analyzed successfully');
     
+  } catch (error) {
     // Clean up the uploaded file if it exists
     if (req.file && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
     }
     
-    return res.status(500).json({ error: 'Failed to analyze lab report file' });
+    // Re-throw the error to be handled by the global error handler
+    throw error;
   }
-});
+}));
 
 // Get lab reports
 labInterpreterRouter.get('/reports', async (req, res) => {
