@@ -381,7 +381,16 @@ const AdminPanel = () => {
         setSelectedUserForApiKey(data.user);
       }
       
-      // Force refresh the cache and refetch data
+      // Update the cache directly with the new user data
+      queryClient.setQueryData(['/api/admin/users'], (oldData: User[] | undefined) => {
+        if (!oldData) return oldData;
+        return oldData.map(user => 
+          user.id === data.user.id ? data.user : user
+        );
+      });
+      
+      // Force refresh the cache and refetch data with explicit cache removal
+      queryClient.removeQueries({ queryKey: ['/api/admin/users'] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
       queryClient.refetchQueries({ queryKey: ['/api/admin/users'] });
       
@@ -509,6 +518,8 @@ const AdminPanel = () => {
 
   // Force refresh helper
   const forceRefreshData = () => {
+    queryClient.removeQueries({ queryKey: ['/api/admin/users'] });
+    queryClient.removeQueries({ queryKey: ['/api/admin/global-api-key'] });
     queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
     queryClient.invalidateQueries({ queryKey: ['/api/admin/global-api-key'] });
     queryClient.refetchQueries({ queryKey: ['/api/admin/users'] });
