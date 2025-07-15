@@ -312,11 +312,13 @@ export default function LabInterpreter() {
         withPatient
       });
       
-      const data = await response.json();
+      const result = await response.json();
       
-      if (data.error) {
-        throw new Error(data.error);
+      if (!result.success) {
+        throw new Error(result.error || 'Analysis failed');
       }
+      
+      const data = result.data;
       
       // Parse analysis if it's a JSON string
       let parsedResult;

@@ -714,86 +714,90 @@ labInterpreterRouter.post('/settings', async (req, res) => {
 });
 
 // Analyze lab report text
-labInterpreterRouter.post('/analyze', async (req, res) => {
-  try {
-    const { reportText, patientId, withPatient } = req.body;
-    
-    if (!reportText) {
-      return res.status(400).json({ error: 'Report text is required' });
-    }
-    
-    // Check if OpenAI API key is configured
-    if (!process.env.OPENAI_API_KEY) {
-      return res.status(500).json({ error: 'OpenAI API key not configured' });
-    }
-    
-    // Get settings and knowledge base
-    const settings = await storage.getLabInterpreterSettings();
-    const knowledgeBase = await storage.getLabKnowledgeBase();
-    
-    // Default prompts if settings not found
-    const systemPrompt = settings?.system_prompt || settings?.systemPrompt || 'You are a medical lab report interpreter. Your task is to analyze lab test results and provide insights based on medical knowledge and the provided reference ranges. Be factual and evidence-based in your analysis.';
-    let userPrompt = settings?.without_patient_prompt || settings?.withoutPatientPrompt || 'Analyze this lab report. Provide a detailed interpretation of abnormal values, possible implications, and recommendations.';
-    
-    let patient = null;
-    if (withPatient && patientId) {
-      // Get patient info if needed
-      patient = await storage.getPatient(patientId);
-      if (patient) {
-        userPrompt = settings?.with_patient_prompt || settings?.withPatientPrompt || 'Analyze this lab report for the patient. Provide a detailed interpretation of abnormal values, possible implications, and recommendations.';
-        // Replace placeholders with actual patient info
-        userPrompt = userPrompt
-          .replace('${patientName}', `${patient.firstName} ${patient.lastName}`)
-          .replace('${patientId}', patient.id.toString());
-      }
-    }
-    
-    // Prepare knowledge base for prompt
-    const knowledgeBaseText = knowledgeBase.map(item => 
-      `Test: ${item.test_name}\nMarker: ${item.marker}\nNormal Range: ${item.normal_range_low || ''} - ${item.normal_range_high || ''} ${item.unit || ''}\nInterpretation: ${item.interpretation}\nRecommendations: ${item.recommendations || ''}`
-    ).join('\n\n');
-    
-    // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        { 
-          role: 'system',
-          content: systemPrompt
-        },
-        {
-          role: 'user',
-          content: `Here is my knowledge base of lab test reference values and interpretations:\n\n${knowledgeBaseText}\n\nNow, ${userPrompt}\n\nLab Report:\n${reportText}\n\nIMPORTANT: Base your analysis ONLY on the knowledge base provided above. Do not use any external medical knowledge or reference ranges that are not in the knowledge base.\n\nPlease provide your analysis as a JSON object with the following structure: { "summary": "brief overview", "abnormalValues": [], "interpretation": "detailed explanation", "recommendations": [] }`
-        }
-      ],
-      temperature: 0.4,
-      max_tokens: 2000,
-      response_format: { type: "json_object" }
-    });
-    
-    const analysis = response.choices[0].message.content;
-    
-    // Save to database if patient is selected
-    if (withPatient && patientId && patient) {
-      const doctorId = req.user?.id;
-      if (doctorId) {
-        await storage.createLabReport({
-          patientId,
-          doctorId,
-          reportData: reportText,
-          reportType: 'text',
-          title: `Lab Report Analysis - ${patient.firstName} ${patient.lastName}`,
-          analysis: analysis
-        });
-      }
-    }
-    
-    return res.json({ analysis });
-  } catch (error) {
-    console.error('Error analyzing lab report:', error);
-    return res.status(500).json({ error: 'Failed to analyze lab report' });
+labInterpreterRouter.post('/analyze', requireAuth, asyncHandler(async (req, res) => {
+  const { reportText, patientId, withPatient } = req.body;
+  
+  if (!reportText) {
+    throw new AppError('Report text is required', 400, 'REPORT_TEXT_MISSING');
   }
-});
+  
+  // Check if OpenAI API key is configured
+  if (!process.env.OPENAI_API_KEY) {
+    throw new AppError('OpenAI API key not configured. Please contact your administrator or configure your personal API key.', 500, 'OPENAI_API_KEY_MISSING');
+  }
+    
+  // Get settings and knowledge base
+  const settings = await handleDatabaseOperation(
+    () => storage.getLabInterpreterSettings(),
+    'Failed to get lab interpreter settings'
+  );
+  const knowledgeBase = await handleDatabaseOperation(
+    () => storage.getLabKnowledgeBase(),
+    'Failed to get knowledge base'
+  );
+  
+  // Default prompts if settings not found
+  const systemPrompt = settings?.system_prompt || settings?.systemPrompt || 'You are a medical lab report interpreter. Your task is to analyze lab test results and provide insights based on medical knowledge and the provided reference ranges. Be factual and evidence-based in your analysis.';
+  let userPrompt = settings?.without_patient_prompt || settings?.withoutPatientPrompt || 'Analyze this lab report. Provide a detailed interpretation of abnormal values, possible implications, and recommendations.';
+  
+  let patient = null;
+  if (withPatient && patientId) {
+    // Get patient info if needed
+    patient = await handleDatabaseOperation(
+      () => storage.getPatient(patientId),
+      'Failed to get patient information'
+    );
+    if (patient) {
+      userPrompt = settings?.with_patient_prompt || settings?.withPatientPrompt || 'Analyze this lab report for the patient. Provide a detailed interpretation of abnormal values, possible implications, and recommendations.';
+      // Replace placeholders with actual patient info
+      userPrompt = userPrompt
+        .replace('${patientName}', `${patient.firstName} ${patient.lastName}`)
+        .replace('${patientId}', patient.id.toString());
+    }
+  }
+    
+  // Prepare knowledge base for prompt
+  const knowledgeBaseText = knowledgeBase.map(item => 
+    `Test: ${item.test_name}\nMarker: ${item.marker}\nNormal Range: ${item.normal_range_low || ''} - ${item.normal_range_high || ''} ${item.unit || ''}\nInterpretation: ${item.interpretation}\nRecommendations: ${item.recommendations || ''}`
+  ).join('\n\n');
+  
+  // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o",
+    messages: [
+      { 
+        role: 'system',
+        content: systemPrompt
+      },
+      {
+        role: 'user',
+        content: `Here is my knowledge base of lab test reference values and interpretations:\n\n${knowledgeBaseText}\n\nNow, ${userPrompt}\n\nLab Report:\n${reportText}\n\nIMPORTANT: Base your analysis ONLY on the knowledge base provided above. Do not use any external medical knowledge or reference ranges that are not in the knowledge base.\n\nPlease provide your analysis as a JSON object with the following structure: { "summary": "brief overview", "abnormalValues": [], "interpretation": "detailed explanation", "recommendations": [] }`
+      }
+    ],
+    temperature: 0.4,
+    max_tokens: 2000,
+    response_format: { type: "json_object" }
+  });
+  
+  const analysis = response.choices[0].message.content;
+  
+  // Save to database if patient is selected
+  if (withPatient && patientId && patient) {
+    await handleDatabaseOperation(
+      () => storage.createLabReport({
+        patientId,
+        doctorId: req.user.id,
+        reportData: reportText,
+        reportType: 'text',
+        title: `Lab Report Analysis - ${patient.firstName} ${patient.lastName}`,
+        analysis: analysis
+      }),
+      'Failed to save lab report to database'
+    );
+  }
+  
+  sendSuccessResponse(res, { analysis }, 'Lab report analyzed successfully');
+}));
 
 // Upload and analyze lab report file
 labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labReport'), asyncHandler(async (req, res) => {
