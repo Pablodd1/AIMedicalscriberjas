@@ -554,18 +554,27 @@ const AdminPanel = () => {
     <div className="container mx-auto py-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Admin Panel</h1>
-        <Button 
-          variant="outline" 
-          onClick={() => {
-            setIsAuthenticated(false);
-            toast({
-              title: 'Logged out',
-              description: 'You have been logged out of the admin panel.'
-            });
-          }}
-        >
-          Logout
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={forceRefreshData}
+          >
+            Refresh Data
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              setIsAuthenticated(false);
+              toast({
+                title: 'Logged out',
+                description: 'You have been logged out of the admin panel.'
+              });
+            }}
+          >
+            Logout
+          </Button>
+        </div>
       </div>
       
       <Tabs defaultValue="users">
@@ -797,13 +806,20 @@ const AdminPanel = () => {
                     )}
 
                     <div className="flex space-x-2">
-                      <Input
-                        placeholder={globalApiKeyData?.hasGlobalApiKey && globalApiKeyData.maskedKey ? globalApiKeyData.maskedKey : "sk-..."}
-                        type="password"
-                        value={globalApiKey}
-                        onChange={(e) => setGlobalApiKey(e.target.value)}
-                        className="flex-1"
-                      />
+                      <div className="flex-1 relative">
+                        <Input
+                          placeholder={globalApiKeyData?.hasGlobalApiKey ? "Enter new API key to update" : "sk-..."}
+                          type="password"
+                          value={globalApiKey}
+                          onChange={(e) => setGlobalApiKey(e.target.value)}
+                          className="w-full"
+                        />
+                        {globalApiKeyData?.hasGlobalApiKey && !globalApiKey && (
+                          <div className="absolute inset-0 flex items-center px-3 text-sm text-muted-foreground pointer-events-none">
+                            Current: {globalApiKeyData.maskedKey}
+                          </div>
+                        )}
+                      </div>
                       <Button
                         onClick={handleSaveGlobalApiKey}
                         disabled={saveGlobalApiKeyMutation.isPending || !globalApiKey.trim()}
