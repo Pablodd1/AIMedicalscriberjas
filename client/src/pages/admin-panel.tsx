@@ -344,6 +344,7 @@ const AdminPanel = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/global-api-key'] });
+      setGlobalApiKey('');
       toast({
         title: 'Global API key removed',
         description: 'The global OpenAI API key has been removed successfully.',
@@ -789,7 +790,7 @@ const AdminPanel = () => {
 
                     <div className="flex space-x-2">
                       <Input
-                        placeholder="sk-..."
+                        placeholder={globalApiKeyData?.hasGlobalApiKey ? globalApiKeyData.maskedKey : "sk-..."}
                         type="password"
                         value={globalApiKey}
                         onChange={(e) => setGlobalApiKey(e.target.value)}
