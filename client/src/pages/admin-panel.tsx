@@ -120,9 +120,12 @@ const AdminPanel = () => {
     queryKey: ['/api/admin/users'],
     queryFn: async () => {
       if (!isAuthenticated) return [] as UserWithPlainPassword[];
-      const response = await fetch('/api/admin/users?includePasswords=true', {
+      const response = await fetch('/api/admin/users?includePasswords=true&_t=' + Date.now(), {
         headers: {
-          'X-Admin-Password': 'admin@@@'
+          'X-Admin-Password': 'admin@@@',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
         }
       });
       if (!response.ok) {
@@ -131,6 +134,8 @@ const AdminPanel = () => {
       return await response.json();
     },
     enabled: isAuthenticated,
+    staleTime: 0,
+    gcTime: 0,
   });
 
   const { data: stats, isLoading: isLoadingStats } = useQuery({
@@ -381,16 +386,14 @@ const AdminPanel = () => {
         setSelectedUserForApiKey(data.user);
       }
       
-      // Update the cache with the new user data immediately
-      queryClient.setQueryData(['/api/admin/users'], (oldData: UserWithPlainPassword[] | undefined) => {
-        if (!oldData) return oldData;
-        return oldData.map(user => 
-          user.id === data.user.id ? { ...user, useOwnApiKey: data.user.useOwnApiKey } : user
-        );
-      });
+      // Force complete cache invalidation and refetch with cache busting
+      queryClient.removeQueries({ queryKey: ['/api/admin/users'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
       
-      // Force complete cache invalidation
-      queryClient.resetQueries({ queryKey: ['/api/admin/users'] });
+      // Force immediate refetch with cache busting
+      setTimeout(() => {
+        queryClient.refetchQueries({ queryKey: ['/api/admin/users'] });
+      }, 50);
       
       setShowApiKeyDialog(false);
       setTempApiKeySetting(false); // Reset temp state
