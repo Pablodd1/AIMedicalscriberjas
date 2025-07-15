@@ -313,7 +313,7 @@ const AdminPanel = () => {
       return await response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/global-api-key'] });
+      forceRefreshData();
       setGlobalApiKey('');
       toast({
         title: 'Global API key saved',
@@ -343,7 +343,7 @@ const AdminPanel = () => {
       return await response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/global-api-key'] });
+      forceRefreshData();
       setGlobalApiKey('');
       toast({
         title: 'Global API key removed',
@@ -375,7 +375,7 @@ const AdminPanel = () => {
       return await response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+      forceRefreshData();
       setShowApiKeyDialog(false);
       toast({
         title: 'API key setting updated',
@@ -494,6 +494,14 @@ const AdminPanel = () => {
   const openApiKeyDialog = (user: User) => {
     setSelectedUserForApiKey(user);
     setShowApiKeyDialog(true);
+  };
+
+  // Force refresh helper
+  const forceRefreshData = () => {
+    queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+    queryClient.invalidateQueries({ queryKey: ['/api/admin/global-api-key'] });
+    queryClient.refetchQueries({ queryKey: ['/api/admin/users'] });
+    queryClient.refetchQueries({ queryKey: ['/api/admin/global-api-key'] });
   };
 
   const handleUpdateUserApiKeySetting = (useOwnApiKey: boolean) => {
@@ -790,7 +798,7 @@ const AdminPanel = () => {
 
                     <div className="flex space-x-2">
                       <Input
-                        placeholder={globalApiKeyData?.hasGlobalApiKey ? globalApiKeyData.maskedKey : "sk-..."}
+                        placeholder={globalApiKeyData?.hasGlobalApiKey && globalApiKeyData.maskedKey ? globalApiKeyData.maskedKey : "sk-..."}
                         type="password"
                         value={globalApiKey}
                         onChange={(e) => setGlobalApiKey(e.target.value)}
