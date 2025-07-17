@@ -848,6 +848,10 @@ labInterpreterRouter.post('/analyze', requireAuth, asyncHandler(async (req, res)
   const systemPrompt = settings?.system_prompt || settings?.systemPrompt || 'You are a medical lab report interpreter. Your task is to analyze lab test results and provide insights based on medical knowledge and the provided reference ranges. Be factual and evidence-based in your analysis.';
   let userPrompt = settings?.without_patient_prompt || settings?.withoutPatientPrompt || 'Analyze this lab report. Provide a detailed interpretation of abnormal values, possible implications, and recommendations.';
   
+  console.log('Using prompts for analysis:');
+  console.log('System Prompt:', systemPrompt.substring(0, 100) + '...');
+  console.log('User Prompt:', userPrompt.substring(0, 100) + '...');
+  
   let patient = null;
   if (withPatient && patientId) {
     // Get patient info if needed
@@ -861,6 +865,7 @@ labInterpreterRouter.post('/analyze', requireAuth, asyncHandler(async (req, res)
       userPrompt = userPrompt
         .replace('${patientName}', `${patient.firstName} ${patient.lastName}`)
         .replace('${patientId}', patient.id.toString());
+      console.log('Using patient-specific prompt for:', `${patient.firstName} ${patient.lastName}`);
     }
   }
     
@@ -881,7 +886,7 @@ labInterpreterRouter.post('/analyze', requireAuth, asyncHandler(async (req, res)
         },
         {
           role: 'user',
-          content: `Here is my knowledge base of lab test reference values and interpretations:\n\n${knowledgeBaseText}\n\nNow, ${userPrompt}\n\nLab Report:\n${reportText}\n\nIMPORTANT: Base your analysis ONLY on the knowledge base provided above. Do not use any external medical knowledge or reference ranges that are not in the knowledge base.\n\nPlease provide your analysis as a JSON object with the following structure: { "summary": "brief overview", "abnormalValues": [], "interpretation": "detailed explanation", "recommendations": [] }`
+          content: `Here is my knowledge base of lab test reference values and interpretations:\n\n${knowledgeBaseText}\n\nNow, ${userPrompt}\n\nLab Report:\n${reportText}\n\nPlease provide your analysis as a JSON object with the following structure: { "summary": "brief overview", "abnormalValues": [], "interpretation": "detailed explanation", "recommendations": [] }`
         }
       ],
       temperature: 0.4,
@@ -1031,6 +1036,10 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
     const systemPrompt = settings?.system_prompt || 'You are a medical lab report interpreter. Your task is to analyze lab test results and provide insights based on medical knowledge and the provided reference ranges. Be factual and evidence-based in your analysis.';
     let userPrompt = settings?.without_patient_prompt || 'Analyze this lab report. Provide a detailed interpretation of abnormal values, possible implications, and recommendations.';
     
+    console.log('Using prompts for upload analysis:');
+    console.log('System Prompt:', systemPrompt.substring(0, 100) + '...');
+    console.log('User Prompt:', userPrompt.substring(0, 100) + '...');
+    
     let patient = null;
     if (withPatient === 'true' && patientId) {
       // Get patient info if needed
@@ -1044,6 +1053,7 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
         userPrompt = userPrompt
           .replace('${patientName}', `${patient.firstName} ${patient.lastName}`)
           .replace('${patientId}', patient.id.toString());
+        console.log('Using patient-specific prompt for upload analysis:', `${patient.firstName} ${patient.lastName}`);
       }
     }
     
