@@ -60,6 +60,8 @@ export default function LabInterpreter() {
   const [knowledgeBase, setKnowledgeBase] = useState<KnowledgeBaseItem[]>([]);
   const [isLoadingKnowledgeBase, setIsLoadingKnowledgeBase] = useState(false);
   const [isFullScreenMode, setIsFullScreenMode] = useState(false);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [pasteContent, setPasteContent] = useState('');
   
   // Voice recording and transcription states
   const [isRecording, setIsRecording] = useState(false);
@@ -431,8 +433,6 @@ export default function LabInterpreter() {
   // Handle knowledge base upload
   // State for the knowledge base import dialog
   const [importMode, setImportMode] = useState<'excel' | 'text' | 'paste'>('excel');
-  const [pastedText, setPastedText] = useState('');
-  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const textFileInputRef = useRef<HTMLInputElement>(null);
   
   // Handle knowledge base upload - Excel file
@@ -471,7 +471,7 @@ export default function LabInterpreter() {
   
   // Handle knowledge base paste text submit
   const handlePastedTextSubmit = async () => {
-    if (!pastedText.trim()) {
+    if (!pasteContent.trim()) {
       toast({
         title: 'Input Required',
         description: 'Please enter knowledge base data to import',
@@ -481,13 +481,13 @@ export default function LabInterpreter() {
     }
     
     const formData = new FormData();
-    formData.append('textContent', pastedText);
+    formData.append('textContent', pasteContent);
     formData.append('importType', 'paste');
     
     await importKnowledgeBase(formData);
     
     // Reset pasted text and close dialog
-    setPastedText('');
+    setPasteContent('');
     setIsImportDialogOpen(false);
   };
   
@@ -1301,16 +1301,77 @@ export default function LabInterpreter() {
                 <Database className="h-4 w-4" />
               </Button>
             </DialogTrigger>
-            <DialogContent className={isFullScreenMode ? "max-w-[95vw] h-[95vh] max-h-[95vh]" : "sm:max-w-[700px]"}>
+            <DialogContent className={isFullScreenMode ? "max-w-[95vw] h-[95vh] max-h-[95vh]" : "max-w-5xl max-h-[90vh]"}>
               <DialogHeader>
-                <DialogTitle>Knowledge Base Management</DialogTitle>
+                <DialogTitle>Personal Knowledge Base Management</DialogTitle>
                 <DialogDescription>
-                  Manage reference ranges and interpretations for lab tests
+                  Manage your personal lab test reference values and interpretations. Each account has its own separate knowledge base.
                 </DialogDescription>
               </DialogHeader>
-              <div className="py-4">
+              <div className="py-4 overflow-y-auto">
+                {/* Template Guidelines Section */}
+                <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <h3 className="text-lg font-semibold mb-3 text-blue-900">📋 Template Guidelines</h3>
+                  <div className="grid md:grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <h4 className="font-medium text-blue-800 mb-2">📊 Standard Lab Format (Excel)</h4>
+                      <div className="space-y-1 text-blue-700">
+                        <p><strong>Required columns:</strong></p>
+                        <ul className="list-disc list-inside space-y-1 ml-2">
+                          <li>Test Name / Test</li>
+                          <li>Marker / Analyte / Parameter</li>
+                          <li>Normal Range Low / Min / Lower</li>
+                          <li>Normal Range High / Max / Upper</li>
+                          <li>Unit</li>
+                          <li>Interpretation / Description</li>
+                          <li>Recommendations / Advice</li>
+                        </ul>
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-blue-800 mb-2">🏥 Disease-Product Format (Excel)</h4>
+                      <div className="space-y-1 text-blue-700">
+                        <p><strong>Supported columns:</strong></p>
+                        <ul className="list-disc list-inside space-y-1 ml-2">
+                          <li>Organ System / Category</li>
+                          <li>Disease State / Condition</li>
+                          <li>Product / Supplement columns</li>
+                          <li>Peptide columns</li>
+                          <li>Formula columns</li>
+                        </ul>
+                        <p className="mt-2 text-xs"><em>Perfect for supplement/peptide recommendations</em></p>
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-blue-800 mb-2">📝 Text Format</h4>
+                      <div className="space-y-1 text-blue-700">
+                        <p><strong>Format each entry as:</strong></p>
+                        <div className="bg-white p-2 rounded border text-xs font-mono">
+                          Test: Complete Blood Count<br/>
+                          Marker: Hemoglobin<br/>
+                          Range: 12.0-16.0 g/dL<br/>
+                          Interpretation: Normal oxygen transport<br/>
+                          Recommendations: Continue monitoring
+                        </div>
+                        <p className="text-xs mt-1"><em>Separate entries with blank lines</em></p>
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-blue-800 mb-2">🔒 Privacy & Account Separation</h4>
+                      <div className="space-y-1 text-blue-700">
+                        <ul className="list-disc list-inside space-y-1 ml-2">
+                          <li><strong>Personal Knowledge Base:</strong> Each account has separate data</li>
+                          <li><strong>Secure Upload:</strong> Your data stays with your account only</li>
+                          <li><strong>Custom Analysis:</strong> AI uses your specific reference ranges</li>
+                          <li><strong>Data Control:</strong> You can clear/update your data anytime</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-medium">Lab Test References</h3>
+                  <h3 className="text-lg font-medium">Your Lab Test References ({knowledgeBase.length} items)</h3>
                   <div className="flex items-center gap-2">
                     <Button
                       variant="outline"
@@ -1379,15 +1440,15 @@ export default function LabInterpreter() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => knowledgeBaseFileRef.current?.click()}>
                           <FileSpreadsheet className="mr-2 h-4 w-4" />
-                          <span>Import Excel File</span>
+                          <span>Import Excel File (.xlsx, .xls)</span>
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => textFileInputRef.current?.click()}>
                           <FileText className="mr-2 h-4 w-4" />
-                          <span>Import Text File</span>
+                          <span>Import Text File (.txt)</span>
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => setIsImportDialogOpen(true)}>
                           <Clipboard className="mr-2 h-4 w-4" />
-                          <span>Paste Text</span>
+                          <span>Paste Text Content</span>
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -1418,8 +1479,19 @@ export default function LabInterpreter() {
                       <Database className="h-12 w-12 text-muted-foreground mb-4" />
                       <h3 className="font-medium mb-2">No Reference Data</h3>
                       <p className="text-sm text-muted-foreground mb-4">
-                        Upload an Excel file to import lab test reference ranges and interpretations.
+                        Your personal knowledge base is empty. Upload an Excel file or paste text to import lab test reference ranges and interpretations.
                       </p>
+                      <div className="text-left max-w-md space-y-2">
+                        <h4 className="font-medium text-sm">Excel Template Format:</h4>
+                        <div className="text-xs text-muted-foreground space-y-1">
+                          <p><strong>Standard Lab Format:</strong> Test Name, Marker, Normal Range Low, Normal Range High, Unit, Interpretation, Recommendations</p>
+                          <p><strong>Disease-Product Format:</strong> Organ System, Disease State, Product columns (supplements/peptides)</p>
+                        </div>
+                        <h4 className="font-medium text-sm mt-3">Text Format:</h4>
+                        <div className="text-xs text-muted-foreground">
+                          <p>Each entry separated by blank lines with Test:, Marker:, Range:, Interpretation: format</p>
+                        </div>
+                      </div>
                     </div>
                   ) : (
                     <div className="overflow-auto h-full">
@@ -1557,8 +1629,8 @@ export default function LabInterpreter() {
                 </div>
                 
                 <Textarea
-                  value={pastedText}
-                  onChange={(e) => setPastedText(e.target.value)}
+                  value={pasteContent}
+                  onChange={(e) => setPasteContent(e.target.value)}
                   placeholder="Paste your lab test reference data here..."
                   className="h-[200px]"
                 />

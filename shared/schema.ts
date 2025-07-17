@@ -564,6 +564,7 @@ export type InsertAlertSetting = z.infer<typeof insertAlertSettingSchema>;
 // Lab Interpreter Assistant Knowledge Base tables
 export const labKnowledgeBase = pgTable("lab_knowledge_base", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
   test_name: text("test_name").notNull(),
   marker: text("marker").notNull(),
   normal_range_low: real("normal_range_low"),
@@ -598,6 +599,7 @@ export const labReports = pgTable("lab_reports", {
 
 // Insert schemas for lab interpreter
 export const insertLabKnowledgeBaseSchema = createInsertSchema(labKnowledgeBase).pick({
+  userId: true,
   test_name: true,
   marker: true,
   normal_range_low: true,

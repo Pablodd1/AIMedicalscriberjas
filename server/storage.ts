@@ -941,18 +941,31 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Lab Interpreter methods
-  async getLabKnowledgeBase(): Promise<LabKnowledgeBase[]> {
+  async getLabKnowledgeBase(userId?: number): Promise<LabKnowledgeBase[]> {
     try {
-      return await db.select().from(labKnowledgeBase).orderBy(labKnowledgeBase.test_name);
+      if (userId) {
+        return await db.select().from(labKnowledgeBase)
+          .where(eq(labKnowledgeBase.userId, userId))
+          .orderBy(labKnowledgeBase.test_name);
+      } else {
+        // For backward compatibility, return all if no userId provided
+        return await db.select().from(labKnowledgeBase).orderBy(labKnowledgeBase.test_name);
+      }
     } catch (error) {
       console.error("Error fetching lab knowledge base:", error);
       return [];
     }
   }
 
-  async getLabKnowledgeBaseItem(id: number): Promise<LabKnowledgeBase | undefined> {
+  async getLabKnowledgeBaseItem(id: number, userId?: number): Promise<LabKnowledgeBase | undefined> {
     try {
-      const [item] = await db.select().from(labKnowledgeBase).where(eq(labKnowledgeBase.id, id));
+      let query = db.select().from(labKnowledgeBase).where(eq(labKnowledgeBase.id, id));
+      
+      if (userId) {
+        query = query.where(eq(labKnowledgeBase.userId, userId));
+      }
+      
+      const [item] = await query;
       return item;
     } catch (error) {
       console.error("Error fetching lab knowledge base item:", error);
@@ -970,15 +983,20 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async updateLabKnowledgeBaseItem(id: number, updates: Partial<LabKnowledgeBase>): Promise<LabKnowledgeBase | undefined> {
+  async updateLabKnowledgeBaseItem(id: number, updates: Partial<LabKnowledgeBase>, userId?: number): Promise<LabKnowledgeBase | undefined> {
     try {
-      const [updated] = await db
+      let query = db
         .update(labKnowledgeBase)
         .set({
           ...updates
         })
-        .where(eq(labKnowledgeBase.id, id))
-        .returning();
+        .where(eq(labKnowledgeBase.id, id));
+      
+      if (userId) {
+        query = query.where(eq(labKnowledgeBase.userId, userId));
+      }
+      
+      const [updated] = await query.returning();
       return updated;
     } catch (error) {
       console.error("Error updating lab knowledge base item:", error);
@@ -986,9 +1004,15 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async deleteLabKnowledgeBaseItem(id: number): Promise<boolean> {
+  async deleteLabKnowledgeBaseItem(id: number, userId?: number): Promise<boolean> {
     try {
-      const result = await db.delete(labKnowledgeBase).where(eq(labKnowledgeBase.id, id));
+      let query = db.delete(labKnowledgeBase).where(eq(labKnowledgeBase.id, id));
+      
+      if (userId) {
+        query = query.where(eq(labKnowledgeBase.userId, userId));
+      }
+      
+      const result = await query;
       return result.rowCount > 0;
     } catch (error) {
       console.error("Error deleting lab knowledge base item:", error);
@@ -996,12 +1020,28 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async importLabKnowledgeBase(items: InsertLabKnowledgeBase[]): Promise<number> {
+  async importLabKnowledgeBase(items: InsertLabKnowledgeBase[], userId: number): Promise<number> {
     try {
-      const result = await db.insert(labKnowledgeBase).values(items).returning();
+      // Ensure all items have the userId set
+      const itemsWithUserId = items.map(item => ({
+        ...item,
+        userId
+      }));
+      
+      const result = await db.insert(labKnowledgeBase).values(itemsWithUserId).returning();
       return result.length;
     } catch (error) {
       console.error("Error importing lab knowledge base:", error);
+      throw error;
+    }
+  }
+
+  async clearUserLabKnowledgeBase(userId: number): Promise<number> {
+    try {
+      const result = await db.delete(labKnowledgeBase).where(eq(labKnowledgeBase.userId, userId));
+      return result.rowCount || 0;
+    } catch (error) {
+      console.error("Error clearing user lab knowledge base:", error);
       throw error;
     }
   }

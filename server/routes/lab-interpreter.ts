@@ -360,129 +360,100 @@ const labKnowledgeBaseItemSchema = z.object({
 });
 
 // Get knowledge base data
-labInterpreterRouter.get('/knowledge-base', async (req, res) => {
-  try {
-    const items = await storage.getLabKnowledgeBase();
-    return res.json(items);
-  } catch (error) {
-    console.error('Error fetching knowledge base:', error);
-    return res.status(500).json({ error: 'Failed to fetch knowledge base' });
-  }
-});
+labInterpreterRouter.get('/knowledge-base', requireAuth, asyncHandler(async (req, res) => {
+  const items = await handleDatabaseOperation(
+    () => storage.getLabKnowledgeBase(req.user.id),
+    'Failed to fetch knowledge base'
+  );
+  sendSuccessResponse(res, items, 'Knowledge base fetched successfully');
+}));
 
 // Get specific knowledge base item
-labInterpreterRouter.get('/knowledge-base/:id', async (req, res) => {
-  try {
-    const id = parseInt(req.params.id);
-    if (isNaN(id)) {
-      return res.status(400).json({ error: 'Invalid ID' });
-    }
-
-    const item = await storage.getLabKnowledgeBaseItem(id);
-    if (!item) {
-      return res.status(404).json({ error: 'Item not found' });
-    }
-    
-    return res.json(item);
-  } catch (error) {
-    console.error('Error fetching knowledge base item:', error);
-    return res.status(500).json({ error: 'Failed to fetch knowledge base item' });
+labInterpreterRouter.get('/knowledge-base/:id', requireAuth, asyncHandler(async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) {
+    throw new AppError('Invalid ID', 400, 'INVALID_ID');
   }
-});
+
+  const item = await handleDatabaseOperation(
+    () => storage.getLabKnowledgeBaseItem(id, req.user.id),
+    'Failed to fetch knowledge base item'
+  );
+  
+  if (!item) {
+    throw new AppError('Item not found', 404, 'ITEM_NOT_FOUND');
+  }
+  
+  sendSuccessResponse(res, item, 'Knowledge base item fetched successfully');
+}));
 
 // Create knowledge base item
-labInterpreterRouter.post('/knowledge-base', async (req, res) => {
-  try {
-    // Validate input
-    const validatedData = labKnowledgeBaseItemSchema.parse(req.body);
-    
-    // Create item
-    const newItem = await storage.createLabKnowledgeBaseItem(validatedData);
-    return res.status(201).json(newItem);
-  } catch (error) {
-    console.error('Error creating knowledge base item:', error);
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ 
-        error: 'Validation error', 
-        details: error.errors 
-      });
-    }
-    return res.status(500).json({ error: 'Failed to create knowledge base item' });
-  }
-});
+labInterpreterRouter.post('/knowledge-base', requireAuth, asyncHandler(async (req, res) => {
+  // Validate input and add userId
+  const validatedData = labKnowledgeBaseItemSchema.parse({
+    ...req.body,
+    userId: req.user.id
+  });
+  
+  const newItem = await handleDatabaseOperation(
+    () => storage.createLabKnowledgeBaseItem(validatedData),
+    'Failed to create knowledge base item'
+  );
+  
+  sendSuccessResponse(res, newItem, 'Knowledge base item created successfully');
+}));
 
 // Update knowledge base item
-labInterpreterRouter.put('/knowledge-base/:id', async (req, res) => {
-  try {
-    const id = parseInt(req.params.id);
-    if (isNaN(id)) {
-      return res.status(400).json({ error: 'Invalid ID' });
-    }
-
-    // Validate input
-    const validatedData = labKnowledgeBaseItemSchema.parse(req.body);
-    
-    // Update item
-    const updatedItem = await storage.updateLabKnowledgeBaseItem(id, validatedData);
-    if (!updatedItem) {
-      return res.status(404).json({ error: 'Item not found' });
-    }
-    
-    return res.json(updatedItem);
-  } catch (error) {
-    console.error('Error updating knowledge base item:', error);
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ 
-        error: 'Validation error', 
-        details: error.errors 
-      });
-    }
-    return res.status(500).json({ error: 'Failed to update knowledge base item' });
+labInterpreterRouter.put('/knowledge-base/:id', requireAuth, asyncHandler(async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) {
+    throw new AppError('Invalid ID', 400, 'INVALID_ID');
   }
-});
+
+  // Validate input
+  const validatedData = labKnowledgeBaseItemSchema.parse(req.body);
+  
+  // Update item (user-specific)
+  const updatedItem = await handleDatabaseOperation(
+    () => storage.updateLabKnowledgeBaseItem(id, validatedData, req.user.id),
+    'Failed to update knowledge base item'
+  );
+  
+  if (!updatedItem) {
+    throw new AppError('Item not found or access denied', 404, 'ITEM_NOT_FOUND');
+  }
+  
+  sendSuccessResponse(res, updatedItem, 'Knowledge base item updated successfully');
+}));
 
 // Delete knowledge base item
-labInterpreterRouter.delete('/knowledge-base/:id', async (req, res) => {
-  try {
-    const id = parseInt(req.params.id);
-    if (isNaN(id)) {
-      return res.status(400).json({ error: 'Invalid ID' });
-    }
-
-    const success = await storage.deleteLabKnowledgeBaseItem(id);
-    if (!success) {
-      return res.status(404).json({ error: 'Item not found' });
-    }
-    
-    return res.status(204).end();
-  } catch (error) {
-    console.error('Error deleting knowledge base item:', error);
-    return res.status(500).json({ error: 'Failed to delete knowledge base item' });
+labInterpreterRouter.delete('/knowledge-base/:id', requireAuth, asyncHandler(async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) {
+    throw new AppError('Invalid ID', 400, 'INVALID_ID');
   }
-});
 
-// Delete all knowledge base items
-labInterpreterRouter.delete('/knowledge-base', async (req, res) => {
-  try {
-    // Get all knowledge base items
-    const items = await storage.getLabKnowledgeBase();
-    
-    // Delete each item
-    let deletedCount = 0;
-    for (const item of items) {
-      const deleted = await storage.deleteLabKnowledgeBaseItem(item.id);
-      if (deleted) deletedCount++;
-    }
-    
-    return res.status(200).json({ 
-      message: 'Knowledge base cleared successfully', 
-      deletedCount 
-    });
-  } catch (error) {
-    console.error('Error clearing knowledge base:', error);
-    return res.status(500).json({ error: 'Failed to clear knowledge base' });
+  const success = await handleDatabaseOperation(
+    () => storage.deleteLabKnowledgeBaseItem(id, req.user.id),
+    'Failed to delete knowledge base item'
+  );
+  
+  if (!success) {
+    throw new AppError('Item not found or access denied', 404, 'ITEM_NOT_FOUND');
   }
-});
+  
+  sendSuccessResponse(res, null, 'Knowledge base item deleted successfully');
+}));
+
+// Delete all knowledge base items for current user
+labInterpreterRouter.delete('/knowledge-base', requireAuth, asyncHandler(async (req, res) => {
+  const deletedCount = await handleDatabaseOperation(
+    () => storage.clearUserLabKnowledgeBase(req.user.id),
+    'Failed to clear knowledge base'
+  );
+  
+  sendSuccessResponse(res, { deletedCount }, 'Knowledge base cleared successfully');
+}));
 
 // Helper function to parse text format for knowledge base
 function parseTextFormat(text: string): any[] {
@@ -657,20 +628,19 @@ function parseFreeformDiseaseProductText(text: string): any[] {
 }
 
 // Import knowledge base - supports multiple formats
-labInterpreterRouter.post('/knowledge-base/import', upload.single('file'), async (req, res) => {
-  try {
-    let data: any[] = [];
-    const importType = req.body.importType || 'excel';
+labInterpreterRouter.post('/knowledge-base/import', requireAuth, upload.single('file'), asyncHandler(async (req, res) => {
+  let data: any[] = [];
+  const importType = req.body.importType || 'excel';
     
     if (importType === 'excel') {
       // Excel file import
       if (!req.file) {
-        return res.status(400).json({ error: 'No Excel file uploaded' });
+        throw new AppError('No Excel file uploaded', 400, 'NO_FILE_UPLOADED');
       }
       
       // Check if it's an Excel file
       if (!req.file.originalname.match(/\.(xlsx|xls)$/i)) {
-        return res.status(400).json({ error: 'Uploaded file is not an Excel file' });
+        throw new AppError('Uploaded file is not an Excel file', 400, 'INVALID_FILE_TYPE');
       }
       
       data = parseExcelFile(req.file.path);
@@ -681,7 +651,7 @@ labInterpreterRouter.post('/knowledge-base/import', upload.single('file'), async
     else if (importType === 'text') {
       // Text file import
       if (!req.file) {
-        return res.status(400).json({ error: 'No text file uploaded' });
+        throw new AppError('No text file uploaded', 400, 'NO_FILE_UPLOADED');
       }
       
       try {
@@ -707,13 +677,13 @@ labInterpreterRouter.post('/knowledge-base/import', upload.single('file'), async
     else if (importType === 'paste') {
       // Text content directly pasted
       if (!req.body.textContent) {
-        return res.status(400).json({ error: 'No text content provided' });
+        throw new AppError('No text content provided', 400, 'NO_TEXT_CONTENT');
       }
       
       data = parseTextFormat(req.body.textContent);
     }
     else {
-      return res.status(400).json({ error: 'Invalid import type' });
+      throw new AppError('Invalid import type', 400, 'INVALID_IMPORT_TYPE');
     }
     
     // Validate and clean data
@@ -726,28 +696,18 @@ labInterpreterRouter.post('/knowledge-base/import', upload.single('file'), async
       }
     }).filter(Boolean);
     
-    if (validatedData.length === 0) {
-      return res.status(400).json({ error: 'No valid data found in the imported content' });
-    }
-    
-    // Import data
-    const itemsImported = await storage.importLabKnowledgeBase(validatedData);
-    
-    return res.status(201).json({ 
-      message: 'Knowledge base imported successfully',
-      itemsImported
-    });
-  } catch (error) {
-    console.error('Error importing knowledge base:', error);
-    
-    // Clean up uploaded file if it exists
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
-    
-    return res.status(500).json({ error: 'Failed to import knowledge base' });
+  if (validatedData.length === 0) {
+    throw new AppError('No valid data found in the imported content', 400, 'NO_VALID_DATA');
   }
-});
+    
+  // Import data with user ID
+  const itemsImported = await handleDatabaseOperation(
+    () => storage.importLabKnowledgeBase(validatedData, req.user.id),
+    'Failed to import knowledge base'
+  );
+  
+  sendSuccessResponse(res, { itemsImported }, 'Knowledge base imported successfully');
+}));
 
 // Get lab interpreter settings
 labInterpreterRouter.get('/settings', async (req, res) => {
@@ -840,7 +800,7 @@ labInterpreterRouter.post('/analyze', requireAuth, asyncHandler(async (req, res)
     'Failed to get lab interpreter settings'
   );
   const knowledgeBase = await handleDatabaseOperation(
-    () => storage.getLabKnowledgeBase(),
+    () => storage.getLabKnowledgeBase(req.user.id),
     'Failed to get knowledge base'
   );
   
@@ -1028,7 +988,7 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
       'Failed to get lab interpreter settings'
     );
     const knowledgeBase = await handleDatabaseOperation(
-      () => storage.getLabKnowledgeBase(),
+      () => storage.getLabKnowledgeBase(req.user.id),
       'Failed to get knowledge base'
     );
     
