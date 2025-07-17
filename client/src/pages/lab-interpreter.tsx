@@ -469,6 +469,47 @@ export default function LabInterpreter() {
     }
   };
   
+  // Download Excel template
+  const downloadExcelTemplate = () => {
+    // Create sample data for Excel template
+    const templateData = [
+      ['Test Name', 'Marker', 'Normal Range Low', 'Normal Range High', 'Unit', 'Interpretation', 'Recommendations'],
+      ['Complete Blood Count', 'Hemoglobin', '12.0', '16.0', 'g/dL', 'Protein in red blood cells that carries oxygen', 'Low levels may indicate anemia, high levels may suggest dehydration'],
+      ['Complete Blood Count', 'Hematocrit', '36.0', '46.0', '%', 'Percentage of blood volume occupied by red blood cells', 'Low values may indicate anemia or blood loss'],
+      ['Lipid Panel', 'Total Cholesterol', '', '200', 'mg/dL', 'Total amount of cholesterol in blood', 'Levels above 200 mg/dL may increase cardiovascular risk'],
+      ['Lipid Panel', 'HDL Cholesterol', '40', '', 'mg/dL', 'Good cholesterol that helps remove other cholesterol', 'Higher levels are protective against heart disease'],
+      ['Liver Function', 'ALT', '7', '55', 'U/L', 'Liver enzyme indicating liver cell damage', 'Elevated levels may suggest liver injury or disease'],
+      ['Kidney Function', 'Creatinine', '0.6', '1.2', 'mg/dL', 'Waste product filtered by kidneys', 'High levels may indicate kidney dysfunction'],
+      ['Thyroid Function', 'TSH', '0.4', '4.0', 'mIU/L', 'Hormone that stimulates thyroid gland', 'Abnormal levels indicate thyroid dysfunction'],
+      ['', '', '', '', '', '', ''],
+      ['Disease-Product Format Example:', '', '', '', '', '', ''],
+      ['Organ System', 'Disease State', 'Primary Peptide', 'Secondary Peptide', 'Primary Formula', 'Secondary Formula', 'Support Formula 2'],
+      ['Cardiovascular', 'Hypertension', 'BPC-157', 'Thymosin Beta-4', 'CoQ10 Complex', 'Magnesium Plus', 'Omega-3 Advanced'],
+      ['Endocrine', 'Diabetes Type 2', 'GLP-1', 'Insulin Peptide', 'Berberine Complex', 'Chromium GTF', 'Alpha Lipoic Acid'],
+      ['Immune', 'Autoimmune', 'Thymosin Alpha-1', 'LL-37', 'Vitamin D3', 'Curcumin', 'Zinc Complex']
+    ];
+
+    // Convert to CSV format
+    const csvContent = templateData.map(row => 
+      row.map(cell => `"${cell}"`).join(',')
+    ).join('\n');
+
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'lab_knowledge_base_template.csv';
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast({
+      title: 'Template Downloaded',
+      description: 'Excel template downloaded successfully. Open in Excel or Google Sheets to edit.',
+    });
+  };
+
   // Handle knowledge base paste text submit
   const handlePastedTextSubmit = async () => {
     if (!pasteContent.trim()) {
@@ -1326,6 +1367,10 @@ export default function LabInterpreter() {
                           <li>Interpretation / Description</li>
                           <li>Recommendations / Advice</li>
                         </ul>
+                        <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-xs">
+                          <p className="font-medium text-green-800">💡 Download our Excel template to get started with the correct format!</p>
+                          <p className="text-green-700 mt-1">Includes sample data for CBC, Lipid Panel, Liver Function, and Disease-Product formats</p>
+                        </div>
                       </div>
                     </div>
                     <div>
@@ -1365,6 +1410,27 @@ export default function LabInterpreter() {
                           <li><strong>Custom Analysis:</strong> AI uses your specific reference ranges</li>
                           <li><strong>Data Control:</strong> You can clear/update your data anytime</li>
                         </ul>
+                      </div>
+                    </div>
+                    <div className="md:col-span-2">
+                      <h4 className="font-medium text-blue-800 mb-2">📥 Quick Start Guide</h4>
+                      <div className="space-y-2 text-blue-700 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded font-mono">1</span>
+                          <span>Click "Download Excel Template" to get started</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded font-mono">2</span>
+                          <span>Edit the template with your lab reference values</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded font-mono">3</span>
+                          <span>Save as .xlsx or .csv file and import here</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded font-mono">4</span>
+                          <span>Your custom data will be used in all lab analyses</span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1441,6 +1507,10 @@ export default function LabInterpreter() {
                         <DropdownMenuItem onClick={() => knowledgeBaseFileRef.current?.click()}>
                           <FileSpreadsheet className="mr-2 h-4 w-4" />
                           <span>Import Excel File (.xlsx, .xls)</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={downloadExcelTemplate}>
+                          <DownloadIcon className="mr-2 h-4 w-4" />
+                          <span>Download Excel Template</span>
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => textFileInputRef.current?.click()}>
                           <FileText className="mr-2 h-4 w-4" />
