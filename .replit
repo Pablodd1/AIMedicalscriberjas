@@ -4,7 +4,7 @@ hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
 [nix]
 channel = "stable-24_05"
-packages = ["psmisc", "imagemagick"]
+packages = ["psmisc", "imagemagick", "ghostscript"]
 
 [deployment]
 deploymentTarget = "cloudrun"
