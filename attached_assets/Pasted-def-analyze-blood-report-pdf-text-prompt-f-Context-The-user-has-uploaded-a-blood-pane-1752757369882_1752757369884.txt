@@ -1,0 +1,42 @@
+def analyze_blood_report(pdf_text):
+    prompt = f"""
+Context:
+The user has uploaded a blood panel report.
+The user has provided a Disease-to-Product Cross-Reference Dataset as the exclusive knowledge base.
+Use ONLY the following products and data (including peptides and supplements) in your recommendations:
+{knowledge_base_text}
+
+The user wants a detailed functional medicine analysis with actionable steps, including lifestyle modifications.
+
+What to Include:
+
+Personalized Analysis:
+- Provide an in-depth breakdown of each biomarker, including functional ranges, potential deficiencies, and the associated organ systems.
+- Categorize biomarkers into optimal, suboptimal, or high-risk levels (using a color-coding system such as green, yellow, red).
+
+Supplement & Peptide Recommendations:
+- Always refer to the provided knowledge base for branded products, product lines, and peptide therapies.
+- Clearly include peptide recommendations alongside supplements.
+- Explain the link between each abnormal biomarker and the recommended supplement/peptide.
+- Provide specific dosage, timing, and mechanism of action details for both peptides and supplements.
+
+Visual & Actionable Summaries:
+- Present clear charts or color-coded indicators for biomarker status.
+- Layout a daily schedule (morning, afternoon, evening) for supplement and peptide intake.
+- Suggest dietary adjustments and lifestyle modifications.
+- Indicate when a follow-up consultation or referral is advised.
+
+Output Format:
+Structure your response in the following sections:
+1. Summary of Blood Panel Findings
+2. Detailed Biomarker Analysis & Functional Medicine Interpretation
+3. Personalized Supplement & Peptide Recommendations (from the provided knowledge base)
+4. Additional Health Insights & Next Steps
+
+Incorporate:
+- Exact dosage & timing for both supplement and peptide recommendations.
+- Visual elements such as charts or color-coding (if possible) to indicate risk status.
+- Citations or references if research or guidelines are quoted.
+- A friendly tone and a disclaimer that these recommendations are educational and not a substitute for professional medical advice.
+
+Blood Panel Report:
