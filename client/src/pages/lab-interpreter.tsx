@@ -573,6 +573,29 @@ export default function LabInterpreter() {
     }
   };
   
+  // Utility function to convert any value to readable text
+  const convertToReadableText = (value: any): string => {
+    if (value === null || value === undefined) return 'N/A';
+    
+    if (typeof value === 'object') {
+      if (Array.isArray(value)) {
+        return value.map(item => convertToReadableText(item)).join(', ');
+      }
+      
+      // Handle objects by extracting meaningful properties
+      const keys = Object.keys(value);
+      if (keys.length === 0) return 'No data';
+      
+      return keys.map(key => {
+        const val = value[key];
+        if (val === null || val === undefined) return '';
+        return `${key}: ${convertToReadableText(val)}`;
+      }).filter(Boolean).join(', ');
+    }
+    
+    return value.toString();
+  };
+  
   // Handle download report - Generate Word document with complete analysis
   const handleDownloadReport = async () => {
     if (!analysisResult) return;
@@ -698,7 +721,7 @@ export default function LabInterpreter() {
             new Paragraph({
               children: [
                 new TextRun({ text: "• ", bold: true }),
-                new TextRun({ text: value.toString() }),
+                new TextRun({ text: convertToReadableText(value) }),
               ],
               spacing: { after: 100 },
             })
@@ -739,7 +762,7 @@ export default function LabInterpreter() {
             new Paragraph({
               children: [
                 new TextRun({ text: "• ", bold: true }),
-                new TextRun({ text: rec.toString() }),
+                new TextRun({ text: convertToReadableText(rec) }),
               ],
               spacing: { after: 100 },
             })
@@ -872,7 +895,7 @@ export default function LabInterpreter() {
       if (analysisResult.abnormalValues && Array.isArray(analysisResult.abnormalValues) && analysisResult.abnormalValues.length > 0) {
         addText("Abnormal Values", 16, true);
         analysisResult.abnormalValues.forEach((value: any) => {
-          addText(`• ${value.toString()}`, 12);
+          addText(`• ${convertToReadableText(value)}`, 12);
         });
         yPosition += 5;
       }
@@ -888,7 +911,7 @@ export default function LabInterpreter() {
       if (analysisResult.recommendations && Array.isArray(analysisResult.recommendations) && analysisResult.recommendations.length > 0) {
         addText("Recommendations", 16, true);
         analysisResult.recommendations.forEach((rec: any) => {
-          addText(`• ${rec.toString()}`, 12);
+          addText(`• ${convertToReadableText(rec)}`, 12);
         });
         yPosition += 5;
       }
@@ -1025,17 +1048,7 @@ export default function LabInterpreter() {
     
     // Function to safely render any value as a string
     const safeRender = (value: any): string => {
-      if (value === null || value === undefined) return '';
-      if (typeof value === 'string') return value;
-      if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-      if (typeof value === 'object') {
-        try {
-          return JSON.stringify(value, null, 2);
-        } catch {
-          return '[Complex Object]';
-        }
-      }
-      return String(value);
+      return convertToReadableText(value);
     };
     
     // Function to recursively render key-value pairs from the analysis result
