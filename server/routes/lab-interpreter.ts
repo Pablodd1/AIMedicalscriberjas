@@ -25,37 +25,141 @@ export const labInterpreterRouter = Router();
 // Promisify exec for async/await usage
 const execAsync = promisify(exec);
 
-// Function to convert PDF to images using ImageMagick
+// Function to convert PDF to images using ImageMagick with comprehensive error handling
 async function convertPdfToImages(pdfPath: string): Promise<string[]> {
+  const tempDir = path.join(path.dirname(pdfPath), 'temp_images');
+  
   try {
+    // Verify PDF file exists and is readable
+    if (!fs.existsSync(pdfPath)) {
+      throw new Error('PDF file not found');
+    }
+    
+    const pdfStats = fs.statSync(pdfPath);
+    if (pdfStats.size === 0) {
+      throw new Error('PDF file is empty');
+    }
+    
+    console.log(`Converting PDF: ${path.basename(pdfPath)} (${Math.round(pdfStats.size / 1024)}KB)`);
+    
     // Create temporary directory for converted images
-    const tempDir = path.join(path.dirname(pdfPath), 'temp_images');
     if (!fs.existsSync(tempDir)) {
       fs.mkdirSync(tempDir, { recursive: true });
     }
     
-    // Convert PDF to images using ImageMagick
+    // Clean up any existing files in temp directory
+    const existingFiles = fs.readdirSync(tempDir);
+    existingFiles.forEach(file => {
+      if (file.startsWith('page-')) {
+        fs.unlinkSync(path.join(tempDir, file));
+      }
+    });
+    
+    // Use optimized ImageMagick settings for reliability
     const outputPattern = path.join(tempDir, 'page-%d.png');
-    const command = `convert -density 300 -quality 100 "${pdfPath}" "${outputPattern}"`;
+    const command = `convert -limit memory 256MB -limit map 512MB -density 200 -quality 85 -colorspace RGB "${pdfPath}" "${outputPattern}"`;
     
     console.log('Converting PDF to images with command:', command);
-    await execAsync(command);
     
-    // Find all generated images
+    // Add timeout and proper error handling
+    const timeoutMs = 10 * 60 * 1000; // 10 minutes timeout
+    const conversionPromise = execAsync(command, { 
+      timeout: timeoutMs,
+      maxBuffer: 10 * 1024 * 1024 // 10MB buffer
+    });
+    
+    try {
+      await conversionPromise;
+    } catch (execError: any) {
+      console.error('ImageMagick conversion error:', execError);
+      
+      if (execError.killed && execError.signal === 'SIGTERM') {
+        throw new Error('PDF conversion timed out - file too large or corrupted');
+      }
+      
+      if (execError.code === 1 && execError.stderr?.includes('gs: not found')) {
+        throw new Error('Ghostscript not installed - required for PDF processing');
+      }
+      
+      if (execError.stderr?.includes('memory')) {
+        throw new Error('Not enough memory to process this PDF - try a smaller file');
+      }
+      
+      throw new Error(`ImageMagick error: ${execError.stderr || execError.message}`);
+    }
+    
+    // Find and validate all generated images
     const files = fs.readdirSync(tempDir)
       .filter(file => file.startsWith('page-') && file.endsWith('.png'))
       .sort((a, b) => {
         const aNum = parseInt(a.match(/page-(\d+)\.png/)?.[1] || '0');
         const bNum = parseInt(b.match(/page-(\d+)\.png/)?.[1] || '0');
         return aNum - bNum;
-      })
-      .map(file => path.join(tempDir, file));
+      });
     
-    console.log(`PDF converted to ${files.length} images`);
-    return files;
-  } catch (error) {
+    if (files.length === 0) {
+      throw new Error('No images were generated from the PDF');
+    }
+    
+    // Validate each image file
+    const validFiles: string[] = [];
+    for (const file of files) {
+      const fullPath = path.join(tempDir, file);
+      try {
+        const imageStats = fs.statSync(fullPath);
+        if (imageStats.size > 1000) { // At least 1KB
+          validFiles.push(fullPath);
+        } else {
+          console.warn(`Skipping invalid image: ${file} (${imageStats.size} bytes)`);
+          fs.unlinkSync(fullPath); // Clean up invalid file
+        }
+      } catch (statError) {
+        console.warn(`Error checking image file ${file}:`, statError);
+      }
+    }
+    
+    if (validFiles.length === 0) {
+      throw new Error('No valid images were generated from the PDF');
+    }
+    
+    console.log(`PDF successfully converted to ${validFiles.length} valid images`);
+    return validFiles;
+    
+  } catch (error: any) {
     console.error('Error converting PDF to images:', error);
-    throw new AppError('Failed to convert PDF to images. Please try converting to image format manually.', 500, 'PDF_CONVERSION_FAILED');
+    
+    // Clean up partial conversion on error
+    try {
+      if (fs.existsSync(tempDir)) {
+        const files = fs.readdirSync(tempDir);
+        files.forEach(file => {
+          if (file.startsWith('page-')) {
+            fs.unlinkSync(path.join(tempDir, file));
+          }
+        });
+      }
+    } catch (cleanupError) {
+      console.error('Error cleaning up after PDF conversion failure:', cleanupError);
+    }
+    
+    // Provide specific error messages
+    if (error.message?.includes('timeout') || error.message?.includes('timed out')) {
+      throw new AppError('PDF conversion timed out. The file may be too large. Please try with a smaller PDF or convert to images manually.', 500, 'PDF_CONVERSION_TIMEOUT');
+    }
+    
+    if (error.message?.includes('memory')) {
+      throw new AppError('Insufficient memory to process this PDF. Please try with a smaller file.', 500, 'PDF_MEMORY_ERROR');
+    }
+    
+    if (error.message?.includes('Ghostscript')) {
+      throw new AppError('PDF processing service unavailable. Please convert your PDF to images manually and upload again.', 500, 'PDF_GHOSTSCRIPT_ERROR');
+    }
+    
+    if (error.message?.includes('not found') || error.message?.includes('empty')) {
+      throw new AppError('Invalid PDF file. Please ensure the file is a valid PDF document.', 400, 'INVALID_PDF');
+    }
+    
+    throw new AppError('Failed to convert PDF to images. Please try converting to image format manually or contact support.', 500, 'PDF_CONVERSION_FAILED');
   }
 }
 
@@ -146,7 +250,10 @@ const fileStorage = multer.diskStorage({
 
 const upload = multer({
   storage: fileStorage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  limits: { 
+    fileSize: 25 * 1024 * 1024, // Increased to 25MB for larger PDFs
+    files: 1
+  },
   fileFilter: (req, file, cb) => {
     // Accept Excel files, text files, and PDF/images
     if (file.fieldname === 'file' || file.fieldname === 'knowledgeBase') {
@@ -163,10 +270,19 @@ const upload = multer({
         cb(null, true); // Allow all files for now to debug
       }
     } else if (file.fieldname === 'labReport') {
-      if (file.mimetype === 'application/pdf' || file.mimetype.startsWith('image/')) {
+      // Validate PDF and image files more strictly
+      if (file.mimetype === 'application/pdf') {
         cb(null, true);
+      } else if (file.mimetype.startsWith('image/')) {
+        // Accept common image formats
+        const allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/bmp', 'image/webp'];
+        if (allowedImageTypes.includes(file.mimetype)) {
+          cb(null, true);
+        } else {
+          cb(new Error('Unsupported image format. Please use JPG, PNG, GIF, BMP, or WebP'));
+        }
       } else {
-        cb(new Error('Only PDF files and images are allowed for lab reports'));
+        cb(new Error('Only PDF files and images (JPG, PNG, GIF, BMP, WebP) are allowed for lab reports'));
       }
     } else {
       cb(null, false);
@@ -935,78 +1051,154 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
       throw new AppError('Unsupported file type. Please upload a PDF or image file.', 400, 'UNSUPPORTED_FILE_TYPE');
     }
     
-    // Process all images with OpenAI Vision API with optimized batching for large files
+    // Process all images with OpenAI Vision API with enhanced error handling and progress tracking
     const extractedTexts: string[] = [];
-    const maxConcurrent = imagesToProcess.length > 10 ? 2 : 3; // Reduce concurrent processing for large files
-    const batchSize = maxConcurrent;
+    const totalPages = imagesToProcess.length;
     
-    console.log(`Processing ${imagesToProcess.length} pages with batch size of ${batchSize}`);
+    // Optimize batch size based on file count and system resources
+    let batchSize: number;
+    if (totalPages <= 5) {
+      batchSize = 3;
+    } else if (totalPages <= 15) {
+      batchSize = 2;
+    } else {
+      batchSize = 1; // Process one at a time for very large files
+    }
+    
+    console.log(`Processing ${totalPages} pages with batch size of ${batchSize}`);
     
     for (let i = 0; i < imagesToProcess.length; i += batchSize) {
       const batchEnd = Math.min(i + batchSize, imagesToProcess.length);
       const currentBatch = imagesToProcess.slice(i, batchEnd);
+      const batchNumber = Math.floor(i/batchSize) + 1;
+      const totalBatches = Math.ceil(imagesToProcess.length/batchSize);
       
-      console.log(`Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(imagesToProcess.length/batchSize)}: pages ${i + 1}-${batchEnd}`);
+      console.log(`Processing batch ${batchNumber}/${totalBatches}: pages ${i + 1}-${batchEnd} (${Math.round(((i + batchSize) / totalPages) * 100)}% complete)`);
       
       const batchPromises = currentBatch.map(async (imagePath, batchIndex) => {
         const pageNumber = i + batchIndex + 1;
+        const maxRetries = 3;
+        let retryCount = 0;
         
-        try {
-          const imageBuffer = fs.readFileSync(imagePath);
-          const base64Image = imageBuffer.toString('base64');
-          
-          console.log(`Processing image ${pageNumber}/${imagesToProcess.length}: ${path.basename(imagePath)}`);
-          
-          const textExtractionResponse = await openai.chat.completions.create({
-            model: "gpt-4o",
-            messages: [
-              {
-                role: 'user',
-                content: [
-                  {
-                    type: "text",
-                    text: `Extract all the text content from this lab report image (page ${pageNumber} of ${imagesToProcess.length}). Include all test names, values, reference ranges, and any other relevant information. Format the data in a clean, structured way that preserves the original layout and organization.`
-                  },
-                  {
-                    type: "image_url",
-                    image_url: {
-                      url: `data:image/png;base64,${base64Image}`
+        while (retryCount < maxRetries) {
+          try {
+            // Validate image file before processing
+            if (!fs.existsSync(imagePath)) {
+              throw new Error(`Image file not found: ${imagePath}`);
+            }
+            
+            const imageStats = fs.statSync(imagePath);
+            if (imageStats.size === 0) {
+              throw new Error(`Image file is empty: ${imagePath}`);
+            }
+            
+            const imageBuffer = fs.readFileSync(imagePath);
+            const base64Image = imageBuffer.toString('base64');
+            
+            // Validate base64 size (OpenAI has limits)
+            const base64Size = base64Image.length;
+            if (base64Size > 20 * 1024 * 1024) { // 20MB limit
+              throw new Error(`Image too large: ${Math.round(base64Size / 1024 / 1024)}MB (max 20MB)`);
+            }
+            
+            console.log(`Processing image ${pageNumber}/${imagesToProcess.length}: ${path.basename(imagePath)} (${Math.round(imageStats.size / 1024)}KB)`);
+            
+            const textExtractionResponse = await openai.chat.completions.create({
+              model: "gpt-4o",
+              messages: [
+                {
+                  role: 'user',
+                  content: [
+                    {
+                      type: "text",
+                      text: `Extract all the text content from this lab report image (page ${pageNumber} of ${imagesToProcess.length}). Include all test names, values, reference ranges, patient information, and any other relevant data. Format the data in a clean, structured way that preserves the original layout and organization. If this page appears to be blank or contains no readable text, respond with "BLANK_PAGE".`
+                    },
+                    {
+                      type: "image_url",
+                      image_url: {
+                        url: `data:image/png;base64,${base64Image}`,
+                        detail: "high"
+                      }
                     }
-                  }
-                ]
-              }
-            ],
-            max_tokens: 4000
-          });
-          
-          const pageText = textExtractionResponse.choices[0].message.content || '';
-          return {
-            pageNumber,
-            text: pageText.trim() ? `=== Page ${pageNumber} ===\n${pageText}` : null
-          };
-          
-        } catch (error) {
-          console.error(`Error processing image ${pageNumber}:`, error);
-          throw handleOpenAIError(error);
+                  ]
+                }
+              ],
+              max_tokens: 4000,
+              temperature: 0.1 // Lower temperature for more consistent extraction
+            });
+            
+            const pageText = textExtractionResponse.choices[0].message.content || '';
+            
+            if (pageText.trim() && !pageText.includes('BLANK_PAGE')) {
+              return {
+                pageNumber,
+                text: `=== Page ${pageNumber} ===\n${pageText}`,
+                success: true
+              };
+            } else {
+              console.log(`Page ${pageNumber} appears to be blank or unreadable`);
+              return {
+                pageNumber,
+                text: null,
+                success: true
+              };
+            }
+            
+          } catch (error: any) {
+            retryCount++;
+            console.error(`Error processing image ${pageNumber} (attempt ${retryCount}/${maxRetries}):`, error.message);
+            
+            if (retryCount >= maxRetries) {
+              // Log detailed error but don't fail the entire process
+              console.error(`Failed to process page ${pageNumber} after ${maxRetries} attempts`);
+              return {
+                pageNumber,
+                text: `=== Page ${pageNumber} ===\n[Error: Could not extract text from this page]`,
+                success: false,
+                error: error.message
+              };
+            }
+            
+            // Wait before retry
+            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+          }
         }
+        
+        return null; // Should never reach here
       });
       
       // Wait for current batch to complete
       const batchResults = await Promise.all(batchPromises);
       
-      // Add results in correct order, filtering out empty pages
-      batchResults
-        .sort((a, b) => a.pageNumber - b.pageNumber)
+      // Add results in correct order, tracking success/failure
+      const validResults = batchResults.filter(result => result !== null);
+      validResults
+        .sort((a, b) => a!.pageNumber - b!.pageNumber)
         .forEach(result => {
-          if (result.text) {
-            extractedTexts.push(result.text);
+          if (result!.text) {
+            extractedTexts.push(result!.text);
+          }
+          if (!result!.success) {
+            console.warn(`Page ${result!.pageNumber} processing failed: ${result!.error}`);
           }
         });
       
-      // Add a small delay between batches for large files to prevent rate limiting
-      if (imagesToProcess.length > 10 && i + batchSize < imagesToProcess.length) {
-        await new Promise(resolve => setTimeout(resolve, 500));
+      // Add delay between batches for rate limiting and system stability
+      if (i + batchSize < imagesToProcess.length) {
+        const delayMs = totalPages > 15 ? 1000 : 500; // Longer delay for large files
+        await new Promise(resolve => setTimeout(resolve, delayMs));
       }
+    }
+    
+    console.log(`Text extraction completed. Successfully processed ${extractedTexts.length} pages out of ${totalPages}`);
+    
+    // Ensure we have at least some extracted text
+    if (extractedTexts.length === 0) {
+      throw new AppError('No readable content could be extracted from any page of the uploaded file. Please ensure the file contains clear, readable lab report data.', 400, 'NO_READABLE_CONTENT');
+    }
+    
+    if (extractedTexts.length < totalPages * 0.5) {
+      console.warn(`Only ${extractedTexts.length}/${totalPages} pages processed successfully. Some pages may have been unreadable.`);
     }
     
     // Combine all extracted text
