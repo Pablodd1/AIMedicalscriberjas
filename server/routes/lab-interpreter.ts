@@ -831,8 +831,13 @@ labInterpreterRouter.post('/analyze', requireAuth, asyncHandler(async (req, res)
     
   // Prepare knowledge base for prompt
   const knowledgeBaseText = knowledgeBase.map(item => 
-    `Test: ${item.test_name}\nMarker: ${item.marker}\nNormal Range: ${item.normal_range_low || ''} - ${item.normal_range_high || ''} ${item.unit || ''}\nInterpretation: ${item.interpretation}\nRecommendations: ${item.recommendations || ''}`
+    `Test: ${item.test_name}\nMarker: ${item.marker}\nNormal Range: ${item.normal_range_low || 'N/A'} - ${item.normal_range_high || 'N/A'} ${item.unit || ''}\nInterpretation: ${item.interpretation}\nRecommendations: ${item.recommendations || 'None specified'}`
   ).join('\n\n');
+  
+  console.log(`Using ${knowledgeBase.length} knowledge base entries for analysis`);
+  if (knowledgeBase.length > 0) {
+    console.log('Sample KB entry:', knowledgeBase[0].test_name, '-', knowledgeBase[0].marker);
+  }
   
   // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
   let analysis = '';
@@ -846,7 +851,7 @@ labInterpreterRouter.post('/analyze', requireAuth, asyncHandler(async (req, res)
         },
         {
           role: 'user',
-          content: `Here is my knowledge base of lab test reference values and interpretations:\n\n${knowledgeBaseText}\n\nNow, ${userPrompt}\n\nLab Report:\n${reportText}\n\nPlease provide your analysis as a JSON object with the following structure: { "summary": "brief overview", "abnormalValues": [], "interpretation": "detailed explanation", "recommendations": [] }`
+          content: `Here is my personal knowledge base of lab test reference values and interpretations:\n\n${knowledgeBaseText}\n\n${knowledgeBase.length === 0 ? 'Note: No custom knowledge base entries found. Use standard medical references.' : `Using ${knowledgeBase.length} custom reference entries from my knowledge base.`}\n\nNow, ${userPrompt}\n\nLab Report:\n${reportText}\n\nPlease provide your analysis as a JSON object with the following structure: { "summary": "brief overview", "abnormalValues": [], "interpretation": "detailed explanation", "recommendations": [], "knowledgeBaseUsed": ${knowledgeBase.length} }`
         }
       ],
       temperature: 0.4,
@@ -1019,8 +1024,13 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
     
     // Prepare knowledge base for prompt
     const knowledgeBaseText = knowledgeBase.map(item => 
-      `Test: ${item.test_name}\nMarker: ${item.marker}\nNormal Range: ${item.normal_range_low || ''} - ${item.normal_range_high || ''} ${item.unit || ''}\nInterpretation: ${item.interpretation}\nRecommendations: ${item.recommendations || ''}`
+      `Test: ${item.test_name}\nMarker: ${item.marker}\nNormal Range: ${item.normal_range_low || 'N/A'} - ${item.normal_range_high || 'N/A'} ${item.unit || ''}\nInterpretation: ${item.interpretation}\nRecommendations: ${item.recommendations || 'None specified'}`
     ).join('\n\n');
+    
+    console.log(`Using ${knowledgeBase.length} knowledge base entries for upload analysis`);
+    if (knowledgeBase.length > 0) {
+      console.log('Sample KB entry:', knowledgeBase[0].test_name, '-', knowledgeBase[0].marker);
+    }
     
     // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
     try {
@@ -1033,7 +1043,7 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
           },
           {
             role: 'user',
-            content: `Here is my knowledge base of lab test reference values and interpretations:\n\n${knowledgeBaseText}\n\nNow, ${userPrompt}\n\nLab Report:\n${extractedText}\n\nPlease provide your analysis as a JSON object with the following structure: { "summary": "brief overview", "abnormalValues": [], "interpretation": "detailed explanation", "recommendations": [] }`
+            content: `Here is my personal knowledge base of lab test reference values and interpretations:\n\n${knowledgeBaseText}\n\n${knowledgeBase.length === 0 ? 'Note: No custom knowledge base entries found. Use standard medical references.' : `Using ${knowledgeBase.length} custom reference entries from my knowledge base.`}\n\nNow, ${userPrompt}\n\nLab Report:\n${extractedText}\n\nPlease provide your analysis as a JSON object with the following structure: { "summary": "brief overview", "abnormalValues": [], "interpretation": "detailed explanation", "recommendations": [], "knowledgeBaseUsed": ${knowledgeBase.length} }`
           }
         ],
         temperature: 0.4,
