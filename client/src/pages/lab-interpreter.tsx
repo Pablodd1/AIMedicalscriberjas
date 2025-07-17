@@ -402,6 +402,9 @@ export default function LabInterpreter() {
         setAnalysisResult({ content: data.analysis });
       }
       
+      // Close upload dialog immediately after successful upload
+      setIsUploadOpen(false);
+      
       // Switch to results tab
       setActiveTab('results');
       
@@ -409,11 +412,6 @@ export default function LabInterpreter() {
         title: 'Analysis Complete',
         description: 'Lab report has been uploaded and analyzed successfully',
       });
-      
-      // Close upload dialog after a short delay to ensure state updates properly
-      setTimeout(() => {
-        setIsUploadOpen(false);
-      }, 100);
     } catch (error) {
       console.error('Error uploading and analyzing file:', error);
       toast({
@@ -427,6 +425,8 @@ export default function LabInterpreter() {
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
+      // Also ensure dialog is closed in case of any issues
+      setIsUploadOpen(false);
     }
   };
   
