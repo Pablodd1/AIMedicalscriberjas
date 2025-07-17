@@ -573,72 +573,348 @@ export default function LabInterpreter() {
     }
   };
   
-  // Handle download report
-  const handleDownloadReport = () => {
+  // Handle download report - Generate Word document with complete analysis
+  const handleDownloadReport = async () => {
     if (!analysisResult) return;
     
-    // Create a formatted report
-    let reportContent = '';
-    
-    // Add title and date
-    reportContent += '# Lab Report Analysis\n';
-    reportContent += `Date: ${new Date().toLocaleDateString()}\n\n`;
-    
-    // Add patient info if available
-    if (withPatient && selectedPatientId) {
-      const patient = patients.find(p => p.id === parseInt(selectedPatientId));
+    try {
+      // Dynamic import for better performance
+      const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = await import('docx');
+      
+      // Get patient info if available
+      const patient = withPatient && selectedPatientId 
+        ? patients.find(p => p.id === parseInt(selectedPatientId))
+        : null;
+      
+      // Create document sections
+      const docSections = [];
+      
+      // Title
+      docSections.push(
+        new Paragraph({
+          text: "Lab Report Analysis",
+          heading: HeadingLevel.TITLE,
+          alignment: AlignmentType.CENTER,
+        })
+      );
+      
+      // Date
+      docSections.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `Generated on: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`,
+              italics: true,
+            }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 300 },
+        })
+      );
+      
+      // Patient Information
       if (patient) {
-        reportContent += `## Patient Information\n`;
-        reportContent += `Name: ${patient.firstName} ${patient.lastName}\n`;
-        reportContent += `ID: ${patient.id}\n\n`;
+        docSections.push(
+          new Paragraph({
+            text: "Patient Information",
+            heading: HeadingLevel.HEADING_1,
+            spacing: { before: 400, after: 200 },
+          })
+        );
+        
+        docSections.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: "Name: ", bold: true }),
+              new TextRun({ text: `${patient.firstName} ${patient.lastName}` }),
+            ],
+            spacing: { after: 100 },
+          })
+        );
+        
+        docSections.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: "Patient ID: ", bold: true }),
+              new TextRun({ text: patient.id.toString() }),
+            ],
+            spacing: { after: 100 },
+          })
+        );
       }
-    }
-    
-    // Add analysis content
-    if (analysisResult.summary) {
-      reportContent += `## Summary\n${analysisResult.summary}\n\n`;
-    }
-    
-    if (analysisResult.abnormalValues && Array.isArray(analysisResult.abnormalValues)) {
-      reportContent += `## Abnormal Values\n`;
-      analysisResult.abnormalValues.forEach((value: any) => {
-        reportContent += `- ${value}\n`;
+      
+      // Original Lab Data
+      if (inputText) {
+        docSections.push(
+          new Paragraph({
+            text: "Original Lab Data",
+            heading: HeadingLevel.HEADING_1,
+            spacing: { before: 400, after: 200 },
+          })
+        );
+        
+        // Split input text into paragraphs for better formatting
+        const labDataLines = inputText.split('\n').filter(line => line.trim());
+        labDataLines.forEach(line => {
+          docSections.push(
+            new Paragraph({
+              text: line,
+              spacing: { after: 100 },
+            })
+          );
+        });
+      }
+      
+      // Analysis Summary
+      if (analysisResult.summary) {
+        docSections.push(
+          new Paragraph({
+            text: "Analysis Summary",
+            heading: HeadingLevel.HEADING_1,
+            spacing: { before: 400, after: 200 },
+          })
+        );
+        
+        docSections.push(
+          new Paragraph({
+            text: analysisResult.summary,
+            spacing: { after: 200 },
+          })
+        );
+      }
+      
+      // Abnormal Values
+      if (analysisResult.abnormalValues && Array.isArray(analysisResult.abnormalValues) && analysisResult.abnormalValues.length > 0) {
+        docSections.push(
+          new Paragraph({
+            text: "Abnormal Values",
+            heading: HeadingLevel.HEADING_1,
+            spacing: { before: 400, after: 200 },
+          })
+        );
+        
+        analysisResult.abnormalValues.forEach((value: any) => {
+          docSections.push(
+            new Paragraph({
+              children: [
+                new TextRun({ text: "• ", bold: true }),
+                new TextRun({ text: value.toString() }),
+              ],
+              spacing: { after: 100 },
+            })
+          );
+        });
+      }
+      
+      // Detailed Interpretation
+      if (analysisResult.interpretation) {
+        docSections.push(
+          new Paragraph({
+            text: "Detailed Interpretation",
+            heading: HeadingLevel.HEADING_1,
+            spacing: { before: 400, after: 200 },
+          })
+        );
+        
+        docSections.push(
+          new Paragraph({
+            text: analysisResult.interpretation,
+            spacing: { after: 200 },
+          })
+        );
+      }
+      
+      // Recommendations
+      if (analysisResult.recommendations && Array.isArray(analysisResult.recommendations) && analysisResult.recommendations.length > 0) {
+        docSections.push(
+          new Paragraph({
+            text: "Recommendations",
+            heading: HeadingLevel.HEADING_1,
+            spacing: { before: 400, after: 200 },
+          })
+        );
+        
+        analysisResult.recommendations.forEach((rec: any) => {
+          docSections.push(
+            new Paragraph({
+              children: [
+                new TextRun({ text: "• ", bold: true }),
+                new TextRun({ text: rec.toString() }),
+              ],
+              spacing: { after: 100 },
+            })
+          );
+        });
+      }
+      
+      // Voice Notes
+      if (transcript && transcript.trim()) {
+        docSections.push(
+          new Paragraph({
+            text: "Voice Notes",
+            heading: HeadingLevel.HEADING_1,
+            spacing: { before: 400, after: 200 },
+          })
+        );
+        
+        docSections.push(
+          new Paragraph({
+            text: transcript,
+            spacing: { after: 200 },
+          })
+        );
+      }
+      
+      // Create the document
+      const doc = new Document({
+        sections: [
+          {
+            properties: {},
+            children: docSections,
+          },
+        ],
       });
-      reportContent += '\n';
-    }
-    
-    if (analysisResult.interpretation) {
-      reportContent += `## Interpretation\n${analysisResult.interpretation}\n\n`;
-    }
-    
-    if (analysisResult.recommendations && Array.isArray(analysisResult.recommendations)) {
-      reportContent += `## Recommendations\n`;
-      analysisResult.recommendations.forEach((rec: any) => {
-        reportContent += `- ${rec}\n`;
+      
+      // Generate and download
+      const blob = await Packer.toBlob(doc);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `lab-report-analysis-${patient ? `${patient.firstName}-${patient.lastName}-` : ''}${new Date().toISOString().split('T')[0]}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: 'Report Downloaded',
+        description: 'Complete lab report analysis has been downloaded as a Word document.'
       });
-      reportContent += '\n';
+    } catch (error) {
+      console.error('Error generating document:', error);
+      toast({
+        title: 'Download Failed',
+        description: 'Failed to generate the report document. Please try again.',
+        variant: 'destructive'
+      });
     }
+  };
+  
+  // Handle download report as PDF
+  const handleDownloadReportPDF = async () => {
+    if (!analysisResult) return;
     
-    // If there's transcript, add it
-    if (transcript) {
-      reportContent += `## Voice Notes\n${transcript}\n\n`;
+    try {
+      // Dynamic import for better performance
+      const { jsPDF } = await import('jspdf');
+      
+      // Get patient info if available
+      const patient = withPatient && selectedPatientId 
+        ? patients.find(p => p.id === parseInt(selectedPatientId))
+        : null;
+      
+      // Create PDF document
+      const doc = new jsPDF();
+      let yPosition = 20;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 20;
+      const maxWidth = pageWidth - 2 * margin;
+      
+      // Helper function to add text with word wrapping
+      const addText = (text: string, fontSize: number = 12, isBold: boolean = false) => {
+        doc.setFontSize(fontSize);
+        if (isBold) doc.setFont(undefined, 'bold');
+        else doc.setFont(undefined, 'normal');
+        
+        const lines = doc.splitTextToSize(text, maxWidth);
+        lines.forEach((line: string) => {
+          if (yPosition > 270) {
+            doc.addPage();
+            yPosition = 20;
+          }
+          doc.text(line, margin, yPosition);
+          yPosition += fontSize * 0.6;
+        });
+        yPosition += 5;
+      };
+      
+      // Add title
+      addText("Lab Report Analysis", 20, true);
+      yPosition += 5;
+      
+      // Add date
+      addText(`Generated on: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`, 10);
+      yPosition += 10;
+      
+      // Add patient info if available
+      if (patient) {
+        addText("Patient Information", 16, true);
+        addText(`Name: ${patient.firstName} ${patient.lastName}`, 12);
+        addText(`Patient ID: ${patient.id}`, 12);
+        yPosition += 5;
+      }
+      
+      // Add original lab data
+      if (inputText) {
+        addText("Original Lab Data", 16, true);
+        addText(inputText, 10);
+        yPosition += 5;
+      }
+      
+      // Add analysis summary
+      if (analysisResult.summary) {
+        addText("Analysis Summary", 16, true);
+        addText(analysisResult.summary, 12);
+        yPosition += 5;
+      }
+      
+      // Add abnormal values
+      if (analysisResult.abnormalValues && Array.isArray(analysisResult.abnormalValues) && analysisResult.abnormalValues.length > 0) {
+        addText("Abnormal Values", 16, true);
+        analysisResult.abnormalValues.forEach((value: any) => {
+          addText(`• ${value.toString()}`, 12);
+        });
+        yPosition += 5;
+      }
+      
+      // Add interpretation
+      if (analysisResult.interpretation) {
+        addText("Detailed Interpretation", 16, true);
+        addText(analysisResult.interpretation, 12);
+        yPosition += 5;
+      }
+      
+      // Add recommendations
+      if (analysisResult.recommendations && Array.isArray(analysisResult.recommendations) && analysisResult.recommendations.length > 0) {
+        addText("Recommendations", 16, true);
+        analysisResult.recommendations.forEach((rec: any) => {
+          addText(`• ${rec.toString()}`, 12);
+        });
+        yPosition += 5;
+      }
+      
+      // Add voice notes
+      if (transcript && transcript.trim()) {
+        addText("Voice Notes", 16, true);
+        addText(transcript, 12);
+      }
+      
+      // Save the PDF
+      const fileName = `lab-report-analysis-${patient ? `${patient.firstName}-${patient.lastName}-` : ''}${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(fileName);
+      
+      toast({
+        title: 'Report Downloaded',
+        description: 'Complete lab report analysis has been downloaded as a PDF document.'
+      });
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast({
+        title: 'Download Failed',
+        description: 'Failed to generate the PDF report. Please try again.',
+        variant: 'destructive'
+      });
     }
-    
-    // Create blob and download
-    const blob = new Blob([reportContent], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `lab-report-analysis-${new Date().toISOString().split('T')[0]}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
-    toast({
-      title: 'Report Downloaded',
-      description: 'The lab report analysis has been downloaded successfully.'
-    });
   };
 
   // Handle saving report to patient
@@ -1347,14 +1623,25 @@ export default function LabInterpreter() {
                                 )}
                               </Button>
                             )}
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={handleDownloadReport}
-                            >
-                              <DownloadIcon className="h-4 w-4 mr-1" />
-                              Download Report
-                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="sm">
+                                  <DownloadIcon className="h-4 w-4 mr-1" />
+                                  Download Report
+                                  <ChevronDown className="h-4 w-4 ml-1" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={handleDownloadReport}>
+                                  <FileText className="h-4 w-4 mr-2" />
+                                  Download as Word (.docx)
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={handleDownloadReportPDF}>
+                                  <FileText className="h-4 w-4 mr-2" />
+                                  Download as PDF
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         )}
                       </div>
