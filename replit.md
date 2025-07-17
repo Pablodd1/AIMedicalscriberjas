@@ -165,7 +165,7 @@ This is a comprehensive AI-driven Electronic Health Records (EHR) and telemedici
 
 ```
 Changelog:
-- July 17, 2025. Fixed Lab Interpreter PDF upload error - OpenAI Vision API only supports image formats (PNG, JPEG, GIF, WebP), not PDF files. Updated backend to properly reject PDF uploads with clear error message and frontend to only accept image files. Users can now either convert PDFs to images or copy text directly into the text area.
+- July 17, 2025. Enhanced Lab Interpreter with PDF support - Added ImageMagick-based PDF to image conversion. PDFs are now automatically converted to high-quality images (300 DPI) and processed page by page with OpenAI Vision API. Multi-page PDFs are supported with proper text extraction from each page. Users can now upload both PDFs and images seamlessly.
 - July 15, 2025. Fixed Lab Interpreter React rendering errors - replaced problematic apiRequest function with direct fetch calls for better response handling. Fixed object rendering issues in analysis results display with proper safe rendering functions. Both API key save and lab analysis functionality now working correctly.
 - July 15, 2025. Fixed admin panel API key management - resolved global API key saving issue by handling authentication properly for header-based admin access. Fixed user API key setting updates to properly toggle between global and personal API key usage. Updated admin panel to display masked API keys in input field placeholder for better UX.
 - July 15, 2025. Updated Lab Interpreter to use unified API key management system consistent with rest of platform. Fixed API key validation to properly check user/global API key configuration instead of environment variables only.

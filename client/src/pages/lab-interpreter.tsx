@@ -1255,7 +1255,7 @@ export default function LabInterpreter() {
                     <DialogHeader>
                       <DialogTitle>Upload Lab Report</DialogTitle>
                       <DialogDescription>
-                        Upload an image (PNG, JPEG, etc.) of a lab report for analysis. PDFs are not supported - please convert to image first or copy text directly.
+                        Upload a PDF or image of a lab report for analysis. PDFs will be automatically converted to images for processing.
                       </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
@@ -1271,14 +1271,14 @@ export default function LabInterpreter() {
                           type="file"
                           ref={fileInputRef}
                           onChange={handleFileUpload}
-                          accept="image/*"
+                          accept="application/pdf,image/*"
                           className="hidden"
                           disabled={withPatient && !selectedPatientId}
                         />
                         <div className="flex flex-col items-center justify-center gap-2">
                           <UploadCloud className="h-8 w-8 text-muted-foreground" />
                           <p className="text-sm font-medium">Click to upload or drag and drop</p>
-                          <p className="text-xs text-muted-foreground">Image files only (PNG, JPEG, etc. - max 10MB)</p>
+                          <p className="text-xs text-muted-foreground">PDF or Image files (max 10MB)</p>
                         </div>
                       </div>
                     </div>

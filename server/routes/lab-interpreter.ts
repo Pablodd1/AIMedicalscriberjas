@@ -6,6 +6,8 @@ import fs from 'fs';
 import OpenAI from 'openai';
 import { z } from 'zod';
 import xlsx from 'xlsx';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 // PDF parsing removed - using OpenAI Vision API for better accuracy
 import { 
   requireAuth, 
@@ -19,6 +21,71 @@ import {
 
 // Create router
 export const labInterpreterRouter = Router();
+
+// Promisify exec for async/await usage
+const execAsync = promisify(exec);
+
+// Function to convert PDF to images using ImageMagick
+async function convertPdfToImages(pdfPath: string): Promise<string[]> {
+  try {
+    // Create temporary directory for converted images
+    const tempDir = path.join(path.dirname(pdfPath), 'temp_images');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    
+    // Convert PDF to images using ImageMagick
+    const outputPattern = path.join(tempDir, 'page-%d.png');
+    const command = `convert -density 300 -quality 100 "${pdfPath}" "${outputPattern}"`;
+    
+    console.log('Converting PDF to images with command:', command);
+    await execAsync(command);
+    
+    // Find all generated images
+    const files = fs.readdirSync(tempDir)
+      .filter(file => file.startsWith('page-') && file.endsWith('.png'))
+      .sort((a, b) => {
+        const aNum = parseInt(a.match(/page-(\d+)\.png/)?.[1] || '0');
+        const bNum = parseInt(b.match(/page-(\d+)\.png/)?.[1] || '0');
+        return aNum - bNum;
+      })
+      .map(file => path.join(tempDir, file));
+    
+    console.log(`PDF converted to ${files.length} images`);
+    return files;
+  } catch (error) {
+    console.error('Error converting PDF to images:', error);
+    throw new AppError('Failed to convert PDF to images. Please try converting to image format manually.', 500, 'PDF_CONVERSION_FAILED');
+  }
+}
+
+// Function to clean up temporary image files
+function cleanupTempImages(imagePaths: string[]) {
+  imagePaths.forEach(imagePath => {
+    try {
+      if (fs.existsSync(imagePath)) {
+        fs.unlinkSync(imagePath);
+      }
+    } catch (error) {
+      console.error('Error cleaning up temp image:', imagePath, error);
+    }
+  });
+  
+  // Also clean up the temp directory if it's empty
+  if (imagePaths.length > 0) {
+    const tempDir = path.dirname(imagePaths[0]);
+    try {
+      if (fs.existsSync(tempDir)) {
+        const remainingFiles = fs.readdirSync(tempDir);
+        if (remainingFiles.length === 0) {
+          fs.rmdirSync(tempDir);
+        }
+      }
+    } catch (error) {
+      console.error('Error cleaning up temp directory:', tempDir, error);
+    }
+  }
+}
 
 // Helper function to get OpenAI client for a user (same as in ai.ts)
 async function getOpenAIClient(userId: number): Promise<OpenAI | null> {
@@ -96,10 +163,10 @@ const upload = multer({
         cb(null, true); // Allow all files for now to debug
       }
     } else if (file.fieldname === 'labReport') {
-      if (file.mimetype.startsWith('image/')) {
+      if (file.mimetype === 'application/pdf' || file.mimetype.startsWith('image/')) {
         cb(null, true);
       } else {
-        cb(new Error('Only image files (PNG, JPEG, etc.) are allowed for lab reports'));
+        cb(new Error('Only PDF files and images are allowed for lab reports'));
       }
     } else {
       cb(null, false);
@@ -879,18 +946,35 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
 
   let extractedText = '';
   let analysis = '';
+  let convertedImages: string[] = [];
 
   try {
     
     // Extract text from file using OpenAI Vision API for all supported formats
-    const fileBuffer = fs.readFileSync(req.file.path);
-    const base64File = fileBuffer.toString('base64');
+    let imagesToProcess: string[] = [];
     
     if (req.file.mimetype === 'application/pdf') {
-      // For PDF files, inform user that only images are supported by OpenAI Vision API
-      throw new AppError('PDF files are not supported by OpenAI Vision API. Please convert your PDF to an image (PNG, JPEG, etc.) and try again, or copy the text from the PDF and paste it directly into the text area.', 400, 'PDF_NOT_SUPPORTED');
+      // Convert PDF to images first
+      console.log('Converting PDF to images...');
+      convertedImages = await convertPdfToImages(req.file.path);
+      imagesToProcess = convertedImages;
     } else if (req.file.mimetype.startsWith('image/')) {
-      // Use OpenAI Vision API for images only
+      // Use the uploaded image directly
+      imagesToProcess = [req.file.path];
+    } else {
+      throw new AppError('Unsupported file type. Please upload a PDF or image file.', 400, 'UNSUPPORTED_FILE_TYPE');
+    }
+    
+    // Process all images with OpenAI Vision API
+    const extractedTexts: string[] = [];
+    
+    for (let i = 0; i < imagesToProcess.length; i++) {
+      const imagePath = imagesToProcess[i];
+      const imageBuffer = fs.readFileSync(imagePath);
+      const base64Image = imageBuffer.toString('base64');
+      
+      console.log(`Processing image ${i + 1}/${imagesToProcess.length}: ${path.basename(imagePath)}`);
+      
       try {
         const textExtractionResponse = await openai.chat.completions.create({
           model: "gpt-4o",
@@ -900,12 +984,12 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
               content: [
                 {
                   type: "text",
-                  text: `Extract all the text content from this lab report image. Include all test names, values, reference ranges, and any other relevant information. Format the data in a clean, structured way that preserves the original layout and organization.`
+                  text: `Extract all the text content from this lab report image (page ${i + 1} of ${imagesToProcess.length}). Include all test names, values, reference ranges, and any other relevant information. Format the data in a clean, structured way that preserves the original layout and organization.`
                 },
                 {
                   type: "image_url",
                   image_url: {
-                    url: `data:${req.file.mimetype};base64,${base64File}`
+                    url: `data:image/png;base64,${base64Image}`
                   }
                 }
               ]
@@ -913,13 +997,21 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
           ],
           max_tokens: 4000
         });
-        extractedText = textExtractionResponse.choices[0].message.content || '';
+        
+        const pageText = textExtractionResponse.choices[0].message.content || '';
+        if (pageText.trim()) {
+          extractedTexts.push(`=== Page ${i + 1} ===\n${pageText}`);
+        }
       } catch (error) {
+        console.error(`Error processing image ${i + 1}:`, error);
         throw handleOpenAIError(error);
       }
-    } else {
-      throw new AppError('Unsupported file type. Please upload an image file (PNG, JPEG, etc.) or paste the text directly into the text area.', 400, 'UNSUPPORTED_FILE_TYPE');
     }
+    
+    // Combine all extracted text
+    extractedText = extractedTexts.join('\n\n');
+    
+    console.log(`Successfully extracted text from ${extractedTexts.length} pages, total length: ${extractedText.length} characters`);
     
     if (!extractedText.trim()) {
       throw new AppError('No text could be extracted from the uploaded file. Please ensure the file contains readable lab report data.', 400, 'NO_TEXT_EXTRACTED');
@@ -1006,6 +1098,11 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
       }
     }
     
+    // Clean up temporary converted images
+    if (convertedImages.length > 0) {
+      cleanupTempImages(convertedImages);
+    }
+    
     sendSuccessResponse(res, { 
       extractedText,
       analysis 
@@ -1015,6 +1112,11 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
     // Clean up the uploaded file if it exists
     if (req.file && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
+    }
+    
+    // Clean up temporary converted images
+    if (convertedImages.length > 0) {
+      cleanupTempImages(convertedImages);
     }
     
     // Re-throw the error to be handled by the global error handler
