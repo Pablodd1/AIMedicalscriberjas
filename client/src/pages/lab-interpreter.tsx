@@ -609,6 +609,9 @@ export default function LabInterpreter() {
         ? patients.find(p => p.id === parseInt(selectedPatientId))
         : null;
       
+      // Debug: Log the analysis result to see what we're working with
+      console.log('Analysis result for download:', analysisResult);
+      
       // Create document sections
       const docSections = [];
       
@@ -686,6 +689,68 @@ export default function LabInterpreter() {
             })
           );
         });
+      }
+      
+      // Add complete analysis result - render all available data
+      if (analysisResult) {
+        docSections.push(
+          new Paragraph({
+            text: "Complete Analysis Results",
+            heading: HeadingLevel.HEADING_1,
+            spacing: { before: 400, after: 200 },
+          })
+        );
+        
+        // Function to recursively add all analysis data
+        const addAnalysisData = (data: any, level: number = 0) => {
+          if (!data || typeof data !== 'object') {
+            docSections.push(
+              new Paragraph({
+                text: convertToReadableText(data),
+                spacing: { after: 100 },
+              })
+            );
+            return;
+          }
+          
+          Object.entries(data).forEach(([key, value]) => {
+            if (value === null || value === undefined) return;
+            
+            // Add heading for each section
+            docSections.push(
+              new Paragraph({
+                text: key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1'),
+                heading: level === 0 ? HeadingLevel.HEADING_2 : HeadingLevel.HEADING_3,
+                spacing: { before: 200, after: 100 },
+              })
+            );
+            
+            if (Array.isArray(value)) {
+              value.forEach((item, index) => {
+                docSections.push(
+                  new Paragraph({
+                    children: [
+                      new TextRun({ text: `${index + 1}. `, bold: true }),
+                      new TextRun({ text: convertToReadableText(item) }),
+                    ],
+                    spacing: { after: 100 },
+                  })
+                );
+              });
+            } else if (typeof value === 'object') {
+              addAnalysisData(value, level + 1);
+            } else {
+              docSections.push(
+                new Paragraph({
+                  text: convertToReadableText(value),
+                  spacing: { after: 100 },
+                })
+              );
+            }
+          });
+        };
+        
+        addAnalysisData(analysisResult);
       }
       
       // Analysis Summary
@@ -881,6 +946,40 @@ export default function LabInterpreter() {
       if (inputText) {
         addText("Original Lab Data", 16, true);
         addText(inputText, 10);
+        yPosition += 5;
+      }
+      
+      // Add complete analysis result - render all available data
+      if (analysisResult) {
+        addText("Complete Analysis Results", 16, true);
+        
+        // Function to recursively add all analysis data
+        const addAnalysisData = (data: any, level: number = 0) => {
+          if (!data || typeof data !== 'object') {
+            addText(convertToReadableText(data), 12);
+            return;
+          }
+          
+          Object.entries(data).forEach(([key, value]) => {
+            if (value === null || value === undefined) return;
+            
+            // Add heading for each section
+            const heading = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
+            addText(heading, level === 0 ? 14 : 12, true);
+            
+            if (Array.isArray(value)) {
+              value.forEach((item, index) => {
+                addText(`${index + 1}. ${convertToReadableText(item)}`, 12);
+              });
+            } else if (typeof value === 'object') {
+              addAnalysisData(value, level + 1);
+            } else {
+              addText(convertToReadableText(value), 12);
+            }
+          });
+        };
+        
+        addAnalysisData(analysisResult);
         yPosition += 5;
       }
       
