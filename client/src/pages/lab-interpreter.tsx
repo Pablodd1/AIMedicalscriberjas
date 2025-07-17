@@ -669,38 +669,10 @@ export default function LabInterpreter() {
         );
       }
       
-      // Original Lab Data
-      if (inputText) {
-        docSections.push(
-          new Paragraph({
-            text: "Original Lab Data",
-            heading: HeadingLevel.HEADING_1,
-            spacing: { before: 400, after: 200 },
-          })
-        );
-        
-        // Split input text into paragraphs for better formatting
-        const labDataLines = inputText.split('\n').filter(line => line.trim());
-        labDataLines.forEach(line => {
-          docSections.push(
-            new Paragraph({
-              text: line,
-              spacing: { after: 100 },
-            })
-          );
-        });
-      }
+
       
       // Add complete analysis result - render all available data
       if (analysisResult) {
-        docSections.push(
-          new Paragraph({
-            text: "Complete Analysis Results",
-            heading: HeadingLevel.HEADING_1,
-            spacing: { before: 400, after: 200 },
-          })
-        );
-        
         // Function to recursively add all analysis data
         const addAnalysisData = (data: any, level: number = 0) => {
           if (!data || typeof data !== 'object') {
@@ -720,8 +692,8 @@ export default function LabInterpreter() {
             docSections.push(
               new Paragraph({
                 text: key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1'),
-                heading: level === 0 ? HeadingLevel.HEADING_2 : HeadingLevel.HEADING_3,
-                spacing: { before: 200, after: 100 },
+                heading: level === 0 ? HeadingLevel.HEADING_1 : HeadingLevel.HEADING_2,
+                spacing: { before: 400, after: 200 },
               })
             );
             
@@ -753,87 +725,7 @@ export default function LabInterpreter() {
         addAnalysisData(analysisResult);
       }
       
-      // Analysis Summary
-      if (analysisResult.summary) {
-        docSections.push(
-          new Paragraph({
-            text: "Analysis Summary",
-            heading: HeadingLevel.HEADING_1,
-            spacing: { before: 400, after: 200 },
-          })
-        );
-        
-        docSections.push(
-          new Paragraph({
-            text: analysisResult.summary,
-            spacing: { after: 200 },
-          })
-        );
-      }
-      
-      // Abnormal Values
-      if (analysisResult.abnormalValues && Array.isArray(analysisResult.abnormalValues) && analysisResult.abnormalValues.length > 0) {
-        docSections.push(
-          new Paragraph({
-            text: "Abnormal Values",
-            heading: HeadingLevel.HEADING_1,
-            spacing: { before: 400, after: 200 },
-          })
-        );
-        
-        analysisResult.abnormalValues.forEach((value: any) => {
-          docSections.push(
-            new Paragraph({
-              children: [
-                new TextRun({ text: "• ", bold: true }),
-                new TextRun({ text: convertToReadableText(value) }),
-              ],
-              spacing: { after: 100 },
-            })
-          );
-        });
-      }
-      
-      // Detailed Interpretation
-      if (analysisResult.interpretation) {
-        docSections.push(
-          new Paragraph({
-            text: "Detailed Interpretation",
-            heading: HeadingLevel.HEADING_1,
-            spacing: { before: 400, after: 200 },
-          })
-        );
-        
-        docSections.push(
-          new Paragraph({
-            text: analysisResult.interpretation,
-            spacing: { after: 200 },
-          })
-        );
-      }
-      
-      // Recommendations
-      if (analysisResult.recommendations && Array.isArray(analysisResult.recommendations) && analysisResult.recommendations.length > 0) {
-        docSections.push(
-          new Paragraph({
-            text: "Recommendations",
-            heading: HeadingLevel.HEADING_1,
-            spacing: { before: 400, after: 200 },
-          })
-        );
-        
-        analysisResult.recommendations.forEach((rec: any) => {
-          docSections.push(
-            new Paragraph({
-              children: [
-                new TextRun({ text: "• ", bold: true }),
-                new TextRun({ text: convertToReadableText(rec) }),
-              ],
-              spacing: { after: 100 },
-            })
-          );
-        });
-      }
+
       
       // Voice Notes
       if (transcript && transcript.trim()) {
@@ -942,17 +834,8 @@ export default function LabInterpreter() {
         yPosition += 5;
       }
       
-      // Add original lab data
-      if (inputText) {
-        addText("Original Lab Data", 16, true);
-        addText(inputText, 10);
-        yPosition += 5;
-      }
-      
       // Add complete analysis result - render all available data
       if (analysisResult) {
-        addText("Complete Analysis Results", 16, true);
-        
         // Function to recursively add all analysis data
         const addAnalysisData = (data: any, level: number = 0) => {
           if (!data || typeof data !== 'object') {
@@ -965,7 +848,7 @@ export default function LabInterpreter() {
             
             // Add heading for each section
             const heading = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
-            addText(heading, level === 0 ? 14 : 12, true);
+            addText(heading, level === 0 ? 16 : 14, true);
             
             if (Array.isArray(value)) {
               value.forEach((item, index) => {
@@ -983,37 +866,7 @@ export default function LabInterpreter() {
         yPosition += 5;
       }
       
-      // Add analysis summary
-      if (analysisResult.summary) {
-        addText("Analysis Summary", 16, true);
-        addText(analysisResult.summary, 12);
-        yPosition += 5;
-      }
-      
-      // Add abnormal values
-      if (analysisResult.abnormalValues && Array.isArray(analysisResult.abnormalValues) && analysisResult.abnormalValues.length > 0) {
-        addText("Abnormal Values", 16, true);
-        analysisResult.abnormalValues.forEach((value: any) => {
-          addText(`• ${convertToReadableText(value)}`, 12);
-        });
-        yPosition += 5;
-      }
-      
-      // Add interpretation
-      if (analysisResult.interpretation) {
-        addText("Detailed Interpretation", 16, true);
-        addText(analysisResult.interpretation, 12);
-        yPosition += 5;
-      }
-      
-      // Add recommendations
-      if (analysisResult.recommendations && Array.isArray(analysisResult.recommendations) && analysisResult.recommendations.length > 0) {
-        addText("Recommendations", 16, true);
-        analysisResult.recommendations.forEach((rec: any) => {
-          addText(`• ${convertToReadableText(rec)}`, 12);
-        });
-        yPosition += 5;
-      }
+
       
       // Add voice notes
       if (transcript && transcript.trim()) {
