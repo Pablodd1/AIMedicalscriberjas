@@ -96,11 +96,10 @@ const upload = multer({
         cb(null, true); // Allow all files for now to debug
       }
     } else if (file.fieldname === 'labReport') {
-      if (file.mimetype === 'application/pdf' || 
-          file.mimetype.startsWith('image/')) {
+      if (file.mimetype.startsWith('image/')) {
         cb(null, true);
       } else {
-        cb(new Error('Only PDF files and images are allowed for lab reports'));
+        cb(new Error('Only image files (PNG, JPEG, etc.) are allowed for lab reports'));
       }
     } else {
       cb(null, false);
@@ -867,12 +866,16 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
       'Failed to fetch user data'
     );
     
+    console.log('OpenAI client creation failed for user:', req.user.id, 'useOwnApiKey:', user?.useOwnApiKey);
+    
     const errorMessage = user?.useOwnApiKey 
       ? 'No personal OpenAI API key found. Please add your OpenAI API key in Settings to use AI features.'
       : 'No global OpenAI API key configured. Please contact your administrator or add your own API key in Settings.';
     
     throw new AppError(errorMessage, 503, 'NO_API_KEY');
   }
+  
+  console.log('OpenAI client created successfully for user:', req.user.id);
 
   let extractedText = '';
   let analysis = '';
@@ -883,9 +886,11 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
     const fileBuffer = fs.readFileSync(req.file.path);
     const base64File = fileBuffer.toString('base64');
     
-    if (req.file.mimetype === 'application/pdf' || req.file.mimetype.startsWith('image/')) {
-      // Use OpenAI Vision API for both PDFs and images
-      const fileTypeText = req.file.mimetype === 'application/pdf' ? 'PDF' : 'image';
+    if (req.file.mimetype === 'application/pdf') {
+      // For PDF files, inform user that only images are supported by OpenAI Vision API
+      throw new AppError('PDF files are not supported by OpenAI Vision API. Please convert your PDF to an image (PNG, JPEG, etc.) and try again, or copy the text from the PDF and paste it directly into the text area.', 400, 'PDF_NOT_SUPPORTED');
+    } else if (req.file.mimetype.startsWith('image/')) {
+      // Use OpenAI Vision API for images only
       try {
         const textExtractionResponse = await openai.chat.completions.create({
           model: "gpt-4o",
@@ -895,7 +900,7 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
               content: [
                 {
                   type: "text",
-                  text: `Extract all the text content from this lab report ${fileTypeText}. Include all test names, values, reference ranges, and any other relevant information. Format the data in a clean, structured way that preserves the original layout and organization.`
+                  text: `Extract all the text content from this lab report image. Include all test names, values, reference ranges, and any other relevant information. Format the data in a clean, structured way that preserves the original layout and organization.`
                 },
                 {
                   type: "image_url",
@@ -913,7 +918,7 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
         throw handleOpenAIError(error);
       }
     } else {
-      throw new AppError('Unsupported file type. Please upload a PDF or image file.', 400, 'UNSUPPORTED_FILE_TYPE');
+      throw new AppError('Unsupported file type. Please upload an image file (PNG, JPEG, etc.) or paste the text directly into the text area.', 400, 'UNSUPPORTED_FILE_TYPE');
     }
     
     if (!extractedText.trim()) {
