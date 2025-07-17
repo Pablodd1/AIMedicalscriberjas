@@ -366,6 +366,9 @@ export default function LabInterpreter() {
     const file = e.target.files?.[0];
     if (!file) return;
     
+    // Close dialog immediately when file is selected
+    setIsUploadOpen(false);
+    
     const formData = new FormData();
     formData.append('labReport', file);
     formData.append('withPatient', withPatient.toString());
@@ -402,9 +405,6 @@ export default function LabInterpreter() {
         setAnalysisResult({ content: data.analysis });
       }
       
-      // Close upload dialog immediately after successful upload
-      setIsUploadOpen(false);
-      
       // Switch to results tab
       setActiveTab('results');
       
@@ -425,8 +425,6 @@ export default function LabInterpreter() {
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
-      // Also ensure dialog is closed in case of any issues
-      setIsUploadOpen(false);
     }
   };
   
