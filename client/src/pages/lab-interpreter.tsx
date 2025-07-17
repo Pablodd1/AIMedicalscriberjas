@@ -405,13 +405,15 @@ export default function LabInterpreter() {
       // Switch to results tab
       setActiveTab('results');
       
-      // Close upload dialog
-      setIsUploadOpen(false);
-      
       toast({
         title: 'Analysis Complete',
         description: 'Lab report has been uploaded and analyzed successfully',
       });
+      
+      // Close upload dialog after a short delay to ensure state updates properly
+      setTimeout(() => {
+        setIsUploadOpen(false);
+      }, 100);
     } catch (error) {
       console.error('Error uploading and analyzing file:', error);
       toast({
