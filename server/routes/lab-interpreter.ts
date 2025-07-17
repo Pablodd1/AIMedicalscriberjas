@@ -935,46 +935,77 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
       throw new AppError('Unsupported file type. Please upload a PDF or image file.', 400, 'UNSUPPORTED_FILE_TYPE');
     }
     
-    // Process all images with OpenAI Vision API
+    // Process all images with OpenAI Vision API with optimized batching for large files
     const extractedTexts: string[] = [];
+    const maxConcurrent = imagesToProcess.length > 10 ? 2 : 3; // Reduce concurrent processing for large files
+    const batchSize = maxConcurrent;
     
-    for (let i = 0; i < imagesToProcess.length; i++) {
-      const imagePath = imagesToProcess[i];
-      const imageBuffer = fs.readFileSync(imagePath);
-      const base64Image = imageBuffer.toString('base64');
+    console.log(`Processing ${imagesToProcess.length} pages with batch size of ${batchSize}`);
+    
+    for (let i = 0; i < imagesToProcess.length; i += batchSize) {
+      const batchEnd = Math.min(i + batchSize, imagesToProcess.length);
+      const currentBatch = imagesToProcess.slice(i, batchEnd);
       
-      console.log(`Processing image ${i + 1}/${imagesToProcess.length}: ${path.basename(imagePath)}`);
+      console.log(`Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(imagesToProcess.length/batchSize)}: pages ${i + 1}-${batchEnd}`);
       
-      try {
-        const textExtractionResponse = await openai.chat.completions.create({
-          model: "gpt-4o",
-          messages: [
-            {
-              role: 'user',
-              content: [
-                {
-                  type: "text",
-                  text: `Extract all the text content from this lab report image (page ${i + 1} of ${imagesToProcess.length}). Include all test names, values, reference ranges, and any other relevant information. Format the data in a clean, structured way that preserves the original layout and organization.`
-                },
-                {
-                  type: "image_url",
-                  image_url: {
-                    url: `data:image/png;base64,${base64Image}`
-                  }
-                }
-              ]
-            }
-          ],
-          max_tokens: 4000
-        });
+      const batchPromises = currentBatch.map(async (imagePath, batchIndex) => {
+        const pageNumber = i + batchIndex + 1;
         
-        const pageText = textExtractionResponse.choices[0].message.content || '';
-        if (pageText.trim()) {
-          extractedTexts.push(`=== Page ${i + 1} ===\n${pageText}`);
+        try {
+          const imageBuffer = fs.readFileSync(imagePath);
+          const base64Image = imageBuffer.toString('base64');
+          
+          console.log(`Processing image ${pageNumber}/${imagesToProcess.length}: ${path.basename(imagePath)}`);
+          
+          const textExtractionResponse = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  {
+                    type: "text",
+                    text: `Extract all the text content from this lab report image (page ${pageNumber} of ${imagesToProcess.length}). Include all test names, values, reference ranges, and any other relevant information. Format the data in a clean, structured way that preserves the original layout and organization.`
+                  },
+                  {
+                    type: "image_url",
+                    image_url: {
+                      url: `data:image/png;base64,${base64Image}`
+                    }
+                  }
+                ]
+              }
+            ],
+            max_tokens: 4000
+          });
+          
+          const pageText = textExtractionResponse.choices[0].message.content || '';
+          return {
+            pageNumber,
+            text: pageText.trim() ? `=== Page ${pageNumber} ===\n${pageText}` : null
+          };
+          
+        } catch (error) {
+          console.error(`Error processing image ${pageNumber}:`, error);
+          throw handleOpenAIError(error);
         }
-      } catch (error) {
-        console.error(`Error processing image ${i + 1}:`, error);
-        throw handleOpenAIError(error);
+      });
+      
+      // Wait for current batch to complete
+      const batchResults = await Promise.all(batchPromises);
+      
+      // Add results in correct order, filtering out empty pages
+      batchResults
+        .sort((a, b) => a.pageNumber - b.pageNumber)
+        .forEach(result => {
+          if (result.text) {
+            extractedTexts.push(result.text);
+          }
+        });
+      
+      // Add a small delay between batches for large files to prevent rate limiting
+      if (imagesToProcess.length > 10 && i + batchSize < imagesToProcess.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
     
