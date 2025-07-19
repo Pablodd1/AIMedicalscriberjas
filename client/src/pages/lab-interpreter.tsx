@@ -139,8 +139,15 @@ export default function LabInterpreter() {
     try {
       setIsLoadingKnowledgeBase(true);
       const response = await apiRequest('GET', '/api/lab-interpreter/knowledge-base');
-      const data = await response.json();
-      setKnowledgeBase(data);
+      const result = await response.json();
+      
+      console.log('Knowledge base response:', result);
+      
+      // Handle both direct array and wrapped response
+      const data = result.data || result;
+      setKnowledgeBase(Array.isArray(data) ? data : []);
+      
+      console.log('Knowledge base loaded:', Array.isArray(data) ? data.length : 0, 'items');
     } catch (error) {
       console.error('Error fetching knowledge base:', error);
       toast({
@@ -286,6 +293,11 @@ export default function LabInterpreter() {
     }
   };
   
+  // Load knowledge base on component mount
+  useEffect(() => {
+    loadKnowledgeBase();
+  }, []);
+
   useEffect(() => {
     // Load knowledge base data when the dialog is opened
     if (isKnowledgeBaseOpen) {
