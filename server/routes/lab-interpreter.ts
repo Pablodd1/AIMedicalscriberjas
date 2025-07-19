@@ -1241,10 +1241,40 @@ labInterpreterRouter.post('/analyze', requireAuth, asyncHandler(async (req, res)
     }
   }
     
-  // Prepare knowledge base for prompt
-  const knowledgeBaseText = knowledgeBase.map(item => 
-    `Test: ${item.test_name}\nMarker: ${item.marker}\nNormal Range: ${item.normal_range_low || 'N/A'} - ${item.normal_range_high || 'N/A'} ${item.unit || ''}\nInterpretation: ${item.interpretation}\nRecommendations: ${item.recommendations || 'None specified'}`
-  ).join('\n\n');
+  // Prepare enhanced knowledge base for prompt with company product focus
+  const knowledgeBaseText = knowledgeBase.map(item => {
+    // Extract product information from recommendations for easy access
+    const recommendations = item.recommendations || '';
+    let productSummary = '';
+    
+    // Parse peptides
+    const peptideMatch = recommendations.match(/PEPTIDES:\s*\n([\s\S]*?)(?=\n\s*SUPPLEMENTS|\n\s*DOSAGE|\n\s*ADDITIONAL|$)/i);
+    if (peptideMatch) {
+      const peptides = peptideMatch[1].split('\n').filter(line => line.trim() && line.includes(':')).map(line => line.trim()).join(', ');
+      productSummary += `Peptides: ${peptides}; `;
+    }
+    
+    // Parse supplements/formulas
+    const formulaMatch = recommendations.match(/SUPPLEMENTS & FORMULAS:\s*\n([\s\S]*?)(?=\n\s*DOSAGE|\n\s*ADDITIONAL|$)/i);
+    if (formulaMatch) {
+      const formulas = formulaMatch[1].split('\n').filter(line => line.trim() && line.includes(':')).map(line => line.trim()).join(', ');
+      productSummary += `Formulas: ${formulas}; `;
+    }
+    
+    // Parse dosages
+    const dosageMatch = recommendations.match(/DOSAGE INSTRUCTIONS:\s*\n([\s\S]*?)(?=\n\s*ADDITIONAL|$)/i);
+    if (dosageMatch) {
+      const dosages = dosageMatch[1].split('\n').filter(line => line.trim() && line.includes(':')).map(line => line.trim()).join(', ');
+      productSummary += `Dosages: ${dosages}`;
+    }
+    
+    return `Organ System: ${item.test_name}
+Disease/Condition: ${item.marker}
+Available Products: ${productSummary || 'See full recommendations'}
+Complete Recommendations:
+${recommendations}
+---`;
+  }).join('\n\n');
   
   console.log(`Using ${knowledgeBase.length} knowledge base entries for analysis`);
   if (knowledgeBase.length > 0) {
@@ -1263,7 +1293,36 @@ labInterpreterRouter.post('/analyze', requireAuth, asyncHandler(async (req, res)
         },
         {
           role: 'user',
-          content: `Here is my personal knowledge base of lab test reference values and interpretations:\n\n${knowledgeBaseText}\n\n${knowledgeBase.length === 0 ? 'Note: No custom knowledge base entries found. Use standard medical references.' : `Using ${knowledgeBase.length} custom reference entries from my knowledge base.`}\n\nNow, ${userPrompt}\n\nLab Report:\n${reportText}\n\nPlease provide your analysis as a JSON object with the following structure: { "summary": "brief overview", "abnormalValues": [], "interpretation": "detailed explanation", "recommendations": [], "knowledgeBaseUsed": ${knowledgeBase.length} }`
+          content: `COMPANY PRODUCT INVENTORY - ONLY RECOMMEND FROM THIS LIST:
+
+${knowledgeBaseText}
+
+${knowledgeBase.length === 0 ? 
+  'Note: No company product inventory found. Provide general health advice without specific product recommendations.' : 
+  `IMPORTANT: This company sells ${knowledgeBase.length} specific medical products. You must ONLY recommend products from the above inventory. Do not suggest any products not listed above.`
+}
+
+ANALYSIS REQUEST: ${userPrompt}
+
+LAB REPORT DATA:
+${reportText}
+
+RESPONSE REQUIREMENTS:
+1. Analyze the lab values using functional medicine principles
+2. ONLY recommend peptides, formulas, and supplements from the company inventory above
+3. Use the exact product names and dosage instructions provided
+4. If a condition needs treatment but no matching product exists in inventory, provide general health advice without product recommendations
+5. Always reference the specific "How to take" instructions from the knowledge base
+
+Please provide your analysis as a JSON object with this structure: 
+{ 
+  "summary": "brief overview", 
+  "abnormalValues": [], 
+  "interpretation": "detailed explanation", 
+  "recommendations": [{"product": "exact name from inventory", "dosage": "from knowledge base", "reason": "why recommended"}], 
+  "knowledgeBaseUsed": ${knowledgeBase.length},
+  "complianceNote": "All recommendations are from company product inventory only"
+}`
         }
       ],
       temperature: 0.4,
@@ -1385,10 +1444,40 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
       }
     }
     
-    // Prepare knowledge base for prompt
-    const knowledgeBaseText = knowledgeBase.map(item => 
-      `Test: ${item.test_name}\nMarker: ${item.marker}\nNormal Range: ${item.normal_range_low || 'N/A'} - ${item.normal_range_high || 'N/A'} ${item.unit || ''}\nInterpretation: ${item.interpretation}\nRecommendations: ${item.recommendations || 'None specified'}`
-    ).join('\n\n');
+    // Prepare enhanced knowledge base for prompt with company product focus
+    const knowledgeBaseText = knowledgeBase.map(item => {
+      // Extract product information from recommendations for easy access
+      const recommendations = item.recommendations || '';
+      let productSummary = '';
+      
+      // Parse peptides
+      const peptideMatch = recommendations.match(/PEPTIDES:\s*\n([\s\S]*?)(?=\n\s*SUPPLEMENTS|\n\s*DOSAGE|\n\s*ADDITIONAL|$)/i);
+      if (peptideMatch) {
+        const peptides = peptideMatch[1].split('\n').filter(line => line.trim() && line.includes(':')).map(line => line.trim()).join(', ');
+        productSummary += `Peptides: ${peptides}; `;
+      }
+      
+      // Parse supplements/formulas
+      const formulaMatch = recommendations.match(/SUPPLEMENTS & FORMULAS:\s*\n([\s\S]*?)(?=\n\s*DOSAGE|\n\s*ADDITIONAL|$)/i);
+      if (formulaMatch) {
+        const formulas = formulaMatch[1].split('\n').filter(line => line.trim() && line.includes(':')).map(line => line.trim()).join(', ');
+        productSummary += `Formulas: ${formulas}; `;
+      }
+      
+      // Parse dosages
+      const dosageMatch = recommendations.match(/DOSAGE INSTRUCTIONS:\s*\n([\s\S]*?)(?=\n\s*ADDITIONAL|$)/i);
+      if (dosageMatch) {
+        const dosages = dosageMatch[1].split('\n').filter(line => line.trim() && line.includes(':')).map(line => line.trim()).join(', ');
+        productSummary += `Dosages: ${dosages}`;
+      }
+      
+      return `Organ System: ${item.test_name}
+Disease/Condition: ${item.marker}
+Available Products: ${productSummary || 'See full recommendations'}
+Complete Recommendations:
+${recommendations}
+---`;
+    }).join('\n\n');
     
     console.log(`Using ${knowledgeBase.length} knowledge base entries for upload analysis`);
     if (knowledgeBase.length > 0) {
@@ -1406,7 +1495,36 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
           },
           {
             role: 'user',
-            content: `Here is my personal knowledge base of lab test reference values and interpretations:\n\n${knowledgeBaseText}\n\n${knowledgeBase.length === 0 ? 'Note: No custom knowledge base entries found. Use standard medical references.' : `Using ${knowledgeBase.length} custom reference entries from my knowledge base.`}\n\nNow, ${userPrompt}\n\nLab Report:\n${extractedText}\n\nPlease provide your analysis as a JSON object with the following structure: { "summary": "brief overview", "abnormalValues": [], "interpretation": "detailed explanation", "recommendations": [], "knowledgeBaseUsed": ${knowledgeBase.length} }`
+            content: `COMPANY PRODUCT INVENTORY - ONLY RECOMMEND FROM THIS LIST:
+
+${knowledgeBaseText}
+
+${knowledgeBase.length === 0 ? 
+  'Note: No company product inventory found. Provide general health advice without specific product recommendations.' : 
+  `IMPORTANT: This company sells ${knowledgeBase.length} specific medical products. You must ONLY recommend products from the above inventory. Do not suggest any products not listed above.`
+}
+
+ANALYSIS REQUEST: ${userPrompt}
+
+LAB REPORT DATA:
+${extractedText}
+
+RESPONSE REQUIREMENTS:
+1. Analyze the lab values using functional medicine principles
+2. ONLY recommend peptides, formulas, and supplements from the company inventory above
+3. Use the exact product names and dosage instructions provided
+4. If a condition needs treatment but no matching product exists in inventory, provide general health advice without product recommendations
+5. Always reference the specific "How to take" instructions from the knowledge base
+
+Please provide your analysis as a JSON object with this structure: 
+{ 
+  "summary": "brief overview", 
+  "abnormalValues": [], 
+  "interpretation": "detailed explanation", 
+  "recommendations": [{"product": "exact name from inventory", "dosage": "from knowledge base", "reason": "why recommended"}], 
+  "knowledgeBaseUsed": ${knowledgeBase.length},
+  "complianceNote": "All recommendations are from company product inventory only"
+}`
           }
         ],
         temperature: 0.4,
