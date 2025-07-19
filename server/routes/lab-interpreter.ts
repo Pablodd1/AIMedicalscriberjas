@@ -548,20 +548,29 @@ function detectDiseasesReferenceFormat(data: any[]) {
 
 // Parse the Disease-Product reference format
 function parseDiseaseProductReference(data: any[]) {
-  console.log("Processing disease-product reference format");
+  console.log("Processing disease-product reference format - ENHANCED AI CAPTURE");
   
-  // Look at first row to understand the structure
+  // Enhanced analysis of file structure
   if (data.length > 0) {
-    console.log("Sample row keys:", Object.keys(data[0]));
-    console.log("Sample row values:", Object.values(data[0]));
+    const allKeys = Object.keys(data[0]);
+    console.log("Total columns detected:", allKeys.length);
+    console.log("All column headers:", allKeys);
     
-    // Log specific column detection
-    const keys = Object.keys(data[0]);
-    const peptideColumns = keys.filter(k => /peptide/i.test(k));
-    const formulaColumns = keys.filter(k => /formula|supplement|product|support/i.test(k));
+    // Advanced pattern detection for your Excel structure
+    const peptideColumns = allKeys.filter(k => /peptide/i.test(k));
+    const formulaColumns = allKeys.filter(k => /formula|supplement|product|support|guard/i.test(k));
+    const dosageColumns = allKeys.filter(k => /take|dose|dosage|instruction|how.*to/i.test(k));
+    const systemColumns = allKeys.filter(k => /organ|system/i.test(k));
+    const diseaseColumns = allKeys.filter(k => /disease|state|condition/i.test(k));
     
-    console.log("Detected peptide columns:", peptideColumns);
-    console.log("Detected formula/supplement columns:", formulaColumns);
+    console.log("Enhanced column analysis:", {
+      systemColumns,
+      diseaseColumns,
+      peptideColumns,
+      formulaColumns,
+      dosageColumns,
+      totalColumns: allKeys.length
+    });
   }
 
   return data.filter(row => {
@@ -569,89 +578,132 @@ function parseDiseaseProductReference(data: any[]) {
     const values = Object.values(row).filter(v => v !== null && v !== undefined && v !== '');
     return values.length > 0;
   }).map((row: any) => {
-    // Get all column keys from the row
-    const keys = Object.keys(row);
+    // Get ALL column keys from the row
+    const allKeys = Object.keys(row);
+    console.log(`Processing row with ${allKeys.length} columns`);
     
-    // Find organ system and disease columns with more flexible matching
+    // Smart detection of organ system and disease columns
     let organSystemKey = '';
     let diseaseStateKey = '';
     
-    // Try to find the best matching columns for organ/system and disease/condition
-    for (const key of keys) {
+    // Enhanced pattern matching for your specific Excel structure
+    for (const key of allKeys) {
       const keyLower = key.toLowerCase();
       
-      // Look for organ system columns
-      if (!organSystemKey && (/organ/i.test(key) || /system/i.test(key) || /category/i.test(key))) {
+      // Look for organ system columns (first priority)
+      if (!organSystemKey && /organ.*system|system/i.test(key)) {
         organSystemKey = key;
       }
       
       // Look for disease/condition columns
-      if (!diseaseStateKey && (/disease/i.test(key) || /condition/i.test(key) || /state/i.test(key) || /disorder/i.test(key))) {
+      if (!diseaseStateKey && /disease.*state|disease|condition|state/i.test(key)) {
         diseaseStateKey = key;
       }
     }
     
-    // If we still don't have keys, use the first two columns as defaults
-    if (!organSystemKey && keys.length > 0) organSystemKey = keys[0];
-    if (!diseaseStateKey && keys.length > 1) diseaseStateKey = keys[1];
+    // Fallback to first two columns if specific patterns not found
+    if (!organSystemKey && allKeys.length > 0) organSystemKey = allKeys[0];
+    if (!diseaseStateKey && allKeys.length > 1) diseaseStateKey = allKeys[1];
     
-    // Extract values for organ system and disease state
+    // Extract organ system and disease values
     const organSystem = organSystemKey ? String(row[organSystemKey] || '').trim() : 'General';
     const diseaseState = diseaseStateKey ? String(row[diseaseStateKey] || '').trim() : '';
     
-    // Collect ALL data from ALL columns systematically
-    let allPeptides = '';
-    let allFormulas = '';
-    let allDosages = '';
-    let additionalData = '';
+    console.log(`Organ: ${organSystem}, Disease: ${diseaseState}`);
     
-    for (const key of keys) {
+    // ENHANCED: Capture EVERY single column with intelligent categorization
+    const categoryData: { [category: string]: { [key: string]: string } } = {
+      peptides: {},
+      formulas: {},
+      dosages: {},
+      additional: {}
+    };
+    
+    // Process EVERY column systematically
+    allKeys.forEach((key, index) => {
       const value = String(row[key] || '').trim();
       
-      // Skip empty values and the main organ/disease columns
+      // Skip empty values and the main identification columns
       if (!value || value === '' || value.toLowerCase() === 'null' || 
           key === organSystemKey || key === diseaseStateKey) {
-        continue;
+        return;
       }
       
       const keyLower = key.toLowerCase();
       const cleanKeyName = key.replace(/([A-Z])/g, ' $1').trim();
       
-      // Categorize by column content and name
+      console.log(`Processing column ${index + 1}: "${key}" = "${value}"`);
+      
+      // Smart categorization with comprehensive pattern matching
       if (/peptide/i.test(key)) {
-        allPeptides += `${cleanKeyName}: ${value}\n`;
-      } else if (/formula|supplement|product|support|guard|cleanse|wash/i.test(key)) {
-        allFormulas += `${cleanKeyName}: ${value}\n`;
-      } else if (/take|dosage|dose|instruction|daily|units|mg|ml|tsp|cap/i.test(key) || /take/i.test(value)) {
-        allDosages += `${cleanKeyName}: ${value}\n`;
+        categoryData.peptides[cleanKeyName] = value;
+        console.log(`  → Categorized as PEPTIDE: ${cleanKeyName}`);
+      } else if (/formula|supplement|product|support.*formula|guard.*formula|guard$|cleanse|wash/i.test(key)) {
+        categoryData.formulas[cleanKeyName] = value;
+        console.log(`  → Categorized as FORMULA: ${cleanKeyName}`);
+      } else if (/take|dosage|dose|instruction|how.*to|daily|units|mg|ml|tsp|cap|admin/i.test(key) || /take|daily|units|mg|ml/i.test(value)) {
+        categoryData.dosages[cleanKeyName] = value;
+        console.log(`  → Categorized as DOSAGE: ${cleanKeyName}`);
       } else {
-        // Capture everything else that might be relevant
-        additionalData += `${cleanKeyName}: ${value}\n`;
+        // Capture EVERYTHING else - no data left behind
+        categoryData.additional[cleanKeyName] = value;
+        console.log(`  → Categorized as ADDITIONAL: ${cleanKeyName}`);
       }
+    });
+    
+    // Build ultra-comprehensive recommendations preserving ALL data
+    let fullRecommendations = '';
+    
+    // Peptides section
+    if (Object.keys(categoryData.peptides).length > 0) {
+      fullRecommendations += 'PEPTIDES:\n';
+      Object.entries(categoryData.peptides).forEach(([key, value]) => {
+        fullRecommendations += `${key}: ${value}\n`;
+      });
+      fullRecommendations += '\n';
     }
     
-    // Build comprehensive structured recommendations with all data
-    let structuredRecommendations = '';
-    
-    if (allPeptides) {
-      structuredRecommendations += "PEPTIDES:\n" + allPeptides;
+    // Supplements and formulas section
+    if (Object.keys(categoryData.formulas).length > 0) {
+      fullRecommendations += 'SUPPLEMENTS & FORMULAS:\n';
+      Object.entries(categoryData.formulas).forEach(([key, value]) => {
+        fullRecommendations += `${key}: ${value}\n`;
+      });
+      fullRecommendations += '\n';
     }
     
-    if (allFormulas) {
-      structuredRecommendations += (structuredRecommendations ? "\n" : "") + "SUPPLEMENTS & FORMULAS:\n" + allFormulas;
+    // Dosage instructions section
+    if (Object.keys(categoryData.dosages).length > 0) {
+      fullRecommendations += 'DOSAGE INSTRUCTIONS:\n';
+      Object.entries(categoryData.dosages).forEach(([key, value]) => {
+        fullRecommendations += `${key}: ${value}\n`;
+      });
+      fullRecommendations += '\n';
     }
     
-    if (allDosages) {
-      structuredRecommendations += (structuredRecommendations ? "\n" : "") + "DOSAGE INSTRUCTIONS:\n" + allDosages;
+    // Additional data section - captures everything else
+    if (Object.keys(categoryData.additional).length > 0) {
+      fullRecommendations += 'ADDITIONAL DATA:\n';
+      Object.entries(categoryData.additional).forEach(([key, value]) => {
+        fullRecommendations += `${key}: ${value}\n`;
+      });
+      fullRecommendations += '\n';
     }
     
-    if (additionalData) {
-      structuredRecommendations += (structuredRecommendations ? "\n" : "") + "ADDITIONAL INFORMATION:\n" + additionalData;
+    // Emergency fallback - if categorization missed something, capture raw
+    if (fullRecommendations.trim().length < 50) {
+      fullRecommendations = 'RAW DATA CAPTURE (ALL COLUMNS):\n';
+      allKeys.forEach(key => {
+        const value = String(row[key] || '').trim();
+        if (value && value !== '' && value.toLowerCase() !== 'null') {
+          const cleanKey = key.replace(/([A-Z])/g, ' $1').trim();
+          fullRecommendations += `${cleanKey}: ${value}\n`;
+        }
+      });
     }
     
-    // All columns are now properly handled above
+    console.log(`Final recommendations length: ${fullRecommendations.length} characters`);
     
-    // Return in the format expected by our database schema
     return {
       test_name: organSystem || 'Organ System',
       marker: diseaseState || 'Disease/Condition',
@@ -659,7 +711,7 @@ function parseDiseaseProductReference(data: any[]) {
       normal_range_high: null,
       unit: '',
       interpretation: `Condition: ${diseaseState || 'Unknown'}`,
-      recommendations: structuredRecommendations || 'No specific recommendations'
+      recommendations: fullRecommendations.trim() || 'No data captured'
     };
   });
 }
