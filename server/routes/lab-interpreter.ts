@@ -525,11 +525,23 @@ function detectDiseasesReferenceFormat(data: any[]) {
   const keys = Object.keys(data[0] || {});
   
   // Look for keywords common in disease-product reference files
-  const isDiseaseFormat = keys.some(k => 
-    /disease|condition|disorder|organ|system|product|supplement|peptide/i.test(k)
-  );
+  const hasOrganSystem = keys.some(k => /organ.*system|system.*organ/i.test(k));
+  const hasDiseaseState = keys.some(k => /disease.*state|state.*disease|condition/i.test(k));
+  const hasProductColumns = keys.some(k => /product|supplement|peptide|formula|support/i.test(k));
   
-  return isDiseaseFormat;
+  // More specific detection - if we have organ system AND disease state, it's likely a disease-product format
+  // Or if we have multiple product/supplement columns
+  const productColumnCount = keys.filter(k => /product|supplement|peptide|formula|support/i.test(k)).length;
+  
+  console.log('Format detection:', {
+    hasOrganSystem,
+    hasDiseaseState,
+    hasProductColumns,
+    productColumnCount,
+    columns: keys
+  });
+  
+  return (hasOrganSystem && hasDiseaseState) || productColumnCount >= 2;
 }
 
 // Parse the Disease-Product reference format
@@ -540,6 +552,14 @@ function parseDiseaseProductReference(data: any[]) {
   if (data.length > 0) {
     console.log("Sample row keys:", Object.keys(data[0]));
     console.log("Sample row values:", Object.values(data[0]));
+    
+    // Log specific column detection
+    const keys = Object.keys(data[0]);
+    const peptideColumns = keys.filter(k => /peptide/i.test(k));
+    const formulaColumns = keys.filter(k => /formula|supplement|product|support/i.test(k));
+    
+    console.log("Detected peptide columns:", peptideColumns);
+    console.log("Detected formula/supplement columns:", formulaColumns);
   }
 
   return data.filter(row => {
@@ -581,21 +601,47 @@ function parseDiseaseProductReference(data: any[]) {
     const organSystem = organSystemKey ? String(row[organSystemKey] || '').trim() : 'General';
     const diseaseState = diseaseStateKey ? String(row[diseaseStateKey] || '').trim() : '';
     
-    // Collect all peptide data
+    // Collect all peptide data (Primary and Secondary)
     let allPeptides = '';
     for (const key of keys) {
       if (/peptide/i.test(key) && row[key]) {
         const peptideName = key.replace(/([A-Z])/g, ' $1').trim();
-        allPeptides += `${peptideName}: ${String(row[key]).trim()}\n`;
+        const value = String(row[key]).trim();
+        if (value && value !== '' && value.toLowerCase() !== 'null') {
+          allPeptides += `${peptideName}: ${value}\n`;
+        }
       }
     }
     
-    // Collect all formula data
+    // Collect all formula/supplement data (Primary, Secondary, Support)
     let allFormulas = '';
     for (const key of keys) {
-      if (/formula/i.test(key) && row[key]) {
+      if (/formula|supplement|product|support/i.test(key) && row[key]) {
         const formulaName = key.replace(/([A-Z])/g, ' $1').trim();
-        allFormulas += `${formulaName}: ${String(row[key]).trim()}\n`;
+        const value = String(row[key]).trim();
+        if (value && value !== '' && value.toLowerCase() !== 'null') {
+          allFormulas += `${formulaName}: ${value}\n`;
+        }
+      }
+    }
+    
+    // Collect any additional product/supplement columns that might not match the above patterns
+    let additionalProducts = '';
+    for (const key of keys) {
+      const keyLower = key.toLowerCase();
+      if (row[key] && 
+          !keyLower.includes('organ') && 
+          !keyLower.includes('disease') && 
+          !keyLower.includes('peptide') && 
+          !keyLower.includes('formula') &&
+          !keyLower.includes('supplement') &&
+          !keyLower.includes('product') &&
+          !keyLower.includes('support')) {
+        const value = String(row[key]).trim();
+        if (value && value !== '' && value.toLowerCase() !== 'null') {
+          const productName = key.replace(/([A-Z])/g, ' $1').trim();
+          additionalProducts += `${productName}: ${value}\n`;
+        }
       }
     }
     
@@ -603,28 +649,18 @@ function parseDiseaseProductReference(data: any[]) {
     let structuredRecommendations = '';
     
     if (allPeptides) {
-      structuredRecommendations += "Peptides:\n" + allPeptides;
+      structuredRecommendations += "PEPTIDES:\n" + allPeptides;
     }
     
     if (allFormulas) {
-      structuredRecommendations += (structuredRecommendations ? "\n" : "") + "Formulas:\n" + allFormulas;
+      structuredRecommendations += (structuredRecommendations ? "\n" : "") + "SUPPLEMENTS & FORMULAS:\n" + allFormulas;
     }
     
-    // Include any other columns we haven't specifically handled
-    let otherData = '';
-    for (const key of keys) {
-      if (key !== organSystemKey && 
-          key !== diseaseStateKey && 
-          !(/peptide|formula/i.test(key)) && 
-          row[key]) {
-        const colName = key.replace(/([A-Z])/g, ' $1').trim();
-        otherData += `${colName}: ${String(row[key]).trim()}\n`;
-      }
+    if (additionalProducts) {
+      structuredRecommendations += (structuredRecommendations ? "\n" : "") + "ADDITIONAL PRODUCTS:\n" + additionalProducts;
     }
     
-    if (otherData) {
-      structuredRecommendations += (structuredRecommendations ? "\n" : "") + "Additional Data:\n" + otherData;
-    }
+    // All columns are now properly handled above
     
     // Return in the format expected by our database schema
     return {
