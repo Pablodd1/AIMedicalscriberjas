@@ -1596,11 +1596,14 @@ export default function LabInterpreter() {
                               <th className="p-1 px-2 text-left font-medium bg-blue-100/50 w-[80px] md:w-[100px]">Disease</th>
                               <th className="p-1 px-2 text-left font-medium bg-green-100/50 w-[80px] md:w-[100px]">Primary Peptide</th>
                               <th className="p-1 px-2 text-left font-medium bg-green-100/50 w-[80px] md:w-[100px]">Secondary Peptide</th>
+                              <th className="p-1 px-2 text-left font-medium bg-green-100/50 w-[80px] md:w-[100px]">Tertiary Peptide</th>
                               <th className="p-1 px-2 text-left font-medium bg-orange-100/50 w-[80px] md:w-[100px]">Primary Formula</th>
                               <th className="p-1 px-2 text-left font-medium bg-orange-100/50 w-[80px] md:w-[100px]">Secondary Formula</th>
                               <th className="p-1 px-2 text-left font-medium bg-purple-100/50 w-[80px] md:w-[100px]">Support Formula 2</th>
                               <th className="p-1 px-2 text-left font-medium bg-purple-100/50 w-[80px] md:w-[100px]">Support Formula 3</th>
-                              <th className="p-1 px-2 text-left font-medium bg-purple-100/50 w-[80px] md:w-[100px]">Support Formula 4</th>
+                              <th className="p-1 px-2 text-left font-medium bg-yellow-100/50 w-[80px] md:w-[100px]">How to take</th>
+                              <th className="p-1 px-2 text-left font-medium bg-yellow-100/50 w-[80px] md:w-[100px]">How to take_1</th>
+                              <th className="p-1 px-2 text-left font-medium bg-pink-100/50 w-[80px] md:w-[100px]">View All Data</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1609,27 +1612,35 @@ export default function LabInterpreter() {
                               const columnData: Record<string, string> = {
                                 'Primary Peptide': '',
                                 'Secondary Peptide': '',
+                                'Tertiary Peptide': '',
                                 'Primary Formula': '',
                                 'Secondary Formula': '',
                                 'Support Formula 2': '',
                                 'Support Formula 3': '',
-                                'Support Formula 4': ''
+                                'Support Formula 4': '',
+                                'How to take': '',
+                                'How to take_1': '',
+                                'How to take_2': ''
                               };
                               
                               if (item.recommendations) {
-                                // Check if it contains peptides and formulas sections
-                                const peptidesSectionMatch = item.recommendations.match(/Peptides:\s*\n([\s\S]*?)(?=\n\s*Formulas:|$)/);
-                                const formulasSectionMatch = item.recommendations.match(/Formulas:\s*\n([\s\S]*?)(?=\n\s*Additional Data:|$)/);
+                                // Parse the enhanced structured format with correct section headers
+                                const peptidesSectionMatch = item.recommendations.match(/PEPTIDES:\s*\n([\s\S]*?)(?=\n\s*SUPPLEMENTS|\n\s*DOSAGE|\n\s*ADDITIONAL|$)/i);
+                                const formulasSectionMatch = item.recommendations.match(/SUPPLEMENTS & FORMULAS:\s*\n([\s\S]*?)(?=\n\s*DOSAGE|\n\s*ADDITIONAL|$)/i);
                                 
                                 if (peptidesSectionMatch) {
                                   const peptideLines = peptidesSectionMatch[1].trim().split('\n');
                                   peptideLines.forEach(line => {
-                                    const [key, value] = line.split(':').map(s => s.trim());
-                                    if (key && value && /peptide/i.test(key)) {
-                                      if (/primary/i.test(key)) {
-                                        columnData['Primary Peptide'] = value;
-                                      } else if (/secondary/i.test(key)) {
-                                        columnData['Secondary Peptide'] = value;
+                                    const match = line.match(/^([^:]+):\s*(.+)$/);
+                                    if (match) {
+                                      const [, key, value] = match;
+                                      const keyNormalized = key.trim().toLowerCase();
+                                      if (keyNormalized.includes('primary') && keyNormalized.includes('peptide')) {
+                                        columnData['Primary Peptide'] = value.trim();
+                                      } else if (keyNormalized.includes('secondary') && keyNormalized.includes('peptide')) {
+                                        columnData['Secondary Peptide'] = value.trim();
+                                      } else if (keyNormalized.includes('tertiary') && keyNormalized.includes('peptide')) {
+                                        columnData['Tertiary Peptide'] = value.trim();
                                       }
                                     }
                                   });
@@ -1638,47 +1649,90 @@ export default function LabInterpreter() {
                                 if (formulasSectionMatch) {
                                   const formulaLines = formulasSectionMatch[1].trim().split('\n');
                                   formulaLines.forEach(line => {
-                                    const [key, value] = line.split(':').map(s => s.trim());
-                                    if (key && value && /formula/i.test(key)) {
-                                      if (/primary/i.test(key)) {
-                                        columnData['Primary Formula'] = value;
-                                      } else if (/secondary/i.test(key)) {
-                                        columnData['Secondary Formula'] = value;
-                                      } else if (/support.*2/i.test(key) || /formula.*2/i.test(key)) {
-                                        columnData['Support Formula 2'] = value;
-                                      } else if (/support.*3/i.test(key) || /formula.*3/i.test(key)) {
-                                        columnData['Support Formula 3'] = value;
-                                      } else if (/support.*4/i.test(key) || /formula.*4/i.test(key)) {
-                                        columnData['Support Formula 4'] = value;
+                                    const match = line.match(/^([^:]+):\s*(.+)$/);
+                                    if (match) {
+                                      const [, key, value] = match;
+                                      const keyNormalized = key.trim().toLowerCase();
+                                      if (keyNormalized.includes('primary') && keyNormalized.includes('formula')) {
+                                        columnData['Primary Formula'] = value.trim();
+                                      } else if (keyNormalized.includes('secondary') && keyNormalized.includes('formula')) {
+                                        columnData['Secondary Formula'] = value.trim();
+                                      } else if (keyNormalized.includes('support') && keyNormalized.includes('formula') && keyNormalized.includes('2')) {
+                                        columnData['Support Formula 2'] = value.trim();
+                                      } else if (keyNormalized.includes('support') && keyNormalized.includes('formula') && keyNormalized.includes('3')) {
+                                        columnData['Support Formula 3'] = value.trim();
+                                      } else if (keyNormalized.includes('support') && keyNormalized.includes('formula') && keyNormalized.includes('4')) {
+                                        columnData['Support Formula 4'] = value.trim();
                                       }
                                     }
                                   });
                                 }
                                 
-                                // Parse direct data from the text if we don't have structured data
+                                // Parse dosage instructions
+                                const dosageSectionMatch = item.recommendations.match(/DOSAGE INSTRUCTIONS:\s*\n([\s\S]*?)(?=\n\s*ADDITIONAL|$)/i);
+                                if (dosageSectionMatch) {
+                                  const dosageLines = dosageSectionMatch[1].trim().split('\n');
+                                  dosageLines.forEach(line => {
+                                    const match = line.match(/^([^:]+):\s*(.+)$/);
+                                    if (match) {
+                                      const [, key, value] = match;
+                                      const keyNormalized = key.trim().toLowerCase();
+                                      if (keyNormalized === 'how to take') {
+                                        columnData['How to take'] = value.trim();
+                                      } else if (keyNormalized === 'how to take_1') {
+                                        columnData['How to take_1'] = value.trim();
+                                      } else if (keyNormalized === 'how to take_2') {
+                                        columnData['How to take_2'] = value.trim();
+                                      }
+                                    }
+                                  });
+                                }
+                                
+                                // Enhanced fallback parsing to catch any missed data
                                 if (!Object.values(columnData).some(v => v)) {
                                   const lines = item.recommendations.split('\n');
                                   lines.forEach(line => {
-                                    Object.keys(columnData).forEach(key => {
-                                      if (line.includes(key) && line.includes(':')) {
-                                        columnData[key] = line.split(':')[1]?.trim() || '';
-                                      }
-                                    });
+                                    const match = line.match(/^([^:]+):\s*(.+)$/);
+                                    if (match) {
+                                      const [, key, value] = match;
+                                      const keyNormalized = key.trim().toLowerCase();
+                                      
+                                      // Direct column name matching
+                                      Object.keys(columnData).forEach(targetKey => {
+                                        const targetNormalized = targetKey.toLowerCase();
+                                        if (keyNormalized.includes(targetNormalized.replace(/\s+/g, '')) || 
+                                            key.trim() === targetKey) {
+                                          columnData[targetKey] = value.trim();
+                                        }
+                                      });
+                                    }
                                   });
                                 }
                               }
                               
                               return (
                                 <tr key={item.id} className="border-b hover:bg-muted/50">
-                                  <td className="p-1 px-2 font-medium bg-blue-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate" title={item.testName}>{item.testName}</td>
+                                  <td className="p-1 px-2 font-medium bg-blue-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate" title={item.test_name}>{item.test_name}</td>
                                   <td className="p-1 px-2 bg-blue-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate" title={item.marker}>{item.marker}</td>
                                   <td className="p-1 px-2 bg-green-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate" title={columnData['Primary Peptide']}>{columnData['Primary Peptide']}</td>
                                   <td className="p-1 px-2 bg-green-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate" title={columnData['Secondary Peptide']}>{columnData['Secondary Peptide']}</td>
+                                  <td className="p-1 px-2 bg-green-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate" title={columnData['Tertiary Peptide']}>{columnData['Tertiary Peptide']}</td>
                                   <td className="p-1 px-2 bg-orange-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate" title={columnData['Primary Formula']}>{columnData['Primary Formula']}</td>
                                   <td className="p-1 px-2 bg-orange-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate" title={columnData['Secondary Formula']}>{columnData['Secondary Formula']}</td>
                                   <td className="p-1 px-2 bg-purple-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate" title={columnData['Support Formula 2']}>{columnData['Support Formula 2']}</td>
                                   <td className="p-1 px-2 bg-purple-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate" title={columnData['Support Formula 3']}>{columnData['Support Formula 3']}</td>
-                                  <td className="p-1 px-2 bg-purple-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate" title={columnData['Support Formula 4']}>{columnData['Support Formula 4']}</td>
+                                  <td className="p-1 px-2 bg-yellow-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate" title={columnData['How to take']}>{columnData['How to take']}</td>
+                                  <td className="p-1 px-2 bg-yellow-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate" title={columnData['How to take_1']}>{columnData['How to take_1']}</td>
+                                  <td className="p-1 px-2 bg-pink-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate">
+                                    <button 
+                                      className="text-blue-600 hover:text-blue-800 underline text-xs" 
+                                      onClick={() => {
+                                        alert(`Full Data for ${item.test_name} - ${item.marker}:\n\n${item.recommendations}`);
+                                      }}
+                                    >
+                                      View All
+                                    </button>
+                                  </td>
                                 </tr>
                               );
                             })}
