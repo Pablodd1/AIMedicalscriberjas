@@ -62,6 +62,7 @@ export default function LabInterpreter() {
   const [isFullScreenMode, setIsFullScreenMode] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [pasteContent, setPasteContent] = useState('');
+  const [showGuidelines, setShowGuidelines] = useState(false);
   
   // Voice recording and transcription states
   const [isRecording, setIsRecording] = useState(false);
@@ -1350,9 +1351,18 @@ export default function LabInterpreter() {
                 </DialogDescription>
               </DialogHeader>
               <div className="py-4 overflow-y-auto">
-                {/* Template Guidelines Section */}
+                {/* Template Guidelines Section - Collapsible */}
                 <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <h3 className="text-lg font-semibold mb-3 text-blue-900">📋 Template Guidelines</h3>
+                  <div 
+                    className="flex items-center justify-between cursor-pointer"
+                    onClick={() => setShowGuidelines(!showGuidelines)}
+                  >
+                    <h3 className="text-lg font-semibold text-blue-900">📋 Template Guidelines</h3>
+                    <Button variant="ghost" size="sm" className="p-1 h-6 w-6">
+                      {showGuidelines ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                  {showGuidelines && (
                   <div className="grid md:grid-cols-2 gap-4 text-sm">
                     <div>
                       <h4 className="font-medium text-blue-800 mb-2">📊 Standard Lab Format (Excel)</h4>
@@ -1434,6 +1444,7 @@ export default function LabInterpreter() {
                       </div>
                     </div>
                   </div>
+                  )}
                 </div>
                 
                 <div className="flex justify-between items-center mb-4">
