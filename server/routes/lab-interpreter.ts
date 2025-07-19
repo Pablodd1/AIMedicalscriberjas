@@ -525,23 +525,25 @@ function detectDiseasesReferenceFormat(data: any[]) {
   const keys = Object.keys(data[0] || {});
   
   // Look for keywords common in disease-product reference files
-  const hasOrganSystem = keys.some(k => /organ.*system|system.*organ/i.test(k));
-  const hasDiseaseState = keys.some(k => /disease.*state|state.*disease|condition/i.test(k));
-  const hasProductColumns = keys.some(k => /product|supplement|peptide|formula|support/i.test(k));
+  const hasOrganSystem = keys.some(k => /organ|system|category/i.test(k));
+  const hasDiseaseState = keys.some(k => /disease|state|condition|disorder/i.test(k));
+  const hasProductColumns = keys.some(k => /product|supplement|peptide|formula|support|take|dosage|recommendation/i.test(k));
   
-  // More specific detection - if we have organ system AND disease state, it's likely a disease-product format
-  // Or if we have multiple product/supplement columns
-  const productColumnCount = keys.filter(k => /product|supplement|peptide|formula|support/i.test(k)).length;
+  // More flexible detection - if we have any combination of these, try disease-product format first
+  // This allows for various Excel file structures
+  const productColumnCount = keys.filter(k => /product|supplement|peptide|formula|support|take|dosage/i.test(k)).length;
   
   console.log('Format detection:', {
     hasOrganSystem,
     hasDiseaseState,
     hasProductColumns,
     productColumnCount,
+    totalColumns: keys.length,
     columns: keys
   });
   
-  return (hasOrganSystem && hasDiseaseState) || productColumnCount >= 2;
+  // If we have organ/disease columns OR multiple product columns OR more than 5 columns, try disease-product format
+  return (hasOrganSystem || hasDiseaseState) || productColumnCount >= 1 || keys.length > 5;
 }
 
 // Parse the Disease-Product reference format
@@ -570,30 +572,26 @@ function parseDiseaseProductReference(data: any[]) {
     // Get all column keys from the row
     const keys = Object.keys(row);
     
-    // Find organ system and disease columns
+    // Find organ system and disease columns with more flexible matching
     let organSystemKey = '';
     let diseaseStateKey = '';
     
-    // First try to find columns with exact expected names
+    // Try to find the best matching columns for organ/system and disease/condition
     for (const key of keys) {
       const keyLower = key.toLowerCase();
-      if (keyLower.includes('organ') && keyLower.includes('system')) {
+      
+      // Look for organ system columns
+      if (!organSystemKey && (/organ/i.test(key) || /system/i.test(key) || /category/i.test(key))) {
         organSystemKey = key;
-      } else if (keyLower.includes('disease') && keyLower.includes('state')) {
+      }
+      
+      // Look for disease/condition columns
+      if (!diseaseStateKey && (/disease/i.test(key) || /condition/i.test(key) || /state/i.test(key) || /disorder/i.test(key))) {
         diseaseStateKey = key;
       }
     }
     
-    // If we didn't find the exact column names, look for similar ones
-    if (!organSystemKey) {
-      organSystemKey = keys.find(k => /organ|system|category/i.test(k)) || '';
-    }
-    
-    if (!diseaseStateKey) {
-      diseaseStateKey = keys.find(k => /disease|condition|state/i.test(k)) || '';
-    }
-    
-    // If we still don't have keys, use the first columns
+    // If we still don't have keys, use the first two columns as defaults
     if (!organSystemKey && keys.length > 0) organSystemKey = keys[0];
     if (!diseaseStateKey && keys.length > 1) diseaseStateKey = keys[1];
     
@@ -601,51 +599,38 @@ function parseDiseaseProductReference(data: any[]) {
     const organSystem = organSystemKey ? String(row[organSystemKey] || '').trim() : 'General';
     const diseaseState = diseaseStateKey ? String(row[diseaseStateKey] || '').trim() : '';
     
-    // Collect all peptide data (Primary and Secondary)
+    // Collect ALL data from ALL columns systematically
     let allPeptides = '';
-    for (const key of keys) {
-      if (/peptide/i.test(key) && row[key]) {
-        const peptideName = key.replace(/([A-Z])/g, ' $1').trim();
-        const value = String(row[key]).trim();
-        if (value && value !== '' && value.toLowerCase() !== 'null') {
-          allPeptides += `${peptideName}: ${value}\n`;
-        }
-      }
-    }
-    
-    // Collect all formula/supplement data (Primary, Secondary, Support)
     let allFormulas = '';
-    for (const key of keys) {
-      if (/formula|supplement|product|support/i.test(key) && row[key]) {
-        const formulaName = key.replace(/([A-Z])/g, ' $1').trim();
-        const value = String(row[key]).trim();
-        if (value && value !== '' && value.toLowerCase() !== 'null') {
-          allFormulas += `${formulaName}: ${value}\n`;
-        }
-      }
-    }
+    let allDosages = '';
+    let additionalData = '';
     
-    // Collect any additional product/supplement columns that might not match the above patterns
-    let additionalProducts = '';
     for (const key of keys) {
+      const value = String(row[key] || '').trim();
+      
+      // Skip empty values and the main organ/disease columns
+      if (!value || value === '' || value.toLowerCase() === 'null' || 
+          key === organSystemKey || key === diseaseStateKey) {
+        continue;
+      }
+      
       const keyLower = key.toLowerCase();
-      if (row[key] && 
-          !keyLower.includes('organ') && 
-          !keyLower.includes('disease') && 
-          !keyLower.includes('peptide') && 
-          !keyLower.includes('formula') &&
-          !keyLower.includes('supplement') &&
-          !keyLower.includes('product') &&
-          !keyLower.includes('support')) {
-        const value = String(row[key]).trim();
-        if (value && value !== '' && value.toLowerCase() !== 'null') {
-          const productName = key.replace(/([A-Z])/g, ' $1').trim();
-          additionalProducts += `${productName}: ${value}\n`;
-        }
+      const cleanKeyName = key.replace(/([A-Z])/g, ' $1').trim();
+      
+      // Categorize by column content and name
+      if (/peptide/i.test(key)) {
+        allPeptides += `${cleanKeyName}: ${value}\n`;
+      } else if (/formula|supplement|product|support|guard|cleanse|wash/i.test(key)) {
+        allFormulas += `${cleanKeyName}: ${value}\n`;
+      } else if (/take|dosage|dose|instruction|daily|units|mg|ml|tsp|cap/i.test(key) || /take/i.test(value)) {
+        allDosages += `${cleanKeyName}: ${value}\n`;
+      } else {
+        // Capture everything else that might be relevant
+        additionalData += `${cleanKeyName}: ${value}\n`;
       }
     }
     
-    // Build structured recommendations with all data
+    // Build comprehensive structured recommendations with all data
     let structuredRecommendations = '';
     
     if (allPeptides) {
@@ -656,8 +641,12 @@ function parseDiseaseProductReference(data: any[]) {
       structuredRecommendations += (structuredRecommendations ? "\n" : "") + "SUPPLEMENTS & FORMULAS:\n" + allFormulas;
     }
     
-    if (additionalProducts) {
-      structuredRecommendations += (structuredRecommendations ? "\n" : "") + "ADDITIONAL PRODUCTS:\n" + additionalProducts;
+    if (allDosages) {
+      structuredRecommendations += (structuredRecommendations ? "\n" : "") + "DOSAGE INSTRUCTIONS:\n" + allDosages;
+    }
+    
+    if (additionalData) {
+      structuredRecommendations += (structuredRecommendations ? "\n" : "") + "ADDITIONAL INFORMATION:\n" + additionalData;
     }
     
     // All columns are now properly handled above
@@ -675,31 +664,46 @@ function parseDiseaseProductReference(data: any[]) {
   });
 }
 
-// Parse standard lab test format
+// Parse any Excel file format flexibly
 function parseStandardLabFormat(data: any[]) {
   return data.filter(row => {
     // Skip completely empty rows
-    const values = Object.values(row).filter(Boolean);
+    const values = Object.values(row).filter(v => v !== null && v !== undefined && v !== '');
     return values.length > 0;
   }).map((row: any) => {
-    // Create a valid object from the Excel data
     const keys = Object.keys(row);
-    const testNameKey = keys.find(k => /test|name|test.*name/i.test(k)) || 'Test Name';
-    const markerKey = keys.find(k => /marker|analyte|param/i.test(k)) || 'Marker';
-    const minKey = keys.find(k => /low|min|lower|bottom/i.test(k)) || 'Min';
-    const maxKey = keys.find(k => /high|max|upper|top/i.test(k)) || 'Max';
-    const unitKey = keys.find(k => /unit/i.test(k)) || 'Unit';
-    const interpretKey = keys.find(k => /interpret|desc|mean/i.test(k)) || 'Interpretation';
-    const recKey = keys.find(k => /rec|advice|suggest/i.test(k)) || 'Recommendations';
+    
+    // Try to find the best matching columns, or use defaults
+    const testNameKey = keys.find(k => /test|name|category|group/i.test(k)) || keys[0] || 'Column1';
+    const markerKey = keys.find(k => /marker|analyte|param|item|biomarker/i.test(k)) || keys[1] || 'Column2';
+    const minKey = keys.find(k => /low|min|lower|bottom/i.test(k));
+    const maxKey = keys.find(k => /high|max|upper|top/i.test(k));
+    const unitKey = keys.find(k => /unit|units/i.test(k));
+    const interpretKey = keys.find(k => /interpret|desc|mean|description|info/i.test(k));
+    const recKey = keys.find(k => /rec|advice|suggest|recommendation|treatment/i.test(k));
+    
+    // If we can't find specific columns, collect all data as recommendations
+    let allData = '';
+    if (!interpretKey && !recKey && keys.length > 2) {
+      // Collect all non-test/marker columns as general information
+      for (let i = 2; i < keys.length; i++) {
+        const key = keys[i];
+        const value = String(row[key] || '').trim();
+        if (value && value !== '' && value.toLowerCase() !== 'null') {
+          const cleanKey = key.replace(/([A-Z])/g, ' $1').trim();
+          allData += `${cleanKey}: ${value}\n`;
+        }
+      }
+    }
     
     return {
-      test_name: String(row[testNameKey] || '').trim(),
-      marker: String(row[markerKey] || '').trim(),
-      normal_range_low: parseFloat(String(row[minKey] || '0')) || null,
-      normal_range_high: parseFloat(String(row[maxKey] || '0')) || null,
-      unit: String(row[unitKey] || '').trim(),
-      interpretation: String(row[interpretKey] || '').trim(),
-      recommendations: String(row[recKey] || '').trim()
+      test_name: String(row[testNameKey] || 'Unknown Category').trim(),
+      marker: String(row[markerKey] || 'Unknown Item').trim(),
+      normal_range_low: minKey ? (parseFloat(String(row[minKey] || '0')) || null) : null,
+      normal_range_high: maxKey ? (parseFloat(String(row[maxKey] || '0')) || null) : null,
+      unit: unitKey ? String(row[unitKey] || '').trim() : '',
+      interpretation: interpretKey ? String(row[interpretKey] || '').trim() : (allData || 'Imported data'),
+      recommendations: recKey ? String(row[recKey] || '').trim() : (allData || 'See interpretation')
     };
   });
 }
