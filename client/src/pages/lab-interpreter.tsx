@@ -12,9 +12,10 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Loader2, FileUp, Settings2, Database, BookText, RotateCw, BotIcon, UserIcon, Upload, Settings, ChevronRight, DownloadIcon, UploadCloud, FileText, FileSpreadsheet, Clipboard, ChevronDown, Maximize, Minimize, Mic, MicOff, Save } from 'lucide-react';
+import { Loader2, FileUp, Settings2, Database, BookText, RotateCw, BotIcon, UserIcon, Upload, Settings, ChevronRight, DownloadIcon, UploadCloud, FileText, FileSpreadsheet, Clipboard, ChevronDown, Maximize, Minimize, Mic, MicOff, Save, Edit } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { apiRequest } from '@/lib/queryClient';
+import RichTextEditor from '@/components/RichTextEditor';
 
 interface Patient {
   id: number;
@@ -63,6 +64,10 @@ export default function LabInterpreter() {
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [pasteContent, setPasteContent] = useState('');
   const [showGuidelines, setShowGuidelines] = useState(false);
+  
+  // Rich text editor states
+  const [editableContent, setEditableContent] = useState('');
+  const [isEditorMode, setIsEditorMode] = useState(false);
   
   // Voice recording and transcription states
   const [isRecording, setIsRecording] = useState(false);
@@ -357,6 +362,9 @@ export default function LabInterpreter() {
         setAnalysisResult(parsedResult);
       }
       
+      // Initialize editable content for the editor
+      initializeEditableContent(parsedResult);
+      
       // Switch to results tab
       setActiveTab('results');
       
@@ -413,12 +421,18 @@ export default function LabInterpreter() {
       setInputText(data.extractedText);
       
       // Parse analysis if it's a JSON string
+      let parsedResult;
       try {
-        setAnalysisResult(typeof data.analysis === 'string' ? JSON.parse(data.analysis) : data.analysis);
+        parsedResult = typeof data.analysis === 'string' ? JSON.parse(data.analysis) : data.analysis;
+        setAnalysisResult(parsedResult);
       } catch (e) {
         console.error('Error parsing analysis:', e);
-        setAnalysisResult({ content: data.analysis });
+        parsedResult = { content: data.analysis };
+        setAnalysisResult(parsedResult);
       }
+      
+      // Initialize editable content for the editor
+      initializeEditableContent(parsedResult);
       
       // Switch to results tab
       setActiveTab('results');
@@ -1088,6 +1102,176 @@ export default function LabInterpreter() {
       toast({
         title: 'Download Failed',
         description: 'Failed to generate the PDF report. Please try again.',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  // Initialize editable content when analysis is complete
+  const initializeEditableContent = (analysisData: any) => {
+    if (!analysisData) return;
+    
+    // Convert analysis result to HTML format for the rich text editor
+    let htmlContent = '<h1>Lab Report Analysis</h1>';
+    
+    // Add patient info if available
+    if (withPatient && selectedPatientId) {
+      const patient = patients.find(p => p.id.toString() === selectedPatientId);
+      if (patient) {
+        htmlContent += `<h2>Patient Information</h2>`;
+        htmlContent += `<p><strong>Name:</strong> ${patient.firstName} ${patient.lastName}</p>`;
+        htmlContent += `<p><strong>Patient ID:</strong> ${patient.id}</p>`;
+      }
+    }
+    
+    // Add analysis sections
+    if (analysisData.summary) {
+      htmlContent += `<h2>Summary of Blood Panel Findings</h2>`;
+      htmlContent += `<p>${analysisData.summary}</p>`;
+    }
+    
+    if (analysisData.abnormalValues && Array.isArray(analysisData.abnormalValues) && analysisData.abnormalValues.length > 0) {
+      htmlContent += `<h2>Abnormal Values Identified</h2>`;
+      htmlContent += `<ul>`;
+      analysisData.abnormalValues.forEach((value: any) => {
+        htmlContent += `<li>${typeof value === 'object' ? JSON.stringify(value) : value}</li>`;
+      });
+      htmlContent += `</ul>`;
+    }
+    
+    if (analysisData.interpretation) {
+      htmlContent += `<h2>Detailed Biomarker Analysis</h2>`;
+      htmlContent += `<p>${analysisData.interpretation}</p>`;
+    }
+    
+    if (analysisData.recommendations && Array.isArray(analysisData.recommendations) && analysisData.recommendations.length > 0) {
+      htmlContent += `<h2>Personalized Supplement & Peptide Recommendations</h2>`;
+      htmlContent += `<ul>`;
+      analysisData.recommendations.forEach((rec: any) => {
+        if (typeof rec === 'object' && rec.product) {
+          htmlContent += `<li><strong>${rec.product}</strong> - ${rec.dosage || 'As directed'}<br><em>Reason:</em> ${rec.reason || 'Recommended for optimal health'}</li>`;
+        } else {
+          htmlContent += `<li>${typeof rec === 'object' ? JSON.stringify(rec) : rec}</li>`;
+        }
+      });
+      htmlContent += `</ul>`;
+    }
+    
+    // Add voice notes if available
+    if (transcript && transcript.trim()) {
+      htmlContent += `<h2>Voice Notes</h2>`;
+      htmlContent += `<p>${transcript}</p>`;
+    }
+    
+    // Add compliance note if available
+    if (analysisData.complianceNote) {
+      htmlContent += `<h3>Compliance Note</h3>`;
+      htmlContent += `<p><em>${analysisData.complianceNote}</em></p>`;
+    }
+    
+    setEditableContent(htmlContent);
+  };
+
+  // Handle styled report downloads
+  const handleDownloadStyledReport = async () => {
+    if (!editableContent) {
+      toast({
+        title: 'No Content',
+        description: 'Please edit the report content first.',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    try {
+      // Convert HTML to plain text for DOCX (with basic formatting)
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = editableContent;
+      const textContent = tempDiv.textContent || tempDiv.innerText || '';
+      
+      // Create styled DOCX content
+      const response = await fetch('/api/lab-interpreter/download-styled', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          content: editableContent,
+          format: 'docx',
+          patientId: withPatient ? selectedPatientId : undefined
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to generate styled document');
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const patient = patients.find(p => p.id.toString() === selectedPatientId);
+      link.download = `styled-lab-report-${patient ? `${patient.firstName}-${patient.lastName}-` : ''}${new Date().toISOString().split('T')[0]}.docx`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: 'Styled Report Downloaded',
+        description: 'Your customized lab report has been downloaded as a Word document.'
+      });
+    } catch (error) {
+      console.error('Error downloading styled report:', error);
+      toast({
+        title: 'Download Failed',
+        description: 'Failed to generate the styled report. Please try again.',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleDownloadStyledReportPDF = async () => {
+    if (!editableContent) {
+      toast({
+        title: 'No Content',
+        description: 'Please edit the report content first.',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    try {
+      const response = await fetch('/api/lab-interpreter/download-styled', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          content: editableContent,
+          format: 'pdf',
+          patientId: withPatient ? selectedPatientId : undefined
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to generate styled PDF');
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const patient = patients.find(p => p.id.toString() === selectedPatientId);
+      link.download = `styled-lab-report-${patient ? `${patient.firstName}-${patient.lastName}-` : ''}${new Date().toISOString().split('T')[0]}.pdf`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: 'Styled PDF Downloaded',
+        description: 'Your customized lab report has been downloaded as a PDF.'
+      });
+    } catch (error) {
+      console.error('Error downloading styled PDF:', error);
+      toast({
+        title: 'Download Failed',
+        description: 'Failed to generate the styled PDF. Please try again.',
         variant: 'destructive'
       });
     }
@@ -1894,9 +2078,13 @@ export default function LabInterpreter() {
               </div>
               
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
+                <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="input">Input</TabsTrigger>
                   <TabsTrigger value="results">Results</TabsTrigger>
+                  <TabsTrigger value="editor" disabled={!analysisResult}>
+                    <Edit className="h-4 w-4 mr-1" />
+                    Edit & Style
+                  </TabsTrigger>
                 </TabsList>
                 <TabsContent value="input">
                   <div className="space-y-4 mt-4">
@@ -2144,6 +2332,61 @@ export default function LabInterpreter() {
                       </Card>
                     </div>
                   )}
+                </TabsContent>
+                
+                <TabsContent value="editor">
+                  <Card className="mt-4">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <CardTitle>Edit & Style Analysis</CardTitle>
+                          <CardDescription>
+                            Customize formatting, colors, fonts, and layout for your report
+                          </CardDescription>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="sm">
+                                <DownloadIcon className="h-4 w-4 mr-2" />
+                                Download Styled
+                                <ChevronDown className="h-4 w-4 ml-1" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={handleDownloadStyledReport}>
+                                <FileText className="h-4 w-4 mr-2" />
+                                Download as Styled Word (.docx)
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={handleDownloadStyledReportPDF}>
+                                <FileText className="h-4 w-4 mr-2" />
+                                Download as Styled PDF
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      {analysisResult ? (
+                        <div className="space-y-4">
+                          <RichTextEditor 
+                            content={editableContent} 
+                            onChange={setEditableContent}
+                            className="w-full"
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-12 text-center">
+                          <Edit className="h-12 w-12 text-muted-foreground mb-4" />
+                          <h3 className="text-lg font-medium mb-2">No Analysis to Edit</h3>
+                          <p className="text-sm text-muted-foreground mb-6 max-w-md">
+                            Analyze a lab report first, then use this editor to customize the styling and formatting.
+                          </p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
                 </TabsContent>
               </Tabs>
             </div>

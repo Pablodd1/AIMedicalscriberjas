@@ -8,6 +8,8 @@ import { z } from 'zod';
 import xlsx from 'xlsx';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import htmlPdf from 'html-pdf-node';
+import htmlDocx from 'html-docx-js';
 // PDF parsing removed - using OpenAI Vision API for better accuracy
 import { 
   requireAuth, 
@@ -1805,3 +1807,144 @@ labInterpreterRouter.post('/save-transcript', async (req, res) => {
     return res.status(500).json({ error: 'Failed to save transcript' });
   }
 });
+
+// Handle styled document downloads
+labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (req, res) => {
+  const { content, format, patientId } = req.body;
+  
+  if (!content || !format) {
+    throw new AppError('Content and format are required', 400, 'MISSING_FIELDS');
+  }
+  
+  if (!['pdf', 'docx'].includes(format)) {
+    throw new AppError('Invalid format. Must be pdf or docx', 400, 'INVALID_FORMAT');
+  }
+  
+  try {
+    // Get patient info if provided
+    let patient = null;
+    if (patientId) {
+      patient = await handleDatabaseOperation(
+        () => storage.getPatient(parseInt(patientId)),
+        'Failed to get patient information'
+      );
+    }
+    
+    // Create styled HTML with CSS
+    const styledHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Styled Lab Report Analysis</title>
+        <style>
+          body {
+            font-family: 'Times New Roman', Times, serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px;
+            color: #333;
+          }
+          h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+            font-size: 28px;
+          }
+          h2 {
+            color: #34495e;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-size: 22px;
+          }
+          h3 {
+            color: #7f8c8d;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-size: 18px;
+          }
+          p {
+            margin-bottom: 15px;
+            text-align: justify;
+          }
+          ul, ol {
+            margin-bottom: 15px;
+          }
+          li {
+            margin-bottom: 8px;
+          }
+          strong {
+            color: #2c3e50;
+          }
+          em {
+            color: #7f8c8d;
+            font-style: italic;
+          }
+          .patient-info {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+          }
+          .analysis-section {
+            margin-bottom: 25px;
+          }
+          .recommendations {
+            background-color: #e8f6f3;
+            padding: 15px;
+            border-left: 4px solid #27ae60;
+            margin: 20px 0;
+          }
+          .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #bdc3c7;
+            text-align: center;
+            font-size: 12px;
+            color: #7f8c8d;
+          }
+        </style>
+      </head>
+      <body>
+        ${content}
+        <div class="footer">
+          Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}
+          ${patient ? ` | Patient: ${patient.firstName} ${patient.lastName}` : ''}
+        </div>
+      </body>
+      </html>
+    `;
+    
+    if (format === 'pdf') {
+      // Generate PDF
+      const options = {
+        format: 'A4',
+        margin: {
+          top: '20mm',
+          right: '15mm',
+          bottom: '20mm',
+          left: '15mm'
+        }
+      };
+      
+      const pdfBuffer = await htmlPdf.generatePdf({ content: styledHtml }, options);
+      
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'attachment; filename="styled-lab-report.pdf"');
+      res.send(pdfBuffer);
+      
+    } else if (format === 'docx') {
+      // Generate DOCX
+      const docxBuffer = htmlDocx.asBlob(styledHtml);
+      
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      res.setHeader('Content-Disposition', 'attachment; filename="styled-lab-report.docx"');
+      res.send(docxBuffer);
+    }
+    
+  } catch (error) {
+    console.error('Error generating styled document:', error);
+    throw new AppError('Failed to generate styled document', 500, 'DOCUMENT_GENERATION_ERROR');
+  }
+}));
