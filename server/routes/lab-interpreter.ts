@@ -1907,30 +1907,115 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
     `;
     
     if (format === 'pdf') {
-      // Generate PDF
-      const options = {
-        format: 'A4',
-        margin: {
-          top: '20mm',
-          right: '15mm',
-          bottom: '20mm',
-          left: '15mm'
-        }
-      };
+      // Generate PDF using jsPDF (lighter alternative)
+      const { jsPDF } = await import('jspdf');
       
-      const pdfBuffer = await htmlPdf.generatePdf({ content: styledHtml }, options);
+      // Convert HTML to plain text for PDF
+      const tempDiv = { innerHTML: content };
+      const textContent = content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      
+      const doc = new jsPDF();
+      let yPosition = 20;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 20;
+      const maxWidth = pageWidth - 2 * margin;
+      
+      // Add title
+      doc.setFontSize(16);
+      doc.setFont(undefined, 'bold');
+      doc.text('Styled Lab Report Analysis', margin, yPosition);
+      yPosition += 15;
+      
+      // Add content
+      doc.setFontSize(12);
+      doc.setFont(undefined, 'normal');
+      const lines = doc.splitTextToSize(textContent, maxWidth);
+      
+      for (let i = 0; i < lines.length; i++) {
+        if (yPosition > doc.internal.pageSize.getHeight() - 20) {
+          doc.addPage();
+          yPosition = 20;
+        }
+        doc.text(lines[i], margin, yPosition);
+        yPosition += 6;
+      }
+      
+      // Add footer
+      const totalPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(10);
+        doc.text(
+          `Generated on ${new Date().toLocaleDateString()} | Page ${i} of ${totalPages}`,
+          margin,
+          doc.internal.pageSize.getHeight() - 10
+        );
+      }
+      
+      const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
       
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'attachment; filename="styled-lab-report.pdf"');
       res.send(pdfBuffer);
       
     } else if (format === 'docx') {
-      // Generate DOCX
-      const docxBuffer = htmlDocx.asBlob(styledHtml);
+      // Generate DOCX using proper server-side library
+      const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx');
+      
+      // Convert HTML content to plain text and create document
+      const textContent = content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      
+      const doc = new Document({
+        sections: [{
+          properties: {},
+          children: [
+            new Paragraph({
+              text: "Styled Lab Report Analysis",
+              heading: HeadingLevel.TITLE,
+            }),
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: `Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`,
+                  italics: true,
+                  size: 20,
+                }),
+              ],
+            }),
+            new Paragraph({
+              text: "", // Empty line
+            }),
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: textContent,
+                  size: 24,
+                }),
+              ],
+            }),
+            ...(patient ? [
+              new Paragraph({
+                text: "", // Empty line
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: `Patient: ${patient.firstName} ${patient.lastName}`,
+                    bold: true,
+                    size: 22,
+                  }),
+                ],
+              }),
+            ] : []),
+          ],
+        }],
+      });
+      
+      const docxBuffer = await Packer.toBuffer(doc);
       
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
       res.setHeader('Content-Disposition', 'attachment; filename="styled-lab-report.docx"');
-      res.send(Buffer.from(docxBuffer));
+      res.send(docxBuffer);
     }
     
   } catch (error) {
