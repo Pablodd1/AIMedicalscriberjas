@@ -1930,7 +1930,7 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
       
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
       res.setHeader('Content-Disposition', 'attachment; filename="styled-lab-report.docx"');
-      res.send(docxBuffer);
+      res.send(Buffer.from(docxBuffer));
     }
     
   } catch (error) {
