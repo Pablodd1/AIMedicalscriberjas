@@ -1111,7 +1111,22 @@ export default function LabInterpreter() {
   const initializeEditableContent = (analysisData: any) => {
     if (!analysisData) return;
     
-    // Convert analysis result to HTML format for the rich text editor
+    // Helper function to clean and convert text to HTML safely
+    const cleanText = (text: any): string => {
+      if (typeof text !== 'string') {
+        if (typeof text === 'object') {
+          return JSON.stringify(text, null, 2);
+        }
+        return String(text);
+      }
+      
+      // Remove any HTML tags and convert to plain text, then back to safe HTML
+      const tempDiv = document.createElement('div');
+      tempDiv.textContent = text;
+      return tempDiv.innerHTML;
+    };
+    
+    // Convert analysis result to clean HTML format for the rich text editor
     let htmlContent = '<h1>Lab Report Analysis</h1>';
     
     // Add patient info if available
@@ -1124,24 +1139,24 @@ export default function LabInterpreter() {
       }
     }
     
-    // Add analysis sections
+    // Add analysis sections with clean text
     if (analysisData.summary) {
       htmlContent += `<h2>Summary of Blood Panel Findings</h2>`;
-      htmlContent += `<p>${analysisData.summary}</p>`;
+      htmlContent += `<p>${cleanText(analysisData.summary)}</p>`;
     }
     
     if (analysisData.abnormalValues && Array.isArray(analysisData.abnormalValues) && analysisData.abnormalValues.length > 0) {
       htmlContent += `<h2>Abnormal Values Identified</h2>`;
       htmlContent += `<ul>`;
       analysisData.abnormalValues.forEach((value: any) => {
-        htmlContent += `<li>${typeof value === 'object' ? JSON.stringify(value) : value}</li>`;
+        htmlContent += `<li>${cleanText(value)}</li>`;
       });
       htmlContent += `</ul>`;
     }
     
     if (analysisData.interpretation) {
       htmlContent += `<h2>Detailed Biomarker Analysis</h2>`;
-      htmlContent += `<p>${analysisData.interpretation}</p>`;
+      htmlContent += `<p>${cleanText(analysisData.interpretation)}</p>`;
     }
     
     if (analysisData.recommendations && Array.isArray(analysisData.recommendations) && analysisData.recommendations.length > 0) {
@@ -1149,9 +1164,9 @@ export default function LabInterpreter() {
       htmlContent += `<ul>`;
       analysisData.recommendations.forEach((rec: any) => {
         if (typeof rec === 'object' && rec.product) {
-          htmlContent += `<li><strong>${rec.product}</strong> - ${rec.dosage || 'As directed'}<br><em>Reason:</em> ${rec.reason || 'Recommended for optimal health'}</li>`;
+          htmlContent += `<li><strong>${cleanText(rec.product)}</strong> - ${cleanText(rec.dosage || 'As directed')}<br><em>Reason:</em> ${cleanText(rec.reason || 'Recommended for optimal health')}</li>`;
         } else {
-          htmlContent += `<li>${typeof rec === 'object' ? JSON.stringify(rec) : rec}</li>`;
+          htmlContent += `<li>${cleanText(rec)}</li>`;
         }
       });
       htmlContent += `</ul>`;
@@ -1160,13 +1175,13 @@ export default function LabInterpreter() {
     // Add voice notes if available
     if (transcript && transcript.trim()) {
       htmlContent += `<h2>Voice Notes</h2>`;
-      htmlContent += `<p>${transcript}</p>`;
+      htmlContent += `<p>${cleanText(transcript)}</p>`;
     }
     
     // Add compliance note if available
     if (analysisData.complianceNote) {
       htmlContent += `<h3>Compliance Note</h3>`;
-      htmlContent += `<p><em>${analysisData.complianceNote}</em></p>`;
+      htmlContent += `<p><em>${cleanText(analysisData.complianceNote)}</em></p>`;
     }
     
     setEditableContent(htmlContent);

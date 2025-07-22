@@ -57,14 +57,14 @@ async function convertPdfToImages(pdfPath: string): Promise<string[]> {
       }
     });
     
-    // Use optimized ImageMagick settings for reliability
-    const outputPattern = path.join(tempDir, 'page-%d.png');
-    const command = `convert -limit memory 256MB -limit map 512MB -density 200 -quality 85 -colorspace RGB "${pdfPath}" "${outputPattern}"`;
+    // Use faster ImageMagick settings optimized for speed
+    const outputPattern = path.join(tempDir, 'page-%d.jpg');
+    const command = `convert -limit memory 128MB -limit map 256MB -density 150 -quality 70 -colorspace Gray "${pdfPath}" "${outputPattern}"`;
     
-    console.log('Converting PDF to images with command:', command);
+    console.log('Converting PDF to images with optimized command:', command);
     
-    // Add timeout and proper error handling
-    const timeoutMs = 10 * 60 * 1000; // 10 minutes timeout
+    // Reduced timeout for faster processing
+    const timeoutMs = 3 * 60 * 1000; // 3 minutes timeout
     const conversionPromise = execAsync(command, { 
       timeout: timeoutMs,
       maxBuffer: 10 * 1024 * 1024 // 10MB buffer
@@ -92,10 +92,10 @@ async function convertPdfToImages(pdfPath: string): Promise<string[]> {
     
     // Find and validate all generated images
     const files = fs.readdirSync(tempDir)
-      .filter(file => file.startsWith('page-') && file.endsWith('.png'))
+      .filter(file => file.startsWith('page-') && (file.endsWith('.png') || file.endsWith('.jpg')))
       .sort((a, b) => {
-        const aNum = parseInt(a.match(/page-(\d+)\.png/)?.[1] || '0');
-        const bNum = parseInt(b.match(/page-(\d+)\.png/)?.[1] || '0');
+        const aNum = parseInt(a.match(/page-(\d+)\.(png|jpg)/)?.[1] || '0');
+        const bNum = parseInt(b.match(/page-(\d+)\.(png|jpg)/)?.[1] || '0');
         return aNum - bNum;
       });
     
@@ -109,7 +109,7 @@ async function convertPdfToImages(pdfPath: string): Promise<string[]> {
       const fullPath = path.join(tempDir, file);
       try {
         const imageStats = fs.statSync(fullPath);
-        if (imageStats.size > 1000) { // At least 1KB
+        if (imageStats.size > 500) { // Reduced minimum size for faster processing
           validFiles.push(fullPath);
         } else {
           console.warn(`Skipping invalid image: ${file} (${imageStats.size} bytes)`);
@@ -276,9 +276,9 @@ async function processImageFile(imagePath: string, openai: OpenAI, pageNumber: n
     throw new Error(`Image too large: ${Math.round(base64Image.length / 1024 / 1024)}MB (max 20MB)`);
   }
   
-  console.log(`  → Sending page ${pageNumber} to OpenAI (${Math.round(imageStats.size / 1024)}KB)`);
+  console.log(`  → [FAST MODE] Sending page ${pageNumber} to OpenAI (${Math.round(imageStats.size / 1024)}KB)`);
   
-  // Extract text using OpenAI Vision API
+  // Extract text using OpenAI Vision API with optimized settings for speed
   const response = await openai.chat.completions.create({
     model: "gpt-4o",
     messages: [
@@ -287,29 +287,19 @@ async function processImageFile(imagePath: string, openai: OpenAI, pageNumber: n
         content: [
           {
             type: "text",
-            text: `Extract ALL text content from this lab report page ${pageNumber} of ${totalPages}. 
-
-Include:
-- Patient information and demographics
-- All test names, values, and reference ranges
-- Lab facility information
-- Dates and identifiers
-- Any notes or interpretations
-- Headers, footers, and formatting
-
-Format the extracted text clearly and preserve the original structure. If this page appears blank or contains no readable text, respond with "BLANK_PAGE".`
+            text: `Quickly extract text from this lab report page ${pageNumber}/${totalPages}. Include test names, values, and reference ranges. Be concise. If blank, respond "BLANK_PAGE".`
           },
           {
             type: "image_url",
             image_url: {
               url: `data:image/png;base64,${base64Image}`,
-              detail: "high"
+              detail: "low" // Use low detail for 3x faster processing
             }
           }
         ]
       }
     ],
-    max_tokens: 4000,
+    max_tokens: 2000, // Reduced for faster processing
     temperature: 0.0 // Most deterministic for text extraction
   });
   
