@@ -193,13 +193,13 @@ function cleanupTempImages(imagePaths: string[]) {
   }
 }
 
-// NEW SEQUENTIAL PDF PROCESSING WORKFLOW
+// ULTRA-FAST PARALLEL PDF PROCESSING
 async function processPdfSequentially(pdfPath: string, openai: OpenAI): Promise<string> {
-  console.log('=== Starting Sequential PDF Processing ===');
+  console.log('=== Starting Ultra-Fast Parallel PDF Processing ===');
   
-  // Step 1: Convert PDF to images
+  // Step 1: Convert PDF to images with ultra-fast settings
   const tempDir = path.join(path.dirname(pdfPath), 'temp_images');
-  const convertedImages = await convertPdfToImagesSequential(pdfPath, tempDir);
+  const convertedImages = await convertPdfToImagesFast(pdfPath, tempDir);
   
   if (convertedImages.length === 0) {
     throw new AppError('No pages could be converted from the PDF', 400, 'PDF_CONVERSION_FAILED');
@@ -207,45 +207,40 @@ async function processPdfSequentially(pdfPath: string, openai: OpenAI): Promise<
   
   console.log(`Successfully converted PDF to ${convertedImages.length} images`);
   
-  // Step 2: Process each image sequentially and collect text
-  const allExtractedTexts: string[] = [];
-  
-  for (let i = 0; i < convertedImages.length; i++) {
-    const imagePath = convertedImages[i];
-    const pageNumber = i + 1;
+  // Step 2: Process ALL pages in parallel (no delays)
+  console.log('Processing ALL pages in parallel...');
+  const processingPromises = convertedImages.map(async (imagePath, index) => {
+    const pageNumber = index + 1;
     
     try {
-      console.log(`Processing page ${pageNumber}/${convertedImages.length}: ${path.basename(imagePath)}`);
-      
-      const pageText = await processImageFile(imagePath, openai, pageNumber, convertedImages.length);
+      console.log(`Starting parallel processing of page ${pageNumber}/${convertedImages.length}`);
+      const pageText = await processImageFileFast(imagePath, openai, pageNumber, convertedImages.length);
       
       if (pageText && pageText.trim()) {
-        allExtractedTexts.push(pageText);
-        console.log(`✓ Page ${pageNumber} processed successfully (${pageText.length} characters)`);
+        console.log(`✓ Page ${pageNumber} completed (${pageText.length} chars)`);
+        return pageText;
       } else {
-        console.log(`⚠ Page ${pageNumber} appears to be blank or unreadable`);
+        console.log(`⚠ Page ${pageNumber} appears blank`);
+        return '';
       }
-      
-      // Small delay between pages to avoid rate limiting
-      if (i < convertedImages.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-      
     } catch (error: any) {
-      console.error(`✗ Failed to process page ${pageNumber}:`, error.message);
-      // Continue with other pages instead of failing completely
-      allExtractedTexts.push(`=== Page ${pageNumber} ===\n[Error: Could not extract text from this page: ${error.message}]`);
+      console.error(`✗ Page ${pageNumber} failed:`, error.message);
+      return `=== Page ${pageNumber} ===\n[Error: ${error.message}]`;
     }
-  }
+  });
+  
+  // Wait for ALL pages to complete simultaneously
+  const allExtractedTexts = await Promise.all(processingPromises);
   
   // Step 3: Clean up temporary images
   cleanupTempImages(convertedImages);
   
   // Step 4: Combine all extracted text
-  const finalText = allExtractedTexts.join('\n\n');
+  const validTexts = allExtractedTexts.filter(text => text.trim().length > 0);
+  const finalText = validTexts.join('\n\n');
   
-  console.log(`=== PDF Processing Complete ===`);
-  console.log(`Successfully processed ${allExtractedTexts.length}/${convertedImages.length} pages`);
+  console.log(`=== Ultra-Fast PDF Processing Complete ===`);
+  console.log(`Successfully processed ${validTexts.length}/${convertedImages.length} pages in parallel`);
   console.log(`Total extracted text: ${finalText.length} characters`);
   
   if (!finalText.trim()) {
@@ -256,8 +251,9 @@ async function processPdfSequentially(pdfPath: string, openai: OpenAI): Promise<
 }
 
 // Process a single image file with OpenAI Vision API
-async function processImageFile(imagePath: string, openai: OpenAI, pageNumber: number, totalPages: number): Promise<string> {
-  // Validate image file
+// ULTRA-FAST Image Processing with minimal tokens
+async function processImageFileFast(imagePath: string, openai: OpenAI, pageNumber: number, totalPages: number): Promise<string> {
+  // Quick validation
   if (!fs.existsSync(imagePath)) {
     throw new Error(`Image file not found: ${imagePath}`);
   }
@@ -271,14 +267,9 @@ async function processImageFile(imagePath: string, openai: OpenAI, pageNumber: n
   const imageBuffer = fs.readFileSync(imagePath);
   const base64Image = imageBuffer.toString('base64');
   
-  // Check image size limits
-  if (base64Image.length > 20 * 1024 * 1024) {
-    throw new Error(`Image too large: ${Math.round(base64Image.length / 1024 / 1024)}MB (max 20MB)`);
-  }
+  console.log(`  → [PARALLEL] Processing page ${pageNumber} (${Math.round(imageStats.size / 1024)}KB)`);
   
-  console.log(`  → [FAST MODE] Sending page ${pageNumber} to OpenAI (${Math.round(imageStats.size / 1024)}KB)`);
-  
-  // Extract text using OpenAI Vision API with optimized settings for speed
+  // ULTRA-FAST extraction - minimal prompt, low detail, reduced tokens
   const response = await openai.chat.completions.create({
     model: "gpt-4o",
     messages: [
@@ -287,33 +278,33 @@ async function processImageFile(imagePath: string, openai: OpenAI, pageNumber: n
         content: [
           {
             type: "text",
-            text: `Quickly extract text from this lab report page ${pageNumber}/${totalPages}. Include test names, values, and reference ranges. Be concise. If blank, respond "BLANK_PAGE".`
+            text: `Extract lab data from page ${pageNumber}: test names, values, ranges. If blank say "BLANK".`
           },
           {
             type: "image_url",
             image_url: {
-              url: `data:image/png;base64,${base64Image}`,
-              detail: "low" // Use low detail for 3x faster processing
+              url: `data:image/jpeg;base64,${base64Image}`,
+              detail: "low" // Fastest processing
             }
           }
         ]
       }
     ],
-    max_tokens: 2000, // Reduced for faster processing
-    temperature: 0.0 // Most deterministic for text extraction
+    max_tokens: 1500, // Reduced further for speed
+    temperature: 0.0
   });
   
   const extractedText = response.choices[0].message.content || '';
   
-  if (extractedText.includes('BLANK_PAGE')) {
+  if (extractedText.includes('BLANK') && extractedText.length < 20) {
     return '';
   }
   
   return `=== Page ${pageNumber} ===\n${extractedText}`;
 }
 
-// Convert PDF to images with better error handling
-async function convertPdfToImagesSequential(pdfPath: string, tempDir: string): Promise<string[]> {
+// ULTRA-FAST PDF to Image Conversion
+async function convertPdfToImagesFast(pdfPath: string, tempDir: string): Promise<string[]> {
   try {
     // Create and clean temp directory
     if (!fs.existsSync(tempDir)) {
@@ -332,58 +323,53 @@ async function convertPdfToImagesSequential(pdfPath: string, tempDir: string): P
     const pdfStats = fs.statSync(pdfPath);
     console.log(`Converting PDF: ${path.basename(pdfPath)} (${Math.round(pdfStats.size / 1024)}KB)`);
     
-    // Use optimized ImageMagick command
-    const outputPattern = path.join(tempDir, 'page-%d.png');
-    const command = `convert -limit memory 512MB -limit map 1GB -density 150 -quality 90 -colorspace RGB -background white -alpha remove "${pdfPath}" "${outputPattern}"`;
+    // ULTRA-FAST ImageMagick command - optimized for speed over quality
+    const outputPattern = path.join(tempDir, 'page-%d.jpg');
+    const command = `convert -limit memory 256MB -limit map 512MB -density 100 -quality 60 -colorspace Gray -background white -flatten "${pdfPath}" "${outputPattern}"`;
     
-    console.log('Running conversion command...');
-    console.log(command);
+    console.log('Running ULTRA-FAST conversion...');
     
-    // Execute with timeout
+    // Execute with reduced timeout for faster processing
     const { stdout, stderr } = await execAsync(command, {
-      timeout: 15 * 60 * 1000, // 15 minutes
-      maxBuffer: 50 * 1024 * 1024 // 50MB buffer
+      timeout: 3 * 60 * 1000, // Only 3 minutes timeout
+      maxBuffer: 20 * 1024 * 1024 // 20MB buffer
     });
     
     if (stderr && !stderr.includes('Warning')) {
-      console.warn('ImageMagick warnings:', stderr);
+      console.warn('ImageMagick output:', stderr);
     }
     
     // Find generated images
     const imageFiles = fs.readdirSync(tempDir)
-      .filter(file => file.startsWith('page-') && file.endsWith('.png'))
+      .filter(file => file.startsWith('page-') && file.endsWith('.jpg'))
       .sort((a, b) => {
-        const aNum = parseInt(a.match(/page-(\d+)\.png/)?.[1] || '0');
-        const bNum = parseInt(b.match(/page-(\d+)\.png/)?.[1] || '0');
+        const aNum = parseInt(a.match(/page-(\d+)\.jpg/)?.[1] || '0');
+        const bNum = parseInt(b.match(/page-(\d+)\.jpg/)?.[1] || '0');
         return aNum - bNum;
       })
       .map(file => path.join(tempDir, file));
     
-    // Validate generated images
+    // Quick validation - accept smaller files for speed
     const validImages = imageFiles.filter(imagePath => {
       try {
         const stats = fs.statSync(imagePath);
-        return stats.size > 1000; // At least 1KB
+        return stats.size > 500; // Reduced size requirement for speed
       } catch {
         return false;
       }
     });
     
-    console.log(`Generated ${validImages.length} valid images from PDF`);
+    console.log(`✓ ULTRA-FAST: Generated ${validImages.length} images in seconds`);
     return validImages;
     
   } catch (error: any) {
-    console.error('PDF conversion error:', error);
+    console.error('Fast PDF conversion error:', error);
     
     if (error.code === 'ETIMEDOUT') {
-      throw new AppError('PDF conversion timed out. The file is too large or complex. Please try with a smaller PDF.', 500, 'PDF_TIMEOUT');
+      throw new AppError('Fast PDF conversion timed out. File too complex.', 500, 'PDF_TIMEOUT');
     }
     
-    if (error.message?.includes('memory')) {
-      throw new AppError('Insufficient memory to process this PDF. Please try with a smaller file.', 500, 'PDF_MEMORY_ERROR');
-    }
-    
-    throw new AppError('Failed to convert PDF to images. Please ensure the PDF is valid and not corrupted.', 500, 'PDF_CONVERSION_ERROR');
+    throw new AppError('Failed to convert PDF quickly. File may be corrupted.', 500, 'PDF_CONVERSION_ERROR');
   }
 }
 
@@ -1384,13 +1370,13 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
   try {
     console.log(`Processing uploaded file: ${req.file.originalname} (${Math.round(req.file.size / 1024)}KB)`);
     
-    // NEW SEQUENTIAL WORKFLOW: Process PDF and images
+    // ULTRA-FAST PROCESSING: Process PDF and images with speed optimization
     if (req.file.mimetype === 'application/pdf') {
-      console.log('Starting PDF processing workflow...');
+      console.log('Starting ULTRA-FAST PDF processing...');
       extractedText = await processPdfSequentially(req.file.path, openai);
     } else if (req.file.mimetype.startsWith('image/')) {
-      console.log('Processing single image...');
-      extractedText = await processImageFile(req.file.path, openai, 1, 1);
+      console.log('Processing single image with fast mode...');
+      extractedText = await processImageFileFast(req.file.path, openai, 1, 1);
     } else {
       throw new AppError('Unsupported file type. Please upload a PDF or image file.', 400, 'UNSUPPORTED_FILE_TYPE');
     }
