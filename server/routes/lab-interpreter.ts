@@ -2032,6 +2032,46 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
               margin: 4px;
             }
             
+            .biomarker-item {
+              background: linear-gradient(135deg, ${templateColors.accentColor}10 0%, ${templateColors.primaryColor}08 100%);
+              border: 1px solid ${templateColors.accentColor}30;
+              border-radius: 8px;
+              padding: 16px;
+              margin: 12px 0;
+              border-left: 4px solid ${templateColors.accentColor};
+            }
+            
+            .biomarker-item h3 {
+              color: ${templateColors.primaryColor};
+              font-size: 16px;
+              font-weight: 600;
+              margin-bottom: 8px;
+            }
+            
+            .recommendation-item {
+              background: linear-gradient(135deg, ${templateColors.secondaryColor}12 0%, ${templateColors.accentColor}08 100%);
+              border: 1px solid ${templateColors.secondaryColor}30;
+              border-radius: 8px;
+              padding: 16px;
+              margin: 12px 0;
+              border-left: 4px solid ${templateColors.secondaryColor};
+            }
+            
+            .recommendation-item h3 {
+              color: ${templateColors.secondaryColor};
+              font-size: 16px;
+              font-weight: 600;
+              margin-bottom: 8px;
+            }
+            
+            .content-wrapper {
+              background: linear-gradient(135deg, ${templateColors.backgroundColor}60 0%, #ffffff 100%);
+              border-radius: 12px;
+              padding: 24px;
+              margin: 16px 0;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            }
+            
             strong {
               color: ${templateColors.primaryColor};
               font-weight: 600;
@@ -2071,7 +2111,9 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
               
               <div class="section">
                 <h2>🧬 Analysis Results</h2>
-                ${content}
+                <div class="content-wrapper">
+                  ${content}
+                </div>
               </div>
               
               ${voiceNotes ? `
@@ -2106,55 +2148,93 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
     const styledHtml = createLabReportHTML();
     
     if (format === 'pdf') {
-      // Generate PDF using jsPDF (lighter alternative)
-      const { jsPDF } = await import('jspdf');
-      
-      // Convert HTML to plain text for PDF
-      const tempDiv = { innerHTML: content };
-      const textContent = content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-      
-      const doc = new jsPDF();
-      let yPosition = 20;
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const margin = 20;
-      const maxWidth = pageWidth - 2 * margin;
-      
-      // Add title
-      doc.setFontSize(16);
-      doc.setFont(undefined, 'bold');
-      doc.text('Styled Lab Report Analysis', margin, yPosition);
-      yPosition += 15;
-      
-      // Add content
-      doc.setFontSize(12);
-      doc.setFont(undefined, 'normal');
-      const lines = doc.splitTextToSize(textContent, maxWidth);
-      
-      for (let i = 0; i < lines.length; i++) {
-        if (yPosition > doc.internal.pageSize.getHeight() - 20) {
-          doc.addPage();
-          yPosition = 20;
+      // Parse and format the content properly
+      const formatContent = (rawContent: string) => {
+        try {
+          // Try to parse JSON if it's a JSON string
+          const parsed = JSON.parse(rawContent);
+          
+          let formattedText = '';
+          
+          if (parsed.summary) {
+            formattedText += `<h2>📋 Summary</h2><p>${parsed.summary}</p><br>`;
+          }
+          
+          if (parsed.abnormalValues && Array.isArray(parsed.abnormalValues)) {
+            formattedText += `<h2>⚠️ Abnormal Values</h2>`;
+            parsed.abnormalValues.forEach((item: any) => {
+              if (typeof item === 'object') {
+                formattedText += `<div class="biomarker-item">`;
+                formattedText += `<h3>${item.biomarker || 'Unknown Biomarker'}</h3>`;
+                formattedText += `<p><strong>Value:</strong> ${item.value || 'N/A'}</p>`;
+                formattedText += `<p><strong>Interpretation:</strong> ${item.interpretation || 'No interpretation available'}</p>`;
+                formattedText += `</div><br>`;
+              }
+            });
+          }
+          
+          if (parsed.interpretation) {
+            formattedText += `<h2>🔬 Clinical Interpretation</h2><p>${parsed.interpretation}</p><br>`;
+          }
+          
+          if (parsed.recommendations && Array.isArray(parsed.recommendations)) {
+            formattedText += `<h2>💊 Recommendations</h2>`;
+            parsed.recommendations.forEach((rec: any) => {
+              if (typeof rec === 'object') {
+                formattedText += `<div class="recommendation-item">`;
+                formattedText += `<h3>${rec.product || 'Product'}</h3>`;
+                formattedText += `<p><strong>Dosage:</strong> ${rec.dosage || 'As directed'}</p>`;
+                formattedText += `<p><strong>Reason:</strong> ${rec.reason || 'Health support'}</p>`;
+                formattedText += `</div><br>`;
+              } else {
+                formattedText += `<p>• ${rec}</p>`;
+              }
+            });
+          }
+          
+          return formattedText || rawContent;
+        } catch (e) {
+          // If not JSON, treat as plain text and add basic formatting
+          return rawContent
+            .replace(/\n\n/g, '</p><p>')
+            .replace(/\n/g, '<br>')
+            .replace(/^/, '<p>')
+            .replace(/$/, '</p>');
         }
-        doc.text(lines[i], margin, yPosition);
-        yPosition += 6;
-      }
+      };
+
+      const formattedContent = formatContent(content);
       
-      // Add footer
-      const totalPages = doc.getNumberOfPages();
-      for (let i = 1; i <= totalPages; i++) {
-        doc.setPage(i);
-        doc.setFontSize(10);
-        doc.text(
-          `Generated on ${new Date().toLocaleDateString()} | Page ${i} of ${totalPages}`,
-          margin,
-          doc.internal.pageSize.getHeight() - 10
-        );
-      }
+      // Create enhanced HTML with formatted content
+      const enhancedHtml = styledHtml.replace(
+        '<div class="section">\n                <h2>🧬 Analysis Results</h2>\n                <div class="content-wrapper">\n                  ${content}\n                </div>\n              </div>',
+        `<div class="section">
+          <h2>🧬 Analysis Results</h2>
+          <div class="content-wrapper">
+            ${formattedContent}
+          </div>
+        </div>`
+      );
       
-      const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
+      // Use html-pdf-node for better HTML to PDF conversion
+      const htmlPdf = await import('html-pdf-node');
+      
+      const options = {
+        format: 'A4',
+        printBackground: true,
+        margin: {
+          top: '20px',
+          bottom: '20px',
+          left: '20px',
+          right: '20px'
+        }
+      };
+      
+      const file = { content: enhancedHtml };
+      const pdfBuffer = await htmlPdf.generatePdf(file, options);
       
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', 'attachment; filename="styled-lab-report.pdf"');
+      res.setHeader('Content-Disposition', `attachment; filename="lab-report-${template}.pdf"`);
       res.send(pdfBuffer);
       
     } else if (format === 'docx') {
