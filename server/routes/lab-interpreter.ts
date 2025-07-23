@@ -2216,22 +2216,240 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
         </div>`
       );
       
-      // Use html-pdf-node for better HTML to PDF conversion
-      const htmlPdf = await import('html-pdf-node');
+      // Use jsPDF with enhanced formatting for colorful templates
+      const { jsPDF } = await import('jspdf');
       
-      const options = {
-        format: 'A4',
-        printBackground: true,
-        margin: {
-          top: '20px',
-          bottom: '20px',
-          left: '20px',
-          right: '20px'
-        }
+      const doc = new jsPDF();
+      let yPos = 30;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 20;
+      const maxWidth = pageWidth - 2 * margin;
+      
+      // Get template colors for PDF styling
+      const colors = getTemplateStyles(template);
+      
+      // Helper to set template-specific colors
+      const setTemplateColor = (type: 'primary' | 'secondary' | 'accent') => {
+        const colorMap = {
+          primary: colors.primaryColor,
+          secondary: colors.secondaryColor,
+          accent: colors.accentColor
+        };
+        const hex = colorMap[type];
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        doc.setTextColor(r, g, b);
       };
       
-      const file = { content: enhancedHtml };
-      const pdfBuffer = await htmlPdf.generatePdf(file, options);
+      // Add colorful header background
+      const headerColors = {
+        professional: [37, 99, 235], // Blue
+        medical: [5, 150, 105], // Green  
+        modern: [124, 58, 237] // Purple
+      };
+      const [r, g, b] = headerColors[template as keyof typeof headerColors];
+      doc.setFillColor(r, g, b);
+      doc.rect(0, 0, pageWidth, 50, 'F');
+      
+      // Add header text
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(24);
+      doc.setFont(undefined, 'bold');
+      doc.text('🔬 Lab Report Analysis', pageWidth / 2, 25, { align: 'center' });
+      
+      doc.setFontSize(12);
+      doc.setFont(undefined, 'normal');
+      doc.text(`${template.charAt(0).toUpperCase() + template.slice(1)} Template`, pageWidth / 2, 35, { align: 'center' });
+      
+      yPos = 70;
+      
+      // Reset text color for content
+      doc.setTextColor(0, 0, 0);
+      
+      // Add patient info if available
+      if (patient) {
+        setTemplateColor('primary');
+        doc.setFontSize(16);
+        doc.setFont(undefined, 'bold');
+        doc.text('👤 Patient Information', margin, yPos);
+        yPos += 10;
+        
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'normal');
+        doc.text(`Name: ${patient.firstName} ${patient.lastName}`, margin, yPos);
+        yPos += 8;
+        doc.text(`Patient ID: ${patient.id}`, margin, yPos);
+        yPos += 8;
+        doc.text(`Report Date: ${new Date().toLocaleDateString()}`, margin, yPos);
+        yPos += 20;
+      }
+      
+      // Add original lab data if available
+      if (originalText) {
+        setTemplateColor('primary');
+        doc.setFontSize(16);
+        doc.setFont(undefined, 'bold');
+        doc.text('📋 Original Lab Data', margin, yPos);
+        yPos += 10;
+        
+        doc.setTextColor(100, 100, 100);
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'normal');
+        const originalLines = doc.splitTextToSize(originalText, maxWidth);
+        originalLines.forEach((line: string) => {
+          if (yPos > 270) {
+            doc.addPage();
+            yPos = 30;
+          }
+          doc.text(line, margin, yPos);
+          yPos += 6;
+        });
+        yPos += 10;
+      }
+      
+      // Format and add analysis content
+      setTemplateColor('primary');
+      doc.setFontSize(16);
+      doc.setFont(undefined, 'bold');
+      doc.text('🧬 Analysis Results', margin, yPos);
+      yPos += 15;
+      
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(12);
+      doc.setFont(undefined, 'normal');
+      
+      // Parse and format the content
+      try {
+        const parsed = JSON.parse(formattedContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' '));
+        
+        if (parsed.summary) {
+          setTemplateColor('secondary');
+          doc.setFont(undefined, 'bold');
+          doc.text('📋 Summary:', margin, yPos);
+          yPos += 8;
+          
+          doc.setTextColor(0, 0, 0);
+          doc.setFont(undefined, 'normal');
+          const summaryLines = doc.splitTextToSize(parsed.summary, maxWidth);
+          summaryLines.forEach((line: string) => {
+            if (yPos > 270) {
+              doc.addPage();
+              yPos = 30;
+            }
+            doc.text(line, margin, yPos);
+            yPos += 6;
+          });
+          yPos += 10;
+        }
+        
+        if (parsed.abnormalValues && Array.isArray(parsed.abnormalValues)) {
+          setTemplateColor('secondary');
+          doc.setFont(undefined, 'bold');
+          doc.text('⚠️ Abnormal Values:', margin, yPos);
+          yPos += 8;
+          
+          parsed.abnormalValues.forEach((item: any) => {
+            if (typeof item === 'object') {
+              setTemplateColor('accent');
+              doc.setFont(undefined, 'bold');
+              doc.text(`• ${item.biomarker || 'Biomarker'}`, margin + 5, yPos);
+              yPos += 6;
+              
+              doc.setTextColor(0, 0, 0);
+              doc.setFont(undefined, 'normal');
+              doc.text(`  Value: ${item.value || 'N/A'}`, margin + 5, yPos);
+              yPos += 6;
+              doc.text(`  Interpretation: ${item.interpretation || 'N/A'}`, margin + 5, yPos);
+              yPos += 10;
+            }
+          });
+        }
+        
+        if (parsed.recommendations && Array.isArray(parsed.recommendations)) {
+          setTemplateColor('secondary');
+          doc.setFont(undefined, 'bold');
+          doc.text('💊 Recommendations:', margin, yPos);
+          yPos += 8;
+          
+          parsed.recommendations.forEach((rec: any) => {
+            if (typeof rec === 'object') {
+              setTemplateColor('accent');
+              doc.setFont(undefined, 'bold');
+              doc.text(`• ${rec.product || 'Product'}`, margin + 5, yPos);
+              yPos += 6;
+              
+              doc.setTextColor(0, 0, 0);
+              doc.setFont(undefined, 'normal');
+              doc.text(`  Dosage: ${rec.dosage || 'As directed'}`, margin + 5, yPos);
+              yPos += 6;
+              doc.text(`  Reason: ${rec.reason || 'Health support'}`, margin + 5, yPos);
+              yPos += 10;
+            }
+          });
+        }
+        
+      } catch (e) {
+        // If not JSON, display as formatted text
+        const contentLines = doc.splitTextToSize(formattedContent.replace(/<[^>]*>/g, ' '), maxWidth);
+        contentLines.forEach((line: string) => {
+          if (yPos > 270) {
+            doc.addPage();
+            yPos = 30;
+          }
+          doc.text(line, margin, yPos);
+          yPos += 6;
+        });
+      }
+      
+      // Add voice notes if available
+      if (voiceNotes) {
+        if (yPos > 250) {
+          doc.addPage();
+          yPos = 30;
+        }
+        
+        setTemplateColor('primary');
+        doc.setFontSize(16);
+        doc.setFont(undefined, 'bold');
+        doc.text('🎤 Voice Notes', margin, yPos);
+        yPos += 10;
+        
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'normal');
+        const voiceLines = doc.splitTextToSize(voiceNotes, maxWidth);
+        voiceLines.forEach((line: string) => {
+          if (yPos > 270) {
+            doc.addPage();
+            yPos = 30;
+          }
+          doc.text(line, margin, yPos);
+          yPos += 6;
+        });
+      }
+      
+      // Add colorful footer
+      const totalPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        
+        // Footer background
+        doc.setFillColor(r, g, b);
+        doc.rect(0, doc.internal.pageSize.getHeight() - 25, pageWidth, 25, 'F');
+        
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(10);
+        doc.text(
+          `Generated ${new Date().toLocaleDateString()} | ${template.charAt(0).toUpperCase() + template.slice(1)} Template | Page ${i}/${totalPages}`,
+          pageWidth / 2,
+          doc.internal.pageSize.getHeight() - 10,
+          { align: 'center' }
+        );
+      }
+      
+      const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
       
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="lab-report-${template}.pdf"`);
