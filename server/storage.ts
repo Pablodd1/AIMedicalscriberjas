@@ -20,6 +20,10 @@ import {
   patientDocuments,
   medicalNoteTemplates,
   systemSettings,
+  medicalAlerts,
+  patientActivity,
+  prescriptions,
+  medicalHistoryEntries,
   type User, 
   type InsertUser, 
   type Patient, 
@@ -59,7 +63,15 @@ import {
   type PatientDocument,
   type InsertPatientDocument,
   type SystemSetting,
-  type InsertSystemSetting
+  type InsertSystemSetting,
+  type MedicalAlert,
+  type InsertMedicalAlert,
+  type PatientActivity,
+  type InsertPatientActivity,
+  type Prescription,
+  type InsertPrescription,
+  type MedicalHistoryEntry,
+  type InsertMedicalHistoryEntry
 } from "@shared/schema";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
@@ -170,6 +182,29 @@ export interface IStorage {
   createPatientDocument(document: InsertPatientDocument): Promise<PatientDocument>;
   updatePatientDocument(id: number, updates: Partial<PatientDocument>): Promise<PatientDocument | undefined>;
   deletePatientDocument(id: number): Promise<boolean>;
+
+  // Medical Alerts
+  getMedicalAlertsByPatient(patientId: number): Promise<MedicalAlert[]>;
+  createMedicalAlert(alert: InsertMedicalAlert): Promise<MedicalAlert>;
+  updateMedicalAlert(id: number, alert: Partial<InsertMedicalAlert>): Promise<MedicalAlert | undefined>;
+  deleteMedicalAlert(id: number): Promise<void>;
+
+  // Patient Activity
+  getPatientActivity(patientId: number): Promise<PatientActivity[]>;
+  createPatientActivity(activity: InsertPatientActivity): Promise<PatientActivity>;
+  deletePatientActivity(id: number): Promise<void>;
+
+  // Prescriptions
+  getPrescriptionsByPatient(patientId: number): Promise<Prescription[]>;
+  createPrescription(prescription: InsertPrescription): Promise<Prescription>;
+  updatePrescription(id: number, prescription: Partial<InsertPrescription>): Promise<Prescription | undefined>;
+  deletePrescription(id: number): Promise<void>;
+
+  // Medical History Entries
+  getMedicalHistoryEntriesByPatient(patientId: number): Promise<MedicalHistoryEntry[]>;
+  createMedicalHistoryEntry(entry: InsertMedicalHistoryEntry): Promise<MedicalHistoryEntry>;
+  updateMedicalHistoryEntry(id: number, entry: Partial<InsertMedicalHistoryEntry>): Promise<MedicalHistoryEntry | undefined>;
+  deleteMedicalHistoryEntry(id: number): Promise<void>;
 
   sessionStore: session.Store;
 }
@@ -1325,6 +1360,109 @@ export class DatabaseStorage implements IStorage {
       console.error("Error updating patient document:", error);
       return undefined;
     }
+  }
+
+  // Medical Alerts methods
+  async getMedicalAlertsByPatient(patientId: number): Promise<MedicalAlert[]> {
+    return db.select().from(medicalAlerts)
+      .where(and(eq(medicalAlerts.patientId, patientId), eq(medicalAlerts.isActive, true)))
+      .orderBy(desc(medicalAlerts.createdAt));
+  }
+
+  async createMedicalAlert(alert: InsertMedicalAlert): Promise<MedicalAlert> {
+    const [newAlert] = await db
+      .insert(medicalAlerts)
+      .values(alert)
+      .returning();
+    return newAlert;
+  }
+
+  async updateMedicalAlert(id: number, alert: Partial<InsertMedicalAlert>): Promise<MedicalAlert | undefined> {
+    const [updatedAlert] = await db
+      .update(medicalAlerts)
+      .set(alert)
+      .where(eq(medicalAlerts.id, id))
+      .returning();
+    return updatedAlert;
+  }
+
+  async deleteMedicalAlert(id: number): Promise<void> {
+    await db.delete(medicalAlerts).where(eq(medicalAlerts.id, id));
+  }
+
+  // Patient Activity methods
+  async getPatientActivity(patientId: number): Promise<PatientActivity[]> {
+    return db.select().from(patientActivity)
+      .where(eq(patientActivity.patientId, patientId))
+      .orderBy(desc(patientActivity.date));
+  }
+
+  async createPatientActivity(activity: InsertPatientActivity): Promise<PatientActivity> {
+    const [newActivity] = await db
+      .insert(patientActivity)
+      .values(activity)
+      .returning();
+    return newActivity;
+  }
+
+  async deletePatientActivity(id: number): Promise<void> {
+    await db.delete(patientActivity).where(eq(patientActivity.id, id));
+  }
+
+  // Prescriptions methods
+  async getPrescriptionsByPatient(patientId: number): Promise<Prescription[]> {
+    return db.select().from(prescriptions)
+      .where(and(eq(prescriptions.patientId, patientId), eq(prescriptions.isActive, true)))
+      .orderBy(desc(prescriptions.prescribedDate));
+  }
+
+  async createPrescription(prescription: InsertPrescription): Promise<Prescription> {
+    const [newPrescription] = await db
+      .insert(prescriptions)
+      .values(prescription)
+      .returning();
+    return newPrescription;
+  }
+
+  async updatePrescription(id: number, prescription: Partial<InsertPrescription>): Promise<Prescription | undefined> {
+    const [updatedPrescription] = await db
+      .update(prescriptions)
+      .set(prescription)
+      .where(eq(prescriptions.id, id))
+      .returning();
+    return updatedPrescription;
+  }
+
+  async deletePrescription(id: number): Promise<void> {
+    await db.delete(prescriptions).where(eq(prescriptions.id, id));
+  }
+
+  // Medical History Entries methods
+  async getMedicalHistoryEntriesByPatient(patientId: number): Promise<MedicalHistoryEntry[]> {
+    return db.select().from(medicalHistoryEntries)
+      .where(and(eq(medicalHistoryEntries.patientId, patientId), eq(medicalHistoryEntries.isActive, true)))
+      .orderBy(desc(medicalHistoryEntries.createdAt));
+  }
+
+  async createMedicalHistoryEntry(entry: InsertMedicalHistoryEntry): Promise<MedicalHistoryEntry> {
+    const [newEntry] = await db
+      .insert(medicalHistoryEntries)
+      .values(entry)
+      .returning();
+    return newEntry;
+  }
+
+  async updateMedicalHistoryEntry(id: number, entry: Partial<InsertMedicalHistoryEntry>): Promise<MedicalHistoryEntry | undefined> {
+    const [updatedEntry] = await db
+      .update(medicalHistoryEntries)
+      .set(entry)
+      .where(eq(medicalHistoryEntries.id, id))
+      .returning();
+    return updatedEntry;
+  }
+
+  async deleteMedicalHistoryEntry(id: number): Promise<void> {
+    await db.delete(medicalHistoryEntries).where(eq(medicalHistoryEntries.id, id));
   }
 }
 

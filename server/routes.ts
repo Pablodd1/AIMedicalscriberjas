@@ -1580,5 +1580,153 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Medical Alerts routes
+  app.get('/api/patients/:patientId/medical-alerts', requireAuth, asyncHandler(async (req: Request, res: Response) => {
+    const patientId = parseInt(req.params.patientId);
+    const alerts = await handleDatabaseOperation(() => 
+      storage.getMedicalAlertsByPatient(patientId)
+    );
+    sendSuccessResponse(res, alerts);
+  }));
+
+  app.post('/api/patients/:patientId/medical-alerts', requireAuth, asyncHandler(async (req: Request, res: Response) => {
+    const patientId = parseInt(req.params.patientId);
+    const user = req.user!;
+    const alertData = {
+      ...req.body,
+      patientId,
+      createdBy: user.id
+    };
+    const alert = await handleDatabaseOperation(() => 
+      storage.createMedicalAlert(alertData)
+    );
+    sendSuccessResponse(res, alert);
+  }));
+
+  app.put('/api/medical-alerts/:id', requireAuth, asyncHandler(async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const alert = await handleDatabaseOperation(() => 
+      storage.updateMedicalAlert(id, req.body)
+    );
+    sendSuccessResponse(res, alert);
+  }));
+
+  app.delete('/api/medical-alerts/:id', requireAuth, asyncHandler(async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    await handleDatabaseOperation(() => 
+      storage.deleteMedicalAlert(id)
+    );
+    sendSuccessResponse(res, { success: true });
+  }));
+
+  // Patient Activity routes
+  app.get('/api/patients/:patientId/activity', requireAuth, asyncHandler(async (req: Request, res: Response) => {
+    const patientId = parseInt(req.params.patientId);
+    const activities = await handleDatabaseOperation(() => 
+      storage.getPatientActivity(patientId)
+    );
+    sendSuccessResponse(res, activities);
+  }));
+
+  app.post('/api/patients/:patientId/activity', requireAuth, asyncHandler(async (req: Request, res: Response) => {
+    const patientId = parseInt(req.params.patientId);
+    const user = req.user!;
+    const activityData = {
+      ...req.body,
+      patientId,
+      createdBy: user.id
+    };
+    const activity = await handleDatabaseOperation(() => 
+      storage.createPatientActivity(activityData)
+    );
+    sendSuccessResponse(res, activity);
+  }));
+
+  app.delete('/api/patient-activity/:id', requireAuth, asyncHandler(async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    await handleDatabaseOperation(() => 
+      storage.deletePatientActivity(id)
+    );
+    sendSuccessResponse(res, { success: true });
+  }));
+
+  // Prescriptions routes
+  app.get('/api/patients/:patientId/prescriptions', requireAuth, asyncHandler(async (req: Request, res: Response) => {
+    const patientId = parseInt(req.params.patientId);
+    const prescriptions = await handleDatabaseOperation(() => 
+      storage.getPrescriptionsByPatient(patientId)
+    );
+    sendSuccessResponse(res, prescriptions);
+  }));
+
+  app.post('/api/patients/:patientId/prescriptions', requireAuth, asyncHandler(async (req: Request, res: Response) => {
+    const patientId = parseInt(req.params.patientId);
+    const user = req.user!;
+    const prescriptionData = {
+      ...req.body,
+      patientId,
+      prescribedBy: user.id
+    };
+    const prescription = await handleDatabaseOperation(() => 
+      storage.createPrescription(prescriptionData)
+    );
+    sendSuccessResponse(res, prescription);
+  }));
+
+  app.put('/api/prescriptions/:id', requireAuth, asyncHandler(async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const prescription = await handleDatabaseOperation(() => 
+      storage.updatePrescription(id, req.body)
+    );
+    sendSuccessResponse(res, prescription);
+  }));
+
+  app.delete('/api/prescriptions/:id', requireAuth, asyncHandler(async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    await handleDatabaseOperation(() => 
+      storage.deletePrescription(id)
+    );
+    sendSuccessResponse(res, { success: true });
+  }));
+
+  // Medical History Entries routes
+  app.get('/api/patients/:patientId/medical-history', requireAuth, asyncHandler(async (req: Request, res: Response) => {
+    const patientId = parseInt(req.params.patientId);
+    const entries = await handleDatabaseOperation(() => 
+      storage.getMedicalHistoryEntriesByPatient(patientId)
+    );
+    sendSuccessResponse(res, entries);
+  }));
+
+  app.post('/api/patients/:patientId/medical-history', requireAuth, asyncHandler(async (req: Request, res: Response) => {
+    const patientId = parseInt(req.params.patientId);
+    const user = req.user!;
+    const entryData = {
+      ...req.body,
+      patientId,
+      createdBy: user.id
+    };
+    const entry = await handleDatabaseOperation(() => 
+      storage.createMedicalHistoryEntry(entryData)
+    );
+    sendSuccessResponse(res, entry);
+  }));
+
+  app.put('/api/medical-history/:id', requireAuth, asyncHandler(async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const entry = await handleDatabaseOperation(() => 
+      storage.updateMedicalHistoryEntry(id, req.body)
+    );
+    sendSuccessResponse(res, entry);
+  }));
+
+  app.delete('/api/medical-history/:id', requireAuth, asyncHandler(async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    await handleDatabaseOperation(() => 
+      storage.deleteMedicalHistoryEntry(id)
+    );
+    sendSuccessResponse(res, { success: true });
+  }));
+
   return httpServer;
 }

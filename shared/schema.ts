@@ -50,6 +50,60 @@ export const patients = pgTable("patients", {
   createdBy: integer("created_by").notNull(),
 });
 
+// Medical alerts for patients
+export const medicalAlerts = pgTable("medical_alerts", {
+  id: serial("id").primaryKey(),
+  patientId: integer("patient_id").notNull(),
+  type: text("type").notNull(), // 'allergy', 'medication', 'condition', 'warning'
+  severity: text("severity").notNull().default('medium'), // 'low', 'medium', 'high', 'critical'
+  title: text("title").notNull(),
+  description: text("description"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  createdBy: integer("created_by").notNull(),
+});
+
+// Recent activity/timeline for patients
+export const patientActivity = pgTable("patient_activity", {
+  id: serial("id").primaryKey(),
+  patientId: integer("patient_id").notNull(),
+  activityType: text("activity_type").notNull(), // 'appointment', 'medication', 'test', 'note', 'procedure'
+  title: text("title").notNull(),
+  description: text("description"),
+  date: timestamp("date").defaultNow(),
+  createdBy: integer("created_by").notNull(),
+  metadata: json("metadata"), // Store additional data like appointment ID, medication details, etc.
+});
+
+// Prescriptions for patients
+export const prescriptions = pgTable("prescriptions", {
+  id: serial("id").primaryKey(),
+  patientId: integer("patient_id").notNull(),
+  medicationName: text("medication_name").notNull(),
+  dosage: text("dosage").notNull(),
+  frequency: text("frequency").notNull(),
+  duration: text("duration"),
+  instructions: text("instructions"),
+  prescribedBy: integer("prescribed_by").notNull(),
+  prescribedDate: timestamp("prescribed_date").defaultNow(),
+  isActive: boolean("is_active").default(true),
+  refills: integer("refills").default(0),
+  notes: text("notes"),
+});
+
+// Medical history entries (separate from general medical history text)
+export const medicalHistoryEntries = pgTable("medical_history_entries", {
+  id: serial("id").primaryKey(),
+  patientId: integer("patient_id").notNull(),
+  category: text("category").notNull(), // 'condition', 'surgery', 'allergy', 'family_history', 'social_history'
+  title: text("title").notNull(),
+  description: text("description"),
+  date: date("date"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  createdBy: integer("created_by").notNull(),
+});
+
 export const appointments = pgTable("appointments", {
   id: serial("id").primaryKey(),
   patientId: integer("patient_id").notNull(),
@@ -120,6 +174,40 @@ export const medicalNotes = pgTable("medical_notes", {
   template: text("template"),
   signature: text("signature"),
 });
+
+// Create insert schemas for new tables
+export const insertMedicalAlertSchema = createInsertSchema(medicalAlerts).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertPatientActivitySchema = createInsertSchema(patientActivity).omit({
+  id: true,
+  date: true,
+});
+
+export const insertPrescriptionSchema = createInsertSchema(prescriptions).omit({
+  id: true,
+  prescribedDate: true,
+});
+
+export const insertMedicalHistoryEntrySchema = createInsertSchema(medicalHistoryEntries).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Type exports
+export type MedicalAlert = typeof medicalAlerts.$inferSelect;
+export type InsertMedicalAlert = z.infer<typeof insertMedicalAlertSchema>;
+
+export type PatientActivity = typeof patientActivity.$inferSelect;
+export type InsertPatientActivity = z.infer<typeof insertPatientActivitySchema>;
+
+export type Prescription = typeof prescriptions.$inferSelect;
+export type InsertPrescription = z.infer<typeof insertPrescriptionSchema>;
+
+export type MedicalHistoryEntry = typeof medicalHistoryEntries.$inferSelect;
+export type InsertMedicalHistoryEntry = z.infer<typeof insertMedicalHistoryEntrySchema>;
 
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,

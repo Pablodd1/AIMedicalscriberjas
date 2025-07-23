@@ -38,6 +38,7 @@ import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { DocumentManager } from "@/components/patient-documents/document-manager";
+import { EditablePatientSection } from "@/components/patient-management/editable-patient-section";
 
 interface PatientDetailsProps {
   patientId: number;
@@ -62,6 +63,27 @@ export default function PatientDetails({ patientId }: PatientDetailsProps) {
 
   const { data: labReports, isLoading: isLoadingLabReports } = useQuery<any[]>({
     queryKey: [`/api/patients/${patientId}/lab-reports`],
+    enabled: !!patientId,
+  });
+
+  // New queries for patient management data
+  const { data: medicalAlerts, isLoading: isLoadingAlerts } = useQuery<any[]>({
+    queryKey: [`/api/patients/${patientId}/medical-alerts`],
+    enabled: !!patientId,
+  });
+
+  const { data: patientActivity, isLoading: isLoadingActivity } = useQuery<any[]>({
+    queryKey: [`/api/patients/${patientId}/activity`],
+    enabled: !!patientId,
+  });
+
+  const { data: prescriptions, isLoading: isLoadingPrescriptions } = useQuery<any[]>({
+    queryKey: [`/api/patients/${patientId}/prescriptions`],
+    enabled: !!patientId,
+  });
+
+  const { data: medicalHistory, isLoading: isLoadingHistory } = useQuery<any[]>({
+    queryKey: [`/api/patients/${patientId}/medical-history`],
     enabled: !!patientId,
   });
 
@@ -108,7 +130,7 @@ export default function PatientDetails({ patientId }: PatientDetailsProps) {
           </TabsList>
 
           <TabsContent value="overview">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Contact Information</CardTitle>
@@ -132,80 +154,46 @@ export default function PatientDetails({ patientId }: PatientDetailsProps) {
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Medical Alerts</CardTitle>
-                  <AlertCircle className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-red-500">
-                      <AlertCircle className="h-4 w-4" />
-                      <span>Penicillin Allergy</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-amber-500">
-                      <Pill className="h-4 w-4" />
-                      <span>Current Medications: 2</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-blue-500">
-                      <Heart className="h-4 w-4" />
-                      <span>Chronic Conditions: None</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <EditablePatientSection
+                patientId={patientId}
+                title="Medical Alerts"
+                icon={<AlertCircle className="h-4 w-4" />}
+                data={medicalAlerts || []}
+                type="alerts"
+                isLoading={isLoadingAlerts}
+              />
+            </div>
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
-                  <Activity className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      <span>Last visit: {format(new Date(), "PPP")}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                      <span>Latest prescription: 1 week ago</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Syringe className="h-4 w-4 text-muted-foreground" />
-                      <span>Vaccinations up to date</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+            <div className="grid gap-4 md:grid-cols-2 mt-4">
+              <EditablePatientSection
+                patientId={patientId}
+                title="Recent Activity"
+                icon={<Activity className="h-4 w-4" />}
+                data={patientActivity || []}
+                type="activity"
+                isLoading={isLoadingActivity}
+              />
+
+              <EditablePatientSection
+                patientId={patientId}
+                title="Current Prescriptions"
+                icon={<Pill className="h-4 w-4" />}
+                data={prescriptions || []}
+                type="prescriptions"
+                isLoading={isLoadingPrescriptions}
+              />
             </div>
           </TabsContent>
 
           <TabsContent value="medical-history">
-            <Card>
-              <CardContent className="space-y-4 p-6">
-                <div className="prose max-w-none">
-                  <h3 className="text-lg font-semibold">Medical History</h3>
-                  <div className="space-y-4">
-                    <div className="border-l-4 border-primary pl-4">
-                      <h4 className="font-medium">Current Conditions</h4>
-                      <p className="text-muted-foreground">{patient.medicalHistory || 'No current conditions recorded.'}</p>
-                    </div>
-                    <div className="border-l-4 border-primary pl-4">
-                      <h4 className="font-medium">Allergies</h4>
-                      <p className="text-muted-foreground">Penicillin</p>
-                    </div>
-                    <div className="border-l-4 border-primary pl-4">
-                      <h4 className="font-medium">Past Surgeries</h4>
-                      <p className="text-muted-foreground">None recorded</p>
-                    </div>
-                    <div className="border-l-4 border-primary pl-4">
-                      <h4 className="font-medium">Family History</h4>
-                      <p className="text-muted-foreground">No significant family history recorded</p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <EditablePatientSection
+              patientId={patientId}
+              title="Medical History Entries"
+              icon={<FileText className="h-4 w-4" />}
+              data={medicalHistory || []}
+              type="history"
+              isLoading={isLoadingHistory}
+            />
           </TabsContent>
 
           <TabsContent value="appointments">
@@ -234,29 +222,14 @@ export default function PatientDetails({ patientId }: PatientDetailsProps) {
           </TabsContent>
 
           <TabsContent value="prescriptions">
-            <Card>
-              <CardContent className="p-6">
-                <div className="space-y-4">
-                  {[
-                    { medication: "Amoxicillin", dosage: "500mg", frequency: "3x daily", date: "2024-03-01" },
-                    { medication: "Ibuprofen", dosage: "400mg", frequency: "As needed", date: "2024-02-15" }
-                  ].map((prescription, i) => (
-                    <div key={i} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div>
-                        <p className="font-medium">{prescription.medication}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {prescription.dosage} - {prescription.frequency}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          Prescribed: {format(new Date(prescription.date), "PPP")}
-                        </p>
-                      </div>
-                      <Badge>Active</Badge>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            <EditablePatientSection
+              patientId={patientId}
+              title="Current Prescriptions"
+              icon={<Pill className="h-4 w-4" />}
+              data={prescriptions || []}
+              type="prescriptions"
+              isLoading={isLoadingPrescriptions}
+            />
           </TabsContent>
 
           <TabsContent value="documents">
