@@ -2629,62 +2629,335 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
       res.send(pdfBuffer);
       
     } else if (format === 'docx') {
-      // Generate DOCX using proper server-side library
+      // Generate DOCX with properly structured content
       const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx');
       
-      // Convert HTML content to plain text and create document
-      const textContent = content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      const formattedContent = formatContent(content);
+      
+      // Parse content for Word document structure
+      const docSections = [];
+      
+      // Title
+      docSections.push(
+        new Paragraph({
+          text: "Lab Report Analysis",
+          heading: HeadingLevel.TITLE,
+        })
+      );
+      
+      // Template and date info
+      docSections.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `${template.charAt(0).toUpperCase() + template.slice(1)} Template • Generated ${new Date().toLocaleDateString()}`,
+              italics: true,
+              size: 20,
+            }),
+          ],
+        })
+      );
+      
+      docSections.push(new Paragraph({ text: "" })); // Empty line
+      
+      // Patient info if available
+      if (patient) {
+        docSections.push(
+          new Paragraph({
+            text: "Patient Information",
+            heading: HeadingLevel.HEADING_1,
+          })
+        );
+        
+        docSections.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: "Name: ", bold: true }),
+              new TextRun({ text: `${patient.firstName} ${patient.lastName}` }),
+            ],
+          })
+        );
+        
+        docSections.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: "Patient ID: ", bold: true }),
+              new TextRun({ text: `${patient.id}` }),
+            ],
+          })
+        );
+        
+        docSections.push(new Paragraph({ text: "" })); // Empty line
+      }
+      
+      // Original lab data if available
+      if (originalText) {
+        docSections.push(
+          new Paragraph({
+            text: "Original Lab Data",
+            heading: HeadingLevel.HEADING_1,
+          })
+        );
+        
+        docSections.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: originalText,
+                font: 'Courier New',
+                size: 20,
+              }),
+            ],
+          })
+        );
+        
+        docSections.push(new Paragraph({ text: "" })); // Empty line
+      }
+      
+      // Parse and add analysis content
+      try {
+        let parsed;
+        try {
+          parsed = JSON.parse(content);
+        } catch (e) {
+          // If not JSON, display as plain text
+          docSections.push(
+            new Paragraph({
+              text: "Analysis Results",
+              heading: HeadingLevel.HEADING_1,
+            })
+          );
+          
+          docSections.push(
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: content.replace(/[{}",]/g, ' ').replace(/\s+/g, ' '),
+                  size: 24,
+                }),
+              ],
+            })
+          );
+        }
+        
+        if (parsed) {
+          docSections.push(
+            new Paragraph({
+              text: "Analysis Results",
+              heading: HeadingLevel.HEADING_1,
+            })
+          );
+          
+          // Handle summary
+          if (parsed.summary) {
+            docSections.push(
+              new Paragraph({
+                text: "Summary",
+                heading: HeadingLevel.HEADING_2,
+              })
+            );
+            
+            docSections.push(
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: parsed.summary,
+                    size: 24,
+                  }),
+                ],
+              })
+            );
+            
+            docSections.push(new Paragraph({ text: "" })); // Empty line
+          }
+          
+          // Handle abnormal values
+          if (parsed.abnormalValues && Array.isArray(parsed.abnormalValues)) {
+            docSections.push(
+              new Paragraph({
+                text: "Abnormal Values",
+                heading: HeadingLevel.HEADING_2,
+              })
+            );
+            
+            parsed.abnormalValues.forEach((item: any) => {
+              if (typeof item === 'object') {
+                docSections.push(
+                  new Paragraph({
+                    children: [
+                      new TextRun({ text: `• ${item.biomarker || item.marker || 'Biomarker'}`, bold: true }),
+                    ],
+                  })
+                );
+                
+                docSections.push(
+                  new Paragraph({
+                    children: [
+                      new TextRun({ text: "  Value: ", bold: true }),
+                      new TextRun({ text: item.value || 'N/A' }),
+                    ],
+                  })
+                );
+                
+                docSections.push(
+                  new Paragraph({
+                    children: [
+                      new TextRun({ text: "  Interpretation: ", bold: true }),
+                      new TextRun({ text: item.interpretation || 'No interpretation available' }),
+                    ],
+                  })
+                );
+                
+                docSections.push(new Paragraph({ text: "" })); // Empty line
+              }
+            });
+          }
+          
+          // Handle recommendations
+          if (parsed.recommendations) {
+            docSections.push(
+              new Paragraph({
+                text: "Recommendations",
+                heading: HeadingLevel.HEADING_2,
+              })
+            );
+            
+            if (Array.isArray(parsed.recommendations)) {
+              parsed.recommendations.forEach((rec: any) => {
+                if (typeof rec === 'object') {
+                  docSections.push(
+                    new Paragraph({
+                      children: [
+                        new TextRun({ text: `• ${rec.product || rec.name || 'Product'}`, bold: true }),
+                      ],
+                    })
+                  );
+                  
+                  docSections.push(
+                    new Paragraph({
+                      children: [
+                        new TextRun({ text: "  Dosage: ", bold: true }),
+                        new TextRun({ text: rec.dosage || rec.dose || 'As directed' }),
+                      ],
+                    })
+                  );
+                  
+                  docSections.push(
+                    new Paragraph({
+                      children: [
+                        new TextRun({ text: "  Reason: ", bold: true }),
+                        new TextRun({ text: rec.reason || rec.purpose || 'Health support' }),
+                      ],
+                    })
+                  );
+                  
+                  docSections.push(new Paragraph({ text: "" })); // Empty line
+                } else {
+                  docSections.push(
+                    new Paragraph({
+                      children: [
+                        new TextRun({ text: `• ${rec}` }),
+                      ],
+                    })
+                  );
+                }
+              });
+            } else if (typeof parsed.recommendations === 'string') {
+              docSections.push(
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: parsed.recommendations,
+                      size: 24,
+                    }),
+                  ],
+                })
+              );
+            }
+          }
+          
+          // Handle interpretation
+          if (parsed.interpretation) {
+            docSections.push(
+              new Paragraph({
+                text: "Clinical Interpretation",
+                heading: HeadingLevel.HEADING_2,
+              })
+            );
+            
+            if (typeof parsed.interpretation === 'string') {
+              docSections.push(
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: parsed.interpretation,
+                      size: 24,
+                    }),
+                  ],
+                })
+              );
+            } else if (typeof parsed.interpretation === 'object') {
+              Object.keys(parsed.interpretation).forEach(key => {
+                docSections.push(
+                  new Paragraph({
+                    children: [
+                      new TextRun({ text: `${key}: `, bold: true }),
+                      new TextRun({ text: parsed.interpretation[key] }),
+                    ],
+                  })
+                );
+              });
+            }
+          }
+        }
+        
+      } catch (e) {
+        console.error('Error parsing content for DOCX:', e);
+        // Fallback: add content as plain text
+        docSections.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: content.replace(/[{}",]/g, ' ').replace(/\s+/g, ' '),
+                size: 24,
+              }),
+            ],
+          })
+        );
+      }
+      
+      // Add voice notes if available
+      if (voiceNotes) {
+        docSections.push(
+          new Paragraph({
+            text: "Voice Notes",
+            heading: HeadingLevel.HEADING_1,
+          })
+        );
+        
+        docSections.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: voiceNotes,
+                size: 24,
+              }),
+            ],
+          })
+        );
+      }
       
       const doc = new Document({
         sections: [{
           properties: {},
-          children: [
-            new Paragraph({
-              text: "Styled Lab Report Analysis",
-              heading: HeadingLevel.TITLE,
-            }),
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: `Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`,
-                  italics: true,
-                  size: 20,
-                }),
-              ],
-            }),
-            new Paragraph({
-              text: "", // Empty line
-            }),
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: textContent,
-                  size: 24,
-                }),
-              ],
-            }),
-            ...(patient ? [
-              new Paragraph({
-                text: "", // Empty line
-              }),
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: `Patient: ${patient.firstName} ${patient.lastName}`,
-                    bold: true,
-                    size: 22,
-                  }),
-                ],
-              }),
-            ] : []),
-          ],
+          children: docSections,
         }],
       });
       
       const docxBuffer = await Packer.toBuffer(doc);
       
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-      res.setHeader('Content-Disposition', 'attachment; filename="styled-lab-report.docx"');
+      res.setHeader('Content-Disposition', `attachment; filename="lab-report-${template}.docx"`);
       res.send(docxBuffer);
     }
     
