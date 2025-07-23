@@ -966,10 +966,19 @@ export default function LabInterpreter() {
         ? patients.find(p => p.id === parseInt(selectedPatientId))
         : null;
       
-      // Prepare content for styled download
-      const content = isEditorMode ? editableContent : (
-        typeof analysisResult === 'string' ? analysisResult : JSON.stringify(analysisResult, null, 2)
-      );
+      // Prepare content for styled download with proper formatting
+      let content = '';
+      
+      if (isEditorMode) {
+        content = editableContent;
+      } else if (typeof analysisResult === 'string') {
+        content = analysisResult;
+      } else if (analysisResult && typeof analysisResult === 'object') {
+        // Format the analysis result object properly
+        content = JSON.stringify(analysisResult);
+      } else {
+        content = 'No analysis data available';
+      }
       
       // Call backend API with template parameter
       const response = await fetch('/api/lab-interpreter/download-styled', {

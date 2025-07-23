@@ -2072,6 +2072,28 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
               box-shadow: 0 4px 12px rgba(0,0,0,0.05);
             }
             
+            .content-item {
+              background: linear-gradient(135deg, ${templateColors.accentColor}08 0%, ${templateColors.primaryColor}05 100%);
+              border: 1px solid ${templateColors.accentColor}20;
+              border-radius: 6px;
+              padding: 12px;
+              margin: 8px 0;
+            }
+            
+            .content-wrapper h3 {
+              color: ${templateColors.primaryColor};
+              font-size: 18px;
+              font-weight: 600;
+              margin: 16px 0 8px 0;
+            }
+            
+            .content-wrapper h4 {
+              color: ${templateColors.secondaryColor};
+              font-size: 16px;
+              font-weight: 500;
+              margin: 12px 0 6px 0;
+            }
+            
             strong {
               color: ${templateColors.primaryColor};
               font-weight: 600;
@@ -2148,24 +2170,35 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
     const styledHtml = createLabReportHTML();
     
     if (format === 'pdf') {
-      // Parse and format the content properly
+      // Parse and format the content properly for display
       const formatContent = (rawContent: string) => {
         try {
           // Try to parse JSON if it's a JSON string
-          const parsed = JSON.parse(rawContent);
+          let parsed;
+          try {
+            parsed = JSON.parse(rawContent);
+          } catch (e) {
+            // If not JSON, treat as plain text
+            return rawContent
+              .replace(/\n\n/g, '</p><p>')
+              .replace(/\n/g, '<br>')
+              .replace(/^/, '<p>')
+              .replace(/$/, '</p>');
+          }
           
           let formattedText = '';
           
+          // Handle different possible structures from AI analysis
           if (parsed.summary) {
-            formattedText += `<h2>📋 Summary</h2><p>${parsed.summary}</p><br>`;
+            formattedText += `<h3>📋 Summary</h3><p>${parsed.summary}</p><br>`;
           }
           
           if (parsed.abnormalValues && Array.isArray(parsed.abnormalValues)) {
-            formattedText += `<h2>⚠️ Abnormal Values</h2>`;
+            formattedText += `<h3>⚠️ Abnormal Values</h3>`;
             parsed.abnormalValues.forEach((item: any) => {
               if (typeof item === 'object') {
                 formattedText += `<div class="biomarker-item">`;
-                formattedText += `<h3>${item.biomarker || 'Unknown Biomarker'}</h3>`;
+                formattedText += `<h4>${item.biomarker || item.marker || 'Biomarker'}</h4>`;
                 formattedText += `<p><strong>Value:</strong> ${item.value || 'N/A'}</p>`;
                 formattedText += `<p><strong>Interpretation:</strong> ${item.interpretation || 'No interpretation available'}</p>`;
                 formattedText += `</div><br>`;
@@ -2173,33 +2206,71 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
             });
           }
           
+          // Handle interpretation (could be string or object)
           if (parsed.interpretation) {
-            formattedText += `<h2>🔬 Clinical Interpretation</h2><p>${parsed.interpretation}</p><br>`;
+            if (typeof parsed.interpretation === 'string') {
+              formattedText += `<h3>🔬 Clinical Interpretation</h3><p>${parsed.interpretation}</p><br>`;
+            } else if (typeof parsed.interpretation === 'object') {
+              formattedText += `<h3>🔬 Clinical Interpretation</h3>`;
+              Object.keys(parsed.interpretation).forEach(key => {
+                formattedText += `<p><strong>${key}:</strong> ${parsed.interpretation[key]}</p>`;
+              });
+              formattedText += `<br>`;
+            }
           }
           
-          if (parsed.recommendations && Array.isArray(parsed.recommendations)) {
-            formattedText += `<h2>💊 Recommendations</h2>`;
-            parsed.recommendations.forEach((rec: any) => {
-              if (typeof rec === 'object') {
-                formattedText += `<div class="recommendation-item">`;
-                formattedText += `<h3>${rec.product || 'Product'}</h3>`;
-                formattedText += `<p><strong>Dosage:</strong> ${rec.dosage || 'As directed'}</p>`;
-                formattedText += `<p><strong>Reason:</strong> ${rec.reason || 'Health support'}</p>`;
-                formattedText += `</div><br>`;
-              } else {
-                formattedText += `<p>• ${rec}</p>`;
+          // Handle recommendations (could be array or string)
+          if (parsed.recommendations) {
+            formattedText += `<h3>💊 Recommendations</h3>`;
+            if (Array.isArray(parsed.recommendations)) {
+              parsed.recommendations.forEach((rec: any) => {
+                if (typeof rec === 'object') {
+                  formattedText += `<div class="recommendation-item">`;
+                  formattedText += `<h4>${rec.product || rec.name || 'Product'}</h4>`;
+                  formattedText += `<p><strong>Dosage:</strong> ${rec.dosage || rec.dose || 'As directed'}</p>`;
+                  formattedText += `<p><strong>Reason:</strong> ${rec.reason || rec.purpose || 'Health support'}</p>`;
+                  formattedText += `</div><br>`;
+                } else {
+                  formattedText += `<p>• ${rec}</p>`;
+                }
+              });
+            } else if (typeof parsed.recommendations === 'string') {
+              formattedText += `<p>${parsed.recommendations}</p><br>`;
+            }
+          }
+          
+          // If we haven't formatted anything yet, try to format the whole object
+          if (formattedText === '') {
+            Object.keys(parsed).forEach(key => {
+              const value = parsed[key];
+              formattedText += `<h3>${key.charAt(0).toUpperCase() + key.slice(1)}</h3>`;
+              if (typeof value === 'string') {
+                formattedText += `<p>${value}</p><br>`;
+              } else if (Array.isArray(value)) {
+                value.forEach(item => {
+                  if (typeof item === 'object') {
+                    formattedText += `<div class="content-item">`;
+                    Object.keys(item).forEach(itemKey => {
+                      formattedText += `<p><strong>${itemKey}:</strong> ${item[itemKey]}</p>`;
+                    });
+                    formattedText += `</div><br>`;
+                  } else {
+                    formattedText += `<p>• ${item}</p>`;
+                  }
+                });
+              } else if (typeof value === 'object') {
+                Object.keys(value).forEach(subKey => {
+                  formattedText += `<p><strong>${subKey}:</strong> ${value[subKey]}</p>`;
+                });
+                formattedText += `<br>`;
               }
             });
           }
           
           return formattedText || rawContent;
         } catch (e) {
-          // If not JSON, treat as plain text and add basic formatting
-          return rawContent
-            .replace(/\n\n/g, '</p><p>')
-            .replace(/\n/g, '<br>')
-            .replace(/^/, '<p>')
-            .replace(/$/, '</p>');
+          console.error('Error formatting content:', e);
+          return rawContent;
         }
       };
 
@@ -2320,10 +2391,32 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
       doc.setFontSize(12);
       doc.setFont(undefined, 'normal');
       
-      // Parse and format the content
+      // Parse and format the content for PDF display
       try {
-        const parsed = JSON.parse(formattedContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' '));
+        // First try to parse the original content as JSON
+        let parsed;
+        try {
+          parsed = JSON.parse(content);
+        } catch (e) {
+          // If not JSON, try parsing the formatted content without HTML tags
+          try {
+            parsed = JSON.parse(formattedContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' '));
+          } catch (e2) {
+            // If still not JSON, display as plain text
+            const contentLines = doc.splitTextToSize(content.replace(/[{}",]/g, ' ').replace(/\s+/g, ' '), maxWidth);
+            contentLines.forEach((line: string) => {
+              if (yPos > 270) {
+                doc.addPage();
+                yPos = 30;
+              }
+              doc.text(line, margin, yPos);
+              yPos += 6;
+            });
+            return;
+          }
+        }
         
+        // Handle summary
         if (parsed.summary) {
           setTemplateColor('secondary');
           doc.setFont(undefined, 'bold');
@@ -2344,6 +2437,7 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
           yPos += 10;
         }
         
+        // Handle abnormal values
         if (parsed.abnormalValues && Array.isArray(parsed.abnormalValues)) {
           setTemplateColor('secondary');
           doc.setFont(undefined, 'bold');
@@ -2354,45 +2448,124 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
             if (typeof item === 'object') {
               setTemplateColor('accent');
               doc.setFont(undefined, 'bold');
-              doc.text(`• ${item.biomarker || 'Biomarker'}`, margin + 5, yPos);
+              doc.text(`• ${item.biomarker || item.marker || 'Biomarker'}`, margin + 5, yPos);
               yPos += 6;
               
               doc.setTextColor(0, 0, 0);
               doc.setFont(undefined, 'normal');
               doc.text(`  Value: ${item.value || 'N/A'}`, margin + 5, yPos);
               yPos += 6;
-              doc.text(`  Interpretation: ${item.interpretation || 'N/A'}`, margin + 5, yPos);
-              yPos += 10;
+              
+              const interpretationLines = doc.splitTextToSize(`  Interpretation: ${item.interpretation || 'N/A'}`, maxWidth - 10);
+              interpretationLines.forEach((line: string) => {
+                if (yPos > 270) {
+                  doc.addPage();
+                  yPos = 30;
+                }
+                doc.text(line, margin + 5, yPos);
+                yPos += 6;
+              });
+              yPos += 5;
             }
           });
         }
         
-        if (parsed.recommendations && Array.isArray(parsed.recommendations)) {
+        // Handle recommendations
+        if (parsed.recommendations) {
           setTemplateColor('secondary');
           doc.setFont(undefined, 'bold');
           doc.text('💊 Recommendations:', margin, yPos);
           yPos += 8;
           
-          parsed.recommendations.forEach((rec: any) => {
-            if (typeof rec === 'object') {
-              setTemplateColor('accent');
-              doc.setFont(undefined, 'bold');
-              doc.text(`• ${rec.product || 'Product'}`, margin + 5, yPos);
+          if (Array.isArray(parsed.recommendations)) {
+            parsed.recommendations.forEach((rec: any) => {
+              if (typeof rec === 'object') {
+                setTemplateColor('accent');
+                doc.setFont(undefined, 'bold');
+                doc.text(`• ${rec.product || rec.name || 'Product'}`, margin + 5, yPos);
+                yPos += 6;
+                
+                doc.setTextColor(0, 0, 0);
+                doc.setFont(undefined, 'normal');
+                doc.text(`  Dosage: ${rec.dosage || rec.dose || 'As directed'}`, margin + 5, yPos);
+                yPos += 6;
+                
+                const reasonLines = doc.splitTextToSize(`  Reason: ${rec.reason || rec.purpose || 'Health support'}`, maxWidth - 10);
+                reasonLines.forEach((line: string) => {
+                  if (yPos > 270) {
+                    doc.addPage();
+                    yPos = 30;
+                  }
+                  doc.text(line, margin + 5, yPos);
+                  yPos += 6;
+                });
+                yPos += 5;
+              } else {
+                doc.setTextColor(0, 0, 0);
+                doc.setFont(undefined, 'normal');
+                doc.text(`• ${rec}`, margin + 5, yPos);
+                yPos += 6;
+              }
+            });
+          } else if (typeof parsed.recommendations === 'string') {
+            doc.setTextColor(0, 0, 0);
+            doc.setFont(undefined, 'normal');
+            const recLines = doc.splitTextToSize(parsed.recommendations, maxWidth);
+            recLines.forEach((line: string) => {
+              if (yPos > 270) {
+                doc.addPage();
+                yPos = 30;
+              }
+              doc.text(line, margin, yPos);
               yPos += 6;
-              
-              doc.setTextColor(0, 0, 0);
-              doc.setFont(undefined, 'normal');
-              doc.text(`  Dosage: ${rec.dosage || 'As directed'}`, margin + 5, yPos);
+            });
+          }
+        }
+        
+        // Handle interpretation
+        if (parsed.interpretation) {
+          if (yPos > 250) {
+            doc.addPage();
+            yPos = 30;
+          }
+          
+          setTemplateColor('secondary');
+          doc.setFont(undefined, 'bold');
+          doc.text('🔬 Clinical Interpretation:', margin, yPos);
+          yPos += 8;
+          
+          doc.setTextColor(0, 0, 0);
+          doc.setFont(undefined, 'normal');
+          
+          if (typeof parsed.interpretation === 'string') {
+            const interpretationLines = doc.splitTextToSize(parsed.interpretation, maxWidth);
+            interpretationLines.forEach((line: string) => {
+              if (yPos > 270) {
+                doc.addPage();
+                yPos = 30;
+              }
+              doc.text(line, margin, yPos);
               yPos += 6;
-              doc.text(`  Reason: ${rec.reason || 'Health support'}`, margin + 5, yPos);
-              yPos += 10;
-            }
-          });
+            });
+          } else if (typeof parsed.interpretation === 'object') {
+            Object.keys(parsed.interpretation).forEach(key => {
+              const keyLines = doc.splitTextToSize(`${key}: ${parsed.interpretation[key]}`, maxWidth);
+              keyLines.forEach((line: string) => {
+                if (yPos > 270) {
+                  doc.addPage();
+                  yPos = 30;
+                }
+                doc.text(line, margin, yPos);
+                yPos += 6;
+              });
+            });
+          }
         }
         
       } catch (e) {
-        // If not JSON, display as formatted text
-        const contentLines = doc.splitTextToSize(formattedContent.replace(/<[^>]*>/g, ' '), maxWidth);
+        console.error('Error parsing content for PDF:', e);
+        // Fallback: display as formatted text
+        const contentLines = doc.splitTextToSize(content.replace(/[{}",]/g, ' ').replace(/\s+/g, ' '), maxWidth);
         contentLines.forEach((line: string) => {
           if (yPos > 270) {
             doc.addPage();
