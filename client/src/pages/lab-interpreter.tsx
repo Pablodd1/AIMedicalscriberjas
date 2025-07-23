@@ -956,8 +956,76 @@ export default function LabInterpreter() {
     }
   };
   
-  // Handle download report as PDF
+  // Handle download PDF with colorful templates
+  const handleDownloadPDFTemplate = async (template: 'professional' | 'medical' | 'modern') => {
+    if (!analysisResult) return;
+    
+    try {
+      // Get patient info if available
+      const patient = withPatient && selectedPatientId 
+        ? patients.find(p => p.id === parseInt(selectedPatientId))
+        : null;
+      
+      // Prepare content for styled download
+      const content = isEditorMode ? editableContent : (
+        typeof analysisResult === 'string' ? analysisResult : JSON.stringify(analysisResult, null, 2)
+      );
+      
+      // Call backend API with template parameter
+      const response = await fetch('/api/lab-interpreter/download-styled', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content,
+          format: 'pdf',
+          template,
+          patientId: patient?.id || null,
+          originalText: inputText,
+          voiceNotes: transcript
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to generate styled PDF');
+      }
+      
+      // Download the generated PDF
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      
+      const templateName = template.charAt(0).toUpperCase() + template.slice(1);
+      a.download = `lab-report-${template}-${patient ? `${patient.firstName}-${patient.lastName}-` : ''}${new Date().toISOString().split('T')[0]}.pdf`;
+      
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: 'PDF Downloaded',
+        description: `Lab report downloaded with ${templateName} template.`
+      });
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      toast({
+        title: 'Download Failed',
+        description: 'Failed to generate the PDF report. Please try again.',
+        variant: 'destructive'
+      });
+    }
+  };
+  
+  // Legacy PDF download function (keeping for compatibility)
   const handleDownloadReportPDF = async () => {
+    await handleDownloadPDFTemplate('professional');
+  };
+  
+  // Simple PDF generation for backup
+  const generateSimplePDF = async () => {
     if (!analysisResult) return;
     
     try {
@@ -2165,14 +2233,31 @@ export default function LabInterpreter() {
                                   <ChevronDown className="h-4 w-4 ml-1" />
                                 </Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
+                              <DropdownMenuContent align="end" className="w-56">
                                 <DropdownMenuItem onClick={handleDownloadReport}>
                                   <FileText className="h-4 w-4 mr-2" />
                                   Download as Word (.docx)
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={handleDownloadReportPDF}>
-                                  <FileText className="h-4 w-4 mr-2" />
-                                  Download as PDF
+                                <div className="px-2 py-1.5">
+                                  <div className="text-xs font-medium text-muted-foreground mb-1">PDF Templates</div>
+                                </div>
+                                <DropdownMenuItem onClick={() => handleDownloadPDFTemplate('professional')}>
+                                  <div className="flex items-center">
+                                    <div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
+                                    Professional Blue
+                                  </div>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleDownloadPDFTemplate('medical')}>
+                                  <div className="flex items-center">
+                                    <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
+                                    Medical Green
+                                  </div>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleDownloadPDFTemplate('modern')}>
+                                  <div className="flex items-center">
+                                    <div className="w-3 h-3 rounded-full bg-purple-500 mr-2"></div>
+                                    Modern Purple
+                                  </div>
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>

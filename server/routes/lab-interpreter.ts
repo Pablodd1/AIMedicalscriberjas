@@ -1786,7 +1786,7 @@ labInterpreterRouter.post('/save-transcript', async (req, res) => {
 
 // Handle styled document downloads
 labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (req, res) => {
-  const { content, format, patientId } = req.body;
+  const { content, format, patientId, template = 'professional', originalText, voiceNotes } = req.body;
   
   if (!content || !format) {
     throw new AppError('Content and format are required', 400, 'MISSING_FIELDS');
@@ -1794,6 +1794,10 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
   
   if (!['pdf', 'docx'].includes(format)) {
     throw new AppError('Invalid format. Must be pdf or docx', 400, 'INVALID_FORMAT');
+  }
+  
+  if (format === 'pdf' && !['professional', 'medical', 'modern'].includes(template)) {
+    throw new AppError('Invalid template. Must be professional, medical, or modern', 400, 'INVALID_TEMPLATE');
   }
   
   try {
@@ -1806,91 +1810,300 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
       );
     }
     
-    // Create styled HTML with CSS
-    const styledHtml = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <title>Styled Lab Report Analysis</title>
-        <style>
-          body {
-            font-family: 'Times New Roman', Times, serif;
-            line-height: 1.6;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 40px;
-            color: #333;
-          }
-          h1 {
-            color: #2c3e50;
-            border-bottom: 3px solid #3498db;
-            padding-bottom: 10px;
-            font-size: 28px;
-          }
-          h2 {
-            color: #34495e;
-            margin-top: 30px;
-            margin-bottom: 15px;
-            font-size: 22px;
-          }
-          h3 {
-            color: #7f8c8d;
-            margin-top: 20px;
-            margin-bottom: 10px;
-            font-size: 18px;
-          }
-          p {
-            margin-bottom: 15px;
-            text-align: justify;
-          }
-          ul, ol {
-            margin-bottom: 15px;
-          }
-          li {
-            margin-bottom: 8px;
-          }
-          strong {
-            color: #2c3e50;
-          }
-          em {
-            color: #7f8c8d;
-            font-style: italic;
-          }
-          .patient-info {
-            background-color: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 30px;
-          }
-          .analysis-section {
-            margin-bottom: 25px;
-          }
-          .recommendations {
-            background-color: #e8f6f3;
-            padding: 15px;
-            border-left: 4px solid #27ae60;
-            margin: 20px 0;
-          }
-          .footer {
-            margin-top: 40px;
-            padding-top: 20px;
-            border-top: 1px solid #bdc3c7;
-            text-align: center;
-            font-size: 12px;
-            color: #7f8c8d;
-          }
-        </style>
-      </head>
-      <body>
-        ${content}
-        <div class="footer">
-          Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}
-          ${patient ? ` | Patient: ${patient.firstName} ${patient.lastName}` : ''}
-        </div>
-      </body>
-      </html>
-    `;
+    // Get template styles
+    const getTemplateStyles = (templateName: string) => {
+      const templates = {
+        professional: {
+          primaryColor: '#2563eb',
+          secondaryColor: '#1e40af', 
+          accentColor: '#3b82f6',
+          backgroundColor: '#f8fafc',
+          cardBackground: '#ffffff',
+          textColor: '#1e293b',
+          fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif"
+        },
+        medical: {
+          primaryColor: '#059669',
+          secondaryColor: '#047857',
+          accentColor: '#10b981',
+          backgroundColor: '#f0fdf4',
+          cardBackground: '#ffffff',
+          textColor: '#064e3b',
+          fontFamily: "'Source Sans Pro', 'Helvetica Neue', sans-serif"
+        },
+        modern: {
+          primaryColor: '#7c3aed',
+          secondaryColor: '#6d28d9',
+          accentColor: '#8b5cf6',
+          backgroundColor: '#faf5ff',
+          cardBackground: '#ffffff',
+          textColor: '#581c87',
+          fontFamily: "'Poppins', 'system-ui', sans-serif"
+        }
+      };
+      return templates[templateName as keyof typeof templates] || templates.professional;
+    };
+
+    const templateColors = getTemplateStyles(template);
+    
+    // Create comprehensive lab report HTML
+    const createLabReportHTML = () => {
+      const currentDate = new Date().toLocaleDateString();
+      const currentTime = new Date().toLocaleTimeString();
+      
+      return `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Lab Report Analysis - ${template.charAt(0).toUpperCase() + template.slice(1)} Template</title>
+          <style>
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+            
+            body {
+              font-family: ${templateColors.fontFamily};
+              line-height: 1.7;
+              color: ${templateColors.textColor};
+              background: linear-gradient(135deg, ${templateColors.backgroundColor} 0%, #ffffff 100%);
+              min-height: 100vh;
+              padding: 30px;
+            }
+            
+            .container {
+              max-width: 900px;
+              margin: 0 auto;
+              background: ${templateColors.cardBackground};
+              border-radius: 16px;
+              box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+              overflow: hidden;
+            }
+            
+            .header {
+              background: linear-gradient(135deg, ${templateColors.primaryColor} 0%, ${templateColors.secondaryColor} 100%);
+              color: white;
+              padding: 40px;
+              text-align: center;
+              position: relative;
+            }
+            
+            .header::before {
+              content: '';
+              position: absolute;
+              top: 0;
+              left: 0;
+              right: 0;
+              bottom: 0;
+              background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+              opacity: 0.3;
+            }
+            
+            .header h1 {
+              font-size: 32px;
+              font-weight: 700;
+              margin-bottom: 8px;
+              position: relative;
+              z-index: 1;
+            }
+            
+            .header .subtitle {
+              font-size: 16px;
+              opacity: 0.9;
+              position: relative;
+              z-index: 1;
+            }
+            
+            .content {
+              padding: 40px;
+            }
+            
+            .patient-info {
+              background: linear-gradient(135deg, ${templateColors.accentColor}15 0%, ${templateColors.primaryColor}10 100%);
+              border: 2px solid ${templateColors.accentColor}30;
+              border-radius: 12px;
+              padding: 24px;
+              margin-bottom: 32px;
+              position: relative;
+            }
+            
+            .patient-info::before {
+              content: '';
+              position: absolute;
+              top: 0;
+              left: 0;
+              width: 4px;
+              height: 100%;
+              background: ${templateColors.primaryColor};
+              border-radius: 2px;
+            }
+            
+            .patient-info h2 {
+              color: ${templateColors.primaryColor};
+              font-size: 20px;
+              font-weight: 600;
+              margin-bottom: 12px;
+            }
+            
+            .section {
+              margin-bottom: 32px;
+              padding: 24px;
+              border-radius: 12px;
+              background: ${templateColors.backgroundColor}40;
+              border-left: 4px solid ${templateColors.accentColor};
+            }
+            
+            .section h2 {
+              color: ${templateColors.primaryColor};
+              font-size: 24px;
+              font-weight: 600;
+              margin-bottom: 16px;
+              display: flex;
+              align-items: center;
+            }
+            
+            .section h2::before {
+              content: '';
+              width: 8px;
+              height: 8px;
+              background: ${templateColors.accentColor};
+              border-radius: 50%;
+              margin-right: 12px;
+            }
+            
+            .section h3 {
+              color: ${templateColors.secondaryColor};
+              font-size: 18px;
+              font-weight: 500;
+              margin: 20px 0 12px 0;
+            }
+            
+            .section p {
+              margin-bottom: 16px;
+              text-align: justify;
+              line-height: 1.8;
+            }
+            
+            .section ul, .section ol {
+              margin: 16px 0;
+              padding-left: 24px;
+            }
+            
+            .section li {
+              margin-bottom: 8px;
+              line-height: 1.6;
+            }
+            
+            .highlight-box {
+              background: ${templateColors.primaryColor}10;
+              border: 1px solid ${templateColors.primaryColor}30;
+              border-radius: 8px;
+              padding: 16px;
+              margin: 16px 0;
+            }
+            
+            .recommendations {
+              background: linear-gradient(135deg, ${templateColors.accentColor}15 0%, ${templateColors.primaryColor}10 100%);
+              border: 2px solid ${templateColors.accentColor}40;
+              border-radius: 12px;
+              padding: 24px;
+              margin: 24px 0;
+            }
+            
+            .footer {
+              background: ${templateColors.backgroundColor};
+              padding: 24px 40px;
+              text-align: center;
+              font-size: 14px;
+              color: ${templateColors.textColor}80;
+              border-top: 2px solid ${templateColors.primaryColor}20;
+            }
+            
+            .badge {
+              display: inline-block;
+              background: ${templateColors.primaryColor};
+              color: white;
+              padding: 4px 12px;
+              border-radius: 20px;
+              font-size: 12px;
+              font-weight: 500;
+              margin: 4px;
+            }
+            
+            strong {
+              color: ${templateColors.primaryColor};
+              font-weight: 600;
+            }
+            
+            em {
+              color: ${templateColors.secondaryColor};
+              font-style: italic;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>🔬 Lab Report Analysis</h1>
+              <div class="subtitle">${template.charAt(0).toUpperCase() + template.slice(1)} Template • Generated ${currentDate}</div>
+            </div>
+            
+            <div class="content">
+              ${patient ? `
+                <div class="patient-info">
+                  <h2>👤 Patient Information</h2>
+                  <p><strong>Name:</strong> ${patient.firstName} ${patient.lastName}</p>
+                  <p><strong>Patient ID:</strong> ${patient.id}</p>
+                  <p><strong>Report Date:</strong> ${currentDate} at ${currentTime}</p>
+                </div>
+              ` : ''}
+              
+              ${originalText ? `
+                <div class="section">
+                  <h2>📋 Original Lab Data</h2>
+                  <div class="highlight-box">
+                    <pre style="white-space: pre-wrap; font-family: 'Monaco', monospace; font-size: 13px;">${originalText}</pre>
+                  </div>
+                </div>
+              ` : ''}
+              
+              <div class="section">
+                <h2>🧬 Analysis Results</h2>
+                ${content}
+              </div>
+              
+              ${voiceNotes ? `
+                <div class="section">
+                  <h2>🎤 Voice Notes</h2>
+                  <div class="highlight-box">
+                    <p>${voiceNotes}</p>
+                  </div>
+                </div>
+              ` : ''}
+              
+              <div class="recommendations">
+                <h2 style="margin-top: 0;">💡 Important Notes</h2>
+                <p>This analysis is for informational purposes only and should not replace professional medical advice. Please consult with your healthcare provider for proper interpretation and treatment recommendations.</p>
+              </div>
+            </div>
+            
+            <div class="footer">
+              <p>Generated on ${currentDate} at ${currentTime}</p>
+              ${patient ? `<p>Patient: ${patient.firstName} ${patient.lastName} (ID: ${patient.id})</p>` : ''}
+              <div style="margin-top: 12px;">
+                <span class="badge">${template.charAt(0).toUpperCase() + template.slice(1)} Template</span>
+                <span class="badge">AI-Powered Analysis</span>
+              </div>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+    };
+
+    const styledHtml = createLabReportHTML();
     
     if (format === 'pdf') {
       // Generate PDF using jsPDF (lighter alternative)
