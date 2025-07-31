@@ -54,6 +54,8 @@ export default function LabInterpreter() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [isLoadingPatients, setIsLoadingPatients] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isProcessingUpload, setIsProcessingUpload] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isKnowledgeBaseOpen, setIsKnowledgeBaseOpen] = useState(false);
   const [settings, setSettings] = useState<LabInterpreterSettings | null>(null);
@@ -2221,7 +2223,66 @@ export default function LabInterpreter() {
                         <input 
                           type="file"
                           ref={fileInputRef}
-                          onChange={handleFileUpload}
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            
+                            try {
+                              setIsProcessingUpload(true);
+                              setUploadProgress(0);
+                              setIsUploadOpen(false);
+                              
+                              const formData = new FormData();
+                              formData.append('file', file);
+                              
+                              // Create progress tracking
+                              const progressInterval = setInterval(() => {
+                                setUploadProgress(prev => Math.min(prev + 5, 90));
+                              }, 500);
+                              
+                              // Extract text only (no analysis)
+                              const response = await fetch('/api/lab-interpreter/extract-text', {
+                                method: 'POST',
+                                body: formData,
+                                credentials: 'include'
+                              });
+                              
+                              clearInterval(progressInterval);
+                              setUploadProgress(100);
+                              
+                              if (!response.ok) {
+                                const errorData = await response.json();
+                                throw new Error(errorData.message || 'Text extraction failed');
+                              }
+                              
+                              const result = await response.json();
+                              
+                              if (result.success && result.extractedText) {
+                                // Show extracted text in input field for review
+                                setInputText(result.extractedText);
+                                setActiveTab('input');
+                                
+                                toast({
+                                  title: 'Text Extracted Successfully',
+                                  description: `Extracted ${result.extractedText.length} characters. Review and edit the text below, then click "Analyze Report".`
+                                });
+                              }
+                            } catch (error) {
+                              console.error('Upload error:', error);
+                              toast({
+                                title: 'Upload Failed',
+                                description: error instanceof Error ? error.message : 'Failed to process uploaded file.',
+                                variant: 'destructive'
+                              });
+                            } finally {
+                              setIsProcessingUpload(false);
+                              setUploadProgress(0);
+                              // Reset input
+                              if (fileInputRef.current) {
+                                fileInputRef.current.value = '';
+                              }
+                            }
+                          }}
                           accept="application/pdf,image/*"
                           className="hidden"
                           disabled={withPatient && !selectedPatientId}

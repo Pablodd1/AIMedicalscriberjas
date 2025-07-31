@@ -1448,6 +1448,73 @@ Respond with JSON: {"summary": "brief analysis", "recommendations": [{"product":
   }
 }));
 
+// Extract text only from uploaded file (no analysis)
+labInterpreterRouter.post('/extract-text', requireAuth, upload.single('file'), asyncHandler(async (req, res) => {
+  if (!req.file) {
+    throw new AppError('No file uploaded', 400, 'NO_FILE');
+  }
+
+  // Get OpenAI client for current user
+  const openai = await getOpenAIClient(req.user.id);
+  if (!openai) {
+    // Clean up the uploaded file
+    if (fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    
+    const user = await handleDatabaseOperation(
+      () => storage.getUser(req.user.id),
+      'Failed to fetch user data'
+    );
+    
+    const errorMessage = user?.useOwnApiKey 
+      ? 'No personal OpenAI API key found. Please add your OpenAI API key in Settings to use text extraction.'
+      : 'No global OpenAI API key configured. Please contact your administrator or add your own API key in Settings.';
+    
+    throw new AppError(errorMessage, 503, 'NO_API_KEY');
+  }
+
+  console.log(`Extracting text from: ${req.file.originalname} (${Math.round(req.file.size / 1024)}KB)`);
+  
+  let extractedText = '';
+  
+  try {
+    // Process file based on type
+    if (req.file.mimetype === 'application/pdf') {
+      console.log('Extracting text from PDF...');
+      extractedText = await processPdfSequentially(req.file.path, openai);
+    } else if (req.file.mimetype.startsWith('image/')) {
+      console.log('Extracting text from image...');
+      extractedText = await processImageFileFast(req.file.path, openai, 1, 1);
+    } else {
+      throw new AppError('Unsupported file type. Please upload a PDF or image file.', 400, 'UNSUPPORTED_FILE_TYPE');
+    }
+    
+    console.log(`Text extraction completed. Length: ${extractedText.length} characters`);
+    
+    if (!extractedText.trim()) {
+      throw new AppError('No text could be extracted from the uploaded file. Please ensure the file contains readable content.', 400, 'NO_TEXT_EXTRACTED');
+    }
+
+    sendSuccessResponse(res, {
+      extractedText: extractedText,
+      fileName: req.file.originalname,
+      fileSize: req.file.size,
+      textLength: extractedText.length
+    }, 'Text extracted successfully');
+
+  } finally {
+    // Clean up uploaded file
+    if (req.file?.path && fs.existsSync(req.file.path)) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (cleanupError) {
+        console.error('Failed to clean up uploaded file:', cleanupError);
+      }
+    }
+  }
+}));
+
 // Upload and analyze lab report file with sequential PDF processing
 labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labReport'), asyncHandler(async (req, res) => {
   if (!req.file) {
