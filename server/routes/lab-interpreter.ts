@@ -1328,7 +1328,113 @@ Please provide your analysis as a JSON object with this structure:
     );
   }
   
-  sendSuccessResponse(res, { analysis }, 'Lab report analyzed successfully');
+  // LOG DETAILED ANALYSIS INFO FOR DEBUGGING
+  console.log('=== TEXT ANALYSIS COMPLETED ===');
+  console.log('Report Text Length:', reportText.length);
+  console.log('Knowledge Base Items Used:', knowledgeBase.length);
+  console.log('Analysis Response Length:', analysis.length);
+  console.log('Analysis Preview:', analysis.substring(0, 200) + '...');
+  
+  // Try to parse the analysis to ensure it's valid JSON
+  let parsedAnalysis = null;
+  try {
+    parsedAnalysis = JSON.parse(analysis);
+    console.log('Analysis successfully parsed as JSON');
+    console.log('Analysis structure:', Object.keys(parsedAnalysis));
+  } catch (parseError) {
+    console.error('Analysis is not valid JSON:', parseError);
+  }
+
+  sendSuccessResponse(res, { 
+    analysis,
+    debug: {
+      reportTextLength: reportText.length,
+      knowledgeBaseItemsUsed: knowledgeBase.length,
+      analysisLength: analysis.length,
+      analysisIsValidJSON: !!parsedAnalysis,
+      timestamp: new Date().toISOString()
+    }
+  }, 'Lab report analyzed successfully');
+}));
+
+// DEBUG ENDPOINT: Check analysis pipeline
+labInterpreterRouter.get('/debug/analysis', requireAuth, asyncHandler(async (req, res) => {
+  const settings = await handleDatabaseOperation(
+    () => storage.getLabInterpreterSettings(),
+    'Failed to get lab interpreter settings'
+  );
+  const knowledgeBase = await handleDatabaseOperation(
+    () => storage.getLabKnowledgeBase(req.user.id),
+    'Failed to get knowledge base'
+  );
+  
+  sendSuccessResponse(res, {
+    settingsAvailable: !!settings,
+    systemPrompt: settings?.system_prompt?.substring(0, 100) + '...',
+    knowledgeBaseItems: knowledgeBase.length,
+    sampleKnowledgeBase: knowledgeBase.slice(0, 2)
+  }, 'Debug info retrieved');
+}));
+
+// TEST ENDPOINT: Test analysis with simple sample data
+labInterpreterRouter.post('/test/simple-analysis', requireAuth, asyncHandler(async (req, res) => {
+  const { testData } = req.body;
+  
+  if (!testData) {
+    throw new AppError('Test data is required', 400, 'TEST_DATA_MISSING');
+  }
+  
+  // Get OpenAI client for this user
+  const openai = await getOpenAIClient(req.user.id);
+  if (!openai) {
+    throw new AppError('OpenAI client not available', 503, 'NO_API_KEY');
+  }
+  
+  // Get knowledge base
+  const knowledgeBase = await handleDatabaseOperation(
+    () => storage.getLabKnowledgeBase(req.user.id),
+    'Failed to get knowledge base'
+  );
+  
+  console.log('=== SIMPLE TEST ANALYSIS ===');
+  console.log('Test Data:', testData);
+  console.log('Knowledge Base Items:', knowledgeBase.length);
+  
+  // Create a simple prompt for testing
+  const testPrompt = `You are analyzing lab data. Based on the knowledge base provided, give recommendations ONLY from the available products.
+
+KNOWLEDGE BASE (${knowledgeBase.length} items):
+${knowledgeBase.slice(0, 5).map(item => `${item.test_name}: ${item.marker} - ${item.recommendations?.substring(0, 100)}...`).join('\n')}
+
+TEST LAB DATA:
+${testData}
+
+Respond with JSON: {"summary": "brief analysis", "recommendations": [{"product": "exact name", "reason": "why"}], "dataUsed": "confirmation you used the actual data"}`;
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: 'user', content: testPrompt }
+      ],
+      temperature: 0.3,
+      max_tokens: 1000,
+      response_format: { type: "json_object" }
+    });
+    
+    const testAnalysis = response.choices[0].message.content || '';
+    
+    console.log('Test Analysis Result:', testAnalysis);
+    
+    sendSuccessResponse(res, { 
+      testAnalysis,
+      knowledgeBaseUsed: knowledgeBase.length,
+      prompt: testPrompt.substring(0, 300) + '...'
+    }, 'Simple test analysis completed');
+    
+  } catch (error) {
+    throw handleOpenAIError(error);
+  }
 }));
 
 // Upload and analyze lab report file with sequential PDF processing
@@ -1539,9 +1645,33 @@ Please provide your analysis as a JSON object with this structure:
     
     // Note: Temporary images are cleaned up automatically in processPdfSequentially
     
+    // LOG DETAILED ANALYSIS INFO FOR DEBUGGING
+    console.log('=== ANALYSIS COMPLETED ===');
+    console.log('Extracted Text Length:', extractedText.length);
+    console.log('Knowledge Base Items Used:', knowledgeBase.length);
+    console.log('Analysis Response Length:', analysis.length);
+    console.log('Analysis Preview:', analysis.substring(0, 200) + '...');
+    
+    // Try to parse the analysis to ensure it's valid JSON
+    let parsedAnalysis = null;
+    try {
+      parsedAnalysis = JSON.parse(analysis);
+      console.log('Analysis successfully parsed as JSON');
+      console.log('Analysis structure:', Object.keys(parsedAnalysis));
+    } catch (parseError) {
+      console.error('Analysis is not valid JSON:', parseError);
+    }
+
     sendSuccessResponse(res, { 
       extractedText,
-      analysis 
+      analysis,
+      debug: {
+        extractedTextLength: extractedText.length,
+        knowledgeBaseItemsUsed: knowledgeBase.length,
+        analysisLength: analysis.length,
+        analysisIsValidJSON: !!parsedAnalysis,
+        timestamp: new Date().toISOString()
+      }
     }, 'Lab report analyzed successfully');
     
   } catch (error) {

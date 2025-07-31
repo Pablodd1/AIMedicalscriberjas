@@ -77,6 +77,13 @@ export default function LabInterpreter() {
   const recognitionRef = useRef<any>(null);
   const timerRef = useRef<any>(null);
   
+  // Debug mode states
+  const [debugMode, setDebugMode] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [isTestingSimpleAnalysis, setIsTestingSimpleAnalysis] = useState(false);
+  
+  // Report saving states (declared later in file)
+  
   // Form values for settings
   const [systemPrompt, setSystemPrompt] = useState('');
   const [withPatientPrompt, setWithPatientPrompt] = useState('');
@@ -362,6 +369,12 @@ export default function LabInterpreter() {
         setAnalysisResult(parsedResult);
       }
       
+      // Store debug info if available
+      if (data.debug) {
+        setDebugInfo(data.debug);
+        console.log('Analysis Debug Info:', data.debug);
+      }
+      
       // Initialize editable content for the editor
       initializeEditableContent(parsedResult);
       
@@ -429,6 +442,12 @@ export default function LabInterpreter() {
         console.error('Error parsing analysis:', e);
         parsedResult = { content: data.analysis };
         setAnalysisResult(parsedResult);
+      }
+      
+      // Store debug info if available
+      if (data.debug) {
+        setDebugInfo(data.debug);
+        console.log('Upload Analysis Debug Info:', data.debug);
       }
       
       // Initialize editable content for the editor
@@ -559,6 +578,55 @@ export default function LabInterpreter() {
     setIsImportDialogOpen(false);
   };
   
+  // Test simple analysis function
+  const testSimpleAnalysis = async () => {
+    if (!inputText.trim()) {
+      toast({
+        title: 'Input Required',
+        description: 'Please enter some test lab data first',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    try {
+      setIsTestingSimpleAnalysis(true);
+      
+      const response = await fetch('/api/lab-interpreter/test/simple-analysis', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          testData: inputText
+        }),
+      });
+      
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Test failed');
+      }
+      
+      console.log('Simple Test Result:', result.data);
+      toast({
+        title: 'Test Complete',
+        description: 'Simple analysis test completed. Check console for details.',
+      });
+      
+    } catch (error) {
+      console.error('Error testing simple analysis:', error);
+      toast({
+        title: 'Test Failed',
+        description: error instanceof Error ? error.message : 'Test failed',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsTestingSimpleAnalysis(false);
+    }
+  };
+
   // Format recording time (mm:ss)
   const formatTime = (seconds: number): string => {
     const minutes = Math.floor(seconds / 60);
@@ -2186,7 +2254,29 @@ export default function LabInterpreter() {
                       value={inputText}
                       onChange={(e) => setInputText(e.target.value)}
                     />
-                    <div className="flex justify-end">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => setDebugMode(!debugMode)}
+                          className="text-xs"
+                        >
+                          {debugMode ? '🔍 Debug ON' : '🔍 Debug OFF'}
+                        </Button>
+                        {debugMode && (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={testSimpleAnalysis}
+                            disabled={isTestingSimpleAnalysis || !inputText.trim()}
+                            className="text-xs"
+                          >
+                            {isTestingSimpleAnalysis && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+                            Test Analysis
+                          </Button>
+                        )}
+                      </div>
                       <Button 
                         onClick={handleAnalyze} 
                         disabled={isAnalyzing || (withPatient && !selectedPatientId) || !inputText.trim()}
@@ -2209,6 +2299,16 @@ export default function LabInterpreter() {
                         </div>
                         {analysisResult && (
                           <div className="flex items-center gap-2">
+                            {debugMode && debugInfo && (
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => console.log('Debug Info:', debugInfo)}
+                                className="text-xs text-muted-foreground"
+                              >
+                                📊 Debug Info
+                              </Button>
+                            )}
                             {withPatient && selectedPatientId && (
                               <Button 
                                 variant={reportSavedToPatient ? "secondary" : "default"} 
