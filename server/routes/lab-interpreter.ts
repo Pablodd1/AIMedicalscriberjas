@@ -269,7 +269,7 @@ async function processImageFileFast(imagePath: string, openai: OpenAI, pageNumbe
   
   console.log(`  → [PARALLEL] Processing page ${pageNumber} (${Math.round(imageStats.size / 1024)}KB)`);
   
-  // ULTRA-FAST extraction - minimal prompt, low detail, reduced tokens
+  // ULTRA-FAST extraction with comprehensive lab data extraction
   const response = await openai.chat.completions.create({
     model: "gpt-4o",
     messages: [
@@ -278,27 +278,38 @@ async function processImageFileFast(imagePath: string, openai: OpenAI, pageNumbe
         content: [
           {
             type: "text",
-            text: `Extract lab data from page ${pageNumber}: test names, values, ranges. If blank say "BLANK".`
+            text: `Extract ALL visible text from this lab report page ${pageNumber}. Include:
+- Patient information
+- Test names and values
+- Reference ranges
+- Units
+- Any abnormal markers or flags
+- Doctor notes or comments
+- Lab company/facility information
+
+Format as readable text. If page is mostly blank, respond "BLANK PAGE".`
           },
           {
             type: "image_url",
             image_url: {
               url: `data:image/jpeg;base64,${base64Image}`,
-              detail: "low" // Fastest processing
+              detail: "high" // Better quality for text extraction
             }
           }
         ]
       }
     ],
-    max_tokens: 1500, // Reduced further for speed
+    max_tokens: 2000, // More tokens for complete extraction
     temperature: 0.0
   });
   
   const extractedText = response.choices[0].message.content || '';
   
-  if (extractedText.includes('BLANK') && extractedText.length < 20) {
+  if (extractedText.includes('BLANK PAGE') && extractedText.length < 50) {
     return '';
   }
+  
+  console.log(`✓ Page ${pageNumber} completed (${extractedText.length} chars)`);
   
   return `=== Page ${pageNumber} ===\n${extractedText}`;
 }
@@ -323,11 +334,11 @@ async function convertPdfToImagesFast(pdfPath: string, tempDir: string): Promise
     const pdfStats = fs.statSync(pdfPath);
     console.log(`Converting PDF: ${path.basename(pdfPath)} (${Math.round(pdfStats.size / 1024)}KB)`);
     
-    // ULTRA-FAST ImageMagick command - optimized for speed over quality
+    // Optimized ImageMagick command for better text extraction
     const outputPattern = path.join(tempDir, 'page-%d.jpg');
-    const command = `convert -limit memory 256MB -limit map 512MB -density 100 -quality 60 -colorspace Gray -background white -flatten "${pdfPath}" "${outputPattern}"`;
+    const command = `convert -limit memory 512MB -limit map 1024MB -density 200 -quality 85 -background white -flatten "${pdfPath}" "${outputPattern}"`;
     
-    console.log('Running ULTRA-FAST conversion...');
+    console.log('Running optimized conversion for better text extraction...');
     
     // Execute with reduced timeout for faster processing
     const { stdout, stderr } = await execAsync(command, {
@@ -359,7 +370,7 @@ async function convertPdfToImagesFast(pdfPath: string, tempDir: string): Promise
       }
     });
     
-    console.log(`✓ ULTRA-FAST: Generated ${validImages.length} images in seconds`);
+    console.log(`✓ Generated ${validImages.length} high-quality images for text extraction`);
     return validImages;
     
   } catch (error: any) {
@@ -1579,35 +1590,43 @@ ${recommendations}
           },
           {
             role: 'user',
-            content: `COMPANY PRODUCT INVENTORY - ONLY RECOMMEND FROM THIS LIST:
+            content: `FUNCTIONAL MEDICINE LAB ANALYSIS - USING COMPANY PRODUCT INVENTORY
 
+=== EXTRACTED LAB DATA TO ANALYZE ===
+${extractedText}
+
+=== COMPANY PRODUCT INVENTORY (${knowledgeBase.length} ITEMS) ===
 ${knowledgeBaseText}
+
+=== ANALYSIS INSTRUCTIONS ===
+You are analyzing the lab data shown above. The extracted text contains patient lab values that need functional medicine interpretation.
 
 ${knowledgeBase.length === 0 ? 
   'Note: No company product inventory found. Provide general health advice without specific product recommendations.' : 
-  `IMPORTANT: This company sells ${knowledgeBase.length} specific medical products. You must ONLY recommend products from the above inventory. Do not suggest any products not listed above.`
+  `CRITICAL: You have access to ${knowledgeBase.length} specific medical products from this company's inventory. You must ONLY recommend products from the inventory listed above.`
 }
 
 ANALYSIS REQUEST: ${userPrompt}
 
-LAB REPORT DATA:
-${extractedText}
+=== RESPONSE REQUIREMENTS ===
+1. Carefully read and analyze the LAB DATA shown above
+2. Identify specific biomarkers, values, and any abnormal findings
+3. Apply functional medicine principles to interpret the results
+4. ONLY recommend products from the company inventory provided above
+5. Use exact product names and dosage instructions from the knowledge base
+6. If the extracted text appears incomplete, note this in your analysis
 
-RESPONSE REQUIREMENTS:
-1. Analyze the lab values using functional medicine principles
-2. ONLY recommend peptides, formulas, and supplements from the company inventory above
-3. Use the exact product names and dosage instructions provided
-4. If a condition needs treatment but no matching product exists in inventory, provide general health advice without product recommendations
-5. Always reference the specific "How to take" instructions from the knowledge base
+IMPORTANT: If the lab data extraction appears poor quality or incomplete, still provide analysis based on whatever data is available and note the limitations.
 
 Please provide your analysis as a JSON object with this structure: 
 { 
-  "summary": "brief overview", 
-  "abnormalValues": [], 
-  "interpretation": "detailed explanation", 
-  "recommendations": [{"product": "exact name from inventory", "dosage": "from knowledge base", "reason": "why recommended"}], 
+  "summary": "brief overview of findings from the lab data", 
+  "abnormalValues": ["list specific abnormal values found"], 
+  "interpretation": "detailed functional medicine analysis of the lab results", 
+  "recommendations": [{"product": "exact name from inventory", "dosage": "from knowledge base", "reason": "why recommended based on lab findings"}], 
   "knowledgeBaseUsed": ${knowledgeBase.length},
-  "complianceNote": "All recommendations are from company product inventory only"
+  "complianceNote": "All recommendations are from company product inventory only",
+  "dataQuality": "assessment of extracted lab data completeness"
 }`
           }
         ],
