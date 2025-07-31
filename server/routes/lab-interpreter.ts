@@ -269,7 +269,7 @@ async function processImageFileFast(imagePath: string, openai: OpenAI, pageNumbe
   
   console.log(`  → [PARALLEL] Processing page ${pageNumber} (${Math.round(imageStats.size / 1024)}KB)`);
   
-  // ULTRA-FAST extraction with comprehensive lab data extraction
+  // Enhanced Vision API extraction with comprehensive medical lab data prompt
   const response = await openai.chat.completions.create({
     model: "gpt-4o",
     messages: [
@@ -278,35 +278,62 @@ async function processImageFileFast(imagePath: string, openai: OpenAI, pageNumbe
         content: [
           {
             type: "text",
-            text: `Extract ALL visible text from this lab report page ${pageNumber}. Include:
-- Patient information
-- Test names and values
-- Reference ranges
-- Units
-- Any abnormal markers or flags
-- Doctor notes or comments
-- Lab company/facility information
+            text: `CRITICAL: You are reading a medical lab report. Extract EVERY SINGLE piece of text visible in this image, including:
 
-Format as readable text. If page is mostly blank, respond "BLANK PAGE".`
+**PATIENT INFORMATION:**
+- Patient name, DOB, age, gender
+- Medical record numbers, account numbers
+- Address, phone numbers
+
+**LAB COMPANY INFO:**
+- Lab facility name and address
+- Provider information
+- Report dates, collection dates
+
+**TEST RESULTS (MOST IMPORTANT):**
+- Every test name exactly as written
+- All numerical values with units
+- Reference ranges (normal ranges) 
+- High/Low/Critical flags
+- Any abnormal indicators or asterisks
+
+**ADDITIONAL DATA:**
+- Doctor names and signatures
+- Technical notes or comments
+- QC information, specimen types
+- Any other visible text or numbers
+
+**FORMATTING:** 
+Present all text in a clear, organized format. Do NOT summarize - extract every visible character. If you see a value like "125.4 mg/dL" write exactly that. If reference range shows "70-140", write exactly that.
+
+This is page ${pageNumber} of ${totalPages}. Extract ALL content systematically from top to bottom, left to right.`
           },
           {
             type: "image_url",
             image_url: {
               url: `data:image/jpeg;base64,${base64Image}`,
-              detail: "high" // Better quality for text extraction
+              detail: "high"
             }
           }
         ]
       }
     ],
-    max_tokens: 2000, // More tokens for complete extraction
+    max_tokens: 4000, // Increased for complete extraction
     temperature: 0.0
   });
   
   const extractedText = response.choices[0].message.content || '';
   
+  // Debug: Log what we extracted to see if the Vision API is working
+  console.log(`[DEBUG] Page ${pageNumber} Vision API Response:`, extractedText.substring(0, 200) + '...');
+  
   if (extractedText.includes('BLANK PAGE') && extractedText.length < 50) {
+    console.log(`Page ${pageNumber} identified as blank or mostly empty`);
     return '';
+  }
+  
+  if (extractedText.length < 100) {
+    console.warn(`⚠ Page ${pageNumber} extracted very little text (${extractedText.length} chars). May need quality check.`);
   }
   
   console.log(`✓ Page ${pageNumber} completed (${extractedText.length} chars)`);
