@@ -12,8 +12,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Loader2, FileUp, Settings2, Database, BookText, RotateCw, BotIcon, UserIcon, Upload, Settings, ChevronRight, DownloadIcon, UploadCloud, FileText, FileSpreadsheet, Clipboard, ChevronDown, Maximize, Minimize, Mic, MicOff, Save, Edit, Brain } from 'lucide-react';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Loader2, FileUp, Settings2, Database, BookText, RotateCw, BotIcon, UserIcon, Upload, Settings, ChevronRight, DownloadIcon, UploadCloud, FileText, FileSpreadsheet, Clipboard, Maximize, Minimize, Mic, MicOff, Save, Edit, Brain } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import RichTextEditor from '@/components/RichTextEditor';
 
@@ -1014,82 +1013,7 @@ export default function LabInterpreter() {
     }
   };
   
-  // Handle download PDF with colorful templates
-  const handleDownloadPDFTemplate = async (template: 'professional' | 'medical' | 'modern') => {
-    if (!analysisResult) return;
-    
-    try {
-      // Get patient info if available
-      const patient = withPatient && selectedPatientId 
-        ? patients.find(p => p.id === parseInt(selectedPatientId))
-        : null;
-      
-      // Prepare content for styled download with proper formatting
-      let content = '';
-      
-      if (isEditorMode) {
-        content = editableContent;
-      } else if (typeof analysisResult === 'string') {
-        content = analysisResult;
-      } else if (analysisResult && typeof analysisResult === 'object') {
-        // Format the analysis result object properly
-        content = JSON.stringify(analysisResult);
-      } else {
-        content = 'No analysis data available';
-      }
-      
-      // Call backend API with template parameter
-      const response = await fetch('/api/lab-interpreter/download-styled', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          content,
-          format: 'pdf',
-          template,
-          patientId: patient?.id || null,
-          originalText: inputText,
-          voiceNotes: transcript
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to generate styled PDF');
-      }
-      
-      // Download the generated PDF
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      
-      const templateName = template.charAt(0).toUpperCase() + template.slice(1);
-      a.download = `lab-report-${template}-${patient ? `${patient.firstName}-${patient.lastName}-` : ''}${new Date().toISOString().split('T')[0]}.pdf`;
-      
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      
-      toast({
-        title: 'PDF Downloaded',
-        description: `Lab report downloaded with ${templateName} template.`
-      });
-    } catch (error) {
-      console.error('Error downloading PDF:', error);
-      toast({
-        title: 'Download Failed',
-        description: 'Failed to generate the PDF report. Please try again.',
-        variant: 'destructive'
-      });
-    }
-  };
-  
-  // Legacy PDF download function (keeping for compatibility)
-  const handleDownloadReportPDF = async () => {
-    await handleDownloadPDFTemplate('professional');
-  };
+
   
   // Simple PDF generation for backup
   const generateSimplePDF = async () => {
@@ -2434,42 +2358,10 @@ export default function LabInterpreter() {
                                 )}
                               </Button>
                             )}
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="sm">
-                                  <DownloadIcon className="h-4 w-4 mr-1" />
-                                  Download Report
-                                  <ChevronDown className="h-4 w-4 ml-1" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-56">
-                                <DropdownMenuItem onClick={handleDownloadReport}>
-                                  <FileText className="h-4 w-4 mr-2" />
-                                  Download as Word (.docx)
-                                </DropdownMenuItem>
-                                <div className="px-2 py-1.5">
-                                  <div className="text-xs font-medium text-muted-foreground mb-1">PDF Templates</div>
-                                </div>
-                                <DropdownMenuItem onClick={() => handleDownloadPDFTemplate('professional')}>
-                                  <div className="flex items-center">
-                                    <div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
-                                    Professional Blue
-                                  </div>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleDownloadPDFTemplate('medical')}>
-                                  <div className="flex items-center">
-                                    <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
-                                    Medical Green
-                                  </div>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleDownloadPDFTemplate('modern')}>
-                                  <div className="flex items-center">
-                                    <div className="w-3 h-3 rounded-full bg-purple-500 mr-2"></div>
-                                    Modern Purple
-                                  </div>
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                            <Button variant="outline" size="sm" onClick={handleDownloadReport}>
+                              <DownloadIcon className="h-4 w-4 mr-1" />
+                              Download Report
+                            </Button>
                           </div>
                         )}
                       </div>
