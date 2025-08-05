@@ -360,16 +360,10 @@ export default function LabInterpreter() {
       
       const data = result.data;
       
-      // Parse analysis if it's a JSON string
-      let parsedResult;
-      try {
-        parsedResult = typeof data.analysis === 'string' ? JSON.parse(data.analysis) : data.analysis;
-        setAnalysisResult(parsedResult);
-      } catch (e) {
-        console.error('Error parsing analysis:', e);
-        parsedResult = { content: data.analysis };
-        setAnalysisResult(parsedResult);
-      }
+      // Analysis is now in natural language format (not JSON)
+      const analysisContent = data.analysis;
+      const parsedResult = { content: analysisContent };
+      setAnalysisResult(parsedResult);
       
       // Store debug info if available
       if (data.debug) {
@@ -435,16 +429,10 @@ export default function LabInterpreter() {
       // Set the extracted text in the input field
       setInputText(data.extractedText);
       
-      // Parse analysis if it's a JSON string
-      let parsedResult;
-      try {
-        parsedResult = typeof data.analysis === 'string' ? JSON.parse(data.analysis) : data.analysis;
-        setAnalysisResult(parsedResult);
-      } catch (e) {
-        console.error('Error parsing analysis:', e);
-        parsedResult = { content: data.analysis };
-        setAnalysisResult(parsedResult);
-      }
+      // Analysis is now in natural language format (not JSON)
+      const analysisContent = data.analysis;
+      const parsedResult = { content: analysisContent };
+      setAnalysisResult(parsedResult);
       
       // Store debug info if available
       if (data.debug) {
@@ -1254,26 +1242,30 @@ export default function LabInterpreter() {
     }
   };
 
-  // Initialize editable content when analysis is complete
+  // Initialize editable content when analysis is complete - now handles natural language format
   const initializeEditableContent = (analysisData: any) => {
     if (!analysisData) return;
     
-    // Helper function to clean and convert text to HTML safely
-    const cleanText = (text: any): string => {
-      if (typeof text !== 'string') {
-        if (typeof text === 'object') {
-          return JSON.stringify(text, null, 2);
-        }
-        return String(text);
+    // Helper function to convert natural language text to HTML with proper formatting
+    const formatTextToHTML = (text: string): string => {
+      if (!text) return '';
+      
+      // Convert line breaks to proper HTML formatting
+      let formatted = text
+        .replace(/\n\n/g, '</p><p>')  // Double line breaks become new paragraphs
+        .replace(/\n/g, '<br>')       // Single line breaks become <br>
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Bold text
+        .replace(/\*(.*?)\*/g, '<em>$1</em>'); // Italic text
+      
+      // Wrap in paragraph tags if not already
+      if (!formatted.startsWith('<p>')) {
+        formatted = '<p>' + formatted + '</p>';
       }
       
-      // Remove any HTML tags and convert to plain text, then back to safe HTML
-      const tempDiv = document.createElement('div');
-      tempDiv.textContent = text;
-      return tempDiv.innerHTML;
+      return formatted;
     };
     
-    // Convert analysis result to clean HTML format for the rich text editor
+    // Convert natural language analysis to clean HTML format for the rich text editor
     let htmlContent = '<h1>Lab Report Analysis</h1>';
     
     // Add patient info if available
@@ -1286,49 +1278,16 @@ export default function LabInterpreter() {
       }
     }
     
-    // Add analysis sections with clean text
-    if (analysisData.summary) {
-      htmlContent += `<h2>Summary of Blood Panel Findings</h2>`;
-      htmlContent += `<p>${cleanText(analysisData.summary)}</p>`;
-    }
-    
-    if (analysisData.abnormalValues && Array.isArray(analysisData.abnormalValues) && analysisData.abnormalValues.length > 0) {
-      htmlContent += `<h2>Abnormal Values Identified</h2>`;
-      htmlContent += `<ul>`;
-      analysisData.abnormalValues.forEach((value: any) => {
-        htmlContent += `<li>${cleanText(value)}</li>`;
-      });
-      htmlContent += `</ul>`;
-    }
-    
-    if (analysisData.interpretation) {
-      htmlContent += `<h2>Detailed Biomarker Analysis</h2>`;
-      htmlContent += `<p>${cleanText(analysisData.interpretation)}</p>`;
-    }
-    
-    if (analysisData.recommendations && Array.isArray(analysisData.recommendations) && analysisData.recommendations.length > 0) {
-      htmlContent += `<h2>Personalized Supplement & Peptide Recommendations</h2>`;
-      htmlContent += `<ul>`;
-      analysisData.recommendations.forEach((rec: any) => {
-        if (typeof rec === 'object' && rec.product) {
-          htmlContent += `<li><strong>${cleanText(rec.product)}</strong> - ${cleanText(rec.dosage || 'As directed')}<br><em>Reason:</em> ${cleanText(rec.reason || 'Recommended for optimal health')}</li>`;
-        } else {
-          htmlContent += `<li>${cleanText(rec)}</li>`;
-        }
-      });
-      htmlContent += `</ul>`;
+    // For natural language format, just use the content directly with proper formatting
+    if (analysisData.content) {
+      htmlContent += `<h2>Analysis Results</h2>`;
+      htmlContent += formatTextToHTML(analysisData.content);
     }
     
     // Add voice notes if available
     if (transcript && transcript.trim()) {
       htmlContent += `<h2>Voice Notes</h2>`;
-      htmlContent += `<p>${cleanText(transcript)}</p>`;
-    }
-    
-    // Add compliance note if available
-    if (analysisData.complianceNote) {
-      htmlContent += `<h3>Compliance Note</h3>`;
-      htmlContent += `<p><em>${cleanText(analysisData.complianceNote)}</em></p>`;
+      htmlContent += formatTextToHTML(transcript);
     }
     
     setEditableContent(htmlContent);

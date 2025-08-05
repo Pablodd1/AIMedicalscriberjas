@@ -2407,108 +2407,16 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
     const styledHtml = createLabReportHTML();
     
     if (format === 'pdf') {
-      // Parse and format the content properly for display
+      // Format natural language content for display
       const formatContent = (rawContent: string) => {
-        try {
-          // Try to parse JSON if it's a JSON string
-          let parsed;
-          try {
-            parsed = JSON.parse(rawContent);
-          } catch (e) {
-            // If not JSON, treat as plain text
-            return rawContent
-              .replace(/\n\n/g, '</p><p>')
-              .replace(/\n/g, '<br>')
-              .replace(/^/, '<p>')
-              .replace(/$/, '</p>');
-          }
-          
-          let formattedText = '';
-          
-          // Handle different possible structures from AI analysis
-          if (parsed.summary) {
-            formattedText += `<h3>📋 Summary</h3><p>${parsed.summary}</p><br>`;
-          }
-          
-          if (parsed.abnormalValues && Array.isArray(parsed.abnormalValues)) {
-            formattedText += `<h3>⚠️ Abnormal Values</h3>`;
-            parsed.abnormalValues.forEach((item: any) => {
-              if (typeof item === 'object') {
-                formattedText += `<div class="biomarker-item">`;
-                formattedText += `<h4>${item.biomarker || item.marker || 'Biomarker'}</h4>`;
-                formattedText += `<p><strong>Value:</strong> ${item.value || 'N/A'}</p>`;
-                formattedText += `<p><strong>Interpretation:</strong> ${item.interpretation || 'No interpretation available'}</p>`;
-                formattedText += `</div><br>`;
-              }
-            });
-          }
-          
-          // Handle interpretation (could be string or object)
-          if (parsed.interpretation) {
-            if (typeof parsed.interpretation === 'string') {
-              formattedText += `<h3>🔬 Clinical Interpretation</h3><p>${parsed.interpretation}</p><br>`;
-            } else if (typeof parsed.interpretation === 'object') {
-              formattedText += `<h3>🔬 Clinical Interpretation</h3>`;
-              Object.keys(parsed.interpretation).forEach(key => {
-                formattedText += `<p><strong>${key}:</strong> ${parsed.interpretation[key]}</p>`;
-              });
-              formattedText += `<br>`;
-            }
-          }
-          
-          // Handle recommendations (could be array or string)
-          if (parsed.recommendations) {
-            formattedText += `<h3>💊 Recommendations</h3>`;
-            if (Array.isArray(parsed.recommendations)) {
-              parsed.recommendations.forEach((rec: any) => {
-                if (typeof rec === 'object') {
-                  formattedText += `<div class="recommendation-item">`;
-                  formattedText += `<h4>${rec.product || rec.name || 'Product'}</h4>`;
-                  formattedText += `<p><strong>Dosage:</strong> ${rec.dosage || rec.dose || 'As directed'}</p>`;
-                  formattedText += `<p><strong>Reason:</strong> ${rec.reason || rec.purpose || 'Health support'}</p>`;
-                  formattedText += `</div><br>`;
-                } else {
-                  formattedText += `<p>• ${rec}</p>`;
-                }
-              });
-            } else if (typeof parsed.recommendations === 'string') {
-              formattedText += `<p>${parsed.recommendations}</p><br>`;
-            }
-          }
-          
-          // If we haven't formatted anything yet, try to format the whole object
-          if (formattedText === '') {
-            Object.keys(parsed).forEach(key => {
-              const value = parsed[key];
-              formattedText += `<h3>${key.charAt(0).toUpperCase() + key.slice(1)}</h3>`;
-              if (typeof value === 'string') {
-                formattedText += `<p>${value}</p><br>`;
-              } else if (Array.isArray(value)) {
-                value.forEach(item => {
-                  if (typeof item === 'object') {
-                    formattedText += `<div class="content-item">`;
-                    Object.keys(item).forEach(itemKey => {
-                      formattedText += `<p><strong>${itemKey}:</strong> ${item[itemKey]}</p>`;
-                    });
-                    formattedText += `</div><br>`;
-                  } else {
-                    formattedText += `<p>• ${item}</p>`;
-                  }
-                });
-              } else if (typeof value === 'object') {
-                Object.keys(value).forEach(subKey => {
-                  formattedText += `<p><strong>${subKey}:</strong> ${value[subKey]}</p>`;
-                });
-                formattedText += `<br>`;
-              }
-            });
-          }
-          
-          return formattedText || rawContent;
-        } catch (e) {
-          console.error('Error formatting content:', e);
-          return rawContent;
-        }
+        // Content is now in natural language format, not JSON
+        return rawContent
+          .replace(/\n\n/g, '</p><p>')
+          .replace(/\n/g, '<br>')
+          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Bold text
+          .replace(/\*(.*?)\*/g, '<em>$1</em>') // Italic text
+          .replace(/^/, '<p>')
+          .replace(/$/, '</p>');
       };
 
       const formattedContent = formatContent(content);
