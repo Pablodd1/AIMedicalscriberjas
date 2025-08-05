@@ -2256,9 +2256,19 @@ export default function LabInterpreter() {
                               }
                               
                               const result = await response.json();
+                              console.log('Extract text response:', result);
                               
-                              if (result.success && result.extractedText) {
+                              if (result.success && result.data && result.data.extractedText) {
                                 // Show extracted text in input field for review
+                                setInputText(result.data.extractedText);
+                                setActiveTab('input');
+                                
+                                toast({
+                                  title: 'Text Extracted Successfully',
+                                  description: `Extracted ${result.data.extractedText.length} characters. Review and edit the text below, then click "Analyze Report".`
+                                });
+                              } else if (result.success && result.extractedText) {
+                                // Fallback for different response format
                                 setInputText(result.extractedText);
                                 setActiveTab('input');
                                 
@@ -2266,6 +2276,9 @@ export default function LabInterpreter() {
                                   title: 'Text Extracted Successfully',
                                   description: `Extracted ${result.extractedText.length} characters. Review and edit the text below, then click "Analyze Report".`
                                 });
+                              } else {
+                                console.error('Unexpected response format:', result);
+                                throw new Error('No extracted text found in response');
                               }
                             } catch (error) {
                               console.error('Upload error:', error);
