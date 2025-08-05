@@ -311,14 +311,14 @@ This is page ${pageNumber} of ${totalPages}. Extract ALL content systematically 
           {
             type: "image_url",
             image_url: {
-              url: `data:image/jpeg;base64,${base64Image}`,
+              url: `data:image/png;base64,${base64Image}`,
               detail: "high"
             }
           }
         ]
       }
     ],
-    max_tokens: 4000, // Increased for complete extraction
+    max_tokens: 8000, // Significantly increased for large PDFs
     temperature: 0.0
   });
   
@@ -326,6 +326,16 @@ This is page ${pageNumber} of ${totalPages}. Extract ALL content systematically 
   
   // Debug: Log what we extracted to see if the Vision API is working
   console.log(`[DEBUG] Page ${pageNumber} Vision API Response:`, extractedText.substring(0, 200) + '...');
+  
+  // Check for Vision API failure responses
+  if (extractedText.includes("I'm unable to extract text") || 
+      extractedText.includes("I can't") || 
+      extractedText.includes("unable to read") ||
+      extractedText.includes("cannot process")) {
+    console.warn(`⚠ Page ${pageNumber} - Vision API failed to read image. Trying fallback approach...`);
+    // For failed pages, return a note indicating the issue
+    return `=== Page ${pageNumber} ===\n[IMAGE QUALITY ISSUE] This page could not be processed clearly. Please ensure the PDF is not password-protected and has clear, readable text.`;
+  }
   
   if (extractedText.includes('BLANK PAGE') && extractedText.length < 50) {
     console.log(`Page ${pageNumber} identified as blank or mostly empty`);
@@ -361,16 +371,16 @@ async function convertPdfToImagesFast(pdfPath: string, tempDir: string): Promise
     const pdfStats = fs.statSync(pdfPath);
     console.log(`Converting PDF: ${path.basename(pdfPath)} (${Math.round(pdfStats.size / 1024)}KB)`);
     
-    // Optimized ImageMagick command for better text extraction
-    const outputPattern = path.join(tempDir, 'page-%d.jpg');
-    const command = `convert -limit memory 512MB -limit map 1024MB -density 200 -quality 85 -background white -flatten "${pdfPath}" "${outputPattern}"`;
+    // Enhanced ImageMagick command for superior text extraction
+    const outputPattern = path.join(tempDir, 'page-%d.png');
+    const command = `convert -limit memory 1024MB -limit map 2048MB -density 300 -quality 100 -background white -alpha remove -colorspace RGB -normalize "${pdfPath}" "${outputPattern}"`;
     
-    console.log('Running optimized conversion for better text extraction...');
+    console.log('Running enhanced high-quality conversion for text extraction...');
     
-    // Execute with reduced timeout for faster processing
+    // Execute with extended timeout for high-quality processing
     const { stdout, stderr } = await execAsync(command, {
-      timeout: 3 * 60 * 1000, // Only 3 minutes timeout
-      maxBuffer: 20 * 1024 * 1024 // 20MB buffer
+      timeout: 5 * 60 * 1000, // 5 minutes timeout for large PDFs
+      maxBuffer: 50 * 1024 * 1024 // 50MB buffer for large outputs
     });
     
     if (stderr && !stderr.includes('Warning')) {
@@ -379,10 +389,10 @@ async function convertPdfToImagesFast(pdfPath: string, tempDir: string): Promise
     
     // Find generated images
     const imageFiles = fs.readdirSync(tempDir)
-      .filter(file => file.startsWith('page-') && file.endsWith('.jpg'))
+      .filter(file => file.startsWith('page-') && file.endsWith('.png'))
       .sort((a, b) => {
-        const aNum = parseInt(a.match(/page-(\d+)\.jpg/)?.[1] || '0');
-        const bNum = parseInt(b.match(/page-(\d+)\.jpg/)?.[1] || '0');
+        const aNum = parseInt(a.match(/page-(\d+)\.png/)?.[1] || '0');
+        const bNum = parseInt(b.match(/page-(\d+)\.png/)?.[1] || '0');
         return aNum - bNum;
       })
       .map(file => path.join(tempDir, file));
@@ -404,10 +414,10 @@ async function convertPdfToImagesFast(pdfPath: string, tempDir: string): Promise
     console.error('Fast PDF conversion error:', error);
     
     if (error.code === 'ETIMEDOUT') {
-      throw new AppError('Fast PDF conversion timed out. File too complex.', 500, 'PDF_TIMEOUT');
+      throw new AppError('PDF conversion timed out. Large or complex PDFs may take longer. Please try a smaller file or contact support.', 500, 'PDF_TIMEOUT');
     }
     
-    throw new AppError('Failed to convert PDF quickly. File may be corrupted.', 500, 'PDF_CONVERSION_ERROR');
+    throw new AppError('Failed to convert PDF to images. File may be corrupted, password-protected, or in an unsupported format.', 500, 'PDF_CONVERSION_ERROR');
   }
 }
 
