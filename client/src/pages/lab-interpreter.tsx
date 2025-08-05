@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Loader2, FileUp, Settings2, Database, BookText, RotateCw, BotIcon, UserIcon, Upload, Settings, ChevronRight, DownloadIcon, UploadCloud, FileText, FileSpreadsheet, Clipboard, ChevronDown, Maximize, Minimize, Mic, MicOff, Save, Edit } from 'lucide-react';
+import { Loader2, FileUp, Settings2, Database, BookText, RotateCw, BotIcon, UserIcon, Upload, Settings, ChevronRight, DownloadIcon, UploadCloud, FileText, FileSpreadsheet, Clipboard, ChevronDown, Maximize, Minimize, Mic, MicOff, Save, Edit, Brain } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { apiRequest } from '@/lib/queryClient';
 import RichTextEditor from '@/components/RichTextEditor';
@@ -178,7 +178,7 @@ export default function LabInterpreter() {
   const startRecording = () => {
     try {
       // Add TypeScript declarations for the Web Speech API
-      const SpeechRecognition = window.SpeechRecognition || 
+      const SpeechRecognition = (window as any).SpeechRecognition || 
                               (window as any).webkitSpeechRecognition ||
                               (window as any).mozSpeechRecognition || 
                               (window as any).msSpeechRecognition;
@@ -1126,8 +1126,8 @@ export default function LabInterpreter() {
       // Helper function to add text with word wrapping
       const addText = (text: string, fontSize: number = 12, isBold: boolean = false) => {
         doc.setFontSize(fontSize);
-        if (isBold) doc.setFont(undefined, 'bold');
-        else doc.setFont(undefined, 'normal');
+        if (isBold) doc.setFont('helvetica', 'bold');
+        else doc.setFont('helvetica', 'normal');
         
         const lines = doc.splitTextToSize(text, maxWidth);
         lines.forEach((line: string) => {
@@ -2058,7 +2058,7 @@ export default function LabInterpreter() {
                               
                               return (
                                 <tr key={item.id} className="border-b hover:bg-muted/50">
-                                  <td className="p-1 px-2 font-medium bg-blue-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate" title={item.test_name}>{item.test_name}</td>
+                                  <td className="p-1 px-2 font-medium bg-blue-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate" title={item.testName}>{item.testName}</td>
                                   <td className="p-1 px-2 bg-blue-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate" title={item.marker}>{item.marker}</td>
                                   <td className="p-1 px-2 bg-green-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate" title={columnData['Primary Peptide']}>{columnData['Primary Peptide']}</td>
                                   <td className="p-1 px-2 bg-green-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate" title={columnData['Secondary Peptide']}>{columnData['Secondary Peptide']}</td>
@@ -2073,7 +2073,7 @@ export default function LabInterpreter() {
                                     <button 
                                       className="text-blue-600 hover:text-blue-800 underline text-xs" 
                                       onClick={() => {
-                                        alert(`Full Data for ${item.test_name} - ${item.marker}:\n\n${item.recommendations}`);
+                                        alert(`Full Data for ${item.testName} - ${item.marker}:\n\n${item.recommendations}`);
                                       }}
                                     >
                                       View All
@@ -2208,7 +2208,7 @@ export default function LabInterpreter() {
                     <DialogHeader>
                       <DialogTitle>Upload Lab Report</DialogTitle>
                       <DialogDescription>
-                        Upload a PDF or image of a lab report for analysis. PDFs will be automatically converted to images for processing.
+                        Upload a PDF or image of your lab report. The system will extract all text and display it for review before analysis.
                       </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
@@ -2309,12 +2309,46 @@ export default function LabInterpreter() {
                 </TabsList>
                 <TabsContent value="input">
                   <div className="space-y-4 mt-4">
+                    {/* Show processing indicator when extracting text */}
+                    {isProcessingUpload && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                          <span className="text-sm font-medium text-blue-800">Extracting text from your lab report...</span>
+                        </div>
+                        <div className="w-full bg-blue-200 rounded-full h-2">
+                          <div 
+                            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${uploadProgress}%` }}
+                          />
+                        </div>
+                        <p className="text-xs text-blue-600">Please wait while we process your PDF/image and extract all lab data.</p>
+                      </div>
+                    )}
+
+                    {/* Header for extracted data */}
+                    {inputText && !isProcessingUpload && (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <FileText className="h-4 w-4 text-green-600" />
+                          <span className="text-sm font-medium text-green-800">Extracted Lab Data</span>
+                          <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">
+                            {inputText.length} characters extracted
+                          </span>
+                        </div>
+                        <p className="text-xs text-green-600">
+                          Review the extracted data below. You can edit it if needed, then click "Analyze This Data" to get medical insights.
+                        </p>
+                      </div>
+                    )}
+
                     <Textarea
-                      placeholder="Enter lab report data here..."
+                      placeholder="Enter lab report data here or upload a PDF/image above to automatically extract the data..."
                       className="min-h-[350px] font-mono text-sm"
                       value={inputText}
                       onChange={(e) => setInputText(e.target.value)}
                     />
+                    
                     <div className="flex justify-between items-center">
                       <div className="flex items-center gap-2">
                         <Button 
@@ -2338,28 +2372,61 @@ export default function LabInterpreter() {
                           </Button>
                         )}
                       </div>
+                      
+                      {/* Enhanced Analysis Button */}
                       <Button 
                         onClick={handleAnalyze} 
                         disabled={isAnalyzing || (withPatient && !selectedPatientId) || !inputText.trim()}
+                        size="lg"
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 text-sm font-medium"
                       >
-                        {isAnalyzing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Analyze Report
+                        {isAnalyzing ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Analyzing Lab Data...
+                          </>
+                        ) : (
+                          <>
+                            <Brain className="mr-2 h-4 w-4" />
+                            Now Analyze This Data
+                          </>
+                        )}
                       </Button>
                     </div>
                   </div>
                 </TabsContent>
                 <TabsContent value="results">
-                  <Card className="mt-4">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <CardTitle>Analysis Results</CardTitle>
-                          <CardDescription>
-                            AI-powered interpretation of lab report data
-                          </CardDescription>
-                        </div>
-                        {analysisResult && (
-                          <div className="flex items-center gap-2">
+                  {!analysisResult ? (
+                    <div className="mt-4 text-center py-12">
+                      <Brain className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-muted-foreground mb-2">No Analysis Yet</h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Upload a lab report or enter lab data, then click "Now Analyze This Data" to get medical insights.
+                      </p>
+                      <Button 
+                        onClick={() => setActiveTab('input')} 
+                        variant="outline"
+                        className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+                      >
+                        <FileUp className="h-4 w-4 mr-2" />
+                        Go to Input Tab
+                      </Button>
+                    </div>
+                  ) : (
+                    <Card className="mt-4">
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle className="flex items-center gap-2">
+                              <Brain className="h-5 w-5 text-blue-600" />
+                              Medical Analysis Report
+                            </CardTitle>
+                            <CardDescription>
+                              AI-powered interpretation with clinical insights and recommendations
+                            </CardDescription>
+                          </div>
+                          {analysisResult && (
+                            <div className="flex items-center gap-2">
                             {debugMode && debugInfo && (
                               <Button 
                                 variant="ghost" 
@@ -2459,7 +2526,8 @@ export default function LabInterpreter() {
                         </div>
                       )}
                     </CardContent>
-                  </Card>
+                    </Card>
+                  )}
                   
                   {/* Voice Recording and Follow-up Questions Side-by-Side */}
                   {analysisResult && (
@@ -2662,7 +2730,7 @@ export default function LabInterpreter() {
             </div>
           </CardContent>
         </Card>
+        </div>
       </div>
-    </div>
-  );
+    );
 }
