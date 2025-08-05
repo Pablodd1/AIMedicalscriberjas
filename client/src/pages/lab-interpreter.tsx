@@ -40,6 +40,7 @@ interface LabInterpreterSettings {
   systemPrompt: string;
   withPatientPrompt: string;
   withoutPatientPrompt: string;
+  reportFormatInstructions: string;
 }
 
 export default function LabInterpreter() {
@@ -90,6 +91,7 @@ export default function LabInterpreter() {
   const [systemPrompt, setSystemPrompt] = useState('');
   const [withPatientPrompt, setWithPatientPrompt] = useState('');
   const [withoutPatientPrompt, setWithoutPatientPrompt] = useState('');
+  const [reportFormatInstructions, setReportFormatInstructions] = useState('');
   
   // Refs for file uploads
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -133,6 +135,7 @@ export default function LabInterpreter() {
         setSystemPrompt(data.system_prompt || data.systemPrompt || '');
         setWithPatientPrompt(data.with_patient_prompt || data.withPatientPrompt || '');
         setWithoutPatientPrompt(data.without_patient_prompt || data.withoutPatientPrompt || '');
+        setReportFormatInstructions(data.report_format_instructions || data.reportFormatInstructions || '');
       } catch (error) {
         console.error('Error fetching settings:', error);
         toast({
@@ -671,7 +674,8 @@ export default function LabInterpreter() {
       const response = await apiRequest('POST', '/api/lab-interpreter/settings', {
         systemPrompt,
         withPatientPrompt,
-        withoutPatientPrompt
+        withoutPatientPrompt,
+        reportFormatInstructions
       });
       
       const data = await response.json();
@@ -1562,6 +1566,19 @@ export default function LabInterpreter() {
                     onChange={(e) => setWithoutPatientPrompt(e.target.value)}
                     placeholder="Enter prompt for general analysis without patient context..."
                   />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="reportFormatInstructions">Report Format Instructions</Label>
+                  <Textarea
+                    id="reportFormatInstructions"
+                    rows={4}
+                    value={reportFormatInstructions}
+                    onChange={(e) => setReportFormatInstructions(e.target.value)}
+                    placeholder="Specify the desired report format, including headings, spacing, paragraph structure, etc..."
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Provide detailed instructions for how the AI should format the analysis report, including specific headings, paragraph structure, spacing, and overall layout preferences.
+                  </p>
                 </div>
               </div>
               <DialogFooter>

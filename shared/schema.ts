@@ -668,6 +668,7 @@ export const labInterpreterSettings = pgTable("lab_interpreter_settings", {
   system_prompt: text("system_prompt").notNull(),
   with_patient_prompt: text("with_patient_prompt"),
   without_patient_prompt: text("without_patient_prompt"),
+  report_format_instructions: text("report_format_instructions"),
   created_at: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -701,6 +702,7 @@ export const insertLabInterpreterSettingsSchema = createInsertSchema(labInterpre
   system_prompt: true,
   with_patient_prompt: true,
   without_patient_prompt: true,
+  report_format_instructions: true,
 });
 
 export const insertLabReportSchema = createInsertSchema(labReports).pick({

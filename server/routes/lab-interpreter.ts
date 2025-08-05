@@ -1169,7 +1169,8 @@ labInterpreterRouter.get('/settings', async (req, res) => {
       ...settings,
       systemPrompt: settings.system_prompt,
       withPatientPrompt: settings.with_patient_prompt,
-      withoutPatientPrompt: settings.without_patient_prompt
+      withoutPatientPrompt: settings.without_patient_prompt,
+      reportFormatInstructions: settings.report_format_instructions
     };
     
     return res.json(response);
@@ -1182,7 +1183,7 @@ labInterpreterRouter.get('/settings', async (req, res) => {
 // Save lab interpreter settings
 labInterpreterRouter.post('/settings', async (req, res) => {
   try {
-    const { systemPrompt, withPatientPrompt, withoutPatientPrompt } = req.body;
+    const { systemPrompt, withPatientPrompt, withoutPatientPrompt, reportFormatInstructions } = req.body;
     
     if (!systemPrompt || !withPatientPrompt || !withoutPatientPrompt) {
       return res.status(400).json({ error: 'All prompts are required' });
@@ -1191,7 +1192,8 @@ labInterpreterRouter.post('/settings', async (req, res) => {
     const settings = await storage.saveLabInterpreterSettings({
       system_prompt: systemPrompt,
       with_patient_prompt: withPatientPrompt,
-      without_patient_prompt: withoutPatientPrompt
+      without_patient_prompt: withoutPatientPrompt,
+      report_format_instructions: reportFormatInstructions || null
     });
     
     // Add client-side field names to make it compatible with the frontend
@@ -1199,7 +1201,8 @@ labInterpreterRouter.post('/settings', async (req, res) => {
       ...settings,
       systemPrompt: settings.system_prompt,
       withPatientPrompt: settings.with_patient_prompt,
-      withoutPatientPrompt: settings.without_patient_prompt
+      withoutPatientPrompt: settings.without_patient_prompt,
+      reportFormatInstructions: settings.report_format_instructions
     };
     
     return res.json(response);
@@ -1243,8 +1246,13 @@ labInterpreterRouter.post('/analyze', requireAuth, asyncHandler(async (req, res)
   );
   
   // Default prompts if settings not found
-  const systemPrompt = settings?.system_prompt || settings?.systemPrompt || 'You are a medical lab report interpreter. Your task is to analyze lab test results and provide insights based on medical knowledge and the provided reference ranges. Be factual and evidence-based in your analysis.';
+  let systemPrompt = settings?.system_prompt || settings?.systemPrompt || 'You are a medical lab report interpreter. Your task is to analyze lab test results and provide insights based on medical knowledge and the provided reference ranges. Be factual and evidence-based in your analysis.';
   let userPrompt = settings?.without_patient_prompt || settings?.withoutPatientPrompt || 'Analyze this lab report. Provide a detailed interpretation of abnormal values, possible implications, and recommendations.';
+  
+  // Add format instructions if provided
+  if (settings?.report_format_instructions) {
+    systemPrompt += `\n\nFORMAT INSTRUCTIONS: ${settings.report_format_instructions}`;
+  }
   
   console.log('Using prompts for analysis:');
   console.log('System Prompt:', systemPrompt.substring(0, 100) + '...');
