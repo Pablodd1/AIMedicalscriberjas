@@ -1340,20 +1340,11 @@ RESPONSE REQUIREMENTS:
 4. If a condition needs treatment but no matching product exists in inventory, provide general health advice without product recommendations
 5. Always reference the specific "How to take" instructions from the knowledge base
 
-Please provide your analysis as a JSON object with this structure: 
-{ 
-  "summary": "brief overview", 
-  "abnormalValues": [], 
-  "interpretation": "detailed explanation", 
-  "recommendations": [{"product": "exact name from inventory", "dosage": "from knowledge base", "reason": "why recommended"}], 
-  "knowledgeBaseUsed": ${knowledgeBase.length},
-  "complianceNote": "All recommendations are from company product inventory only"
-}`
+Please provide your analysis following the format and structure specified in the system prompts above. Use natural language formatting that follows the clinical reporting guidelines provided.`
         }
       ],
       temperature: 0.4,
-      max_tokens: 2000,
-      response_format: { type: "json_object" }
+      max_tokens: 2000
     });
     
     analysis = response.choices[0].message.content || '';
@@ -1383,23 +1374,16 @@ Please provide your analysis as a JSON object with this structure:
   console.log('Analysis Response Length:', analysis.length);
   console.log('Analysis Preview:', analysis.substring(0, 200) + '...');
   
-  // Try to parse the analysis to ensure it's valid JSON
-  let parsedAnalysis = null;
-  try {
-    parsedAnalysis = JSON.parse(analysis);
-    console.log('Analysis successfully parsed as JSON');
-    console.log('Analysis structure:', Object.keys(parsedAnalysis));
-  } catch (parseError) {
-    console.error('Analysis is not valid JSON:', parseError);
-  }
-
+  // Analysis is now in natural language format based on system prompts
+  console.log('Analysis returned in natural language format');
+  
   sendSuccessResponse(res, { 
     analysis,
     debug: {
       reportTextLength: reportText.length,
       knowledgeBaseItemsUsed: knowledgeBase.length,
       analysisLength: analysis.length,
-      analysisIsValidJSON: !!parsedAnalysis,
+      analysisFormat: 'natural_language',
       timestamp: new Date().toISOString()
     }
   }, 'Lab report analyzed successfully');
