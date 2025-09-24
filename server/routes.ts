@@ -20,6 +20,10 @@ import {
   AppError
 } from "./error-handler";
 import multer from "multer";
+import fs from "fs";
+import path from "path";
+import PizZip from "pizzip";
+import Docxtemplater from "docxtemplater";
 
 // Extend the global namespace to include our media storage
 declare global {
@@ -272,10 +276,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (userTemplate) {
         // Use uploaded template with placeholder replacement
-        const fs = require('fs');
-        const path = require('path');
-        const PizZip = require('pizzip');
-        const Docxtemplater = require('docxtemplater');
 
         try {
           // Read the template file
@@ -812,8 +812,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // For now, we'll store the file data in a simple way
       try {
         // Create uploads directory if it doesn't exist
-        const fs = require('fs');
-        const path = require('path');
         const uploadDir = path.join(process.cwd(), 'uploads', 'templates');
         if (!fs.existsSync(uploadDir)) {
           fs.mkdirSync(uploadDir, { recursive: true });
@@ -846,10 +844,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }));
 
   app.get("/api/word-templates/sample", requireAuth, asyncHandler(async (req, res) => {
-    const fs = require('fs');
-    const path = require('path');
-    const PizZip = require('pizzip');
-    const Docxtemplater = require('docxtemplater');
 
     try {
       // Create a basic Word document structure
@@ -1083,8 +1077,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     // Delete file from disk
     try {
-      const fs = require('fs');
-      const path = require('path');
       const filePath = path.join(process.cwd(), template.templatePath);
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
