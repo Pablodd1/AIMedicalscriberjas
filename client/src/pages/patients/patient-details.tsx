@@ -109,6 +109,10 @@ export default function PatientDetails({ patientId }: PatientDetailsProps) {
       
       const response = await fetch(`/api/medical-notes/${noteId}/download`, {
         method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        }
       });
 
       if (!response.ok) {
