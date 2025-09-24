@@ -459,9 +459,11 @@ export function ConsultationModal({
       const userData = JSON.parse(localStorage.getItem('currentUser') || '{}');
       const doctorId = userData?.id || 1;
       
+      let savedNoteId = null;
+      
       // If we have a consultation ID, create a medical note linked to it
       if (consultId) {
-        await createMedicalNoteFromConsultation(
+        const savedNote = await createMedicalNoteFromConsultation(
           consultId,
           patientInfo.id,
           doctorId,
@@ -469,6 +471,59 @@ export function ConsultationModal({
           'soap',
           title
         );
+        savedNoteId = savedNote?.id;
+      }
+
+      // Automatically download Word document with template
+      try {
+        setIsDownloading(true);
+        
+        // If we have a saved note ID, use the backend download endpoint
+        if (savedNoteId) {
+          const response = await fetch(`/api/medical-notes/${savedNoteId}/download`, {
+            method: 'GET',
+          });
+
+          if (response.ok) {
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            
+            // Get filename from response headers or create a default one
+            const contentDisposition = response.headers.get('Content-Disposition');
+            const filename = contentDisposition 
+              ? contentDisposition.split('filename=')[1]?.replace(/"/g, '')
+              : `soap-note-${patientName.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.docx`;
+            
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            
+            toast({
+              title: "Success",
+              description: "Notes saved and Word document downloaded successfully",
+            });
+          } else {
+            console.warn('Failed to download via backend, falling back to local generation');
+            // Fallback to the existing download functionality
+            await handleDownloadNotes();
+          }
+        } else {
+          // Fallback to the existing download functionality
+          await handleDownloadNotes();
+        }
+      } catch (downloadError) {
+        console.error("Download failed:", downloadError);
+        toast({
+          title: "Download Failed",
+          description: "Notes saved but failed to download Word document",
+          variant: "destructive",
+        });
+      } finally {
+        setIsDownloading(false);
       }
 
       // Call the callback to use the notes
@@ -739,8 +794,18 @@ export function ConsultationModal({
             <Button variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button onClick={handleUseNotes} disabled={!notes}>
-              Use These Notes
+            <Button onClick={handleUseNotes} disabled={!notes || isDownloading}>
+              {isDownloading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving & Downloading...
+                </>
+              ) : (
+                <>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Save Notes & Download
+                </>
+              )}
             </Button>
           </DialogFooter>
         </div>
