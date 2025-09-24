@@ -506,23 +506,6 @@ Plan:
               </>
             )}
           </Button>
-          <Button 
-            onClick={handleSaveNote}
-            disabled={!selectedPatientId || !noteText.trim() || !noteTitle.trim() || createNoteMutation.isPending}
-            variant="outline"
-          >
-            {createNoteMutation.isPending ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4 mr-2" />
-                Save Notes
-              </>
-            )}
-          </Button>
         </div>
       </div>
 
