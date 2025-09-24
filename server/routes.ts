@@ -791,7 +791,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     sendSuccessResponse(res, templates);
   }));
 
-  app.post("/api/word-templates", requireAuth, asyncHandler(async (req, res) => {
+  app.post("/api/word-templates/upload", requireAuth, asyncHandler(async (req, res) => {
     wordTemplateUpload.single('template')(req, res, async (err) => {
       if (err) {
         throw new AppError(err.message, 400, 'FILE_UPLOAD_ERROR');
