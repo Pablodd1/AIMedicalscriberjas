@@ -29,6 +29,11 @@ interface RecordingServiceInterface {
   getTranscript: () => Promise<string>;
   processAudioFile: (file: File) => Promise<string>;
   isRecording: boolean;
+  // Live transcription methods
+  startLiveTranscription: (onTranscript: (text: string) => void, onError?: (error: string) => void) => Promise<void>;
+  stopLiveTranscription: () => void;
+  isLiveTranscribing: boolean;
+  getLiveTranscript: () => string;
 }
 
 class BrowserRecordingService implements RecordingServiceInterface {
@@ -36,11 +41,25 @@ class BrowserRecordingService implements RecordingServiceInterface {
   private audioChunks: Blob[] = [];
   private _isRecording: boolean = false;
   private transcriptText: string = "";
+  // Live transcription properties
+  private speechRecognition: any = null;
+  private _isLiveTranscribing: boolean = false;
+  private liveTranscriptText: string = "";
+  private onTranscriptCallback: ((text: string) => void) | null = null;
+  private onErrorCallback: ((error: string) => void) | null = null;
   
   constructor() {}
   
   get isRecording(): boolean {
     return this._isRecording;
+  }
+  
+  get isLiveTranscribing(): boolean {
+    return this._isLiveTranscribing;
+  }
+  
+  getLiveTranscript(): string {
+    return this.liveTranscriptText;
   }
   
   async startRecording(): Promise<void> {
@@ -65,6 +84,112 @@ class BrowserRecordingService implements RecordingServiceInterface {
       notify("Could not start recording. Please check microphone permissions.", "error");
       throw error;
     }
+  }
+  
+  async startLiveTranscription(onTranscript: (text: string) => void, onError?: (error: string) => void): Promise<void> {
+    try {
+      // Check for speech recognition support
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      
+      if (!SpeechRecognition) {
+        const errorMsg = "Live transcription not supported in this browser. Recording will continue and transcription will happen after recording stops.";
+        if (onError) onError(errorMsg);
+        notify(errorMsg, "error");
+        throw new Error(errorMsg);
+      }
+      
+      // Store callbacks
+      this.onTranscriptCallback = onTranscript;
+      this.onErrorCallback = onError || null;
+      
+      // Initialize speech recognition
+      this.speechRecognition = new SpeechRecognition();
+      this.speechRecognition.continuous = true;
+      this.speechRecognition.interimResults = true;
+      this.speechRecognition.lang = 'en-US';
+      
+      // Handle results
+      this.speechRecognition.onresult = (event: any) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+        
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript + ' ';
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+        
+        // Update live transcript with final results
+        if (finalTranscript) {
+          this.liveTranscriptText += finalTranscript;
+        }
+        
+        // Call callback with current transcript (final + interim)
+        const currentTranscript = this.liveTranscriptText + interimTranscript;
+        if (this.onTranscriptCallback) {
+          this.onTranscriptCallback(currentTranscript);
+        }
+      };
+      
+      // Handle errors
+      this.speechRecognition.onerror = (event: any) => {
+        console.error("Speech recognition error:", event.error);
+        let errorMsg = "Speech recognition error: " + event.error;
+        
+        if (event.error === 'not-allowed') {
+          errorMsg = "Microphone access denied. Please allow microphone access and try again.";
+        } else if (event.error === 'network') {
+          errorMsg = "Network error during speech recognition. Please check your internet connection.";
+        }
+        
+        if (this.onErrorCallback) {
+          this.onErrorCallback(errorMsg);
+        }
+        notify(errorMsg, "error");
+      };
+      
+      // Handle end event
+      this.speechRecognition.onend = () => {
+        if (this._isLiveTranscribing) {
+          // Restart recognition if it stopped unexpectedly
+          try {
+            this.speechRecognition.start();
+          } catch (error) {
+            console.log("Speech recognition restart failed:", error);
+          }
+        }
+      };
+      
+      // Start recognition
+      this.speechRecognition.start();
+      this._isLiveTranscribing = true;
+      this.liveTranscriptText = "";
+      
+      notify("Live transcription started. Begin speaking...");
+    } catch (error) {
+      console.error("Error starting live transcription:", error);
+      const errorMsg = "Could not start live transcription. " + (error instanceof Error ? error.message : "Unknown error");
+      if (onError) onError(errorMsg);
+      notify(errorMsg, "error");
+      throw error;
+    }
+  }
+  
+  stopLiveTranscription(): void {
+    if (this.speechRecognition) {
+      this._isLiveTranscribing = false;
+      this.speechRecognition.stop();
+      this.speechRecognition = null;
+      notify("Live transcription stopped");
+    }
+    
+    // Clear callbacks
+    this.onTranscriptCallback = null;
+    this.onErrorCallback = null;
   }
   
   async stopRecording(): Promise<void> {

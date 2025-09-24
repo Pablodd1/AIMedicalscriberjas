@@ -44,29 +44,113 @@ export function ConsultationModal({
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [notes, setNotes] = useState("");
+  const [isLiveTranscribing, setIsLiveTranscribing] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   const handleStartRecording = async () => {
     try {
       setIsRecording(true);
+      setLiveTranscript("");
+      
+      // Start audio recording first
       await recordingService.startRecording();
+      
+      // Try to start live transcription with callbacks
+      try {
+        await recordingService.startLiveTranscription(
+          (text: string) => {
+            setLiveTranscript(text);
+          },
+          (error: string) => {
+            console.error("Live transcription error:", error);
+            // Don't show toast for errors during live transcription, just log them
+          }
+        );
+        setIsLiveTranscribing(true);
+      } catch (liveTranscriptionError) {
+        // Live transcription failed, but continue with recording
+        console.log("Live transcription not available, will use post-recording transcription:", liveTranscriptionError);
+        setIsLiveTranscribing(false);
+        // Show user-friendly message
+        toast({
+          title: "Live Transcription Unavailable",
+          description: "Recording will continue normally. Transcription will happen after you stop recording.",
+        });
+      }
     } catch (error) {
+      // If recording itself fails, clean up everything
       setIsRecording(false);
+      setIsLiveTranscribing(false);
       console.error("Failed to start recording:", error);
+      toast({
+        title: "Recording Failed",
+        description: "Could not start recording. Please check microphone permissions.",
+        variant: "destructive",
+      });
     }
   };
 
   const handleStopRecording = async () => {
     try {
+      // Stop live transcription first if it's running
+      if (isLiveTranscribing) {
+        recordingService.stopLiveTranscription();
+        setIsLiveTranscribing(false);
+      }
+      
+      // Stop audio recording
       await recordingService.stopRecording();
       setIsRecording(false);
-      const text = await recordingService.getTranscript();
-      setTranscript(text);
-      generateNotes(text);
+      
+      // Try to get live transcript first, then fallback to backend transcription
+      let finalTranscript = "";
+      
+      if (isLiveTranscribing || liveTranscript.trim()) {
+        // Use live transcript if available
+        finalTranscript = recordingService.getLiveTranscript() || liveTranscript;
+        console.log("Using live transcript:", finalTranscript.length, "characters");
+      }
+      
+      // Fallback to backend transcription if live transcript is empty or unavailable
+      if (!finalTranscript.trim()) {
+        console.log("Live transcript empty, falling back to backend transcription");
+        try {
+          finalTranscript = await recordingService.getTranscript();
+          console.log("Backend transcript:", finalTranscript.length, "characters");
+        } catch (backendError) {
+          console.error("Backend transcription also failed:", backendError);
+          toast({
+            title: "Transcription Failed",
+            description: "Could not transcribe the recording. Please try again or use text input.",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+      
+      setTranscript(finalTranscript);
+      
+      // Generate notes from the final transcript
+      if (finalTranscript.trim()) {
+        generateNotes(finalTranscript);
+      } else {
+        toast({
+          title: "No Transcript Available",
+          description: "No speech was detected. Please try recording again or use text input.",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       console.error("Failed to stop recording:", error);
       setIsRecording(false);
+      setIsLiveTranscribing(false);
+      toast({
+        title: "Recording Error",
+        description: "An error occurred while stopping the recording. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -300,12 +384,31 @@ export function ConsultationModal({
                     ? "Recording in progress... Speak clearly"
                     : "Click to start recording the consultation"}
                 </p>
+                {isLiveTranscribing && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                    <span className="text-sm text-red-500 font-medium">Live transcription active</span>
+                  </div>
+                )}
               </div>
+              
+              {/* Live transcript display */}
+              {isLiveTranscribing && liveTranscript && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-medium">Live Transcript</h3>
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  </div>
+                  <div className="p-4 border rounded-md bg-green-50 dark:bg-green-950/20 max-h-[150px] overflow-y-auto border-green-200 dark:border-green-800">
+                    <p className="whitespace-pre-wrap text-sm">{liveTranscript}</p>
+                  </div>
+                </div>
+              )}
 
-              {transcript && (
+              {transcript && !isRecording && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-medium">Transcript</h3>
+                    <h3 className="text-lg font-medium">Final Transcript</h3>
                     <Button
                       variant="outline"
                       size="sm"
@@ -324,7 +427,7 @@ export function ConsultationModal({
                       )}
                     </Button>
                   </div>
-                  <div className="p-4 border rounded-md bg-muted/50 max-h-[150px] overflow-y-auto">
+                  <div className="p-4 border rounded-md bg-blue-50 dark:bg-blue-950/20 max-h-[150px] overflow-y-auto border-blue-200 dark:border-blue-800">
                     <p className="whitespace-pre-wrap">{transcript}</p>
                   </div>
                 </div>
