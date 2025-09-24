@@ -287,6 +287,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           const templateBuffer = fs.readFileSync(templatePath);
           const zip = new PizZip(templateBuffer);
+          
+          // Fix broken placeholders in Word document XML
+          const fixBrokenPlaceholders = (zip) => {
+            try {
+              const documentXml = zip.file('word/document.xml').asText();
+              
+              // Fix placeholders that are split across multiple XML run elements
+              // This regex finds and fixes patterns like: </w:t></w:r><w:r><w:t> within placeholders
+              const fixedXml = documentXml
+                .replace(
+                  /(\{\{[^}]*)<\/w:t><\/w:r><w:r><w:t>([^}]*\}\})/g,
+                  '$1$2'
+                )
+                .replace(
+                  /(\{\{[^}]*)<\/w:t><\/w:r><w:r><w:rPr>[^<]*<\/w:rPr><w:t>([^}]*\}\})/g,
+                  '$1$2'
+                )
+                .replace(
+                  /(\{\{[^}]*)<\/w:t><\/w:r><w:r[^>]*><w:t>([^}]*\}\})/g,
+                  '$1$2'
+                );
+              
+              zip.file('word/document.xml', fixedXml);
+            } catch (error) {
+              console.warn('Failed to fix broken placeholders:', error);
+            }
+          };
+          
+          fixBrokenPlaceholders(zip);
+          
           const doc = new Docxtemplater(zip, {
             paragraphLoop: true,
             linebreaks: true,
