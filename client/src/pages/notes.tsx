@@ -15,7 +15,11 @@ import {
   Stethoscope,
   ClipboardList,
   MessageSquare,
-  Settings
+  Settings,
+  Upload,
+  Download,
+  Trash2,
+  Eye
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
@@ -27,7 +31,7 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Patient, InsertMedicalNote, MedicalNoteTemplate, InsertMedicalNoteTemplate } from "@shared/schema";
+import { Patient, InsertMedicalNote, MedicalNoteTemplate, InsertMedicalNoteTemplate, WordTemplate } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
 import { ConsultationModal } from "@/components/consultation-modal";
@@ -58,6 +62,8 @@ export default function Notes() {
   const [selectedNoteType, setSelectedNoteType] = useState<"soap" | "progress" | "procedure" | "consultation">("soap");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [templateContent, setTemplateContent] = useState("");
+  const [selectedTemplateFile, setSelectedTemplateFile] = useState<File | null>(null);
+  const [isUploadingTemplate, setIsUploadingTemplate] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -98,6 +104,11 @@ Plan:
   // Fetch note templates
   const { data: noteTemplates, isLoading: isLoadingTemplates } = useQuery<MedicalNoteTemplate[]>({
     queryKey: ["/api/medical-note-templates"],
+  });
+
+  // Fetch Word templates
+  const { data: wordTemplates, isLoading: isLoadingWordTemplates } = useQuery<WordTemplate[]>({
+    queryKey: ["/api/word-templates"],
   });
 
   // Get selected patient details
@@ -161,6 +172,60 @@ Plan:
     },
   });
 
+  // Upload Word template mutation
+  const uploadWordTemplateMutation = useMutation({
+    mutationFn: async (formData: FormData) => {
+      const res = await fetch("/api/word-templates/upload", {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Upload failed");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/word-templates"] });
+      setSelectedTemplateFile(null);
+      setIsUploadingTemplate(false);
+      toast({
+        title: "Success",
+        description: "Word template uploaded successfully",
+      });
+    },
+    onError: (error: Error) => {
+      setIsUploadingTemplate(false);
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Delete Word template mutation
+  const deleteWordTemplateMutation = useMutation({
+    mutationFn: async (templateId: number) => {
+      const res = await apiRequest("DELETE", `/api/word-templates/${templateId}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/word-templates"] });
+      toast({
+        title: "Success",
+        description: "Word template deleted successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleStartConsultation = () => {
     if (!selectedPatientId) {
       toast({
@@ -177,6 +242,40 @@ Plan:
   const handleGeneratedNotesFromConsultation = (notes: string) => {
     setNoteText(notes);
     setNoteTitle(`${selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : ""} - Consultation Notes ${format(new Date(), "yyyy-MM-dd")}`);
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+      setSelectedTemplateFile(file);
+    } else {
+      toast({
+        title: "Invalid File",
+        description: "Please select a valid Word document (.docx)",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleUploadTemplate = () => {
+    if (!selectedTemplateFile) return;
+    
+    setIsUploadingTemplate(true);
+    const formData = new FormData();
+    formData.append("template", selectedTemplateFile);
+    formData.append("noteType", selectedNoteType);
+    
+    uploadWordTemplateMutation.mutate(formData);
+  };
+
+  const handleDownloadSample = () => {
+    window.open("/api/word-templates/sample", "_blank");
+  };
+
+  const handleDeleteTemplate = (templateId: number) => {
+    if (window.confirm("Are you sure you want to delete this template?")) {
+      deleteWordTemplateMutation.mutate(templateId);
+    }
   };
 
   const handleGenerateNotes = () => {
@@ -489,6 +588,7 @@ Plan:
             <Tabs defaultValue="templates">
               <TabsList className="mb-4">
                 <TabsTrigger value="templates">Templates</TabsTrigger>
+                <TabsTrigger value="word-templates">Word Templates</TabsTrigger>
                 <TabsTrigger value="analysis">Analysis</TabsTrigger>
                 <TabsTrigger value="assistant">Doctor Assistant</TabsTrigger>
               </TabsList>
@@ -1087,6 +1187,130 @@ Provider Signature: ______________________________
                       Ask
                     </Button>
                   </div>
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="word-templates">
+                <div className="space-y-4">
+                  <div className="text-sm text-muted-foreground">
+                    <p className="mb-4">Upload custom Word templates with placeholders to generate branded SOAP notes that preserve your practice's formatting, logos, and styling.</p>
+                    
+                    <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4">
+                      <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">Available Placeholders:</h4>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{{NAME}}</code> - Patient name</div>
+                        <div><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{{DATE}}</code> - Current date</div>
+                        <div><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{{PROVIDER}}</code> - Doctor name</div>
+                        <div><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{{SUBJECTIVE}}</code> - Subjective findings</div>
+                        <div><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{{OBJECTIVE}}</code> - Objective findings</div>
+                        <div><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{{ASSESSMENT}}</code> - Assessment</div>
+                        <div><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{{PLAN}}</code> - Treatment plan</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Download Sample Template */}
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={handleDownloadSample}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Download Sample Template
+                  </Button>
+
+                  {/* Note Type Selection */}
+                  <div>
+                    <Label htmlFor="template-note-type" className="text-sm font-medium">Template Type</Label>
+                    <Select 
+                      value={selectedNoteType} 
+                      onValueChange={(value: "soap" | "progress" | "procedure" | "consultation") => setSelectedNoteType(value)}
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Select note type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="soap">SOAP Note</SelectItem>
+                        <SelectItem value="progress">Progress Note</SelectItem>
+                        <SelectItem value="procedure">Procedure Note</SelectItem>
+                        <SelectItem value="consultation">Consultation Note</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* File Upload */}
+                  <div>
+                    <Label htmlFor="template-file" className="text-sm font-medium">Upload Template (.docx)</Label>
+                    <div className="mt-2 space-y-2">
+                      <Input
+                        id="template-file"
+                        type="file"
+                        accept=".docx"
+                        onChange={handleFileSelect}
+                        className="file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-sm file:bg-primary file:text-primary-foreground hover:file:bg-primary/80"
+                      />
+                      {selectedTemplateFile && (
+                        <div className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded">
+                          <span className="text-sm">{selectedTemplateFile.name}</span>
+                          <Button
+                            size="sm"
+                            onClick={handleUploadTemplate}
+                            disabled={isUploadingTemplate || uploadWordTemplateMutation.isPending}
+                          >
+                            {isUploadingTemplate || uploadWordTemplateMutation.isPending ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                Uploading...
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="h-4 w-4 mr-1" />
+                                Upload
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Current Templates */}
+                  {isLoadingWordTemplates ? (
+                    <div className="flex items-center justify-center p-4">
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Loading templates...
+                    </div>
+                  ) : wordTemplates && wordTemplates.length > 0 ? (
+                    <div>
+                      <Label className="text-sm font-medium">Your Templates</Label>
+                      <div className="mt-2 space-y-2">
+                        {wordTemplates.map((template) => (
+                          <div key={template.id} className="flex items-center justify-between p-3 border rounded-lg">
+                            <div>
+                              <div className="font-medium text-sm">{template.noteType.toUpperCase()} Template</div>
+                              <div className="text-xs text-muted-foreground">
+                                Uploaded {new Date(template.createdAt).toLocaleDateString()}
+                              </div>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleDeleteTemplate(template.id)}
+                              disabled={deleteWordTemplateMutation.isPending}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center p-4 text-muted-foreground">
+                      <FileText className="h-8 w-8 mx-auto mb-2" />
+                      <p className="text-sm">No templates uploaded yet</p>
+                      <p className="text-xs">Upload a .docx template to get started</p>
+                    </div>
+                  )}
                 </div>
               </TabsContent>
             </Tabs>
