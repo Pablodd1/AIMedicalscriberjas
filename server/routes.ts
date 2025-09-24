@@ -20,10 +20,6 @@ import {
   AppError
 } from "./error-handler";
 import multer from "multer";
-import fs from "fs";
-import path from "path";
-import PizZip from "pizzip";
-import Docxtemplater from "docxtemplater";
 
 // Extend the global namespace to include our media storage
 declare global {
@@ -42,9 +38,7 @@ import {
   insertIntakeFormSchema,
   insertIntakeFormResponseSchema,
   insertMedicalNoteTemplateSchema,
-  insertWordTemplateSchema,
-  type RecordingSession,
-  type WordTemplate
+  type RecordingSession
 } from "@shared/schema";
 
 // Define the interface for telemedicine rooms
@@ -233,7 +227,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(note);
   });
 
-  // Download medical note as Word document (with template support)
+  // Download medical note as Word document
   app.get("/api/medical-notes/:id/download", requireAuth, asyncHandler(async (req, res) => {
     const noteId = parseInt(req.params.id);
     if (isNaN(noteId)) {
@@ -258,230 +252,131 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
     }
 
-    // Get doctor info
-    const doctor = await handleDatabaseOperation(
-      () => storage.getUser(note.doctorId),
-      'Failed to fetch doctor'
-    );
-
-    // Check if user has uploaded a Word template for this note type
-    const userTemplate = await handleDatabaseOperation(
-      () => storage.getWordTemplateByOwnerAndType(req.user.id, note.type || 'soap'),
-      'Failed to fetch word template'
-    );
-
     try {
-      let docxBuffer;
-      const filename = `medical-note-${note.id}-${new Date().toISOString().split('T')[0]}.docx`;
-
-      if (userTemplate) {
-        // Use uploaded template with placeholder replacement
-
-        try {
-          // Read the template file
-          const templatePath = path.join(process.cwd(), userTemplate.templatePath);
-          if (!fs.existsSync(templatePath)) {
-            console.warn(`Template file not found: ${templatePath}, falling back to default generation`);
-            throw new Error('Template file not found');
-          }
-
-          const templateBuffer = fs.readFileSync(templatePath);
-          const zip = new PizZip(templateBuffer);
-          
-          const doc = new Docxtemplater(zip, {
-            paragraphLoop: true,
-            linebreaks: true,
-            errorLogging: false, // Disable error logging to prevent crashes
-          });
-
-          // Parse SOAP note content
-          const soapSections = {
-            SUBJECTIVE: '',
-            OBJECTIVE: '',
-            ASSESSMENT: '',
-            PLAN: ''
-          };
-
-          // Extract SOAP sections from note content
-          const content = note.content || '';
-          const lines = content.split('\n');
-          let currentSection = '';
-
-          for (const line of lines) {
-            const trimmedLine = line.trim();
-            if (trimmedLine.toUpperCase().includes('SUBJECTIVE')) {
-              currentSection = 'SUBJECTIVE';
-              continue;
-            } else if (trimmedLine.toUpperCase().includes('OBJECTIVE')) {
-              currentSection = 'OBJECTIVE';
-              continue;
-            } else if (trimmedLine.toUpperCase().includes('ASSESSMENT')) {
-              currentSection = 'ASSESSMENT';
-              continue;
-            } else if (trimmedLine.toUpperCase().includes('PLAN')) {
-              currentSection = 'PLAN';
-              continue;
-            }
-
-            if (currentSection && trimmedLine && !trimmedLine.startsWith('-')) {
-              if (soapSections[currentSection]) {
-                soapSections[currentSection] += '\n' + trimmedLine;
-              } else {
-                soapSections[currentSection] = trimmedLine;
-              }
-            }
-          }
-
-          // Prepare template data
-          const patientName = patient ? `${patient.firstName || ''} ${patient.lastName || ''}`.trim() : 'Unknown Patient';
-          const providerName = doctor ? doctor.name : 'Unknown Provider';
-          
-          const templateData = {
-            NAME: patientName,
-            DATE: new Date().toLocaleDateString(),
-            PROVIDER: providerName,
-            SUBJECTIVE: soapSections.SUBJECTIVE || 'No subjective findings documented.',
-            OBJECTIVE: soapSections.OBJECTIVE || 'No objective findings documented.',
-            ASSESSMENT: soapSections.ASSESSMENT || 'No assessment documented.',
-            PLAN: soapSections.PLAN || 'No plan documented.'
-          };
-
-          // Replace placeholders
-          doc.render(templateData);
-          docxBuffer = doc.getZip().generate({ type: 'nodebuffer' });
-
-        } catch (templateError) {
-          console.log('Template processing failed, falling back to default generation. Error:', templateError.message);
-          // Don't throw - let it fall through to default generation
-          docxBuffer = null;
-        }
-      }
-
-      // Fallback to default document generation if no template or template processing failed
-      if (!docxBuffer) {
-        const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx');
-        
-        const docSections = [];
-        
-        // Title
+      // Generate DOCX using the docx library
+      const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx');
+      
+      const docSections = [];
+      
+      // Title
+      docSections.push(
+        new Paragraph({
+          text: note.title || "Medical Note",
+          heading: HeadingLevel.TITLE,
+        })
+      );
+      
+      // Note type and date info
+      docSections.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `${note.type?.toUpperCase() || 'MEDICAL'} Note • Generated ${new Date().toLocaleDateString()}`,
+              italics: true,
+              size: 20,
+            }),
+          ],
+        })
+      );
+      
+      docSections.push(new Paragraph({ text: "" })); // Empty line
+      
+      // Patient information if available
+      if (patient) {
         docSections.push(
           new Paragraph({
-            text: note.title || "Medical Note",
-            heading: HeadingLevel.TITLE,
-          })
-        );
-        
-        // Note type and date info
-        docSections.push(
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: `${note.type?.toUpperCase() || 'MEDICAL'} Note • Generated ${new Date().toLocaleDateString()}`,
-                italics: true,
-                size: 20,
-              }),
-            ],
-          })
-        );
-        
-        docSections.push(new Paragraph({ text: "" })); // Empty line
-        
-        // Patient information if available
-        if (patient) {
-          docSections.push(
-            new Paragraph({
-              text: "Patient Information",
-              heading: HeadingLevel.HEADING_1,
-            })
-          );
-          
-          const patientName = `${patient.firstName || ''} ${patient.lastName || ''}`.trim();
-          if (patientName) {
-            docSections.push(
-              new Paragraph({
-                children: [
-                  new TextRun({ text: "Name: ", bold: true }),
-                  new TextRun({ text: patientName }),
-                ],
-              })
-            );
-          }
-          
-          if (patient.email) {
-            docSections.push(
-              new Paragraph({
-                children: [
-                  new TextRun({ text: "Email: ", bold: true }),
-                  new TextRun({ text: patient.email }),
-                ],
-              })
-            );
-          }
-          
-          if (patient.phone) {
-            docSections.push(
-              new Paragraph({
-                children: [
-                  new TextRun({ text: "Phone: ", bold: true }),
-                  new TextRun({ text: patient.phone }),
-                ],
-              })
-            );
-          }
-          
-          docSections.push(new Paragraph({ text: "" })); // Empty line
-        }
-        
-        // Note content
-        docSections.push(
-          new Paragraph({
-            text: "Medical Note Content",
+            text: "Patient Information",
             heading: HeadingLevel.HEADING_1,
           })
         );
         
-        // Split content by lines and create paragraphs
-        const contentLines = (note.content || '').split('\n');
-        contentLines.forEach(line => {
+        const patientName = `${patient.firstName || ''} ${patient.lastName || ''}`.trim();
+        if (patientName) {
           docSections.push(
             new Paragraph({
               children: [
-                new TextRun({
-                  text: line,
-                  size: 24,
-                }),
+                new TextRun({ text: "Name: ", bold: true }),
+                new TextRun({ text: patientName }),
               ],
             })
           );
-        });
+        }
         
-        // Add timestamp
+        if (patient.email) {
+          docSections.push(
+            new Paragraph({
+              children: [
+                new TextRun({ text: "Email: ", bold: true }),
+                new TextRun({ text: patient.email }),
+              ],
+            })
+          );
+        }
+        
+        if (patient.phone) {
+          docSections.push(
+            new Paragraph({
+              children: [
+                new TextRun({ text: "Phone: ", bold: true }),
+                new TextRun({ text: patient.phone }),
+              ],
+            })
+          );
+        }
+        
         docSections.push(new Paragraph({ text: "" })); // Empty line
+      }
+      
+      // Note content
+      docSections.push(
+        new Paragraph({
+          text: "Medical Note Content",
+          heading: HeadingLevel.HEADING_1,
+        })
+      );
+      
+      // Split content by lines and create paragraphs
+      const contentLines = (note.content || '').split('\n');
+      contentLines.forEach(line => {
         docSections.push(
           new Paragraph({
             children: [
               new TextRun({
-                text: `Created: ${note.createdAt ? new Date(note.createdAt).toLocaleString() : 'Unknown'}`,
-                italics: true,
-                size: 20,
+                text: line,
+                size: 24,
               }),
             ],
           })
         );
-        
-        // Create the document
-        const doc = new Document({
-          sections: [{
-            properties: {},
-            children: docSections,
-          }],
-        });
-        
-        // Generate the DOCX buffer
-        docxBuffer = await Packer.toBuffer(doc);
-      }
+      });
+      
+      // Add timestamp
+      docSections.push(new Paragraph({ text: "" })); // Empty line
+      docSections.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `Created: ${note.createdAt ? new Date(note.createdAt).toLocaleString() : 'Unknown'}`,
+              italics: true,
+              size: 20,
+            }),
+          ],
+        })
+      );
+      
+      // Create the document
+      const doc = new Document({
+        sections: [{
+          properties: {},
+          children: docSections,
+        }],
+      });
+      
+      // Generate the DOCX buffer
+      const docxBuffer = await Packer.toBuffer(doc);
       
       // Set headers and send file
+      const filename = `medical-note-${note.id}-${new Date().toISOString().split('T')[0]}.docx`;
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       res.send(docxBuffer);
@@ -769,337 +664,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to delete medical note template" });
     }
   });
-
-  // Word Templates routes for SOAP note document templates
-  const wordTemplateUpload = multer({
-    storage: multer.memoryStorage(),
-    limits: {
-      fileSize: 10 * 1024 * 1024, // 10MB limit for Word templates
-    },
-    fileFilter: (req, file, cb) => {
-      if (file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-        cb(null, true);
-      } else {
-        cb(new Error('Only .docx files are allowed'));
-      }
-    }
-  });
-
-  app.get("/api/word-templates", requireAuth, asyncHandler(async (req, res) => {
-    const templates = await handleDatabaseOperation(
-      () => storage.getWordTemplates(req.user.id),
-      'Failed to fetch word templates'
-    );
-    sendSuccessResponse(res, templates);
-  }));
-
-  app.post("/api/word-templates/upload", requireAuth, asyncHandler(async (req, res) => {
-    wordTemplateUpload.single('template')(req, res, async (err) => {
-      if (err) {
-        throw new AppError(err.message, 400, 'FILE_UPLOAD_ERROR');
-      }
-
-      if (!req.file) {
-        throw new AppError('No file uploaded', 400, 'NO_FILE_UPLOADED');
-      }
-
-      const { type = 'soap' } = req.body;
-
-      // Create unique filename
-      const timestamp = Date.now();
-      const filename = `template_${req.user.id}_${timestamp}.docx`;
-      const templatePath = `uploads/templates/${filename}`;
-
-      // In production, we would save to file system or cloud storage
-      // For now, we'll store the file data in a simple way
-      try {
-        // Create uploads directory if it doesn't exist
-        const uploadDir = path.join(process.cwd(), 'uploads', 'templates');
-        if (!fs.existsSync(uploadDir)) {
-          fs.mkdirSync(uploadDir, { recursive: true });
-        }
-
-        // Save file to disk
-        fs.writeFileSync(path.join(process.cwd(), templatePath), req.file.buffer);
-
-        // Save template metadata to database
-        const templateData = {
-          ownerId: req.user.id,
-          type: type as any,
-          templatePath,
-          originalFilename: req.file.originalname,
-          mimeType: req.file.mimetype,
-          isActive: true
-        };
-
-        const template = await handleDatabaseOperation(
-          () => storage.createWordTemplate(templateData),
-          'Failed to save template'
-        );
-
-        sendSuccessResponse(res, template, 'Template uploaded successfully', 201);
-      } catch (fileError) {
-        console.error('Error saving template file:', fileError);
-        throw new AppError('Failed to save template file', 500, 'FILE_SAVE_ERROR');
-      }
-    });
-  }));
-
-  app.get("/api/word-templates/sample", requireAuth, asyncHandler(async (req, res) => {
-
-    try {
-      // Create a basic Word document structure
-      const zip = new PizZip();
-      
-      // Add required files for a minimal Word document
-      
-      // Content Types
-      zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-  <Default Extension="xml" ContentType="application/xml"/>
-  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
-  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
-</Types>`);
-
-      // Main relationships
-      zip.file('_rels/.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-</Relationships>`);
-
-      // Word relationships
-      zip.file('word/_rels/document.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
-</Relationships>`);
-
-      // Styles
-      zip.file('word/styles.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:docDefaults>
-    <w:rPrDefault>
-      <w:rPr>
-        <w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/>
-        <w:sz w:val="24"/>
-        <w:lang w:val="en-US"/>
-      </w:rPr>
-    </w:rPrDefault>
-  </w:docDefaults>
-  <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
-    <w:name w:val="Normal"/>
-    <w:qFormat/>
-  </w:style>
-  <w:style w:type="paragraph" w:styleId="Heading1">
-    <w:name w:val="heading 1"/>
-    <w:pPr>
-      <w:spacing w:after="300"/>
-    </w:pPr>
-    <w:rPr>
-      <w:b/>
-      <w:sz w:val="32"/>
-    </w:rPr>
-  </w:style>
-</w:styles>`);
-
-      // Main document with placeholders
-      zip.file('word/document.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:body>
-    <w:p>
-      <w:pPr>
-        <w:pStyle w:val="Heading1"/>
-        <w:jc w:val="center"/>
-      </w:pPr>
-      <w:r>
-        <w:rPr>
-          <w:b/>
-          <w:sz w:val="28"/>
-        </w:rPr>
-        <w:t>Medical Practice SOAP Note</w:t>
-      </w:r>
-    </w:p>
-    <w:p>
-      <w:pPr>
-        <w:spacing w:after="120"/>
-      </w:pPr>
-    </w:p>
-    <w:p>
-      <w:r>
-        <w:rPr>
-          <w:b/>
-        </w:rPr>
-        <w:t>Patient: </w:t>
-      </w:r>
-      <w:r>
-        <w:t>{{NAME}}</w:t>
-      </w:r>
-    </w:p>
-    <w:p>
-      <w:r>
-        <w:rPr>
-          <w:b/>
-        </w:rPr>
-        <w:t>Date: </w:t>
-      </w:r>
-      <w:r>
-        <w:t>{{DATE}}</w:t>
-      </w:r>
-    </w:p>
-    <w:p>
-      <w:r>
-        <w:rPr>
-          <w:b/>
-        </w:rPr>
-        <w:t>Provider: </w:t>
-      </w:r>
-      <w:r>
-        <w:t>{{PROVIDER}}</w:t>
-      </w:r>
-    </w:p>
-    <w:p>
-      <w:pPr>
-        <w:spacing w:after="120"/>
-      </w:pPr>
-    </w:p>
-    <w:p>
-      <w:r>
-        <w:rPr>
-          <w:b/>
-          <w:sz w:val="26"/>
-        </w:rPr>
-        <w:t>SUBJECTIVE:</w:t>
-      </w:r>
-    </w:p>
-    <w:p>
-      <w:r>
-        <w:t>{{SUBJECTIVE}}</w:t>
-      </w:r>
-    </w:p>
-    <w:p>
-      <w:pPr>
-        <w:spacing w:after="120"/>
-      </w:pPr>
-    </w:p>
-    <w:p>
-      <w:r>
-        <w:rPr>
-          <w:b/>
-          <w:sz w:val="26"/>
-        </w:rPr>
-        <w:t>OBJECTIVE:</w:t>
-      </w:r>
-    </w:p>
-    <w:p>
-      <w:r>
-        <w:t>{{OBJECTIVE}}</w:t>
-      </w:r>
-    </w:p>
-    <w:p>
-      <w:pPr>
-        <w:spacing w:after="120"/>
-      </w:pPr>
-    </w:p>
-    <w:p>
-      <w:r>
-        <w:rPr>
-          <w:b/>
-          <w:sz w:val="26"/>
-        </w:rPr>
-        <w:t>ASSESSMENT:</w:t>
-      </w:r>
-    </w:p>
-    <w:p>
-      <w:r>
-        <w:t>{{ASSESSMENT}}</w:t>
-      </w:r>
-    </w:p>
-    <w:p>
-      <w:pPr>
-        <w:spacing w:after="120"/>
-      </w:pPr>
-    </w:p>
-    <w:p>
-      <w:r>
-        <w:rPr>
-          <w:b/>
-          <w:sz w:val="26"/>
-        </w:rPr>
-        <w:t>PLAN:</w:t>
-      </w:r>
-    </w:p>
-    <w:p>
-      <w:r>
-        <w:t>{{PLAN}}</w:t>
-      </w:r>
-    </w:p>
-    <w:sectPr>
-      <w:pgSz w:w="12240" w:h="15840"/>
-      <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/>
-    </w:sectPr>
-  </w:body>
-</w:document>`);
-
-      // Generate the Word document
-      const buffer = zip.generate({ type: 'nodebuffer' });
-
-      // Set headers for file download
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-      res.setHeader('Content-Disposition', 'attachment; filename="soap-note-template-sample.docx"');
-      res.setHeader('Content-Length', buffer.length);
-
-      // Send the Word document
-      res.send(buffer);
-    } catch (error) {
-      console.error('Error creating sample template:', error);
-      throw new AppError('Failed to create sample template', 500, 'SAMPLE_TEMPLATE_ERROR');
-    }
-  }));
-
-  app.delete("/api/word-templates/:id", requireAuth, asyncHandler(async (req, res) => {
-    const templateId = parseInt(req.params.id);
-    if (isNaN(templateId)) {
-      throw new AppError('Invalid template ID', 400, 'INVALID_TEMPLATE_ID');
-    }
-
-    // Get template to check ownership and get file path
-    const template = await handleDatabaseOperation(
-      () => storage.getWordTemplate(templateId),
-      'Failed to fetch template'
-    );
-
-    if (!template) {
-      throw new AppError('Template not found', 404, 'TEMPLATE_NOT_FOUND');
-    }
-
-    // Check ownership
-    if (template.ownerId !== req.user.id) {
-      throw new AppError('Unauthorized to delete this template', 403, 'UNAUTHORIZED_DELETE');
-    }
-
-    // Delete file from disk
-    try {
-      const filePath = path.join(process.cwd(), template.templatePath);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-    } catch (fileError) {
-      console.warn('Failed to delete template file:', fileError);
-      // Continue with database deletion even if file deletion fails
-    }
-
-    // Delete from database
-    const result = await handleDatabaseOperation(
-      () => storage.deleteWordTemplate(templateId),
-      'Failed to delete template'
-    );
-
-    if (!result) {
-      throw new AppError('Template not found', 404, 'TEMPLATE_NOT_FOUND');
-    }
-
-    sendSuccessResponse(res, { success: true }, 'Template deleted successfully');
-  }));
 
   // User API Key management routes
   app.get("/api/user/api-key", async (req, res) => {

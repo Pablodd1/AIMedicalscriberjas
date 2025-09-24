@@ -649,39 +649,6 @@ export type InsertBpReading = z.infer<typeof insertBpReadingSchema>;
 export type InsertGlucoseReading = z.infer<typeof insertGlucoseReadingSchema>;
 export type InsertAlertSetting = z.infer<typeof insertAlertSettingSchema>;
 
-// Word document templates for SOAP notes
-export const wordTemplates = pgTable("word_templates", {
-  id: serial("id").primaryKey(),
-  ownerId: integer("owner_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
-  type: noteTypeEnum("type").notNull().default('soap'),
-  templatePath: text("template_path").notNull(),
-  originalFilename: text("original_filename").notNull(),
-  mimeType: text("mime_type").notNull(),
-  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
-  isActive: boolean("is_active").default(true).notNull(),
-});
-
-// Word template insert schema
-export const insertWordTemplateSchema = createInsertSchema(wordTemplates).pick({
-  ownerId: true,
-  type: true,
-  templatePath: true,
-  originalFilename: true,
-  mimeType: true,
-  isActive: true,
-});
-
-export type WordTemplate = typeof wordTemplates.$inferSelect;
-export type InsertWordTemplate = z.infer<typeof insertWordTemplateSchema>;
-
-// Word template relations
-export const wordTemplateRelations = relations(wordTemplates, ({ one }) => ({
-  owner: one(users, {
-    fields: [wordTemplates.ownerId],
-    references: [users.id],
-  }),
-}));
-
 // Lab Interpreter Assistant Knowledge Base tables
 export const labKnowledgeBase = pgTable("lab_knowledge_base", {
   id: serial("id").primaryKey(),

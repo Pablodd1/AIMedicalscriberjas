@@ -19,7 +19,6 @@ import {
   labReports,
   patientDocuments,
   medicalNoteTemplates,
-  wordTemplates,
   systemSettings,
   medicalAlerts,
   patientActivity,
@@ -72,9 +71,7 @@ import {
   type Prescription,
   type InsertPrescription,
   type MedicalHistoryEntry,
-  type InsertMedicalHistoryEntry,
-  type WordTemplate,
-  type InsertWordTemplate
+  type InsertMedicalHistoryEntry
 } from "@shared/schema";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
@@ -208,22 +205,6 @@ export interface IStorage {
   createMedicalHistoryEntry(entry: InsertMedicalHistoryEntry): Promise<MedicalHistoryEntry>;
   updateMedicalHistoryEntry(id: number, entry: Partial<InsertMedicalHistoryEntry>): Promise<MedicalHistoryEntry | undefined>;
   deleteMedicalHistoryEntry(id: number): Promise<void>;
-
-  // Medical Note Templates methods
-  getMedicalNoteTemplates(): Promise<MedicalNoteTemplate[]>;
-  getMedicalNoteTemplatesByType(type: string): Promise<MedicalNoteTemplate[]>;
-  getMedicalNoteTemplate(id: number): Promise<MedicalNoteTemplate | undefined>;
-  createMedicalNoteTemplate(template: InsertMedicalNoteTemplate): Promise<MedicalNoteTemplate>;
-  updateMedicalNoteTemplate(id: number, updates: Partial<MedicalNoteTemplate>): Promise<MedicalNoteTemplate | undefined>;
-  deleteMedicalNoteTemplate(id: number): Promise<boolean>;
-
-  // Word Templates methods
-  getWordTemplates(ownerId: number): Promise<WordTemplate[]>;
-  getWordTemplate(id: number): Promise<WordTemplate | undefined>;
-  getWordTemplateByOwnerAndType(ownerId: number, type: string): Promise<WordTemplate | undefined>;
-  createWordTemplate(template: InsertWordTemplate): Promise<WordTemplate>;
-  updateWordTemplate(id: number, updates: Partial<WordTemplate>): Promise<WordTemplate | undefined>;
-  deleteWordTemplate(id: number): Promise<boolean>;
 
   sessionStore: session.Store;
 }
@@ -1482,89 +1463,6 @@ export class DatabaseStorage implements IStorage {
 
   async deleteMedicalHistoryEntry(id: number): Promise<void> {
     await db.delete(medicalHistoryEntries).where(eq(medicalHistoryEntries.id, id));
-  }
-
-  // Word Templates methods
-  async getWordTemplates(ownerId: number): Promise<WordTemplate[]> {
-    try {
-      return await db
-        .select()
-        .from(wordTemplates)
-        .where(and(eq(wordTemplates.ownerId, ownerId), eq(wordTemplates.isActive, true)))
-        .orderBy(desc(wordTemplates.uploadedAt));
-    } catch (error) {
-      console.error("Error fetching word templates:", error);
-      return [];
-    }
-  }
-
-  async getWordTemplate(id: number): Promise<WordTemplate | undefined> {
-    try {
-      const [template] = await db
-        .select()
-        .from(wordTemplates)
-        .where(eq(wordTemplates.id, id));
-      return template;
-    } catch (error) {
-      console.error("Error fetching word template:", error);
-      return undefined;
-    }
-  }
-
-  async getWordTemplateByOwnerAndType(ownerId: number, type: string): Promise<WordTemplate | undefined> {
-    try {
-      const [template] = await db
-        .select()
-        .from(wordTemplates)
-        .where(and(
-          eq(wordTemplates.ownerId, ownerId),
-          eq(wordTemplates.type, type as any),
-          eq(wordTemplates.isActive, true)
-        ));
-      return template;
-    } catch (error) {
-      console.error("Error fetching word template by owner and type:", error);
-      return undefined;
-    }
-  }
-
-  async createWordTemplate(template: InsertWordTemplate): Promise<WordTemplate> {
-    try {
-      const [newTemplate] = await db
-        .insert(wordTemplates)
-        .values(template)
-        .returning();
-      return newTemplate;
-    } catch (error) {
-      console.error("Error creating word template:", error);
-      throw error;
-    }
-  }
-
-  async updateWordTemplate(id: number, updates: Partial<WordTemplate>): Promise<WordTemplate | undefined> {
-    try {
-      const [updatedTemplate] = await db
-        .update(wordTemplates)
-        .set(updates)
-        .where(eq(wordTemplates.id, id))
-        .returning();
-      return updatedTemplate;
-    } catch (error) {
-      console.error("Error updating word template:", error);
-      return undefined;
-    }
-  }
-
-  async deleteWordTemplate(id: number): Promise<boolean> {
-    try {
-      const result = await db
-        .delete(wordTemplates)
-        .where(eq(wordTemplates.id, id));
-      return (result.rowCount ?? 0) > 0;
-    } catch (error) {
-      console.error("Error deleting word template:", error);
-      return false;
-    }
   }
 }
 
