@@ -1198,13 +1198,13 @@ Provider Signature: ______________________________
                     <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4">
                       <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">Available Placeholders:</h4>
                       <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{{NAME}}</code> - Patient name</div>
-                        <div><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{{DATE}}</code> - Current date</div>
-                        <div><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{{PROVIDER}}</code> - Doctor name</div>
-                        <div><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{{SUBJECTIVE}}</code> - Subjective findings</div>
-                        <div><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{{OBJECTIVE}}</code> - Objective findings</div>
-                        <div><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{{ASSESSMENT}}</code> - Assessment</div>
-                        <div><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{{PLAN}}</code> - Treatment plan</div>
+                        <div><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{"{{NAME}}"}</code> - Patient name</div>
+                        <div><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{"{{DATE}}"}</code> - Current date</div>
+                        <div><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{"{{PROVIDER}}"}</code> - Doctor name</div>
+                        <div><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{"{{SUBJECTIVE}}"}</code> - Subjective findings</div>
+                        <div><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{"{{OBJECTIVE}}"}</code> - Objective findings</div>
+                        <div><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{"{{ASSESSMENT}}"}</code> - Assessment</div>
+                        <div><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{"{{PLAN}}"}</code> - Treatment plan</div>
                       </div>
                     </div>
                   </div>
@@ -1287,9 +1287,9 @@ Provider Signature: ______________________________
                         {wordTemplates.map((template) => (
                           <div key={template.id} className="flex items-center justify-between p-3 border rounded-lg">
                             <div>
-                              <div className="font-medium text-sm">{template.noteType.toUpperCase()} Template</div>
+                              <div className="font-medium text-sm">{template.type.toUpperCase()} Template</div>
                               <div className="text-xs text-muted-foreground">
-                                Uploaded {new Date(template.createdAt).toLocaleDateString()}
+                                Uploaded {new Date(template.uploadedAt).toLocaleDateString()}
                               </div>
                             </div>
                             <Button
