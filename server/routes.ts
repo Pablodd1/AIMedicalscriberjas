@@ -227,6 +227,166 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(note);
   });
 
+  // Download medical note as Word document
+  app.get("/api/medical-notes/:id/download", requireAuth, asyncHandler(async (req, res) => {
+    const noteId = parseInt(req.params.id);
+    if (isNaN(noteId)) {
+      throw new AppError('Invalid note ID', 400, 'INVALID_NOTE_ID');
+    }
+
+    const note = await handleDatabaseOperation(
+      () => storage.getMedicalNote(noteId),
+      'Failed to fetch medical note'
+    );
+
+    if (!note) {
+      throw new AppError('Medical note not found', 404, 'NOTE_NOT_FOUND');
+    }
+
+    // Get patient info if available
+    let patient = null;
+    if (note.patientId) {
+      patient = await handleDatabaseOperation(
+        () => storage.getPatient(note.patientId!),
+        'Failed to fetch patient'
+      );
+    }
+
+    try {
+      // Generate DOCX using the docx library
+      const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx');
+      
+      const docSections = [];
+      
+      // Title
+      docSections.push(
+        new Paragraph({
+          text: note.title || "Medical Note",
+          heading: HeadingLevel.TITLE,
+        })
+      );
+      
+      // Note type and date info
+      docSections.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `${note.type?.toUpperCase() || 'MEDICAL'} Note • Generated ${new Date().toLocaleDateString()}`,
+              italics: true,
+              size: 20,
+            }),
+          ],
+        })
+      );
+      
+      docSections.push(new Paragraph({ text: "" })); // Empty line
+      
+      // Patient information if available
+      if (patient) {
+        docSections.push(
+          new Paragraph({
+            text: "Patient Information",
+            heading: HeadingLevel.HEADING_1,
+          })
+        );
+        
+        const patientName = `${patient.firstName || ''} ${patient.lastName || ''}`.trim();
+        if (patientName) {
+          docSections.push(
+            new Paragraph({
+              children: [
+                new TextRun({ text: "Name: ", bold: true }),
+                new TextRun({ text: patientName }),
+              ],
+            })
+          );
+        }
+        
+        if (patient.email) {
+          docSections.push(
+            new Paragraph({
+              children: [
+                new TextRun({ text: "Email: ", bold: true }),
+                new TextRun({ text: patient.email }),
+              ],
+            })
+          );
+        }
+        
+        if (patient.phone) {
+          docSections.push(
+            new Paragraph({
+              children: [
+                new TextRun({ text: "Phone: ", bold: true }),
+                new TextRun({ text: patient.phone }),
+              ],
+            })
+          );
+        }
+        
+        docSections.push(new Paragraph({ text: "" })); // Empty line
+      }
+      
+      // Note content
+      docSections.push(
+        new Paragraph({
+          text: "Medical Note Content",
+          heading: HeadingLevel.HEADING_1,
+        })
+      );
+      
+      // Split content by lines and create paragraphs
+      const contentLines = (note.content || '').split('\n');
+      contentLines.forEach(line => {
+        docSections.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: line,
+                size: 24,
+              }),
+            ],
+          })
+        );
+      });
+      
+      // Add timestamp
+      docSections.push(new Paragraph({ text: "" })); // Empty line
+      docSections.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `Created: ${note.createdAt ? new Date(note.createdAt).toLocaleString() : 'Unknown'}`,
+              italics: true,
+              size: 20,
+            }),
+          ],
+        })
+      );
+      
+      // Create the document
+      const doc = new Document({
+        sections: [{
+          properties: {},
+          children: docSections,
+        }],
+      });
+      
+      // Generate the DOCX buffer
+      const docxBuffer = await Packer.toBuffer(doc);
+      
+      // Set headers and send file
+      const filename = `medical-note-${note.id}-${new Date().toISOString().split('T')[0]}.docx`;
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(docxBuffer);
+      
+    } catch (error) {
+      console.error('Error generating medical note document:', error);
+      throw new AppError('Failed to generate document', 500, 'DOCUMENT_GENERATION_FAILED');
+    }
+  }));
+
   app.post("/api/medical-notes", async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Unauthorized" });

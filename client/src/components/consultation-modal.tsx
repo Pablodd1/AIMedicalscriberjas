@@ -24,6 +24,7 @@ import {
   FileText,
   Loader2,
   ClipboardCopy,
+  Download,
 } from "lucide-react";
 
 interface ConsultationModalProps {
@@ -46,6 +47,7 @@ export function ConsultationModal({
   const [notes, setNotes] = useState("");
   const [isLiveTranscribing, setIsLiveTranscribing] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState("");
+  const [isDownloading, setIsDownloading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -284,6 +286,152 @@ export function ConsultationModal({
       return null;
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Handle downloading notes as Word document
+  const handleDownloadNotes = async () => {
+    if (!notes) return;
+
+    try {
+      setIsDownloading(true);
+
+      // Create temporary note data for download
+      const noteData = {
+        content: notes,
+        title: `SOAP Note - ${new Date().toLocaleDateString()}`,
+        type: 'soap',
+        patientId: patientInfo?.id,
+        createdAt: new Date().toISOString()
+      };
+
+      // Generate Word document using the docx library
+      const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx');
+      
+      const docSections = [];
+      
+      // Title
+      docSections.push(
+        new Paragraph({
+          text: noteData.title,
+          heading: HeadingLevel.TITLE,
+        })
+      );
+      
+      // Note type and date info
+      docSections.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `${noteData.type.toUpperCase()} Note • Generated ${new Date().toLocaleDateString()}`,
+              italics: true,
+              size: 20,
+            }),
+          ],
+        })
+      );
+      
+      docSections.push(new Paragraph({ text: "" })); // Empty line
+      
+      // Patient information if available
+      if (patientInfo) {
+        docSections.push(
+          new Paragraph({
+            text: "Patient Information",
+            heading: HeadingLevel.HEADING_1,
+          })
+        );
+        
+        const patientName = `${patientInfo.firstName || ''} ${patientInfo.lastName || ''}`.trim();
+        if (patientName) {
+          docSections.push(
+            new Paragraph({
+              children: [
+                new TextRun({ text: "Name: ", bold: true }),
+                new TextRun({ text: patientName }),
+              ],
+            })
+          );
+        }
+        
+        docSections.push(new Paragraph({ text: "" })); // Empty line
+      }
+      
+      // Note content
+      docSections.push(
+        new Paragraph({
+          text: "Medical Note Content",
+          heading: HeadingLevel.HEADING_1,
+        })
+      );
+      
+      // Split content by lines and create paragraphs
+      const contentLines = notes.split('\n');
+      contentLines.forEach(line => {
+        docSections.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: line,
+                size: 24,
+              }),
+            ],
+          })
+        );
+      });
+      
+      // Add timestamp
+      docSections.push(new Paragraph({ text: "" })); // Empty line
+      docSections.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `Generated: ${new Date().toLocaleString()}`,
+              italics: true,
+              size: 20,
+            }),
+          ],
+        })
+      );
+      
+      // Create the document
+      const doc = new Document({
+        sections: [{
+          properties: {},
+          children: docSections,
+        }],
+      });
+      
+      // Generate the DOCX buffer
+      const docxBuffer = await Packer.toBuffer(doc);
+      
+      // Create download link
+      const blob = new Blob([docxBuffer], { 
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `soap-note-${new Date().toISOString().split('T')[0]}.docx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Downloaded",
+        description: "Notes downloaded as Word document",
+      });
+      
+    } catch (error) {
+      console.error("Failed to download notes:", error);
+      toast({
+        title: "Download Failed",
+        description: "Failed to generate Word document",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -546,20 +694,40 @@ export function ConsultationModal({
             <div className="space-y-2 mt-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-medium">Generated SOAP Notes</h3>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    navigator.clipboard.writeText(notes);
-                    toast({
-                      title: "Copied",
-                      description: "Notes copied to clipboard",
-                    });
-                  }}
-                >
-                  <ClipboardCopy className="h-4 w-4 mr-2" />
-                  Copy
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      navigator.clipboard.writeText(notes);
+                      toast({
+                        title: "Copied",
+                        description: "Notes copied to clipboard",
+                      });
+                    }}
+                  >
+                    <ClipboardCopy className="h-4 w-4 mr-2" />
+                    Copy
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleDownloadNotes}
+                    disabled={isDownloading}
+                  >
+                    {isDownloading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Downloading...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="h-4 w-4 mr-2" />
+                        Download
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
               <div className="p-4 border rounded-md bg-muted/50 max-h-[200px] overflow-y-auto">
                 <pre className="whitespace-pre-wrap font-sans text-sm">{notes}</pre>

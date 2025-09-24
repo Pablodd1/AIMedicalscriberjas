@@ -30,6 +30,7 @@ import {
   Loader2,
   Copy,
   Check,
+  Download,
   FlaskConical,
   Calendar
 } from "lucide-react";
@@ -46,6 +47,7 @@ interface PatientDetailsProps {
 
 export default function PatientDetails({ patientId }: PatientDetailsProps) {
   const [copiedNote, setCopiedNote] = useState<number | null>(null);
+  const [downloadingNote, setDownloadingNote] = useState<number | null>(null);
   const { toast } = useToast();
 
   const { data: patient } = useQuery<Patient>({
@@ -99,6 +101,52 @@ export default function PatientDetails({ patientId }: PatientDetailsProps) {
       description: "Note copied to clipboard",
     });
     setTimeout(() => setCopiedNote(null), 3000);
+  };
+
+  const handleDownloadNote = async (noteId: number) => {
+    try {
+      setDownloadingNote(noteId);
+      
+      const response = await fetch(`/api/medical-notes/${noteId}/download`, {
+        method: 'GET',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to download note');
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Get filename from response headers or create a default one
+      const contentDisposition = response.headers.get('Content-Disposition');
+      const filename = contentDisposition 
+        ? contentDisposition.split('filename=')[1]?.replace(/"/g, '')
+        : `medical-note-${noteId}-${new Date().toISOString().split('T')[0]}.docx`;
+      
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Downloaded",
+        description: "Medical note downloaded successfully",
+      });
+      
+    } catch (error) {
+      console.error("Failed to download note:", error);
+      toast({
+        title: "Download Failed",
+        description: "Failed to download the medical note",
+        variant: "destructive",
+      });
+    } finally {
+      setDownloadingNote(null);
+    }
   };
 
   return (
@@ -290,6 +338,18 @@ export default function PatientDetails({ patientId }: PatientDetailsProps) {
                                     <Check className="h-4 w-4 text-green-500" />
                                   ) : (
                                     <Copy className="h-4 w-4" />
+                                  )}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDownloadNote(note.id)}
+                                  disabled={downloadingNote === note.id}
+                                >
+                                  {downloadingNote === note.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Download className="h-4 w-4" />
                                   )}
                                 </Button>
                                 <Badge variant="outline">{note.type || 'Note'}</Badge>
