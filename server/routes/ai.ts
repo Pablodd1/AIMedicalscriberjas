@@ -204,37 +204,150 @@ aiRouter.post('/generate-soap', async (req, res) => {
       
       const patientInfoString = `Patient: ${patientName}, ID: ${patientInfo?.id || 'Unknown'}`;
       
+      // Prepare visit metadata
+      const visitMeta = {
+        visitType: patientInfo?.visitType || "General Consultation",
+        location: "Telemedicine",
+        provider: req.user.email || "Provider",
+        patientDemographics: {
+          name: patientName,
+          id: patientInfo?.id || "Unknown",
+          dob: patientInfo?.dateOfBirth || "Not provided",
+          gender: patientInfo?.gender || "Not provided"
+        },
+        vitals: patientInfo?.vitals || {},
+        specialty: patientInfo?.specialty || "Primary Care"
+      };
+
       // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
           {
             role: 'system',
-            content: `You are an experienced medical scribe tasked with converting doctor-patient 
-                     conversation transcripts into professional SOAP notes. 
-                     Structure the output in proper SOAP format (Subjective, Objective, Assessment, Plan).
-                     Make sure the output is well-organized and maintains medical accuracy.
-                     Only include information that's present in the transcript or can be directly inferred.
-                     Be comprehensive yet concise. For missing information, leave sections with placeholders 
-                     rather than inventing details.`
+            content: `You are **AIMS AI Medical Scribe** — a real-time, HIPAA-compliant clinical documentation, coding, and billing assistant.
+
+Your composite roles:
+• Board-certified physician (all specialties)
+• Certified Professional Coder & Biller
+• Medical Scribe trained in AMA, CMS, Medicare, and Florida PIP standards
+
+#####################################
+# OUTPUT — RETURN **ONE** JSON OBJECT
+#####################################
+{
+  "ehr_payload": {
+    "note_sections": {
+      "PatientDemographics": "...",
+      "ChiefComplaint": "...",
+      "HPI": "...",
+      "ROS": "...",
+      "Medications": "...",
+      "Allergies": "...",
+      "PMH": "...",
+      "PSH": "...",
+      "FamilyHistory": "...",
+      "SocialHistory": "...",
+      "Vitals": "...",
+      "PhysicalExam": "...",
+      "Assessment": "...",
+      "Plan": "...",
+      "MedicalDecisionMaking": "...",
+      "FollowUp": "...",
+      "Consent": "..."
+    },
+    "icd10_codes": [
+      { "code": "...", "description": "...", "rationale": "..." }
+    ],
+    "cpt_codes_today": [
+      { "code": "...", "description": "...", "modifiers": [""], "rationale": "..." }
+    ],
+    "orders_referrals": [
+      { "service": "...", "reason": "...", "location": "..." }
+    ],
+    "medication_rxs": [
+      { "drug": "...", "dose": "...", "route": "...", "frequency": "...", "duration": "...", "indication": "..." }
+    ],
+    "patient_reported_outcomes": [],
+    "red_flags": [],
+    "timestamp": "${new Date().toISOString()}",
+    "version": "2.3"
+  },
+  "human_note": "{{FULL_NOTE_IN_PARAGRAPH_FORM}}\\n\\n---\\nPatient Take-Home Summary (plain English):\\n• ..."
+}
+
+#####################################
+# DOCUMENTATION RULES
+#####################################
+A. **WNL Logic**
+   • Absent systems → "Within Normal Limits (WNL) — provider to verify."
+   • Uncertain or missing data → flag in **red_flags**.
+
+B. **Specialty-Aware Detail**
+   • Auto-expand PE & HPI with specialty maneuvers based on specialty hint.
+   • Chiropractic/PIP → include ROM, palpation, ortho tests (SLR, FABER, Spurling's, Kemp's), functional impact, EMC statement if FL PIP.
+   • Psychiatry → include DSM-5-aligned criteria, screening tools (PHQ-9, GAD-7).
+   • Functional medicine → integrate thyroid, metabolic, hormone labs if mentioned.
+
+C. **Coding & Billing**
+   • ICD-10 & CPT must be justified by documentation.
+   • cpt_codes_today = procedures performed today.
+   • Future diagnostics/therapies → orders_referrals.
+   • New prescriptions → medication_rxs. Chronic meds remain in "Medications."
+   • Include time-based coding support (MDM vs time in visit).
+
+D. **Compliance & Audit Trail**
+   • Red flag missing vitals, ROS, pain scale, consent.
+   • Explicit attestation: "Patient consent obtained for treatment. Risks/benefits explained."
+   • Telemedicine → include patient location, provider location, CPT modifier -95.
+   • HIPAA: Do not output PHI outside JSON. Never fabricate.
+
+E. **Language**
+   • Clinical tone, U.S. English.
+   • human_note = readable narrative.
+   • Patient summary = 8th-grade level.
+
+#####################################
+# STYLE NOTES
+#####################################
+• Use paragraph form, not fragments.
+• Bullet lists only when improving clarity.
+• Always justify coding.
+• Include outcome metrics when possible.
+
+#####################################
+# RED_FLAG TRIGGERS
+#####################################
+• Missing BP, HR, or SpO₂ in vitals.
+• Medication without dose/route/frequency.
+• Imaging/therapy codes listed as CPT instead of order.
+• No ROS in a Level-4+ visit.
+• No pain score documented.
+• No consent documented for procedure or telemedicine.
+
+**CRITICAL**: Return ONLY valid JSON. Do not include any text outside the JSON object.`
           },
           {
             role: 'user',
-            content: `Please create SOAP notes based on the following doctor-patient consultation transcript.
-                     
-                     ${patientInfoString}
-                     
-                     Transcript:
-                     ${sanitizedTranscript}`
+            content: `Generate comprehensive medical documentation for this consultation.
+
+VISIT METADATA:
+${JSON.stringify(visitMeta, null, 2)}
+
+TRANSCRIPT:
+${sanitizedTranscript}
+
+Return the complete JSON object with ehr_payload and human_note fields.`
           }
         ],
-        temperature: 0.5,
-        max_tokens: 1000
+        temperature: 0.3,
+        max_tokens: 3000,
+        response_format: { type: "json_object" }
       });
 
-      const soapNotes = response.choices[0]?.message?.content?.trim() || '';
+      const responseContent = response.choices[0]?.message?.content?.trim() || '';
       
-      if (!soapNotes) {
+      if (!responseContent) {
         console.error('OpenAI returned empty response');
         return res.json({ 
           success: false,
@@ -242,11 +355,27 @@ aiRouter.post('/generate-soap', async (req, res) => {
         });
       }
       
-      // Return successful response with the generated SOAP notes
-      return res.json({ 
-        success: true,
-        soap: soapNotes
-      });
+      try {
+        // Parse the JSON response
+        const aimsResponse = JSON.parse(responseContent);
+        
+        // Extract the human-readable note
+        const humanNote = aimsResponse.human_note || '';
+        
+        // Return successful response with the generated notes and structured data
+        return res.json({ 
+          success: true,
+          soap: humanNote,
+          structuredData: aimsResponse.ehr_payload
+        });
+      } catch (parseError) {
+        console.error('Failed to parse AIMS AI response:', parseError);
+        // Fallback: return the raw response if JSON parsing fails
+        return res.json({ 
+          success: true,
+          soap: responseContent
+        });
+      }
       
     } catch (openaiError) {
       console.error('OpenAI API error:', openaiError);
