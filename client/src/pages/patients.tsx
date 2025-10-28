@@ -129,6 +129,55 @@ export default function Patients() {
     }
   };
 
+  // Mutation for importing patients
+  const importPatientsMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('/api/patients/import', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to import patients');
+      }
+      
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/patients"] });
+      
+      const { summary, failedImports } = data.data;
+      
+      if (summary.failed > 0) {
+        toast({
+          title: "Import Completed with Warnings",
+          description: `Successfully imported ${summary.successful} of ${summary.totalRows} patients. ${summary.failed} rows failed.`,
+        });
+        console.log('Failed imports:', failedImports);
+      } else {
+        toast({
+          title: "Import Successful",
+          description: `Successfully imported all ${summary.successful} patients`,
+        });
+      }
+      
+      setShowImportDialog(false);
+      setImportFile(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Import Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   // Function to process the imported file
   const processImport = () => {
     if (!importFile) {
@@ -140,16 +189,7 @@ export default function Patients() {
       return;
     }
 
-    // In a real implementation, this would parse the CSV and create patients
-    // For this example, we'll just show a success message
-    toast({
-      title: "Import Processing",
-      description: "Your file is being processed. Patients will be imported shortly.",
-    });
-    
-    // Close the import dialog
-    setShowImportDialog(false);
-    setImportFile(null);
+    importPatientsMutation.mutate(importFile);
   };
 
   const form = useForm({
@@ -495,8 +535,10 @@ const filteredPatients = patients?.filter((patient, index) => {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowImportDialog(false)}>Cancel</Button>
-            <Button onClick={processImport} disabled={!importFile}>Import</Button>
+            <Button variant="outline" onClick={() => setShowImportDialog(false)} disabled={importPatientsMutation.isPending}>Cancel</Button>
+            <Button onClick={processImport} disabled={!importFile || importPatientsMutation.isPending}>
+              {importPatientsMutation.isPending ? "Importing..." : "Import"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

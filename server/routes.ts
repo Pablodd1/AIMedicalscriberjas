@@ -20,6 +20,7 @@ import {
   AppError
 } from "./error-handler";
 import multer from "multer";
+import * as XLSX from 'xlsx';
 
 // Extend the global namespace to include our media storage
 declare global {
@@ -123,6 +124,128 @@ export async function registerRoutes(app: Express): Promise<Server> {
     );
     
     sendSuccessResponse(res, patient, 'Patient created successfully', 201);
+  }));
+
+  // Patient import from Excel
+  const excelUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 10 * 1024 * 1024, // 10MB max file size
+    },
+    fileFilter: (req, file, cb) => {
+      const allowedTypes = [
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      ];
+      if (allowedTypes.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error('Only Excel files (.xls, .xlsx) are allowed'));
+      }
+    },
+  });
+
+  app.post("/api/patients/import", requireAuth, excelUpload.single('file'), asyncHandler(async (req, res) => {
+    if (!req.file) {
+      throw new AppError('No file uploaded', 400, 'NO_FILE');
+    }
+
+    try {
+      // Parse the Excel file
+      const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      
+      // Convert to JSON
+      const rawData: any[] = XLSX.utils.sheet_to_json(worksheet);
+      
+      if (!rawData || rawData.length === 0) {
+        throw new AppError('Excel file is empty or has no valid data', 400, 'EMPTY_FILE');
+      }
+
+      const successfulImports: any[] = [];
+      const failedImports: any[] = [];
+
+      // Process each row
+      for (let i = 0; i < rawData.length; i++) {
+        const row = rawData[i];
+        
+        try {
+          // Map Excel columns to patient schema
+          // Expected columns: First Name, Last Name, Email, Phone, Date of Birth, Address, Medical History
+          const patientData = {
+            firstName: row['First Name'] || row['firstName'] || row['first_name'],
+            lastName: row['Last Name'] || row['lastName'] || row['last_name'] || '',
+            email: row['Email'] || row['email'],
+            phone: row['Phone'] || row['phone'] || '',
+            dateOfBirth: row['Date of Birth'] || row['dateOfBirth'] || row['date_of_birth'] || '',
+            address: row['Address'] || row['address'] || '',
+            medicalHistory: row['Medical History'] || row['medicalHistory'] || row['medical_history'] || '',
+          };
+
+          // Validate required fields
+          if (!patientData.firstName || !patientData.email) {
+            failedImports.push({
+              row: i + 2, // Excel row number (header is row 1)
+              data: row,
+              error: 'Missing required fields: First Name and Email are required',
+            });
+            continue;
+          }
+
+          // Validate with schema
+          const validation = validateRequestBody(insertPatientSchema, patientData);
+          if (!validation.success) {
+            failedImports.push({
+              row: i + 2,
+              data: row,
+              error: validation.error,
+            });
+            continue;
+          }
+
+          // Create patient
+          const patient = await storage.createPatient({
+            ...validation.data,
+            createdBy: req.user.id,
+          });
+          successfulImports.push({
+            row: i + 2,
+            patient: {
+              id: patient.id,
+              firstName: patient.firstName,
+              lastName: patient.lastName,
+              email: patient.email,
+            },
+          });
+        } catch (error) {
+          failedImports.push({
+            row: i + 2,
+            data: row,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+
+      // Send response with summary
+      sendSuccessResponse(res, {
+        summary: {
+          totalRows: rawData.length,
+          successful: successfulImports.length,
+          failed: failedImports.length,
+        },
+        successfulImports,
+        failedImports,
+      }, `Successfully imported ${successfulImports.length} of ${rawData.length} patients`, 200);
+      
+    } catch (error) {
+      console.error('Error processing Excel file:', error);
+      throw new AppError(
+        error instanceof Error ? error.message : 'Failed to process Excel file',
+        400,
+        'EXCEL_PROCESSING_ERROR'
+      );
+    }
   }));
 
   // Appointments routes
