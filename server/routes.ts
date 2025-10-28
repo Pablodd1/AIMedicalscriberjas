@@ -166,6 +166,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const successfulImports: any[] = [];
       const failedImports: any[] = [];
 
+      // Helper function to get value from row with various column name formats
+      const getColumnValue = (row: any, ...columnNames: string[]): string => {
+        for (const name of columnNames) {
+          // Try exact match
+          if (row[name] !== undefined && row[name] !== null && row[name] !== '') {
+            return String(row[name]).trim();
+          }
+          // Try trimmed version of all keys
+          const trimmedKey = Object.keys(row).find(key => key.trim().toLowerCase() === name.toLowerCase());
+          if (trimmedKey && row[trimmedKey] !== undefined && row[trimmedKey] !== null && row[trimmedKey] !== '') {
+            return String(row[trimmedKey]).trim();
+          }
+        }
+        return '';
+      };
+
       // Process each row
       for (let i = 0; i < rawData.length; i++) {
         const row = rawData[i];
@@ -174,13 +190,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Map Excel columns to patient schema
           // Expected columns: First Name, Last Name, Email, Phone, Date of Birth, Address, Medical History
           const patientData = {
-            firstName: row['First Name'] || row['firstName'] || row['first_name'],
-            lastName: row['Last Name'] || row['lastName'] || row['last_name'] || '',
-            email: row['Email'] || row['email'],
-            phone: row['Phone'] || row['phone'] || '',
-            dateOfBirth: row['Date of Birth'] || row['dateOfBirth'] || row['date_of_birth'] || '',
-            address: row['Address'] || row['address'] || '',
-            medicalHistory: row['Medical History'] || row['medicalHistory'] || row['medical_history'] || '',
+            firstName: getColumnValue(row, 'First Name', 'firstName', 'first_name'),
+            lastName: getColumnValue(row, 'Last Name', 'lastName', 'last_name'),
+            email: getColumnValue(row, 'Email', 'email'),
+            phone: getColumnValue(row, 'Phone', 'phone', 'phoneNumber', 'phone_number'),
+            dateOfBirth: getColumnValue(row, 'Date of Birth', 'dateOfBirth', 'date_of_birth', 'DOB', 'dob'),
+            address: getColumnValue(row, 'Address', 'address'),
+            medicalHistory: getColumnValue(row, 'Medical History', 'medicalHistory', 'medical_history'),
           };
 
           // Validate required fields
