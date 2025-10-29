@@ -641,12 +641,22 @@ export default function Appointments() {
                       <PopoverTrigger asChild>
                         <Button variant="outline" size="sm">
                           <Badge variant={
-                            appointment.status === "scheduled" ? "default" : 
-                            appointment.status === "completed" ? "success" : 
+                            appointment.status === "confirmed" ? "default" : 
+                            appointment.status === "pending_confirmation" ? "secondary" : 
+                            appointment.status === "declined" ? "destructive" : 
+                            appointment.status === "scheduled" ? "outline" : 
+                            appointment.status === "completed" ? "default" : 
                             appointment.status === "cancelled" ? "destructive" : 
                             "secondary"
-                          } className="mr-2">
-                            {appointment.status}
+                          } className={cn("mr-2", 
+                            appointment.status === "confirmed" && "bg-green-500 hover:bg-green-600",
+                            appointment.status === "pending_confirmation" && "bg-orange-500 hover:bg-orange-600 text-white",
+                            appointment.status === "declined" && "bg-red-500 hover:bg-red-600"
+                          )}>
+                            {appointment.status === "pending_confirmation" ? "Pending Confirmation" : 
+                             appointment.status === "confirmed" ? "Confirmed" : 
+                             appointment.status === "declined" ? "Declined" : 
+                             appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
                           </Badge>
                           Status
                         </Button>
@@ -655,6 +665,30 @@ export default function Appointments() {
                         <div className="space-y-4">
                           <h4 className="font-medium">Update Appointment Status</h4>
                           <div className="grid grid-cols-2 gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              className="justify-start" 
+                              onClick={() => updateAppointmentStatus(appointment.id, "pending_confirmation")}
+                            >
+                              Pending Confirmation
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              className="justify-start" 
+                              onClick={() => updateAppointmentStatus(appointment.id, "confirmed")}
+                            >
+                              Confirmed
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              className="justify-start" 
+                              onClick={() => updateAppointmentStatus(appointment.id, "declined")}
+                            >
+                              Declined
+                            </Button>
                             <Button 
                               variant="outline" 
                               size="sm"
