@@ -4,6 +4,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { FileStorage } from "./file-storage";
+import { CloudinaryStorage } from "./cloudinary-storage";
 import { aiRouter } from "./routes/ai";
 import { emailRouter, sendPatientEmail } from "./routes/email";
 import { monitoringRouter } from "./routes/monitoring";
@@ -1419,24 +1420,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const fileBuffer = req.file.buffer;
       const extension = req.file.originalname.split('.').pop() || 'webm';
       
-      console.log(`Saving ${mediaType} recording with extension ${extension}`);
+      console.log(`Uploading ${mediaType} recording to Cloudinary with extension ${extension}`);
       
-      // Save the file permanently to disk
-      const filepath = await FileStorage.saveRecording(
+      // Upload the file to Cloudinary
+      const cloudinaryUrl = await CloudinaryStorage.uploadRecording(
         recordingId,
         fileBuffer,
         mediaType,
         extension
       );
       
-      console.log(`Saved ${mediaType} recording to: ${filepath}`);
+      console.log(`Uploaded ${mediaType} recording to Cloudinary: ${cloudinaryUrl}`);
       
-      // Update the recording session with the appropriate URL
+      // Update the recording session with the Cloudinary URL
       const updateData: any = {};
       if (mediaType === 'audio') {
-        updateData.audioUrl = `/api/telemedicine/recordings/${recordingId}/audio`;
+        updateData.audioUrl = cloudinaryUrl;
       } else {
-        updateData.videoUrl = `/api/telemedicine/recordings/${recordingId}/video`;
+        updateData.videoUrl = cloudinaryUrl;
       }
       
       // Update the database record
@@ -1461,7 +1462,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Unauthorized" });
       }
       
-      const doctorId = req.user.id;
+      const doctorId = req.user!.id;
       const recordingId = parseInt(req.params.id);
       
       if (isNaN(recordingId)) {
@@ -1479,7 +1480,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: 'You do not have permission to access this recording' });
       }
       
-      // Retrieve the recording from file storage
+      // If we have a Cloudinary URL, redirect to it
+      if (recording.audioUrl && recording.audioUrl.includes('cloudinary.com')) {
+        return res.redirect(recording.audioUrl);
+      }
+      
+      // Fallback: try to retrieve from local file storage
       const audioBuffer = await FileStorage.getRecording(recordingId, 'audio');
       
       if (!audioBuffer) {
@@ -1510,7 +1516,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Unauthorized" });
       }
       
-      const doctorId = req.user.id;
+      const doctorId = req.user!.id;
       const recordingId = parseInt(req.params.id);
       
       if (isNaN(recordingId)) {
@@ -1528,7 +1534,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: 'You do not have permission to access this recording' });
       }
       
-      // Retrieve the recording from file storage
+      // If we have a Cloudinary URL, redirect to it
+      if (recording.videoUrl && recording.videoUrl.includes('cloudinary.com')) {
+        return res.redirect(recording.videoUrl);
+      }
+      
+      // Fallback: try to retrieve from local file storage
       const videoBuffer = await FileStorage.getRecording(recordingId, 'video');
       
       if (!videoBuffer) {
