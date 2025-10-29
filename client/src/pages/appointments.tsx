@@ -798,22 +798,37 @@ export default function Appointments() {
                     )}
                   </div>
 
-                  <div className="mt-1 overflow-y-auto max-h-16">
-                    {day.appointments.slice(0, 2).map((appointment, i) => (
-                      <div
-                        key={i}
-                        className="text-xs p-1 mb-1 bg-blue-500 text-white rounded truncate"
-                        title={`${(() => {
-                          const patient = patients?.find(p => p.id === appointment.patientId);
-                          return patient ? `${patient.firstName} ${patient.lastName || ''}` : '';
-                        })()} - ${format(new Date(appointment.date), 'p')}`}
-                      >
-                        {format(new Date(appointment.date), 'p')} - {(() => {
-                          const patient = patients?.find(p => p.id === appointment.patientId);
-                          return patient ? `${patient.firstName} ${patient.lastName || ''}` : '';
-                        })()}
-                      </div>
-                    ))}
+                  <div className="mt-1 overflow-y-auto max-h-16 space-y-1">
+                    {day.appointments.slice(0, 2).map((appointment, i) => {
+                      const patient = patients?.find(p => p.id === appointment.patientId);
+                      const patientName = patient ? `${patient.firstName} ${patient.lastName || ''}` : '';
+                      const patientStatus = (appointment as any).patientConfirmationStatus || 'pending_confirmation';
+                      
+                      return (
+                        <div
+                          key={i}
+                          className={cn(
+                            "text-xs p-1 mb-1 text-white rounded truncate",
+                            appointment.status === "completed" ? "bg-green-600" :
+                            appointment.status === "cancelled" ? "bg-red-600" :
+                            "bg-blue-500"
+                          )}
+                          title={`${patientName} - ${format(new Date(appointment.date), 'p')}
+Patient: ${patientStatus === 'confirmed' ? 'Confirmed' : patientStatus === 'declined' ? 'Declined' : 'Pending'}
+Status: ${appointment.status}`}
+                        >
+                          <div className="flex items-center gap-1">
+                            <span className={cn(
+                              "inline-block w-2 h-2 rounded-full flex-shrink-0",
+                              patientStatus === "confirmed" && "bg-green-300",
+                              patientStatus === "pending_confirmation" && "bg-orange-300",
+                              patientStatus === "declined" && "bg-red-300"
+                            )} />
+                            <span className="truncate">{format(new Date(appointment.date), 'p')} - {patientName}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
                     {day.appointments.length > 2 && (
                       <div className="text-xs text-muted-foreground">
                         +{day.appointments.length - 2} more
@@ -1051,12 +1066,29 @@ export default function Appointments() {
                         })()}
                       </p>
                       <Badge variant={
-                        appointment.status === "scheduled" ? "default" : 
-                        appointment.status === "completed" ? "success" : 
+                        appointment.status === "scheduled" ? "outline" : 
+                        appointment.status === "completed" ? "default" : 
                         appointment.status === "cancelled" ? "destructive" : 
                         "secondary"
-                      }>
+                      } className={cn(
+                        appointment.status === "completed" && "bg-blue-500"
+                      )}>
                         {appointment.status}
+                      </Badge>
+                      <Badge variant={
+                        (appointment as any).patientConfirmationStatus === "confirmed" ? "default" : 
+                        (appointment as any).patientConfirmationStatus === "pending_confirmation" ? "secondary" : 
+                        (appointment as any).patientConfirmationStatus === "declined" ? "destructive" : 
+                        "secondary"
+                      } className={cn("text-xs",
+                        (appointment as any).patientConfirmationStatus === "confirmed" && "bg-green-500 hover:bg-green-600 text-white",
+                        (appointment as any).patientConfirmationStatus === "pending_confirmation" && "bg-orange-500 hover:bg-orange-600 text-white",
+                        (appointment as any).patientConfirmationStatus === "declined" && "bg-red-500 hover:bg-red-600 text-white"
+                      )}>
+                        Patient: {(appointment as any).patientConfirmationStatus === "pending_confirmation" ? "Pending" : 
+                                 (appointment as any).patientConfirmationStatus === "confirmed" ? "Confirmed" : 
+                                 (appointment as any).patientConfirmationStatus === "declined" ? "Declined" : 
+                                 (appointment as any).patientConfirmationStatus || 'Pending'}
                       </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">

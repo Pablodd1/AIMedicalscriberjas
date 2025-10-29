@@ -265,7 +265,8 @@ emailRouter.post("/send-patient-list", async (req: any, res) => {
     emailHtml += `<th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb;">Patient Name</th>`;
     emailHtml += `<th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb;">Contact</th>`;
     emailHtml += `<th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb;">Reason</th>`;
-    emailHtml += `<th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb;">Status</th>`;
+    emailHtml += `<th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb;">Patient Response</th>`;
+    emailHtml += `<th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb;">Appt Status</th>`;
     emailHtml += `</tr></thead><tbody>`;
     
     appointmentsWithPatients.forEach((apt, index) => {
@@ -280,31 +281,44 @@ emailRouter.post("/send-patient-list", async (req: any, res) => {
       const email = apt.patient?.email || 'N/A';
       const reason = apt.reason || 'General Consultation';
       const status = apt.status || 'scheduled';
+      const patientConfirmStatus = (apt as any).patientConfirmationStatus || 'pending_confirmation';
+      
+      // Format patient confirmation status for display
+      const patientStatusDisplay = patientConfirmStatus === 'confirmed' ? 'Confirmed ✓' : 
+                                    patientConfirmStatus === 'declined' ? 'Declined ✗' : 
+                                    'Pending ⏳';
       
       // Text version
       emailText += `${index + 1}. ${time} - ${patientName}\n`;
       emailText += `   Phone: ${phone}\n`;
       emailText += `   Email: ${email}\n`;
       emailText += `   Reason: ${reason}\n`;
-      emailText += `   Status: ${status}\n`;
+      emailText += `   Patient Response: ${patientStatusDisplay}\n`;
+      emailText += `   Appointment Status: ${status}\n`;
       if (apt.notes) {
         emailText += `   Notes: ${apt.notes}\n`;
       }
       emailText += `\n`;
       
-      // HTML version
+      // HTML version with color coding for patient response
       const rowBg = index % 2 === 0 ? '#ffffff' : '#f9fafb';
+      const patientStatusBg = patientConfirmStatus === 'confirmed' ? '#22c55e' : 
+                              patientConfirmStatus === 'declined' ? '#ef4444' : 
+                              '#f97316';
+      const patientStatusColor = '#ffffff';
+      
       emailHtml += `<tr style="background-color: ${rowBg};">`;
       emailHtml += `<td style="padding: 12px; border: 1px solid #e5e7eb;">${time}</td>`;
       emailHtml += `<td style="padding: 12px; border: 1px solid #e5e7eb;"><strong>${patientName}</strong></td>`;
       emailHtml += `<td style="padding: 12px; border: 1px solid #e5e7eb;">📞 ${phone}<br />📧 ${email}</td>`;
       emailHtml += `<td style="padding: 12px; border: 1px solid #e5e7eb;">${reason}</td>`;
+      emailHtml += `<td style="padding: 12px; border: 1px solid #e5e7eb;"><span style="padding: 4px 8px; background-color: ${patientStatusBg}; color: ${patientStatusColor}; border-radius: 4px; font-size: 12px; font-weight: bold;">${patientStatusDisplay}</span></td>`;
       emailHtml += `<td style="padding: 12px; border: 1px solid #e5e7eb;"><span style="padding: 4px 8px; background-color: #e0f2fe; color: #0369a1; border-radius: 4px; font-size: 12px;">${status}</span></td>`;
       emailHtml += `</tr>`;
       
       if (apt.notes) {
         emailHtml += `<tr style="background-color: ${rowBg};">`;
-        emailHtml += `<td colspan="5" style="padding: 8px 12px; border: 1px solid #e5e7eb; font-size: 12px; color: #6b7280;"><strong>Notes:</strong> ${apt.notes}</td>`;
+        emailHtml += `<td colspan="6" style="padding: 8px 12px; border: 1px solid #e5e7eb; font-size: 12px; color: #6b7280;"><strong>Notes:</strong> ${apt.notes}</td>`;
         emailHtml += `</tr>`;
       }
     });
