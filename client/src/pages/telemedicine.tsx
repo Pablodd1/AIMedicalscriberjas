@@ -545,18 +545,14 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             setTranscription(data.text);
 
             // Update transcript in the recording session
-            if (recordingResponse.ok) {
-              const recordingData = await recordingResponse.json();
-              
-              if (recordingData.id) {
-                await fetch(`/api/telemedicine/recordings/${recordingData.id}/transcript`, {
-                  method: 'PATCH',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({ transcript: data.text }),
-                });
-              }
+            if (recordingData && recordingData.id) {
+              await fetch(`/api/telemedicine/recordings/${recordingData.id}/transcript`, {
+                method: 'PATCH',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ transcript: data.text }),
+              });
             }
 
             toast({
