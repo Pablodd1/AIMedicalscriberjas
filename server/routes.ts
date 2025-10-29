@@ -4,7 +4,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { aiRouter } from "./routes/ai";
-import { emailRouter } from "./routes/email";
+import { emailRouter, sendPatientEmail } from "./routes/email";
 import { monitoringRouter } from "./routes/monitoring";
 import { labInterpreterRouter } from "./routes/lab-interpreter";
 import { patientDocumentsRouter } from "./routes/patient-documents-updated";
@@ -296,6 +296,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       'Failed to create appointment'
     );
     
+    // Send confirmation email to patient
+    try {
+      const patient = await storage.getPatient(appointment.patientId);
+      if (patient && patient.email) {
+        const appointmentDate = new Date(appointment.date);
+        await sendPatientEmail(
+          patient.email,
+          `${patient.firstName} ${patient.lastName || ''}`.trim(),
+          'appointmentConfirmation',
+          {
+            patientName: `${patient.firstName} ${patient.lastName || ''}`.trim(),
+            appointmentDate: appointmentDate.toLocaleDateString(),
+            appointmentTime: appointmentDate.toLocaleTimeString(),
+            notes: appointment.notes || 'No additional notes'
+          }
+        );
+      }
+    } catch (emailError) {
+      console.error('Failed to send confirmation email:', emailError);
+      // Don't fail the request if email fails
+    }
+    
     sendSuccessResponse(res, appointment, 'Appointment created successfully', 201);
   }));
 
@@ -348,6 +370,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       throw new AppError('Appointment not found', 404, 'APPOINTMENT_NOT_FOUND');
     }
     
+    // Send rescheduled email to patient
+    try {
+      const patient = await storage.getPatient(updatedAppointment.patientId);
+      if (patient && patient.email) {
+        const appointmentDate = new Date(updatedAppointment.date);
+        await sendPatientEmail(
+          patient.email,
+          `${patient.firstName} ${patient.lastName || ''}`.trim(),
+          'appointmentRescheduled',
+          {
+            patientName: `${patient.firstName} ${patient.lastName || ''}`.trim(),
+            appointmentDate: appointmentDate.toLocaleDateString(),
+            appointmentTime: appointmentDate.toLocaleTimeString(),
+            notes: updatedAppointment.notes || 'No additional notes'
+          }
+        );
+      }
+    } catch (emailError) {
+      console.error('Failed to send rescheduled email:', emailError);
+      // Don't fail the request if email fails
+    }
+    
     sendSuccessResponse(res, updatedAppointment, 'Appointment updated successfully');
   }));
 
@@ -358,6 +402,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       throw new AppError('Invalid appointment ID', 400, 'INVALID_APPOINTMENT_ID');
     }
     
+    // Get appointment details before deleting (for email notification)
+    const appointment = await handleDatabaseOperation(
+      () => storage.getAppointment(appointmentId),
+      'Failed to fetch appointment'
+    );
+    
+    if (!appointment) {
+      throw new AppError('Appointment not found', 404, 'APPOINTMENT_NOT_FOUND');
+    }
+    
     const deleted = await handleDatabaseOperation(
       () => storage.deleteAppointment(appointmentId),
       'Failed to delete appointment'
@@ -365,6 +419,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     if (!deleted) {
       throw new AppError('Appointment not found', 404, 'APPOINTMENT_NOT_FOUND');
+    }
+    
+    // Send cancellation email to patient
+    try {
+      const patient = await storage.getPatient(appointment.patientId);
+      if (patient && patient.email) {
+        const appointmentDate = new Date(appointment.date);
+        await sendPatientEmail(
+          patient.email,
+          `${patient.firstName} ${patient.lastName || ''}`.trim(),
+          'appointmentCancellation',
+          {
+            patientName: `${patient.firstName} ${patient.lastName || ''}`.trim(),
+            appointmentDate: appointmentDate.toLocaleDateString(),
+            appointmentTime: appointmentDate.toLocaleTimeString(),
+            notes: appointment.notes || 'No additional notes'
+          }
+        );
+      }
+    } catch (emailError) {
+      console.error('Failed to send cancellation email:', emailError);
+      // Don't fail the request if email fails
     }
     
     sendSuccessResponse(res, { id: appointmentId }, 'Appointment deleted successfully');
