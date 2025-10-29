@@ -272,22 +272,24 @@ export default function Appointments() {
 
   const sendPatientListMutation = useMutation({
     mutationFn: async ({ date, email }: { date: Date, email: string }) => {
-      try {
-        const res = await apiRequest("POST", "/api/settings/send-patient-list", {
+      // Use fetch directly to handle both success and failure cases
+      const res = await fetch("/api/settings/send-patient-list", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           date: date.toISOString(),
           doctorEmail: email,
-        });
-        
-        if (!res.ok) {
-          throw new Error(`Failed to send patient list: ${res.statusText}`);
-        }
-        
-        const data = await res.json();
-        return data;
-      } catch (error: any) {
-        console.error('Send patient list error:', error);
-        throw error;
+        }),
+        credentials: "include",
+      });
+      
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Failed to send: ${res.statusText}`);
       }
+      
+      const data = await res.json();
+      return data;
     },
     onSuccess: (data) => {
       if (data.success === false) {
