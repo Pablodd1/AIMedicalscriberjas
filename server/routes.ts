@@ -313,17 +313,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (patient && patient.email) {
         const appointmentDate = new Date(appointment.date);
         
-        // Get the correct base URL for both development and deployed environments
-        // REPLIT_DOMAINS contains all domains including custom domains (comma-separated)
-        let baseUrl = 'http://localhost:5000';
-        if (process.env.REPLIT_DOMAINS) {
-          // Use the first domain from the list (usually the primary/custom domain)
-          const domains = process.env.REPLIT_DOMAINS.split(',');
-          baseUrl = `https://${domains[0].trim()}`;
-        } else if (process.env.REPL_SLUG && process.env.REPL_OWNER) {
-          // Fallback to default repl.co domain
-          baseUrl = `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
-        }
+        // Get the correct base URL
+        // Use custom domain in production, localhost in development
+        const baseUrl = process.env.REPLIT_DEPLOYMENT === '1' 
+          ? 'https://aimstalk.live'
+          : 'http://localhost:5000';
         
         await sendPatientEmail(
           patient.email,
