@@ -443,6 +443,8 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             // Extract audio track for transcription (if we have video)
             let audioBlob = recordingBlob;
             
+            console.log(`Preparing to upload ${isVideoRecording ? 'video' : 'audio'} recording, blob size: ${recordingBlob.size} bytes`);
+            
             if (isVideoRecording) {
               // For video, we need to extract audio for transcription
               // But we'll also keep the video for download
@@ -456,6 +458,8 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
               videoFormData.append('media', recordingBlob, `video_${recordingData.id}.${fileExt}`);
               videoFormData.append('type', 'video');
               
+              console.log(`Uploading video to /api/telemedicine/recordings/${recordingData.id}/media`);
+              
               try {
                 const videoUploadResponse = await fetch(`/api/telemedicine/recordings/${recordingData.id}/media`, {
                   method: 'POST',
@@ -463,18 +467,35 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                 });
                 
                 if (!videoUploadResponse.ok) {
-                  console.warn('Failed to upload video file:', await videoUploadResponse.text());
+                  const errorText = await videoUploadResponse.text();
+                  console.error('Failed to upload video file:', errorText);
+                  toast({
+                    title: "Upload Failed",
+                    description: `Video upload failed: ${errorText}`,
+                    variant: "destructive"
+                  });
                 } else {
                   console.log('Video recording uploaded successfully');
+                  toast({
+                    title: "Upload Complete",
+                    description: "Video recording saved successfully",
+                  });
                 }
               } catch (error) {
                 console.error('Error uploading video recording:', error);
+                toast({
+                  title: "Upload Error",
+                  description: `Failed to upload video: ${error}`,
+                  variant: "destructive"
+                });
               }
             } else {
               // Upload the audio file to the server
               const audioFormData = new FormData();
               audioFormData.append('media', audioBlob, `audio_${recordingData.id}.${fileExt}`);
               audioFormData.append('type', 'audio');
+              
+              console.log(`Uploading audio to /api/telemedicine/recordings/${recordingData.id}/media`);
               
               try {
                 const audioUploadResponse = await fetch(`/api/telemedicine/recordings/${recordingData.id}/media`, {
@@ -483,12 +504,27 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                 });
                 
                 if (!audioUploadResponse.ok) {
-                  console.warn('Failed to upload audio file:', await audioUploadResponse.text());
+                  const errorText = await audioUploadResponse.text();
+                  console.error('Failed to upload audio file:', errorText);
+                  toast({
+                    title: "Upload Failed",
+                    description: `Audio upload failed: ${errorText}`,
+                    variant: "destructive"
+                  });
                 } else {
                   console.log('Audio recording uploaded successfully');
+                  toast({
+                    title: "Upload Complete",
+                    description: "Audio recording saved successfully",
+                  });
                 }
               } catch (error) {
                 console.error('Error uploading audio recording:', error);
+                toast({
+                  title: "Upload Error",
+                  description: `Failed to upload audio: ${error}`,
+                  variant: "destructive"
+                });
               }
             }
 
