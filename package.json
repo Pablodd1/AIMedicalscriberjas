@@ -60,6 +60,7 @@
     "@types/pg": "^8.15.4",
     "@types/react-signature-canvas": "^1.0.7",
     "class-variance-authority": "^0.7.0",
+    "cloudinary": "^2.8.0",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
     "connect-pg-simple": "^10.0.0",
