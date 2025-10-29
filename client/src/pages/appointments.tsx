@@ -79,6 +79,18 @@ export default function Appointments() {
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
+  // Initialize form when editing an appointment
+  React.useEffect(() => {
+    if (editingAppointment && isEditDialogOpen) {
+      form.reset({
+        patientId: editingAppointment.patientId,
+        doctorId: editingAppointment.doctorId,
+        date: new Date(editingAppointment.date).getTime(),
+        notes: editingAppointment.notes || '',
+      });
+    }
+  }, [editingAppointment, isEditDialogOpen]);
+
   // Helper functions for calendar view
   const navigateMonth = (direction: 'next' | 'prev') => {
     setCurrentMonth(direction === 'next' 
@@ -653,19 +665,9 @@ export default function Appointments() {
                 <FormField
                   control={form.control}
                   name="date"
-                  render={({ field }) => {
-                    // Initialize the field value from editingAppointment
-                    React.useEffect(() => {
-                      if (editingAppointment) {
-                        form.setValue('patientId', editingAppointment.patientId);
-                        form.setValue('date', new Date(editingAppointment.date).getTime());
-                        form.setValue('notes', editingAppointment.notes || '');
-                      }
-                    }, [editingAppointment]);
-
-                    return (
-                      <FormItem className="flex flex-col">
-                        <FormLabel>Date & Time</FormLabel>
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Date & Time</FormLabel>
                         <Popover>
                           <PopoverTrigger asChild>
                             <FormControl>
@@ -749,8 +751,7 @@ export default function Appointments() {
                         </Popover>
                         <FormMessage />
                       </FormItem>
-                    );
-                  }}
+                  )}
                 />
                 <FormField
                   control={form.control}
