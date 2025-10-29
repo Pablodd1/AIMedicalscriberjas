@@ -947,6 +947,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Custom note prompts routes
+  app.get("/api/custom-note-prompts", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const userId = req.user!.id;
+      const prompts = await storage.getCustomNotePrompts(userId);
+      res.json(prompts);
+    } catch (error) {
+      console.error("Error fetching custom note prompts:", error);
+      res.status(500).json({ message: "Failed to fetch custom note prompts" });
+    }
+  });
+
+  app.get("/api/custom-note-prompts/:noteType", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const userId = req.user!.id;
+      const { noteType } = req.params;
+      const prompt = await storage.getCustomNotePrompt(userId, noteType);
+      res.json(prompt || null);
+    } catch (error) {
+      console.error("Error fetching custom note prompt:", error);
+      res.status(500).json({ message: "Failed to fetch custom note prompt" });
+    }
+  });
+
+  app.post("/api/custom-note-prompts", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const userId = req.user!.id;
+      const { noteType, systemPrompt, templateContent } = req.body;
+      
+      const prompt = await storage.saveCustomNotePrompt({
+        userId,
+        noteType,
+        systemPrompt,
+        templateContent,
+      });
+      
+      res.json(prompt);
+    } catch (error) {
+      console.error("Error saving custom note prompt:", error);
+      res.status(500).json({ message: "Failed to save custom note prompt" });
+    }
+  });
+
+  app.delete("/api/custom-note-prompts/:noteType", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const userId = req.user!.id;
+      const { noteType } = req.params;
+      await storage.deleteCustomNotePrompt(userId, noteType);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting custom note prompt:", error);
+      res.status(500).json({ message: "Failed to delete custom note prompt" });
+    }
+  });
+
   // User API Key management routes
   app.get("/api/user/api-key", async (req, res) => {
     try {

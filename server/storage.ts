@@ -25,6 +25,7 @@ import {
   patientActivity,
   prescriptions,
   medicalHistoryEntries,
+  customNotePrompts,
   type User, 
   type InsertUser, 
   type Patient, 
@@ -74,7 +75,9 @@ import {
   type Prescription,
   type InsertPrescription,
   type MedicalHistoryEntry,
-  type InsertMedicalHistoryEntry
+  type InsertMedicalHistoryEntry,
+  type CustomNotePrompt,
+  type InsertCustomNotePrompt
 } from "@shared/schema";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
@@ -220,6 +223,12 @@ export interface IStorage {
   createMedicalHistoryEntry(entry: InsertMedicalHistoryEntry): Promise<MedicalHistoryEntry>;
   updateMedicalHistoryEntry(id: number, entry: Partial<InsertMedicalHistoryEntry>): Promise<MedicalHistoryEntry | undefined>;
   deleteMedicalHistoryEntry(id: number): Promise<void>;
+
+  // Custom note prompts methods
+  getCustomNotePrompt(userId: number, noteType: string): Promise<CustomNotePrompt | undefined>;
+  getCustomNotePrompts(userId: number): Promise<CustomNotePrompt[]>;
+  saveCustomNotePrompt(prompt: InsertCustomNotePrompt): Promise<CustomNotePrompt>;
+  deleteCustomNotePrompt(userId: number, noteType: string): Promise<void>;
 
   sessionStore: session.Store;
 }
@@ -1570,6 +1579,63 @@ export class DatabaseStorage implements IStorage {
 
   async deleteMedicalHistoryEntry(id: number): Promise<void> {
     await db.delete(medicalHistoryEntries).where(eq(medicalHistoryEntries.id, id));
+  }
+
+  // Custom note prompts methods
+  async getCustomNotePrompt(userId: number, noteType: string): Promise<CustomNotePrompt | undefined> {
+    const [prompt] = await db
+      .select()
+      .from(customNotePrompts)
+      .where(and(
+        eq(customNotePrompts.userId, userId),
+        eq(customNotePrompts.noteType, noteType)
+      ));
+    return prompt;
+  }
+
+  async getCustomNotePrompts(userId: number): Promise<CustomNotePrompt[]> {
+    return await db
+      .select()
+      .from(customNotePrompts)
+      .where(eq(customNotePrompts.userId, userId));
+  }
+
+  async saveCustomNotePrompt(prompt: InsertCustomNotePrompt): Promise<CustomNotePrompt> {
+    // Check if a prompt already exists for this user and note type
+    const existing = await this.getCustomNotePrompt(prompt.userId, prompt.noteType);
+    
+    if (existing) {
+      // Update existing prompt
+      const [updated] = await db
+        .update(customNotePrompts)
+        .set({
+          systemPrompt: prompt.systemPrompt,
+          templateContent: prompt.templateContent,
+          updatedAt: new Date(),
+        })
+        .where(and(
+          eq(customNotePrompts.userId, prompt.userId),
+          eq(customNotePrompts.noteType, prompt.noteType)
+        ))
+        .returning();
+      return updated;
+    } else {
+      // Create new prompt
+      const [created] = await db
+        .insert(customNotePrompts)
+        .values(prompt)
+        .returning();
+      return created;
+    }
+  }
+
+  async deleteCustomNotePrompt(userId: number, noteType: string): Promise<void> {
+    await db
+      .delete(customNotePrompts)
+      .where(and(
+        eq(customNotePrompts.userId, userId),
+        eq(customNotePrompts.noteType, noteType)
+      ));
   }
 }
 
