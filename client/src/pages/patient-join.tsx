@@ -15,13 +15,39 @@ import { recordingService } from "@/lib/recording-service";
 
 // Array of standard intake questions
 const DEFAULT_QUESTIONS = [
-  { id: "reason", text: "What is the reason for your visit today?" },
-  { id: "symptoms", text: "What symptoms are you experiencing and how long have they been present?" },
-  { id: "medical_history", text: "Do you have any pre-existing medical conditions?" },
-  { id: "medications", text: "Are you currently taking any medications? If so, please list them." },
-  { id: "allergies", text: "Do you have any allergies to medications or other substances?" },
-  { id: "family_history", text: "Is there any relevant family medical history we should know about?" },
-  { id: "lifestyle", text: "Please describe your lifestyle (exercise, diet, smoking, alcohol, etc.)" },
+  { id: "full_name", text: "Please state your full name.", mandatory: true },
+  { id: "date_of_birth", text: "What is your date of birth?", mandatory: true },
+  { id: "gender", text: "What is your gender?", mandatory: true },
+  { id: "email", text: "What is your email address?", mandatory: true },
+  { id: "phone", text: "What is your phone number?", mandatory: true },
+  { id: "emergency_contact", text: "Please provide phone number of an emergency contact.", mandatory: true },
+  { id: "address", text: "What is your address?", mandatory: false },
+  { id: "insurance_provider", text: "Who is your insurance provider?", mandatory: false },
+  { id: "insurance_policy_number", text: "What is your insurance policy number?", mandatory: false },
+  { id: "policy_holder_name", text: "What is your Policy Holder Name?", mandatory: false },
+  { id: "group_number", text: "What is your group number?", mandatory: false },
+  { id: "primary_care_physician", text: "Who is your primary care physician?", mandatory: false },
+  { id: "current_medications", text: "Please list any medications you are currently taking.", mandatory: false },
+  { id: "allergies", text: "Do you have any allergies to medications, food, or other substances?", mandatory: false },
+  { id: "chronic_conditions", text: "Do you have any chronic medical conditions?", mandatory: false },
+  { id: "past_surgeries", text: "Have you had any surgeries in the past?", mandatory: false },
+  { id: "family_medical_history", text: "Is there any significant family medical history we should be aware of?", mandatory: false },
+  { id: "reason_for_visit", text: "What brings you in today?", mandatory: false },
+  { id: "symptom_description", text: "Can you describe your symptoms in detail?", mandatory: false },
+  { id: "symptom_duration", text: "How long have you been experiencing these symptoms?", mandatory: false },
+  { id: "symptom_severity", text: "On a scale of 1 to 10, how severe are your symptoms?", mandatory: false },
+  { id: "symptoms_before", text: "Have you experienced these symptoms before?", mandatory: false },
+  { id: "symptom_triggers", text: "Is there anything that makes the symptoms better or worse?", mandatory: false },
+  { id: "occupation", text: "What is your current occupation?", mandatory: false },
+  { id: "lifestyle_habits", text: "Do you smoke, drink alcohol, or use recreational drugs?", mandatory: false },
+  { id: "exercise_diet", text: "How often do you exercise, and what does your diet typically consist of?", mandatory: false },
+  { id: "living_arrangement", text: "Do you live alone, with family, or in another arrangement?", mandatory: false },
+  { id: "weight_fever_fatigue", text: "Have you experienced any weight loss, fever, or fatigue recently?", mandatory: false },
+  { id: "chest_pain_history", text: "Any history of chest pain, palpitations, or swelling in the legs?", mandatory: false },
+  { id: "respiratory_symptoms", text: "Any cough, shortness of breath, or wheezing?", mandatory: false },
+  { id: "gastrointestinal_symptoms", text: "Any nausea, vomiting, diarrhea, or constipation?", mandatory: false },
+  { id: "musculoskeletal_symptoms", text: "Any joint pain, muscle aches, or weakness?", mandatory: false },
+  { id: "neurological_symptoms", text: "Any headaches, dizziness, or numbness?", mandatory: false },
 ];
 
 export default function PatientJoinPage() {
@@ -150,15 +176,12 @@ export default function PatientJoinPage() {
 
   // Update the allQuestionsAnswered state whenever questionResponses changes
   useEffect(() => {
-    if (Object.keys(questionResponses).length === DEFAULT_QUESTIONS.length) {
-      // Check if all questions have answers
-      const allAnswered = DEFAULT_QUESTIONS.every(q => 
-        questionResponses[q.id] && questionResponses[q.id].answer.trim().length > 0
-      );
-      setAllQuestionsAnswered(allAnswered);
-    } else {
-      setAllQuestionsAnswered(false);
-    }
+    // Check if all mandatory questions have answers
+    const mandatoryQuestions = DEFAULT_QUESTIONS.filter(q => q.mandatory);
+    const allMandatoryAnswered = mandatoryQuestions.every(q => 
+      questionResponses[q.id] && questionResponses[q.id].answer.trim().length > 0
+    );
+    setAllQuestionsAnswered(allMandatoryAnswered);
   }, [questionResponses]);
 
   // Start audio recording
@@ -184,19 +207,31 @@ export default function PatientJoinPage() {
 
   // Save the current question's answer
   const saveCurrentAnswer = () => {
-    if (!textareaRef.current) return;
+    if (!textareaRef.current) return false;
     
     const answer = textareaRef.current.value.trim();
-    if (answer.length === 0) return;
-    
     const currentQuestionData = DEFAULT_QUESTIONS[currentQuestion];
+    
+    // Check if mandatory field is empty
+    if (currentQuestionData.mandatory && answer.length === 0) {
+      toast({
+        title: "Required field",
+        description: "This question is mandatory. Please provide an answer before continuing.",
+        variant: "destructive",
+      });
+      return false;
+    }
+    
+    if (answer.length === 0) return true; // Allow skipping optional questions
     
     setQuestionResponses(prev => ({
       ...prev,
       [currentQuestionData.id]: {
         ...prev[currentQuestionData.id],
         answer,
-        answerType: prev[currentQuestionData.id]?.answerType || "text"
+        answerType: prev[currentQuestionData.id]?.answerType || "text",
+        questionId: currentQuestion + 1,
+        question: currentQuestionData.text
       }
     }));
     
@@ -208,6 +243,8 @@ export default function PatientJoinPage() {
         textareaRef.current.value = questionResponses[DEFAULT_QUESTIONS[currentQuestion + 1]?.id]?.answer || "";
       }
     }
+    
+    return true;
   };
 
   // Navigate to previous question
@@ -224,16 +261,33 @@ export default function PatientJoinPage() {
 
   // Navigate to next question
   const handleNextQuestion = () => {
-    // Save current answer first
-    saveCurrentAnswer();
+    // Save current answer first - only proceed if validation passes
+    const isValid = saveCurrentAnswer();
+    if (!isValid) return;
   };
 
   // Submit all answers to complete the form
   const handleCompleteForm = async () => {
     if (!formData) return;
     
-    // Save the current answer first
-    saveCurrentAnswer();
+    // Validate current answer before submitting
+    const isValid = saveCurrentAnswer();
+    if (!isValid) return;
+    
+    // Check all mandatory fields one more time
+    const mandatoryQuestions = DEFAULT_QUESTIONS.filter(q => q.mandatory);
+    const missingMandatory = mandatoryQuestions.filter(q => 
+      !questionResponses[q.id] || !questionResponses[q.id].answer.trim()
+    );
+    
+    if (missingMandatory.length > 0) {
+      toast({
+        title: "Missing required fields",
+        description: `Please answer all mandatory questions before submitting. Missing: ${missingMandatory.map(q => `Q${DEFAULT_QUESTIONS.indexOf(q) + 1}`).join(', ')}`,
+        variant: "destructive",
+      });
+      return;
+    }
     
     setIsSubmitting(true);
     
@@ -369,15 +423,24 @@ export default function PatientJoinPage() {
           </div>
 
           <div className="mb-6">
-            <Label className="text-lg mb-2 block">{DEFAULT_QUESTIONS[currentQuestion].text}</Label>
+            <Label className="text-lg mb-2 block">
+              {DEFAULT_QUESTIONS[currentQuestion].text}
+              {DEFAULT_QUESTIONS[currentQuestion].mandatory && (
+                <span className="text-red-500 ml-1">*</span>
+              )}
+            </Label>
+            {DEFAULT_QUESTIONS[currentQuestion].mandatory && (
+              <p className="text-sm text-muted-foreground mb-2">This field is required</p>
+            )}
             <div className="flex items-start gap-4">
               <div className="flex-1">
                 <Textarea 
                   ref={textareaRef}
-                  placeholder="Type your answer here or use voice recording..."
+                  placeholder="Type your answer here or click the microphone to record..."
                   className="h-32"
                   onChange={handleTextareaChange}
                   defaultValue={questionResponses[DEFAULT_QUESTIONS[currentQuestion].id]?.answer || ""}
+                  data-testid="intake-answer-textarea"
                 />
               </div>
               <div>
@@ -387,8 +450,10 @@ export default function PatientJoinPage() {
                     variant="destructive"
                     size="icon"
                     onClick={handleStopRecording}
+                    className="h-12 w-12"
+                    data-testid="button-stop-recording"
                   >
-                    <MicOff className="h-4 w-4" />
+                    <MicOff className="h-5 w-5" />
                   </Button>
                 ) : (
                   <Button
@@ -396,15 +461,18 @@ export default function PatientJoinPage() {
                     variant="outline"
                     size="icon"
                     onClick={handleStartRecording}
+                    className="h-12 w-12"
+                    data-testid="button-start-recording"
                   >
-                    <Mic className="h-4 w-4" />
+                    <Mic className="h-5 w-5" />
                   </Button>
                 )}
               </div>
             </div>
             {isRecording && (
-              <div className="text-sm text-primary mt-2 animate-pulse">
-                Recording in progress... Speak clearly and then click stop when finished.
+              <div className="text-sm text-primary mt-2 animate-pulse flex items-center gap-2">
+                <span className="inline-block h-2 w-2 rounded-full bg-red-500"></span>
+                Recording in progress... Speak clearly and click stop when finished.
               </div>
             )}
           </div>
@@ -415,6 +483,7 @@ export default function PatientJoinPage() {
               variant="outline"
               onClick={handlePrevQuestion}
               disabled={currentQuestion === 0}
+              data-testid="button-previous-question"
             >
               Previous
             </Button>
@@ -422,6 +491,7 @@ export default function PatientJoinPage() {
               <Button
                 type="button"
                 onClick={handleNextQuestion}
+                data-testid="button-next-question"
               >
                 Next
               </Button>
@@ -430,6 +500,7 @@ export default function PatientJoinPage() {
                 type="button"
                 disabled={!allQuestionsAnswered || isSubmitting}
                 onClick={handleCompleteForm}
+                data-testid="button-complete-form"
               >
                 {isSubmitting ? (
                   <>
