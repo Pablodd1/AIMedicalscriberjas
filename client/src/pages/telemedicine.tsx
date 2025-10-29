@@ -435,6 +435,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             
             // Get the recording ID from the response
             const recordingData = await recordingResponse.json();
+            console.log('Recording data received:', { id: recordingData.id, status: recordingData.status });
             
             if (!recordingData.id) {
               throw new Error('No recording ID returned from server');
@@ -444,6 +445,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             let audioBlob = recordingBlob;
             
             console.log(`Preparing to upload ${isVideoRecording ? 'video' : 'audio'} recording, blob size: ${recordingBlob.size} bytes`);
+            console.log('About to start upload process...');
             
             if (isVideoRecording) {
               // For video, we need to extract audio for transcription
