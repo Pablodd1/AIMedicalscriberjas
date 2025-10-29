@@ -45,6 +45,7 @@ export default function Appointments() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [patientSearchOpen, setPatientSearchOpen] = useState(false);
   const [editPatientSearchOpen, setEditPatientSearchOpen] = useState(false);
+  const [showDayAppointments, setShowDayAppointments] = useState(false);
 
   const { data: appointments } = useQuery<Appointment[]>({
     queryKey: ["/api/appointments"],
@@ -615,12 +616,17 @@ export default function Appointments() {
                 <div
                   key={index}
                   className={cn(
-                    "h-24 border-t border-r p-1",
+                    "h-24 border-t border-r p-1 cursor-pointer hover:bg-gray-50",
                     day.isToday && "bg-blue-50",
                     selectedDate && isSameDay(day.date, selectedDate) && "ring-2 ring-blue-500",
                     "relative overflow-hidden"
                   )}
-                  onClick={() => setSelectedDate(day.date)}
+                  onClick={() => {
+                    setSelectedDate(day.date);
+                    if (day.appointments.length > 0) {
+                      setShowDayAppointments(true);
+                    }
+                  }}
                 >
                   <div className="flex justify-between items-start">
                     <span
@@ -864,6 +870,77 @@ export default function Appointments() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Day Appointments Dialog */}
+      <Dialog open={showDayAppointments} onOpenChange={setShowDayAppointments}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              Appointments for {selectedDate && format(selectedDate, 'MMMM d, yyyy')}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto">
+            {selectedDate && appointments
+              ?.filter(appointment => isSameDay(new Date(appointment.date), selectedDate))
+              .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+              .map((appointment) => (
+                <div
+                  key={appointment.id}
+                  className="flex items-center justify-between p-4 border-b last:border-b-0 hover:bg-gray-50"
+                >
+                  <div className="space-y-1 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium">
+                        {(() => {
+                          const patient = patients?.find(p => p.id === appointment.patientId);
+                          return patient ? `${patient.firstName} ${patient.lastName || ''}` : 'Unknown Patient';
+                        })()}
+                      </p>
+                      <Badge variant={
+                        appointment.status === "scheduled" ? "default" : 
+                        appointment.status === "completed" ? "success" : 
+                        appointment.status === "cancelled" ? "destructive" : 
+                        "secondary"
+                      }>
+                        {appointment.status}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {format(new Date(appointment.date), "p")}
+                    </p>
+                    {appointment.notes && (
+                      <p className="text-sm text-muted-foreground">{appointment.notes}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        setEditingAppointment(appointment);
+                        setShowDayAppointments(false);
+                        setIsEditDialogOpen(true);
+                      }}
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        if (confirm('Are you sure you want to delete this appointment?')) {
+                          deleteAppointmentMutation.mutate(appointment.id);
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
