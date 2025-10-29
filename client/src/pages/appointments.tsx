@@ -66,7 +66,11 @@ export default function Appointments() {
     defaultValues: {
       patientId: 0,
       doctorId: 1, // Using a default doctor ID for now
-      date: new Date().getTime(), // Using timestamp for consistency
+      date: (() => {
+        const now = new Date();
+        now.setHours(9, 0, 0, 0); // Default to 9:00 AM
+        return now.getTime();
+      })(),
       notes: "",
     },
   });
@@ -213,7 +217,7 @@ export default function Appointments() {
                   name="date"
                   render={({ field }) => (
                     <FormItem className="flex flex-col">
-                      <FormLabel>Date</FormLabel>
+                      <FormLabel>Date & Time</FormLabel>
                       <Popover>
                         <PopoverTrigger asChild>
                           <FormControl>
@@ -225,9 +229,9 @@ export default function Appointments() {
                               )}
                             >
                               {field.value ? (
-                                format(new Date(field.value), "PPP")
+                                format(new Date(field.value), "PPP p")
                               ) : (
-                                <span>Pick a date</span>
+                                <span>Pick a date and time</span>
                               )}
                               <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                             </Button>
@@ -239,7 +243,10 @@ export default function Appointments() {
                             selected={field.value ? new Date(field.value) : undefined}
                             onSelect={(date) => {
                               if (date) {
-                                // Use timestamp for consistency
+                                // Preserve the time when selecting a new date
+                                const currentDate = field.value ? new Date(field.value) : new Date();
+                                date.setHours(currentDate.getHours());
+                                date.setMinutes(currentDate.getMinutes());
                                 field.onChange(date.getTime());
                               }
                             }}
@@ -248,6 +255,49 @@ export default function Appointments() {
                             }
                             initialFocus
                           />
+                          <div className="p-3 border-t">
+                            <div className="flex items-center gap-2">
+                              <Select 
+                                value={field.value ? new Date(field.value).getHours().toString() : "9"}
+                                onValueChange={(hour) => {
+                                  const date = field.value ? new Date(field.value) : new Date();
+                                  date.setHours(parseInt(hour));
+                                  field.onChange(date.getTime());
+                                }}
+                              >
+                                <SelectTrigger className="w-[70px]">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {Array.from({ length: 24 }, (_, i) => (
+                                    <SelectItem key={i} value={i.toString()}>
+                                      {i.toString().padStart(2, '0')}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <span className="text-sm">:</span>
+                              <Select 
+                                value={field.value ? new Date(field.value).getMinutes().toString() : "0"}
+                                onValueChange={(minute) => {
+                                  const date = field.value ? new Date(field.value) : new Date();
+                                  date.setMinutes(parseInt(minute));
+                                  field.onChange(date.getTime());
+                                }}
+                              >
+                                <SelectTrigger className="w-[70px]">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {[0, 15, 30, 45].map((minute) => (
+                                    <SelectItem key={minute} value={minute.toString()}>
+                                      {minute.toString().padStart(2, '0')}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
                         </PopoverContent>
                       </Popover>
                       <FormMessage />
