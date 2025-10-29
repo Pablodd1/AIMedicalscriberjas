@@ -16,7 +16,9 @@ import {
   ClipboardList,
   MessageSquare,
   Settings,
-  ChevronsUpDown
+  ChevronsUpDown,
+  Eye,
+  Download
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
@@ -73,6 +75,8 @@ export default function Notes() {
   const [systemPrompt, setSystemPrompt] = useState("");
   const [templateContent, setTemplateContent] = useState("");
   const [patientSearchOpen, setPatientSearchOpen] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -358,6 +362,143 @@ Plan:
     });
   };
 
+  const handleDownloadNote = async () => {
+    if (!noteText.trim() || !noteTitle.trim()) {
+      toast({
+        title: "Cannot Download",
+        description: "Please enter note content and title before downloading",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsDownloading(true);
+
+      const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx');
+      
+      const docSections = [];
+      
+      // Title
+      docSections.push(
+        new Paragraph({
+          text: noteTitle,
+          heading: HeadingLevel.TITLE,
+        })
+      );
+      
+      // Note type and date info
+      docSections.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `SOAP Note • Generated ${new Date().toLocaleDateString()}`,
+              italics: true,
+              size: 20,
+            }),
+          ],
+        })
+      );
+      
+      docSections.push(new Paragraph({ text: "" })); // Empty line
+      
+      // Patient information if available
+      if (selectedPatient) {
+        docSections.push(
+          new Paragraph({
+            text: "Patient Information",
+            heading: HeadingLevel.HEADING_1,
+          })
+        );
+        
+        const patientName = `${selectedPatient.firstName || ''} ${selectedPatient.lastName || ''}`.trim();
+        if (patientName) {
+          docSections.push(
+            new Paragraph({
+              children: [
+                new TextRun({ text: "Name: ", bold: true }),
+                new TextRun({ text: patientName }),
+              ],
+            })
+          );
+        }
+        
+        docSections.push(new Paragraph({ text: "" })); // Empty line
+      }
+      
+      // Note content
+      docSections.push(
+        new Paragraph({
+          text: "Medical Note Content",
+          heading: HeadingLevel.HEADING_1,
+        })
+      );
+      
+      // Split content by lines and create paragraphs
+      const contentLines = noteText.split('\n');
+      contentLines.forEach(line => {
+        docSections.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: line,
+                size: 24,
+              }),
+            ],
+          })
+        );
+      });
+      
+      // Add timestamp
+      docSections.push(new Paragraph({ text: "" })); // Empty line
+      docSections.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `Generated: ${new Date().toLocaleString()}`,
+              italics: true,
+              size: 20,
+            }),
+          ],
+        })
+      );
+      
+      // Create the document
+      const doc = new Document({
+        sections: [{
+          properties: {},
+          children: docSections,
+        }],
+      });
+      
+      // Generate the DOCX blob for browser
+      const blob = await Packer.toBlob(doc);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `soap-note-${new Date().toISOString().split('T')[0]}.docx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Downloaded",
+        description: "Note downloaded as Word document",
+      });
+      
+    } catch (error) {
+      console.error("Failed to download note:", error);
+      toast({
+        title: "Download Failed",
+        description: "Failed to generate Word document",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -589,23 +730,52 @@ Plan:
                 onChange={(e) => setNoteText(e.target.value)}
                 disabled={!selectedPatientId}
               />
-              <Button 
-                className="w-full" 
-                onClick={handleSaveNote}
-                disabled={!selectedPatientId || !noteText.trim() || !noteTitle.trim() || createNoteMutation.isPending}
-              >
-                {createNoteMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-4 w-4 mr-2" />
-                    Save Note
-                  </>
-                )}
-              </Button>
+              <div className="grid grid-cols-3 gap-2">
+                <Button 
+                  variant="outline"
+                  onClick={() => setShowPreview(true)}
+                  disabled={!noteText.trim() || !noteTitle.trim()}
+                  data-testid="button-preview-note"
+                >
+                  <Eye className="h-4 w-4 mr-2" />
+                  Preview
+                </Button>
+                <Button 
+                  variant="outline"
+                  onClick={handleDownloadNote}
+                  disabled={!noteText.trim() || !noteTitle.trim() || isDownloading}
+                  data-testid="button-download-note"
+                >
+                  {isDownloading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Downloading...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4 mr-2" />
+                      Download
+                    </>
+                  )}
+                </Button>
+                <Button 
+                  onClick={handleSaveNote}
+                  disabled={!selectedPatientId || !noteText.trim() || !noteTitle.trim() || createNoteMutation.isPending}
+                  data-testid="button-save-note"
+                >
+                  {createNoteMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Save Note
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -1258,6 +1428,45 @@ Provider Signature: ______________________________
         patientInfo={selectedPatient}
         noteType={selectedNoteType}
       />
+
+      {/* Preview Dialog */}
+      <Dialog open={showPreview} onOpenChange={setShowPreview}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{noteTitle || "SOAP Note Preview"}</DialogTitle>
+            <DialogDescription>
+              {selectedPatient ? `Note for ${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : "Preview of your SOAP note"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4">
+            <div className="p-6 border rounded-md bg-muted/30">
+              <div className="prose prose-sm max-w-none dark:prose-invert">
+                <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                  {noteText}
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowPreview(false)}>
+              Close
+            </Button>
+            <Button onClick={handleDownloadNote} disabled={isDownloading}>
+              {isDownloading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Downloading...
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
