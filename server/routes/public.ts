@@ -22,7 +22,7 @@ export function createPublicRouter(storage: IStorage) {
 
       const appointment = appointments[0];
 
-      if (appointment.status === 'confirmed') {
+      if (appointment.patientConfirmationStatus === 'confirmed') {
         return res.json({
           success: true,
           message: "This appointment has already been confirmed",
@@ -30,14 +30,14 @@ export function createPublicRouter(storage: IStorage) {
         });
       }
 
-      if (appointment.status === 'declined') {
+      if (appointment.patientConfirmationStatus === 'declined') {
         return res.json({
           success: false,
           message: "This appointment has been declined and cannot be confirmed"
         });
       }
 
-      await storage.updateAppointmentStatus(appointment.id, 'confirmed');
+      await storage.updatePatientConfirmationStatus(appointment.id, 'confirmed');
       
       // Clear the confirmation token after use for security
       await storage.clearAppointmentToken(appointment.id);
@@ -77,7 +77,7 @@ export function createPublicRouter(storage: IStorage) {
 
       const appointment = appointments[0];
 
-      if (appointment.status === 'declined') {
+      if (appointment.patientConfirmationStatus === 'declined') {
         return res.json({
           success: true,
           message: "This appointment has already been declined",
@@ -85,14 +85,14 @@ export function createPublicRouter(storage: IStorage) {
         });
       }
 
-      if (appointment.status === 'confirmed') {
+      if (appointment.patientConfirmationStatus === 'confirmed') {
         return res.json({
           success: false,
           message: "This appointment has been confirmed. Please contact the office to cancel."
         });
       }
 
-      await storage.updateAppointmentStatus(appointment.id, 'declined');
+      await storage.updatePatientConfirmationStatus(appointment.id, 'declined');
       
       // Clear the confirmation token after use for security
       await storage.clearAppointmentToken(appointment.id);

@@ -101,6 +101,7 @@ export interface IStorage {
   getAppointmentByToken(token: string): Promise<Appointment[]>;
   createAppointment(appointment: InsertAppointment): Promise<Appointment>;
   updateAppointmentStatus(id: number, status: string): Promise<Appointment | undefined>;
+  updatePatientConfirmationStatus(id: number, status: string): Promise<Appointment | undefined>;
   clearAppointmentToken(id: number): Promise<void>;
   updateAppointment(id: number, updates: Partial<Appointment>): Promise<Appointment | undefined>;
   deleteAppointment(id: number): Promise<boolean>;
@@ -447,6 +448,15 @@ export class DatabaseStorage implements IStorage {
     const [updatedAppointment] = await db
       .update(appointments)
       .set({ status })
+      .where(eq(appointments.id, id))
+      .returning();
+    return updatedAppointment;
+  }
+
+  async updatePatientConfirmationStatus(id: number, status: string): Promise<Appointment | undefined> {
+    const [updatedAppointment] = await db
+      .update(appointments)
+      .set({ patientConfirmationStatus: status })
       .where(eq(appointments.id, id))
       .returning();
     return updatedAppointment;

@@ -612,6 +612,23 @@ export default function Appointments() {
                     {appointment.notes && (
                       <p className="text-sm text-muted-foreground">{appointment.notes}</p>
                     )}
+                    <div className="flex gap-2 mt-2">
+                      <Badge variant={
+                        (appointment as any).patientConfirmationStatus === "confirmed" ? "default" : 
+                        (appointment as any).patientConfirmationStatus === "pending_confirmation" ? "secondary" : 
+                        (appointment as any).patientConfirmationStatus === "declined" ? "destructive" : 
+                        "secondary"
+                      } className={cn("text-xs",
+                        (appointment as any).patientConfirmationStatus === "confirmed" && "bg-green-500 hover:bg-green-600 text-white",
+                        (appointment as any).patientConfirmationStatus === "pending_confirmation" && "bg-orange-500 hover:bg-orange-600 text-white",
+                        (appointment as any).patientConfirmationStatus === "declined" && "bg-red-500 hover:bg-red-600 text-white"
+                      )}>
+                        Patient: {(appointment as any).patientConfirmationStatus === "pending_confirmation" ? "Pending" : 
+                                 (appointment as any).patientConfirmationStatus === "confirmed" ? "Confirmed" : 
+                                 (appointment as any).patientConfirmationStatus === "declined" ? "Declined" : 
+                                 (appointment as any).patientConfirmationStatus || 'Pending'}
+                      </Badge>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button 
@@ -641,54 +658,21 @@ export default function Appointments() {
                       <PopoverTrigger asChild>
                         <Button variant="outline" size="sm">
                           <Badge variant={
-                            appointment.status === "confirmed" ? "default" : 
-                            appointment.status === "pending_confirmation" ? "secondary" : 
-                            appointment.status === "declined" ? "destructive" : 
                             appointment.status === "scheduled" ? "outline" : 
                             appointment.status === "completed" ? "default" : 
                             appointment.status === "cancelled" ? "destructive" : 
                             "secondary"
-                          } className={cn("mr-2", 
-                            appointment.status === "confirmed" && "bg-green-500 hover:bg-green-600",
-                            appointment.status === "pending_confirmation" && "bg-orange-500 hover:bg-orange-600 text-white",
-                            appointment.status === "declined" && "bg-red-500 hover:bg-red-600"
-                          )}>
-                            {appointment.status === "pending_confirmation" ? "Pending Confirmation" : 
-                             appointment.status === "confirmed" ? "Confirmed" : 
-                             appointment.status === "declined" ? "Declined" : 
-                             appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
+                          } className="mr-2">
+                            {appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
                           </Badge>
-                          Status
+                          Appointment Status
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-80" align="end">
                         <div className="space-y-4">
                           <h4 className="font-medium">Update Appointment Status</h4>
+                          <p className="text-xs text-muted-foreground">This is your internal appointment status (not patient confirmation)</p>
                           <div className="grid grid-cols-2 gap-2">
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              className="justify-start" 
-                              onClick={() => updateAppointmentStatus(appointment.id, "pending_confirmation")}
-                            >
-                              Pending Confirmation
-                            </Button>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              className="justify-start" 
-                              onClick={() => updateAppointmentStatus(appointment.id, "confirmed")}
-                            >
-                              Confirmed
-                            </Button>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              className="justify-start" 
-                              onClick={() => updateAppointmentStatus(appointment.id, "declined")}
-                            >
-                              Declined
-                            </Button>
                             <Button 
                               variant="outline" 
                               size="sm"
