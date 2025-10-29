@@ -48,10 +48,9 @@ export default function Appointments() {
   const [showDayAppointments, setShowDayAppointments] = useState(false);
   const [isPatientListDialogOpen, setIsPatientListDialogOpen] = useState(false);
   const [patientListDate, setPatientListDate] = useState<Date>(() => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(0, 0, 0, 0);
-    return tomorrow;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today;
   });
   const [doctorEmail, setDoctorEmail] = useState("");
 
@@ -273,11 +272,22 @@ export default function Appointments() {
 
   const sendPatientListMutation = useMutation({
     mutationFn: async ({ date, email }: { date: Date, email: string }) => {
-      const res = await apiRequest("POST", "/api/settings/send-patient-list", {
-        date: date.toISOString(),
-        doctorEmail: email,
-      });
-      return res.json();
+      try {
+        const res = await apiRequest("POST", "/api/settings/send-patient-list", {
+          date: date.toISOString(),
+          doctorEmail: email,
+        });
+        
+        if (!res.ok) {
+          throw new Error(`Failed to send patient list: ${res.statusText}`);
+        }
+        
+        const data = await res.json();
+        return data;
+      } catch (error: any) {
+        console.error('Send patient list error:', error);
+        throw error;
+      }
     },
     onSuccess: (data) => {
       if (data.success === false) {
@@ -290,16 +300,17 @@ export default function Appointments() {
       } else {
         // Email sent successfully
         toast({
-          title: "Success",
+          title: "Email Sent!",
           description: data.message || "Patient list sent successfully",
         });
         setIsPatientListDialogOpen(false);
       }
     },
-    onError: (error: Error) => {
+    onError: (error: any) => {
+      console.error('Mutation error:', error);
       toast({
-        title: "Error",
-        description: error.message,
+        title: "Failed to Send",
+        description: error.message || "An error occurred while sending the email",
         variant: "destructive",
       });
     },
@@ -314,7 +325,7 @@ export default function Appointments() {
             <DialogTrigger asChild>
               <Button variant="outline" data-testid="button-send-patient-list">
                 <Mail className="h-4 w-4 mr-2" />
-                Send Tomorrow's Patient List to Doctor
+                Send Patient List to Doctor
               </Button>
             </DialogTrigger>
             <DialogContent>
