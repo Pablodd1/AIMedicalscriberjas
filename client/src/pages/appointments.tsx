@@ -623,7 +623,7 @@ export default function Appointments() {
                         (appointment as any).patientConfirmationStatus === "pending_confirmation" && "bg-orange-500 hover:bg-orange-600 text-white",
                         (appointment as any).patientConfirmationStatus === "declined" && "bg-red-500 hover:bg-red-600 text-white"
                       )}>
-                        Patient: {(appointment as any).patientConfirmationStatus === "pending_confirmation" ? "Pending" : 
+                        Patient Confirmation: {(appointment as any).patientConfirmationStatus === "pending_confirmation" ? "Pending" : 
                                  (appointment as any).patientConfirmationStatus === "confirmed" ? "Confirmed" : 
                                  (appointment as any).patientConfirmationStatus === "declined" ? "Declined" : 
                                  (appointment as any).patientConfirmationStatus || 'Pending'}
@@ -1085,7 +1085,7 @@ Status: ${appointment.status}`}
                         (appointment as any).patientConfirmationStatus === "pending_confirmation" && "bg-orange-500 hover:bg-orange-600 text-white",
                         (appointment as any).patientConfirmationStatus === "declined" && "bg-red-500 hover:bg-red-600 text-white"
                       )}>
-                        Patient: {(appointment as any).patientConfirmationStatus === "pending_confirmation" ? "Pending" : 
+                        Patient Confirmation: {(appointment as any).patientConfirmationStatus === "pending_confirmation" ? "Pending" : 
                                  (appointment as any).patientConfirmationStatus === "confirmed" ? "Confirmed" : 
                                  (appointment as any).patientConfirmationStatus === "declined" ? "Declined" : 
                                  (appointment as any).patientConfirmationStatus || 'Pending'}
@@ -1099,6 +1099,76 @@ Status: ${appointment.status}`}
                     )}
                   </div>
                   <div className="flex items-center gap-2">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          Update Status
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-80" align="end">
+                        <div className="space-y-4">
+                          <h4 className="font-medium">Update Appointment Status</h4>
+                          <p className="text-xs text-muted-foreground">This is your internal appointment status (not patient confirmation)</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              className="justify-start" 
+                              onClick={() => updateAppointmentStatus(appointment.id, "scheduled")}
+                            >
+                              Scheduled
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              className="justify-start" 
+                              onClick={() => updateAppointmentStatus(appointment.id, "completed")}
+                            >
+                              Completed
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              className="justify-start" 
+                              onClick={() => updateAppointmentStatus(appointment.id, "cancelled")}
+                            >
+                              Cancelled
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              className="justify-start" 
+                              onClick={() => updateAppointmentStatus(appointment.id, "rescheduled")}
+                            >
+                              Rescheduled
+                            </Button>
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium">Custom Status:</label>
+                            <div className="flex mt-1 gap-2">
+                              <Input 
+                                placeholder="Enter custom status"
+                                value={customStatus}
+                                onChange={(e) => setCustomStatus(e.target.value)}
+                                className="h-8"
+                              />
+                              <Button 
+                                size="sm"
+                                disabled={!customStatus}
+                                onClick={() => {
+                                  if (customStatus) {
+                                    updateAppointmentStatus(appointment.id, customStatus);
+                                    setCustomStatus("");
+                                  }
+                                }}
+                              >
+                                Apply
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                     <Button 
                       variant="outline" 
                       size="sm"
