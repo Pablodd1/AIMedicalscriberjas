@@ -32,6 +32,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Check } from "lucide-react";
 
 export default function Appointments() {
   const { toast } = useToast();
@@ -41,6 +43,8 @@ export default function Appointments() {
   const [customStatus, setCustomStatus] = useState("");
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [patientSearchOpen, setPatientSearchOpen] = useState(false);
+  const [editPatientSearchOpen, setEditPatientSearchOpen] = useState(false);
 
   const { data: appointments } = useQuery<Appointment[]>({
     queryKey: ["/api/appointments"],
@@ -259,22 +263,65 @@ export default function Appointments() {
                   control={form.control}
                   name="patientId"
                   render={({ field }) => (
-                    <FormItem>
+                    <FormItem className="flex flex-col">
                       <FormLabel>Patient</FormLabel>
-                      <Select onValueChange={value => field.onChange(parseInt(value))} value={field.value.toString()}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a patient" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {patients?.map((patient) => (
-                            <SelectItem key={patient.id} value={patient.id.toString()}>
-                              {`${patient.firstName} ${patient.lastName || ''}`}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Popover open={patientSearchOpen} onOpenChange={setPatientSearchOpen}>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              className={cn(
+                                "w-full justify-between",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value
+                                ? (() => {
+                                    const patient = patients?.find((p) => p.id === field.value);
+                                    return patient
+                                      ? `${patient.firstName} ${patient.lastName || ''} (${patient.email})`
+                                      : "Select patient";
+                                  })()
+                                : "Select patient"}
+                              <ChevronRight className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[400px] p-0">
+                          <Command>
+                            <CommandInput placeholder="Search patients..." />
+                            <CommandList>
+                              <CommandEmpty>No patient found.</CommandEmpty>
+                              <CommandGroup>
+                                {patients?.map((patient) => (
+                                  <CommandItem
+                                    key={patient.id}
+                                    value={`${patient.firstName} ${patient.lastName} ${patient.email}`}
+                                    onSelect={() => {
+                                      field.onChange(patient.id);
+                                      setPatientSearchOpen(false);
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        patient.id === field.value
+                                          ? "opacity-100"
+                                          : "opacity-0"
+                                      )}
+                                    />
+                                    <div className="flex flex-col">
+                                      <span className="font-medium">{patient.firstName} {patient.lastName || ''}</span>
+                                      <span className="text-sm text-muted-foreground">{patient.email}</span>
+                                    </div>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -638,26 +685,65 @@ export default function Appointments() {
                   control={form.control}
                   name="patientId"
                   render={({ field }) => (
-                    <FormItem>
+                    <FormItem className="flex flex-col">
                       <FormLabel>Patient</FormLabel>
-                      <Select 
-                        onValueChange={value => field.onChange(parseInt(value))} 
-                        value={field.value.toString()}
-                        defaultValue={editingAppointment.patientId.toString()}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a patient" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {patients?.map((patient) => (
-                            <SelectItem key={patient.id} value={patient.id.toString()}>
-                              {`${patient.firstName} ${patient.lastName || ''}`}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Popover open={editPatientSearchOpen} onOpenChange={setEditPatientSearchOpen}>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              className={cn(
+                                "w-full justify-between",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value
+                                ? (() => {
+                                    const patient = patients?.find((p) => p.id === field.value);
+                                    return patient
+                                      ? `${patient.firstName} ${patient.lastName || ''} (${patient.email})`
+                                      : "Select patient";
+                                  })()
+                                : "Select patient"}
+                              <ChevronRight className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[400px] p-0">
+                          <Command>
+                            <CommandInput placeholder="Search patients..." />
+                            <CommandList>
+                              <CommandEmpty>No patient found.</CommandEmpty>
+                              <CommandGroup>
+                                {patients?.map((patient) => (
+                                  <CommandItem
+                                    key={patient.id}
+                                    value={`${patient.firstName} ${patient.lastName} ${patient.email}`}
+                                    onSelect={() => {
+                                      field.onChange(patient.id);
+                                      setEditPatientSearchOpen(false);
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        patient.id === field.value
+                                          ? "opacity-100"
+                                          : "opacity-0"
+                                      )}
+                                    />
+                                    <div className="flex flex-col">
+                                      <span className="font-medium">{patient.firstName} {patient.lastName || ''}</span>
+                                      <span className="text-sm text-muted-foreground">{patient.email}</span>
+                                    </div>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                       <FormMessage />
                     </FormItem>
                   )}
