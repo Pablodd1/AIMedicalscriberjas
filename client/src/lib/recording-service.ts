@@ -272,7 +272,7 @@ class BrowserRecordingService implements RecordingServiceInterface {
 }
 
 // Generate SOAP notes from transcript using AI
-export async function generateSoapNotes(transcript: string, patientInfo: any): Promise<string> {
+export async function generateSoapNotes(transcript: string, patientInfo: any, noteType?: string): Promise<string> {
   try {
     // Simple direct implementation that should work reliably
     const response = await fetch('/api/ai/generate-soap', {
@@ -282,6 +282,7 @@ export async function generateSoapNotes(transcript: string, patientInfo: any): P
       },
       body: JSON.stringify({
         transcript: transcript.substring(0, 4000), // limit to 4000 chars
+        noteType: noteType || 'initial', // Pass note type to use custom prompts
         patientInfo: {
           id: patientInfo?.id || 0,
           name: `${patientInfo?.firstName || ''} ${patientInfo?.lastName || ''}`.trim() || 'Unknown',

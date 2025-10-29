@@ -32,6 +32,7 @@ interface ConsultationModalProps {
   onClose: () => void;
   onGeneratedNotes: (notes: string) => void;
   patientInfo: any;
+  noteType?: string;
 }
 
 export function ConsultationModal({
@@ -39,6 +40,7 @@ export function ConsultationModal({
   onClose,
   onGeneratedNotes,
   patientInfo,
+  noteType = 'initial',
 }: ConsultationModalProps) {
   const [activeTab, setActiveTab] = useState("live-recording");
   const [isRecording, setIsRecording] = useState(false);
@@ -201,8 +203,8 @@ export function ConsultationModal({
         return;
       }
       
-      // Generate the notes
-      const generatedNotes = await generateSoapNotes(text, patientInfo);
+      // Generate the notes using custom prompts for the selected note type
+      const generatedNotes = await generateSoapNotes(text, patientInfo, noteType);
       
       // Set the notes in the state
       setNotes(generatedNotes);

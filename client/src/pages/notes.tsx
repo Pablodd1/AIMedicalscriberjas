@@ -1256,6 +1256,7 @@ Provider Signature: ______________________________
         onClose={() => setShowConsultationModal(false)}
         onGeneratedNotes={handleGeneratedNotesFromConsultation}
         patientInfo={selectedPatient}
+        noteType={selectedNoteType}
       />
     </div>
   );
