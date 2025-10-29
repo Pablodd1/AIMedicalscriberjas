@@ -15,7 +15,8 @@ import {
   Stethoscope,
   ClipboardList,
   MessageSquare,
-  Settings
+  Settings,
+  ChevronsUpDown
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
@@ -26,6 +27,19 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
 import { Patient, InsertMedicalNote, MedicalNoteTemplate, InsertMedicalNoteTemplate } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -58,6 +72,7 @@ export default function Notes() {
   const [selectedNoteType, setSelectedNoteType] = useState<"soap" | "progress" | "procedure" | "consultation">("soap");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [templateContent, setTemplateContent] = useState("");
+  const [patientSearchOpen, setPatientSearchOpen] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -359,30 +374,61 @@ Plan:
               </DialogFooter>
             </DialogContent>
           </Dialog>
-          <Select 
-            value={selectedPatientId?.toString() || ""}
-            onValueChange={(value) => setSelectedPatientId(parseInt(value))}
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Select Patient" />
-            </SelectTrigger>
-            <SelectContent>
-              {isLoadingPatients ? (
-                <div className="flex items-center justify-center p-2">
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Loading...
-                </div>
-              ) : patients?.length ? (
-                patients.map((patient) => (
-                  <SelectItem key={patient.id} value={patient.id.toString()}>
-                    {`${patient.firstName} ${patient.lastName || ''}`}
-                  </SelectItem>
-                ))
-              ) : (
-                <div className="text-center p-2 text-muted-foreground">No patients found</div>
-              )}
-            </SelectContent>
-          </Select>
+          <Popover open={patientSearchOpen} onOpenChange={setPatientSearchOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={patientSearchOpen}
+                className="w-[250px] justify-between"
+              >
+                {selectedPatientId ? (
+                  patients?.find((patient) => patient.id === selectedPatientId)
+                    ? `${patients.find((patient) => patient.id === selectedPatientId)!.firstName} ${patients.find((patient) => patient.id === selectedPatientId)!.lastName || ''}`
+                    : "Select Patient"
+                ) : (
+                  "Select Patient"
+                )}
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[250px] p-0">
+              <Command>
+                <CommandInput placeholder="Search patients..." />
+                <CommandList>
+                  <CommandEmpty>No patient found.</CommandEmpty>
+                  <CommandGroup>
+                    {isLoadingPatients ? (
+                      <div className="flex items-center justify-center p-2">
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        Loading...
+                      </div>
+                    ) : patients?.length ? (
+                      patients.map((patient) => (
+                        <CommandItem
+                          key={patient.id}
+                          value={`${patient.firstName} ${patient.lastName || ''}`}
+                          onSelect={() => {
+                            setSelectedPatientId(patient.id);
+                            setPatientSearchOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={`mr-2 h-4 w-4 ${
+                              selectedPatientId === patient.id ? "opacity-100" : "opacity-0"
+                            }`}
+                          />
+                          {`${patient.firstName} ${patient.lastName || ''}`}
+                        </CommandItem>
+                      ))
+                    ) : (
+                      <div className="text-center p-2 text-muted-foreground">No patients found</div>
+                    )}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
           <Button
             variant="outline"
             onClick={handleStartConsultation}
