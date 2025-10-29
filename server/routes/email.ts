@@ -181,6 +181,144 @@ emailRouter.post("/test-email", async (req, res) => {
   }
 });
 
+// Send patient list to doctor
+emailRouter.post("/send-patient-list", async (req, res) => {
+  try {
+    const { date, doctorEmail } = req.body;
+    
+    if (!date || !doctorEmail) {
+      return res.status(400).json({ message: "Date and doctor email are required" });
+    }
+    
+    // Validate email format
+    const emailValidation = z.string().email().safeParse(doctorEmail);
+    if (!emailValidation.success) {
+      return res.status(400).json({ message: "Invalid email address" });
+    }
+    
+    // Get appointments for the selected date
+    const selectedDate = new Date(date);
+    const appointments = await storage.getAppointments();
+    
+    // Filter appointments for the selected date
+    const dateAppointments = appointments.filter(apt => {
+      const aptDate = new Date(apt.date);
+      return aptDate.toDateString() === selectedDate.toDateString();
+    });
+    
+    if (dateAppointments.length === 0) {
+      return res.status(404).json({ message: "No appointments found for the selected date" });
+    }
+    
+    // Get patient details for each appointment
+    const appointmentsWithPatients = await Promise.all(
+      dateAppointments.map(async (apt) => {
+        const patient = await storage.getPatient(apt.patientId);
+        return {
+          ...apt,
+          patient
+        };
+      })
+    );
+    
+    // Sort by appointment time
+    appointmentsWithPatients.sort((a, b) => 
+      new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+    
+    // Format the email content
+    const dateFormatted = selectedDate.toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+    
+    let emailText = `Patient List for ${dateFormatted}\n\n`;
+    emailText += `Total Appointments: ${appointmentsWithPatients.length}\n\n`;
+    emailText += `-----------------------------------\n\n`;
+    
+    let emailHtml = `<h2>Patient List for ${dateFormatted}</h2>`;
+    emailHtml += `<p><strong>Total Appointments: ${appointmentsWithPatients.length}</strong></p>`;
+    emailHtml += `<hr />`;
+    emailHtml += `<table style="width: 100%; border-collapse: collapse; margin-top: 20px;">`;
+    emailHtml += `<thead><tr style="background-color: #f3f4f6;">`;
+    emailHtml += `<th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb;">Time</th>`;
+    emailHtml += `<th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb;">Patient Name</th>`;
+    emailHtml += `<th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb;">Contact</th>`;
+    emailHtml += `<th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb;">Reason</th>`;
+    emailHtml += `<th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb;">Status</th>`;
+    emailHtml += `</tr></thead><tbody>`;
+    
+    appointmentsWithPatients.forEach((apt, index) => {
+      const time = new Date(apt.date).toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+      const patientName = apt.patient 
+        ? `${apt.patient.firstName} ${apt.patient.lastName || ''}`
+        : 'Unknown Patient';
+      const phone = apt.patient?.phone || 'N/A';
+      const email = apt.patient?.email || 'N/A';
+      const reason = apt.reason || 'General Consultation';
+      const status = apt.status || 'scheduled';
+      
+      // Text version
+      emailText += `${index + 1}. ${time} - ${patientName}\n`;
+      emailText += `   Phone: ${phone}\n`;
+      emailText += `   Email: ${email}\n`;
+      emailText += `   Reason: ${reason}\n`;
+      emailText += `   Status: ${status}\n`;
+      if (apt.notes) {
+        emailText += `   Notes: ${apt.notes}\n`;
+      }
+      emailText += `\n`;
+      
+      // HTML version
+      const rowBg = index % 2 === 0 ? '#ffffff' : '#f9fafb';
+      emailHtml += `<tr style="background-color: ${rowBg};">`;
+      emailHtml += `<td style="padding: 12px; border: 1px solid #e5e7eb;">${time}</td>`;
+      emailHtml += `<td style="padding: 12px; border: 1px solid #e5e7eb;"><strong>${patientName}</strong></td>`;
+      emailHtml += `<td style="padding: 12px; border: 1px solid #e5e7eb;">📞 ${phone}<br />📧 ${email}</td>`;
+      emailHtml += `<td style="padding: 12px; border: 1px solid #e5e7eb;">${reason}</td>`;
+      emailHtml += `<td style="padding: 12px; border: 1px solid #e5e7eb;"><span style="padding: 4px 8px; background-color: #e0f2fe; color: #0369a1; border-radius: 4px; font-size: 12px;">${status}</span></td>`;
+      emailHtml += `</tr>`;
+      
+      if (apt.notes) {
+        emailHtml += `<tr style="background-color: ${rowBg};">`;
+        emailHtml += `<td colspan="5" style="padding: 8px 12px; border: 1px solid #e5e7eb; font-size: 12px; color: #6b7280;"><strong>Notes:</strong> ${apt.notes}</td>`;
+        emailHtml += `</tr>`;
+      }
+    });
+    
+    emailHtml += `</tbody></table>`;
+    emailHtml += `<p style="margin-top: 20px; color: #6b7280; font-size: 12px;">This email was automatically generated by your Medical Platform.</p>`;
+    
+    // Save doctor email preference if not already saved
+    await storage.saveSetting('doctorEmail', doctorEmail);
+    
+    // Send email
+    const { transporter, from } = await initNodemailer();
+    
+    await transporter.sendMail({
+      to: doctorEmail,
+      from,
+      subject: `Patient List for ${dateFormatted}`,
+      text: emailText,
+      html: emailHtml,
+    });
+    
+    res.json({ 
+      success: true, 
+      message: `Patient list sent to ${doctorEmail}`,
+      appointmentCount: appointmentsWithPatients.length
+    });
+  } catch (error: any) {
+    console.error("Error sending patient list email:", error);
+    res.status(500).json({ message: "Failed to send patient list: " + (error.message || 'Unknown error') });
+  }
+});
+
 // Send patient email - used by the appointment routes
 export const sendPatientEmail = async (
   patientEmail: string, 
