@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "../db";
 import { storage } from "../storage";
-import { settings, emailTemplates } from "@shared/schema";
+import { settings, emailTemplates, appointments as appointmentsTable } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import nodemailer from 'nodemailer';
@@ -198,7 +198,9 @@ emailRouter.post("/send-patient-list", async (req, res) => {
     
     // Get appointments for the selected date
     const selectedDate = new Date(date);
-    const appointments = await storage.getAppointments();
+    // Get all appointments for all doctors (we need to filter by date across all doctors)
+    // Since storage.getAppointments requires doctorId, we'll get appointments directly from DB
+    const appointments = await db.select().from(appointmentsTable);
     
     // Filter appointments for the selected date
     const dateAppointments = appointments.filter(apt => {

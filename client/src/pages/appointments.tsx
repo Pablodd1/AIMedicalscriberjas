@@ -9,7 +9,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, ChevronLeft, ChevronRight, Edit2, Trash2 } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Edit2, Trash2, Mail } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -46,6 +46,14 @@ export default function Appointments() {
   const [patientSearchOpen, setPatientSearchOpen] = useState(false);
   const [editPatientSearchOpen, setEditPatientSearchOpen] = useState(false);
   const [showDayAppointments, setShowDayAppointments] = useState(false);
+  const [isPatientListDialogOpen, setIsPatientListDialogOpen] = useState(false);
+  const [patientListDate, setPatientListDate] = useState<Date>(() => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+    return tomorrow;
+  });
+  const [doctorEmail, setDoctorEmail] = useState("");
 
   const { data: appointments } = useQuery<Appointment[]>({
     queryKey: ["/api/appointments"],
@@ -54,6 +62,26 @@ export default function Appointments() {
   const { data: patients } = useQuery<Patient[]>({
     queryKey: ["/api/patients"],
   });
+
+  // Fetch saved doctor email from settings
+  const { data: emailSettings } = useQuery<{ doctorEmail?: string }>({
+    queryKey: ["/api/settings"],
+    select: (data: any) => {
+      // Extract doctorEmail from settings array
+      if (Array.isArray(data)) {
+        const emailSetting = data.find((s: any) => s.key === 'doctorEmail');
+        return { doctorEmail: emailSetting?.value || '' };
+      }
+      return { doctorEmail: data?.doctorEmail || '' };
+    }
+  });
+
+  // Set doctor email when loaded from settings
+  React.useEffect(() => {
+    if (emailSettings?.doctorEmail && !doctorEmail) {
+      setDoctorEmail(emailSettings.doctorEmail);
+    }
+  }, [emailSettings]);
 
   const validationSchema = insertAppointmentSchema.extend({
     patientId: insertAppointmentSchema.shape.patientId.refine(
@@ -243,18 +271,102 @@ export default function Appointments() {
     },
   });
 
+  const sendPatientListMutation = useMutation({
+    mutationFn: async ({ date, email }: { date: Date, email: string }) => {
+      const res = await apiRequest("POST", "/api/email/send-patient-list", {
+        date: date.toISOString(),
+        doctorEmail: email,
+      });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Success",
+        description: data.message || "Patient list sent successfully",
+      });
+      setIsPatientListDialogOpen(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Appointments</h1>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              New Appointment
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
+        <div className="flex gap-2">
+          <Dialog open={isPatientListDialogOpen} onOpenChange={setIsPatientListDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" data-testid="button-send-patient-list">
+                <Mail className="h-4 w-4 mr-2" />
+                Send Tomorrow's Patient List to Doctor
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Send Patient List to Doctor</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Select Date</label>
+                  <Calendar
+                    mode="single"
+                    selected={patientListDate}
+                    onSelect={(date) => date && setPatientListDate(date)}
+                    className="rounded-md border"
+                    data-testid="calendar-select-date"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Doctor Email</label>
+                  <Input
+                    type="email"
+                    placeholder="doctor@example.com"
+                    value={doctorEmail}
+                    onChange={(e) => setDoctorEmail(e.target.value)}
+                    data-testid="input-doctor-email"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    This email will be saved for future use
+                  </p>
+                </div>
+                <Button
+                  onClick={() => {
+                    if (!doctorEmail) {
+                      toast({
+                        title: "Error",
+                        description: "Please enter a doctor email",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    sendPatientListMutation.mutate({ 
+                      date: patientListDate, 
+                      email: doctorEmail 
+                    });
+                  }}
+                  disabled={sendPatientListMutation.isPending}
+                  className="w-full"
+                  data-testid="button-send-email"
+                >
+                  {sendPatientListMutation.isPending ? "Sending..." : "Send Patient List"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                New Appointment
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
             <DialogHeader>
               <DialogTitle>Schedule New Appointment</DialogTitle>
             </DialogHeader>
@@ -443,6 +555,7 @@ export default function Appointments() {
             </Form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <Tabs defaultValue="list" className="w-full" onValueChange={(value) => setViewMode(value as "list" | "calendar")}>
