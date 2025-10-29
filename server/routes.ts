@@ -1232,7 +1232,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      const doctorId = req.user.id;
+      const doctorId = req.user!.id;
       
       const recordings = await storage.getRecordingSessions(doctorId);
       
@@ -1251,6 +1251,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching recording sessions:', error);
       res.status(500).json({ message: 'Failed to fetch recording sessions' });
+    }
+  });
+  
+  // Create a new recording session
+  app.post('/api/telemedicine/recordings', async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const doctorId = req.user!.id;
+      const { roomId, patientId, startTime, endTime, duration, status, recordingType, mediaFormat } = req.body;
+      
+      console.log('Creating recording session:', { roomId, patientId, duration, recordingType, mediaFormat });
+      
+      if (!roomId || !patientId) {
+        return res.status(400).json({ message: 'Missing required fields: roomId and patientId' });
+      }
+      
+      const recording = await storage.createRecordingSession({
+        roomId,
+        patientId,
+        doctorId,
+        startTime: startTime || new Date().toISOString(),
+        endTime: endTime || new Date().toISOString(),
+        duration: duration || 0,
+        status: status || 'completed',
+        recordingType: recordingType || 'both',
+        mediaFormat: mediaFormat || 'webm',
+        transcript: null,
+        notes: null
+      });
+      
+      console.log('Recording session created:', recording.id);
+      
+      res.status(200).json(recording);
+    } catch (error) {
+      console.error('Error creating recording session:', error);
+      res.status(500).json({ message: 'Failed to create recording session' });
     }
   });
   
