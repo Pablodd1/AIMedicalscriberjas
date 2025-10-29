@@ -69,7 +69,7 @@ export default function Notes() {
   const [noteTitle, setNoteTitle] = useState("");
   const [showConsultationModal, setShowConsultationModal] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [selectedNoteType, setSelectedNoteType] = useState<"soap" | "progress" | "procedure" | "consultation" | "initial" | "followup" | "physical" | "reevaluation" | "psychiatric" | "discharge">("soap");
+  const [selectedNoteType, setSelectedNoteType] = useState<"initial" | "followup" | "physical" | "reevaluation" | "procedure" | "psychiatric" | "discharge">("initial");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [templateContent, setTemplateContent] = useState("");
   const [patientSearchOpen, setPatientSearchOpen] = useState(false);
@@ -309,7 +309,6 @@ Plan:
                       <SelectValue placeholder="Select Note Type" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="soap">SOAP Note</SelectItem>
                       <SelectItem value="initial">Initial Consultation</SelectItem>
                       <SelectItem value="followup">Follow-up Visit</SelectItem>
                       <SelectItem value="physical">Physical Examination</SelectItem>
@@ -317,8 +316,6 @@ Plan:
                       <SelectItem value="procedure">Procedure Note</SelectItem>
                       <SelectItem value="psychiatric">Psychiatric Evaluation</SelectItem>
                       <SelectItem value="discharge">Discharge Summary</SelectItem>
-                      <SelectItem value="progress">Progress Note</SelectItem>
-                      <SelectItem value="consultation">Consultation Note</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
