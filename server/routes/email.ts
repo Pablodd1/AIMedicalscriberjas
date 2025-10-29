@@ -215,7 +215,17 @@ emailRouter.post("/send-patient-list", async (req: any, res) => {
     });
     
     if (dateAppointments.length === 0) {
-      return res.status(404).json({ message: "No appointments found for the selected date" });
+      // Return 200 with informative message instead of 404
+      return res.status(200).json({ 
+        success: false,
+        message: `No appointments scheduled for ${selectedDate.toLocaleDateString('en-US', { 
+          weekday: 'long', 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+        })}. Please select a different date.`,
+        appointmentCount: 0
+      });
     }
     
     // Get patient details for each appointment

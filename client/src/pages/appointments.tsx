@@ -280,11 +280,21 @@ export default function Appointments() {
       return res.json();
     },
     onSuccess: (data) => {
-      toast({
-        title: "Success",
-        description: data.message || "Patient list sent successfully",
-      });
-      setIsPatientListDialogOpen(false);
+      if (data.success === false) {
+        // No appointments found for date
+        toast({
+          title: "No Appointments",
+          description: data.message,
+          variant: "default",
+        });
+      } else {
+        // Email sent successfully
+        toast({
+          title: "Success",
+          description: data.message || "Patient list sent successfully",
+        });
+        setIsPatientListDialogOpen(false);
+      }
     },
     onError: (error: Error) => {
       toast({
