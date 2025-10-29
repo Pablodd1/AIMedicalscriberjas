@@ -27,6 +27,10 @@ externalPort = 3000
 localPort = 44347
 externalPort = 3003
 
+[[ports]]
+localPort = 45573
+externalPort = 3002
+
 [workflows]
 runButton = "Start Dev Server"
 
