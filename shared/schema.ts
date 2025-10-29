@@ -152,6 +152,26 @@ export const insertMedicalNoteTemplateSchema = createInsertSchema(medicalNoteTem
 export type InsertMedicalNoteTemplate = z.infer<typeof insertMedicalNoteTemplateSchema>;
 export type MedicalNoteTemplate = typeof medicalNoteTemplates.$inferSelect;
 
+// Custom prompts for note generation (per user, per note type)
+export const customNotePrompts = pgTable("custom_note_prompts", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  noteType: text("note_type").notNull(), // initial, followup, physical, reevaluation, procedure, psychiatric, discharge
+  systemPrompt: text("system_prompt").notNull(),
+  templateContent: text("template_content"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertCustomNotePromptSchema = createInsertSchema(customNotePrompts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type CustomNotePrompt = typeof customNotePrompts.$inferSelect;
+export type InsertCustomNotePrompt = z.infer<typeof insertCustomNotePromptSchema>;
+
 // Add a consultation notes table specifically for consultation recordings
 export const consultationNotes = pgTable("consultation_notes", {
   id: serial("id").primaryKey(),
