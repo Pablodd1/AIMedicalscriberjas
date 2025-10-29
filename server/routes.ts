@@ -312,9 +312,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const patient = await storage.getPatient(appointment.patientId);
       if (patient && patient.email) {
         const appointmentDate = new Date(appointment.date);
-        const baseUrl = process.env.REPL_SLUG 
-          ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`
-          : 'http://localhost:5000';
+        
+        // Get the correct base URL for both development and deployed environments
+        // REPLIT_DOMAINS contains all domains including custom domains (comma-separated)
+        let baseUrl = 'http://localhost:5000';
+        if (process.env.REPLIT_DOMAINS) {
+          // Use the first domain from the list (usually the primary/custom domain)
+          const domains = process.env.REPLIT_DOMAINS.split(',');
+          baseUrl = `https://${domains[0].trim()}`;
+        } else if (process.env.REPL_SLUG && process.env.REPL_OWNER) {
+          // Fallback to default repl.co domain
+          baseUrl = `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
+        }
         
         await sendPatientEmail(
           patient.email,
