@@ -482,6 +482,8 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                     title: "Upload Complete",
                     description: "Video recording saved successfully",
                   });
+                  // Refresh the recordings list to show the new recording
+                  queryClient.invalidateQueries({ queryKey: ["/api/telemedicine/recordings"] });
                 }
               } catch (error) {
                 console.error('Error uploading video recording:', error);
@@ -519,6 +521,8 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                     title: "Upload Complete",
                     description: "Audio recording saved successfully",
                   });
+                  // Refresh the recordings list to show the new recording
+                  queryClient.invalidateQueries({ queryKey: ["/api/telemedicine/recordings"] });
                 }
               } catch (error) {
                 console.error('Error uploading audio recording:', error);
