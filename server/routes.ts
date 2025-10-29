@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from 'ws';
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
+import { FileStorage } from "./file-storage";
 import { aiRouter } from "./routes/ai";
 import { emailRouter, sendPatientEmail } from "./routes/email";
 import { monitoringRouter } from "./routes/monitoring";
@@ -1307,6 +1308,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: 'Recording session not found' });
       }
       
+      // Automatically delete audio recording after transcription is generated
+      if (transcript && updatedRecording.audioUrl) {
+        try {
+          await FileStorage.deleteRecording(id, 'audio');
+          // Update database to remove audioUrl since file is deleted
+          const finalRecording = await storage.updateRecordingSession(id, { audioUrl: null });
+          console.log(`Deleted audio recording for session ${id} after transcription`);
+          // Return the updated recording with audioUrl set to null
+          return res.json(finalRecording);
+        } catch (error) {
+          console.error(`Failed to delete audio recording for session ${id}:`, error);
+          // Don't fail the request if cleanup fails
+        }
+      }
+      
       res.json(updatedRecording);
     } catch (error) {
       console.error('Error updating recording session:', error);
@@ -1399,29 +1415,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(403).json({ message: 'You do not have permission to modify this recording' });
         }
         
-        const mediaType = req.body.type || 'audio';
+        const mediaType = (req.body.type || 'audio') as 'audio' | 'video';
         const fileBuffer = req.file.buffer;
+        const extension = req.file.originalname.split('.').pop() || 'webm';
         
-        // In a production environment, we would store the file in blob storage
-        // and update the database with the URL. For now, we'll store the data temporarily.
+        // Save the file permanently to disk
+        const filepath = await FileStorage.saveRecording(
+          recordingId,
+          fileBuffer,
+          mediaType,
+          extension
+        );
         
-        // Create a simple temporary storage system (this is just for demo purposes)
-        if (typeof global.mediaStorage === 'undefined') {
-          // Define mediaStorage on global object
-          global.mediaStorage = new Map<string, {
-            data: Buffer,
-            contentType: string,
-            filename: string
-          }>();
-        }
-        
-        // Store the media file with a unique key based on recording ID and type
-        const storageKey = `${recordingId}_${mediaType}`;
-        global.mediaStorage.set(storageKey, {
-          data: fileBuffer,
-          contentType: req.file.mimetype,
-          filename: req.file.originalname
-        });
+        console.log(`Saved ${mediaType} recording to: ${filepath}`);
         
         // Update the recording session with the appropriate URL
         const updateData: any = {};
@@ -1470,18 +1476,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: 'You do not have permission to access this recording' });
       }
       
-      // Check if the recording exists in our temporary storage
-      if (global.mediaStorage && global.mediaStorage.has(`${recordingId}_audio`)) {
-        const mediaFile = global.mediaStorage.get(`${recordingId}_audio`);
-        if (mediaFile) {
-          res.setHeader('Content-Type', mediaFile.contentType);
-          res.setHeader('Content-Disposition', `attachment; filename="${mediaFile.filename}"`);
-          return res.send(mediaFile.data);
-        }
+      // Retrieve the recording from file storage
+      const audioBuffer = await FileStorage.getRecording(recordingId, 'audio');
+      
+      if (!audioBuffer) {
+        return res.status(404).json({ message: 'Audio recording not found' });
       }
       
-      // If not found in our temporary storage, return a not found response
-      res.status(404).json({ message: 'Audio recording not available yet' });
+      const filepath = await FileStorage.getFilePath(recordingId, 'audio');
+      if (!filepath) {
+        return res.status(404).json({ message: 'Audio recording filepath not found' });
+      }
+      
+      const contentType = await FileStorage.getContentType(filepath);
+      const filename = filepath.split('/').pop() || 'audio.webm';
+      
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.send(audioBuffer);
     } catch (error) {
       console.error('Error retrieving audio recording:', error);
       res.status(500).json({ message: 'Failed to retrieve audio recording' });
@@ -1513,18 +1525,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: 'You do not have permission to access this recording' });
       }
       
-      // Check if the video exists in our temporary storage
-      if (global.mediaStorage && global.mediaStorage.has(`${recordingId}_video`)) {
-        const mediaFile = global.mediaStorage.get(`${recordingId}_video`);
-        if (mediaFile) {
-          res.setHeader('Content-Type', mediaFile.contentType);
-          res.setHeader('Content-Disposition', `attachment; filename="${mediaFile.filename}"`);
-          return res.send(mediaFile.data);
-        }
+      // Retrieve the recording from file storage
+      const videoBuffer = await FileStorage.getRecording(recordingId, 'video');
+      
+      if (!videoBuffer) {
+        return res.status(404).json({ message: 'Video recording not found' });
       }
       
-      // If not found in our temporary storage, return a not found response
-      res.status(404).json({ message: 'Video recording not available yet' });
+      const filepath = await FileStorage.getFilePath(recordingId, 'video');
+      if (!filepath) {
+        return res.status(404).json({ message: 'Video recording filepath not found' });
+      }
+      
+      const contentType = await FileStorage.getContentType(filepath);
+      const filename = filepath.split('/').pop() || 'video.webm';
+      
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.send(videoBuffer);
     } catch (error) {
       console.error('Error retrieving video recording:', error);
       res.status(500).json({ message: 'Failed to retrieve video recording' });

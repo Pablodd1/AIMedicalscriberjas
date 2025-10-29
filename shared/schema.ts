@@ -499,7 +499,7 @@ export type InsertRecordingSession = z.infer<typeof insertRecordingSessionSchema
 export type RecordingSession = typeof recordingSessions.$inferSelect;
 
 // Recording session relations
-export const recordingSessionRelations = relations(recordingSessions, ({ one }) => ({
+export const recordingSessionRelations = relations(recordingSessions, ({ one, many }) => ({
   patient: one(patients, {
     fields: [recordingSessions.patientId],
     references: [patients.id],
@@ -507,6 +507,42 @@ export const recordingSessionRelations = relations(recordingSessions, ({ one }) 
   doctor: one(users, {
     fields: [recordingSessions.doctorId],
     references: [users.id],
+  }),
+  participants: many(consultationParticipants),
+}));
+
+// Consultation participants table for group telemedicine sessions
+export const consultationParticipants = pgTable("consultation_participants", {
+  id: serial("id").primaryKey(),
+  roomId: text("room_id").notNull(),
+  userId: integer("user_id"),
+  patientId: integer("patient_id"),
+  name: text("name").notNull(),
+  role: text("role").notNull(), // 'doctor', 'patient', 'family', 'specialist'
+  joinedAt: timestamp("joined_at").defaultNow(),
+  leftAt: timestamp("left_at"),
+  isActive: boolean("is_active").default(true),
+});
+
+export const insertConsultationParticipantSchema = createInsertSchema(consultationParticipants).pick({
+  roomId: true,
+  userId: true,
+  patientId: true,
+  name: true,
+  role: true,
+});
+
+export type InsertConsultationParticipant = z.infer<typeof insertConsultationParticipantSchema>;
+export type ConsultationParticipant = typeof consultationParticipants.$inferSelect;
+
+export const consultationParticipantRelations = relations(consultationParticipants, ({ one }) => ({
+  user: one(users, {
+    fields: [consultationParticipants.userId],
+    references: [users.id],
+  }),
+  patient: one(patients, {
+    fields: [consultationParticipants.patientId],
+    references: [patients.id],
   }),
 }));
 

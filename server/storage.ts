@@ -10,6 +10,7 @@ import {
   intakeForms,
   intakeFormResponses,
   recordingSessions,
+  consultationParticipants,
   devices,
   bpReadings,
   glucoseReadings,
@@ -44,6 +45,8 @@ import {
   type InsertIntakeFormResponse,
   type RecordingSession,
   type InsertRecordingSession,
+  type ConsultationParticipant,
+  type InsertConsultationParticipant,
   type Device,
   type InsertDevice,
   type BpReading,
@@ -141,6 +144,12 @@ export interface IStorage {
   createRecordingSession(session: InsertRecordingSession): Promise<RecordingSession>;
   updateRecordingSession(id: number, updates: Partial<RecordingSession>): Promise<RecordingSession | undefined>;
   deleteRecordingSession(id: number): Promise<boolean>;
+  // Consultation participant methods
+  getParticipantsByRoom(roomId: string): Promise<ConsultationParticipant[]>;
+  getActiveParticipantsByRoom(roomId: string): Promise<ConsultationParticipant[]>;
+  addParticipant(participant: InsertConsultationParticipant): Promise<ConsultationParticipant>;
+  removeParticipant(id: number): Promise<boolean>;
+  markParticipantLeft(id: number): Promise<ConsultationParticipant | undefined>;
   // Device monitoring methods
   getDevices(patientId: number): Promise<Device[]>;
   getDevice(id: number): Promise<Device | undefined>;
@@ -829,6 +838,54 @@ export class DatabaseStorage implements IStorage {
       .where(eq(recordingSessions.id, id))
       .returning({ id: recordingSessions.id });
     return result.length > 0;
+  }
+
+  // Consultation participant methods
+  async getParticipantsByRoom(roomId: string): Promise<ConsultationParticipant[]> {
+    return db.select()
+      .from(consultationParticipants)
+      .where(eq(consultationParticipants.roomId, roomId))
+      .orderBy(asc(consultationParticipants.joinedAt));
+  }
+
+  async getActiveParticipantsByRoom(roomId: string): Promise<ConsultationParticipant[]> {
+    return db.select()
+      .from(consultationParticipants)
+      .where(and(
+        eq(consultationParticipants.roomId, roomId),
+        eq(consultationParticipants.isActive, true)
+      ))
+      .orderBy(asc(consultationParticipants.joinedAt));
+  }
+
+  async addParticipant(participant: InsertConsultationParticipant): Promise<ConsultationParticipant> {
+    const [newParticipant] = await db
+      .insert(consultationParticipants)
+      .values(participant)
+      .returning();
+    
+    return newParticipant;
+  }
+
+  async removeParticipant(id: number): Promise<boolean> {
+    const result = await db
+      .delete(consultationParticipants)
+      .where(eq(consultationParticipants.id, id))
+      .returning({ id: consultationParticipants.id });
+    return result.length > 0;
+  }
+
+  async markParticipantLeft(id: number): Promise<ConsultationParticipant | undefined> {
+    const [updatedParticipant] = await db
+      .update(consultationParticipants)
+      .set({ 
+        leftAt: new Date(),
+        isActive: false 
+      })
+      .where(eq(consultationParticipants.id, id))
+      .returning();
+    
+    return updatedParticipant;
   }
   
   // Device monitoring methods
