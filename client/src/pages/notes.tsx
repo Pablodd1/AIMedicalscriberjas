@@ -129,15 +129,21 @@ Plan:
       if (!selectedNoteType || !user?.id) return;
       
       try {
-        const res = await apiRequest("GET", `/api/custom-note-prompts/${selectedNoteType}`);
+        const res = await fetch(`/api/custom-note-prompts/${selectedNoteType}`);
+        if (!res.ok) {
+          throw new Error('Failed to fetch custom prompt');
+        }
         const prompt = await res.json();
         
         if (!isActive) return;
         
+        // Check if we got a valid prompt (not null)
         if (prompt && prompt.id) {
+          console.log(`Loaded custom prompt for ${selectedNoteType}:`, prompt.systemPrompt?.substring(0, 50));
           setSystemPrompt(prompt.systemPrompt || '');
           setTemplateContent(prompt.templateContent || '');
         } else {
+          console.log(`No custom prompt found for ${selectedNoteType}, using default`);
           setSystemPrompt(selectedTemplate?.systemPrompt || '');
           setTemplateContent(selectedTemplate?.template || '');
         }
@@ -251,7 +257,7 @@ Plan:
     setNoteTitle(`${selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : ""} - Consultation Notes ${format(new Date(), "yyyy-MM-dd")}`);
   };
 
-  const handleGenerateNotes = () => {
+  const handleGenerateNotes = async () => {
     if (!selectedPatientId) {
       toast({
         title: "Patient Required",
@@ -263,38 +269,56 @@ Plan:
     
     setIsGenerating(true);
     
-    // Simulate AI generating notes
-    setTimeout(() => {
+    try {
       const patient = patients?.find(p => p.id === selectedPatientId);
-      if (patient) {
-        setNoteText(
-`SOAP Note for ${patient.firstName} ${patient.lastName || ''}
-
-Subjective:
-- Patient complains of ${Math.random() > 0.5 ? "headache" : "sore throat"} for the past ${Math.floor(Math.random() * 5) + 1} days
-- Reports ${Math.random() > 0.5 ? "mild fever" : "no fever"}
-- ${Math.random() > 0.5 ? "Difficulty sleeping" : "Normal sleep patterns"}
-
-Objective:
-- Temperature: ${Math.floor(Math.random() * 2) + 98}.${Math.floor(Math.random() * 9)}°F
-- Blood Pressure: ${Math.floor(Math.random() * 20) + 110}/${Math.floor(Math.random() * 10) + 70} mmHg
-- Respiratory rate: ${Math.floor(Math.random() * 4) + 16} breaths/minute
-
-Assessment:
-- ${Math.random() > 0.5 ? "Upper respiratory infection" : "Viral pharyngitis"}
-- No signs of secondary bacterial infection
-- Patient is well-hydrated
-
-Plan:
-- Rest and hydration
-- ${Math.random() > 0.5 ? "Acetaminophen" : "Ibuprofen"} for pain/fever as needed
-- Return if symptoms worsen or do not improve within 3-5 days
-- Follow-up in 1 week if needed
-`);
-        setNoteTitle(`${patient.firstName} ${patient.lastName || ''} - ${Math.random() > 0.5 ? "Follow Up" : "Initial Consultation"}`);
+      if (!patient) {
+        throw new Error("Patient not found");
       }
+
+      // Use existing note text as transcript, or provide a template
+      const transcript = noteText || `Patient visit for ${patient.firstName} ${patient.lastName || ''}. Please document this consultation.`;
+
+      const response = await fetch('/api/ai/generate-soap', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transcript,
+          noteType: selectedNoteType,
+          patientInfo: {
+            firstName: patient.firstName,
+            lastName: patient.lastName,
+            id: patient.id,
+            dateOfBirth: patient.dateOfBirth,
+          }
+        })
+      });
+
+      const data = await response.json();
+      
+      if (data.success && data.soap) {
+        setNoteText(data.soap);
+        setNoteTitle(`${patient.firstName} ${patient.lastName || ''} - ${selectedNoteType.charAt(0).toUpperCase() + selectedNoteType.slice(1)} Note`);
+        toast({
+          title: "Success",
+          description: "Note generated using your custom prompts",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: data.soap || "Failed to generate note",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error generating notes:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate note",
+        variant: "destructive",
+      });
+    } finally {
       setIsGenerating(false);
-    }, 2000);
+    }
   };
 
   const handleSaveNote = () => {

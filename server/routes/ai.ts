@@ -170,7 +170,7 @@ aiRouter.post('/generate-soap', async (req, res) => {
       return res.status(401).json({ error: 'Not authenticated' });
     }
 
-    const { transcript, patientInfo } = req.body;
+    const { transcript, patientInfo, noteType } = req.body;
     const userId = req.user.id;
 
     if (!transcript) {
@@ -219,13 +219,23 @@ aiRouter.post('/generate-soap', async (req, res) => {
         specialty: patientInfo?.specialty || "Primary Care"
       };
 
-      // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          {
-            role: 'system',
-            content: `You are **AIMS AI Medical Scribe** — a real-time, HIPAA-compliant clinical documentation, coding, and billing assistant.
+      // Check for custom prompt if noteType is provided
+      let customSystemPrompt: string | null = null;
+      if (noteType) {
+        try {
+          const customPrompt = await dbStorage.getCustomNotePrompt(userId, noteType);
+          if (customPrompt && customPrompt.systemPrompt) {
+            customSystemPrompt = customPrompt.systemPrompt;
+            console.log(`Using custom prompt for note type: ${noteType}`);
+          }
+        } catch (error) {
+          console.error('Error fetching custom prompt:', error);
+          // Continue with default prompt
+        }
+      }
+
+      // Determine which system prompt to use
+      const systemPrompt = customSystemPrompt || `You are **AIMS AI Medical Scribe** — a real-time, HIPAA-compliant clinical documentation, coding, and billing assistant.
 
 Your composite roles:
 • Board-certified physician (all specialties)
@@ -325,7 +335,15 @@ E. **Language**
 • No pain score documented.
 • No consent documented for procedure or telemedicine.
 
-**CRITICAL**: Return ONLY valid JSON. Do not include any text outside the JSON object.`
+**CRITICAL**: Return ONLY valid JSON. Do not include any text outside the JSON object.`;
+
+      // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: 'system',
+            content: systemPrompt
           },
           {
             role: 'user',
