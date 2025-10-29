@@ -182,8 +182,13 @@ emailRouter.post("/test-email", async (req, res) => {
 });
 
 // Send patient list to doctor
-emailRouter.post("/send-patient-list", async (req, res) => {
+emailRouter.post("/send-patient-list", async (req: any, res) => {
   try {
+    // Require authentication
+    if (!req.isAuthenticated || !req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
     const { date, doctorEmail } = req.body;
     
     if (!date || !doctorEmail) {
@@ -196,11 +201,12 @@ emailRouter.post("/send-patient-list", async (req, res) => {
       return res.status(400).json({ message: "Invalid email address" });
     }
     
-    // Get appointments for the selected date
+    // Get authenticated doctor ID
+    const doctorId = req.user!.id;
+    
+    // Get appointments for the selected date - ONLY for the authenticated doctor
     const selectedDate = new Date(date);
-    // Get all appointments for all doctors (we need to filter by date across all doctors)
-    // Since storage.getAppointments requires doctorId, we'll get appointments directly from DB
-    const appointments = await db.select().from(appointmentsTable);
+    const appointments = await storage.getAppointments(doctorId);
     
     // Filter appointments for the selected date
     const dateAppointments = appointments.filter(apt => {
