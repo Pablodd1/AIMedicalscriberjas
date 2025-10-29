@@ -121,6 +121,40 @@ Plan:
   // Get selected template
   const selectedTemplate = noteTemplates?.find(template => template.type === selectedNoteType);
 
+  // Load custom prompt when note type changes
+  useEffect(() => {
+    let isActive = true;
+
+    (async () => {
+      if (!selectedNoteType || !user?.id) return;
+      
+      try {
+        const res = await apiRequest("GET", `/api/custom-note-prompts/${selectedNoteType}`);
+        const prompt = await res.json();
+        
+        if (!isActive) return;
+        
+        if (prompt && prompt.id) {
+          setSystemPrompt(prompt.systemPrompt || '');
+          setTemplateContent(prompt.templateContent || '');
+        } else {
+          setSystemPrompt(selectedTemplate?.systemPrompt || '');
+          setTemplateContent(selectedTemplate?.template || '');
+        }
+      } catch (error) {
+        console.error('Error loading custom prompt:', error);
+        if (isActive) {
+          setSystemPrompt(selectedTemplate?.systemPrompt || '');
+          setTemplateContent(selectedTemplate?.template || '');
+        }
+      }
+    })();
+
+    return () => {
+      isActive = false;
+    };
+  }, [selectedNoteType, selectedTemplate, user?.id]);
+
   // Create medical note mutation
   const createNoteMutation = useMutation({
     mutationFn: async (noteData: InsertMedicalNote) => {
@@ -166,6 +200,29 @@ Plan:
         title: "Success",
         description: "Template settings saved successfully",
       });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Save custom note prompt mutation
+  const saveCustomPromptMutation = useMutation({
+    mutationFn: async (data: { noteType: string; systemPrompt: string; templateContent: string }) => {
+      const res = await apiRequest('POST', '/api/custom-note-prompts', data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/custom-note-prompts'] });
+      toast({
+        title: "Success",
+        description: "Custom prompt saved successfully",
+      });
+      setIsSettingsOpen(false);
     },
     onError: (error: Error) => {
       toast({
@@ -355,23 +412,22 @@ Plan:
                 </Button>
                 <Button 
                   onClick={() => {
-                    const title = selectedNoteType.charAt(0).toUpperCase() + selectedNoteType.slice(1) + " Note Template";
-                    saveTemplateMutation.mutate({
-                      type: selectedNoteType,
-                      title: title,
+                    saveCustomPromptMutation.mutate({
+                      noteType: selectedNoteType,
                       systemPrompt: systemPrompt || selectedTemplate?.systemPrompt || "",
-                      template: templateContent || selectedTemplate?.template || ""
-                    } as InsertMedicalNoteTemplate);
+                      templateContent: templateContent || selectedTemplate?.template || ""
+                    });
                   }}
-                  disabled={saveTemplateMutation.isPending}
+                  disabled={saveCustomPromptMutation.isPending}
+                  data-testid="button-save-settings"
                 >
-                  {saveTemplateMutation.isPending ? (
+                  {saveCustomPromptMutation.isPending ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       Saving...
                     </>
                   ) : (
-                    "Save Settings"
+                    "Save Custom Prompt"
                   )}
                 </Button>
               </DialogFooter>
