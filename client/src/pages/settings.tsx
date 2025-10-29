@@ -141,8 +141,7 @@ export default function Settings() {
   // Save email settings
   const saveEmailSettingsMutation = useMutation({
     mutationFn: async (data: EmailSettingsFormValues) => {
-      const res = await apiRequest("POST", "/api/settings/email", data);
-      return res.json();
+      await apiRequest("POST", "/api/settings/email", data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/settings/email"] });
@@ -163,8 +162,7 @@ export default function Settings() {
   // Save email templates
   const saveEmailTemplatesMutation = useMutation({
     mutationFn: async (data: EmailTemplateFormValues) => {
-      const res = await apiRequest("POST", "/api/settings/email-templates", data);
-      return res.json();
+      await apiRequest("POST", "/api/settings/email-templates", data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/settings/email-templates"] });
