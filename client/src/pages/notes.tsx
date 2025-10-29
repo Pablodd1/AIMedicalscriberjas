@@ -69,7 +69,7 @@ export default function Notes() {
   const [noteTitle, setNoteTitle] = useState("");
   const [showConsultationModal, setShowConsultationModal] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [selectedNoteType, setSelectedNoteType] = useState<"soap" | "progress" | "procedure" | "consultation">("soap");
+  const [selectedNoteType, setSelectedNoteType] = useState<"soap" | "progress" | "procedure" | "consultation" | "initial" | "followup" | "physical" | "reevaluation" | "psychiatric" | "discharge">("soap");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [templateContent, setTemplateContent] = useState("");
   const [patientSearchOpen, setPatientSearchOpen] = useState(false);
@@ -303,15 +303,21 @@ Plan:
                   <Label htmlFor="noteType">Note Type</Label>
                   <Select
                     value={selectedNoteType}
-                    onValueChange={(value) => setSelectedNoteType(value as "soap" | "progress" | "procedure" | "consultation")}
+                    onValueChange={(value) => setSelectedNoteType(value as any)}
                   >
                     <SelectTrigger id="noteType">
                       <SelectValue placeholder="Select Note Type" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="soap">SOAP Note</SelectItem>
-                      <SelectItem value="progress">Progress Note</SelectItem>
+                      <SelectItem value="initial">Initial Consultation</SelectItem>
+                      <SelectItem value="followup">Follow-up Visit</SelectItem>
+                      <SelectItem value="physical">Physical Examination</SelectItem>
+                      <SelectItem value="reevaluation">Re-evaluation Note</SelectItem>
                       <SelectItem value="procedure">Procedure Note</SelectItem>
+                      <SelectItem value="psychiatric">Psychiatric Evaluation</SelectItem>
+                      <SelectItem value="discharge">Discharge Summary</SelectItem>
+                      <SelectItem value="progress">Progress Note</SelectItem>
                       <SelectItem value="consultation">Consultation Note</SelectItem>
                     </SelectContent>
                   </Select>
