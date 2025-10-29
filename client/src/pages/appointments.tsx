@@ -9,7 +9,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Edit2, Trash2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -39,6 +39,8 @@ export default function Appointments() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [customStatus, setCustomStatus] = useState("");
+  const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   const { data: appointments } = useQuery<Appointment[]>({
     queryKey: ["/api/appointments"],
@@ -158,8 +160,61 @@ export default function Appointments() {
       form.reset({
         patientId: 0,
         doctorId: 1,
-        date: new Date().getTime(), // Using timestamp for consistency
+        date: (() => {
+          const now = new Date();
+          now.setHours(9, 0, 0, 0);
+          return now.getTime();
+        })(),
         notes: "",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateAppointmentMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number, data: any }) => {
+      const dateObj = typeof data.date === 'string' ? new Date(data.date) : data.date;
+      const formattedData = {
+        ...data,
+        date: dateObj.getTime(),
+      };
+      const res = await apiRequest("PUT", `/api/appointments/${id}`, formattedData);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
+      toast({
+        title: "Success",
+        description: "Appointment updated successfully",
+      });
+      setIsEditDialogOpen(false);
+      setEditingAppointment(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteAppointmentMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("DELETE", `/api/appointments/${id}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
+      toast({
+        title: "Success",
+        description: "Appointment deleted successfully",
       });
     },
     onError: (error: Error) => {
@@ -363,6 +418,29 @@ export default function Appointments() {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        setEditingAppointment(appointment);
+                        setIsEditDialogOpen(true);
+                      }}
+                      data-testid={`button-edit-appointment-${appointment.id}`}
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        if (confirm('Are you sure you want to delete this appointment?')) {
+                          deleteAppointmentMutation.mutate(appointment.id);
+                        }
+                      }}
+                      data-testid={`button-delete-appointment-${appointment.id}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button variant="outline" size="sm">
@@ -374,7 +452,7 @@ export default function Appointments() {
                           } className="mr-2">
                             {appointment.status}
                           </Badge>
-                          Update
+                          Status
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-80" align="end">
@@ -529,6 +607,176 @@ export default function Appointments() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Edit Appointment Dialog */}
+      {editingAppointment && (
+        <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
+          setIsEditDialogOpen(open);
+          if (!open) setEditingAppointment(null);
+        }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Appointment</DialogTitle>
+            </DialogHeader>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit((data) => {
+                updateAppointmentMutation.mutate({ id: editingAppointment.id, data });
+              })} className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="patientId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Patient</FormLabel>
+                      <Select 
+                        onValueChange={value => field.onChange(parseInt(value))} 
+                        value={field.value.toString()}
+                        defaultValue={editingAppointment.patientId.toString()}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a patient" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {patients?.map((patient) => (
+                            <SelectItem key={patient.id} value={patient.id.toString()}>
+                              {`${patient.firstName} ${patient.lastName || ''}`}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="date"
+                  render={({ field }) => {
+                    // Initialize the field value from editingAppointment
+                    React.useEffect(() => {
+                      if (editingAppointment) {
+                        form.setValue('patientId', editingAppointment.patientId);
+                        form.setValue('date', new Date(editingAppointment.date).getTime());
+                        form.setValue('notes', editingAppointment.notes || '');
+                      }
+                    }, [editingAppointment]);
+
+                    return (
+                      <FormItem className="flex flex-col">
+                        <FormLabel>Date & Time</FormLabel>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant={"outline"}
+                                className={cn(
+                                  "w-full pl-3 text-left font-normal",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                {field.value ? (
+                                  format(new Date(field.value), "PPP p")
+                                ) : (
+                                  <span>Pick a date and time</span>
+                                )}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={field.value ? new Date(field.value) : undefined}
+                              onSelect={(date) => {
+                                if (date) {
+                                  const currentDate = field.value ? new Date(field.value) : new Date();
+                                  date.setHours(currentDate.getHours());
+                                  date.setMinutes(currentDate.getMinutes());
+                                  field.onChange(date.getTime());
+                                }
+                              }}
+                              disabled={(date) =>
+                                date < new Date() || date < new Date("1900-01-01")
+                              }
+                              initialFocus
+                            />
+                            <div className="p-3 border-t">
+                              <div className="flex items-center gap-2">
+                                <Select 
+                                  value={field.value ? new Date(field.value).getHours().toString() : "9"}
+                                  onValueChange={(hour) => {
+                                    const date = field.value ? new Date(field.value) : new Date();
+                                    date.setHours(parseInt(hour));
+                                    field.onChange(date.getTime());
+                                  }}
+                                >
+                                  <SelectTrigger className="w-[70px]">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {Array.from({ length: 24 }, (_, i) => (
+                                      <SelectItem key={i} value={i.toString()}>
+                                        {i.toString().padStart(2, '0')}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <span className="text-sm">:</span>
+                                <Select 
+                                  value={field.value ? new Date(field.value).getMinutes().toString() : "0"}
+                                  onValueChange={(minute) => {
+                                    const date = field.value ? new Date(field.value) : new Date();
+                                    date.setMinutes(parseInt(minute));
+                                    field.onChange(date.getTime());
+                                  }}
+                                >
+                                  <SelectTrigger className="w-[70px]">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {[0, 15, 30, 45].map((minute) => (
+                                      <SelectItem key={minute} value={minute.toString()}>
+                                        {minute.toString().padStart(2, '0')}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
+                />
+                <FormField
+                  control={form.control}
+                  name="notes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Notes</FormLabel>
+                      <FormControl>
+                        <textarea
+                          className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                          placeholder="Add appointment notes..."
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button type="submit" className="w-full" disabled={updateAppointmentMutation.isPending}>
+                  {updateAppointmentMutation.isPending ? "Updating..." : "Update Appointment"}
+                </Button>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

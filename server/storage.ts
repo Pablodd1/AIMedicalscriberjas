@@ -96,6 +96,8 @@ export interface IStorage {
   getAppointments(doctorId: number): Promise<Appointment[]>;
   createAppointment(appointment: InsertAppointment): Promise<Appointment>;
   updateAppointmentStatus(id: number, status: string): Promise<Appointment | undefined>;
+  updateAppointment(id: number, updates: Partial<Appointment>): Promise<Appointment | undefined>;
+  deleteAppointment(id: number): Promise<boolean>;
   getMedicalNotes(doctorId: number): Promise<MedicalNote[]>;
   getMedicalNotesByPatient(patientId: number): Promise<MedicalNote[]>;
   getMedicalNote(id: number): Promise<MedicalNote | undefined>;
@@ -427,6 +429,25 @@ export class DatabaseStorage implements IStorage {
       .where(eq(appointments.id, id))
       .returning();
     return updatedAppointment;
+  }
+
+  async updateAppointment(id: number, updates: Partial<Appointment>): Promise<Appointment | undefined> {
+    const [updatedAppointment] = await db
+      .update(appointments)
+      .set(updates)
+      .where(eq(appointments.id, id))
+      .returning();
+    return updatedAppointment;
+  }
+
+  async deleteAppointment(id: number): Promise<boolean> {
+    try {
+      const result = await db.delete(appointments).where(eq(appointments.id, id)).returning();
+      return result.length > 0;
+    } catch (error) {
+      console.error('Error deleting appointment:', error);
+      return false;
+    }
   }
 
   async getMedicalNotes(doctorId: number): Promise<MedicalNote[]> {

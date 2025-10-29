@@ -323,6 +323,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     sendSuccessResponse(res, updatedAppointment, 'Appointment status updated successfully');
   }));
 
+  // Update appointment (date, time, patient, notes)
+  app.put("/api/appointments/:id", requireAuth, asyncHandler(async (req, res) => {
+    const appointmentId = parseInt(req.params.id);
+    if (isNaN(appointmentId)) {
+      throw new AppError('Invalid appointment ID', 400, 'INVALID_APPOINTMENT_ID');
+    }
+    
+    // Convert numeric timestamp to Date object for PostgreSQL timestamp
+    let updates = req.body;
+    if (typeof updates.date === 'number') {
+      updates = {
+        ...updates,
+        date: new Date(updates.date)
+      };
+    }
+    
+    const updatedAppointment = await handleDatabaseOperation(
+      () => storage.updateAppointment(appointmentId, updates),
+      'Failed to update appointment'
+    );
+    
+    if (!updatedAppointment) {
+      throw new AppError('Appointment not found', 404, 'APPOINTMENT_NOT_FOUND');
+    }
+    
+    sendSuccessResponse(res, updatedAppointment, 'Appointment updated successfully');
+  }));
+
+  // Delete appointment
+  app.delete("/api/appointments/:id", requireAuth, asyncHandler(async (req, res) => {
+    const appointmentId = parseInt(req.params.id);
+    if (isNaN(appointmentId)) {
+      throw new AppError('Invalid appointment ID', 400, 'INVALID_APPOINTMENT_ID');
+    }
+    
+    const deleted = await handleDatabaseOperation(
+      () => storage.deleteAppointment(appointmentId),
+      'Failed to delete appointment'
+    );
+    
+    if (!deleted) {
+      throw new AppError('Appointment not found', 404, 'APPOINTMENT_NOT_FOUND');
+    }
+    
+    sendSuccessResponse(res, { id: appointmentId }, 'Appointment deleted successfully');
+  }));
+
   // Medical Notes routes
   app.get("/api/medical-notes", requireAuth, asyncHandler(async (req, res) => {
     const notes = await handleDatabaseOperation(
