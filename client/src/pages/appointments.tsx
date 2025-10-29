@@ -273,7 +273,7 @@ export default function Appointments() {
 
   const sendPatientListMutation = useMutation({
     mutationFn: async ({ date, email }: { date: Date, email: string }) => {
-      const res = await apiRequest("POST", "/api/email/send-patient-list", {
+      const res = await apiRequest("POST", "/api/settings/send-patient-list", {
         date: date.toISOString(),
         doctorEmail: email,
       });
