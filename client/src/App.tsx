@@ -13,6 +13,8 @@ import ConsultationComplete from "@/pages/consultation-complete";
 import AuthPage from "@/pages/auth-page";
 import { ProtectedRoute } from "@/lib/protected-route";
 import LandingPage from "@/pages/landing-page";
+import ConfirmAppointment from "@/pages/confirm-appointment";
+import DeclineAppointment from "@/pages/decline-appointment";
 
 // Import all the page components we need
 import Dashboard from "@/pages/dashboard";
@@ -138,6 +140,11 @@ function Router() {
       {/* Public routes for telemedicine patient access */}
       <Route path="/join-consultation/:roomId" component={JoinConsultation} />
       <Route path="/consultation-complete" component={ConsultationComplete} />
+      
+      {/* Public routes for appointment confirmation */}
+      <Route path="/confirm-appointment" component={ConfirmAppointment} />
+      <Route path="/decline-appointment" component={DeclineAppointment} />
+      
       <Route component={NotFound} />
     </Switch>
   );

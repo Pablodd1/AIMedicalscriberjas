@@ -98,8 +98,10 @@ export interface IStorage {
   createPatient(patient: InsertPatient & { createdBy: number }): Promise<Patient>;
   getAppointments(doctorId: number): Promise<Appointment[]>;
   getAppointment(id: number): Promise<Appointment | undefined>;
+  getAppointmentByToken(token: string): Promise<Appointment[]>;
   createAppointment(appointment: InsertAppointment): Promise<Appointment>;
   updateAppointmentStatus(id: number, status: string): Promise<Appointment | undefined>;
+  clearAppointmentToken(id: number): Promise<void>;
   updateAppointment(id: number, updates: Partial<Appointment>): Promise<Appointment | undefined>;
   deleteAppointment(id: number): Promise<boolean>;
   getMedicalNotes(doctorId: number): Promise<MedicalNote[]>;
@@ -429,10 +431,14 @@ export class DatabaseStorage implements IStorage {
     return appointment;
   }
 
+  async getAppointmentByToken(token: string): Promise<Appointment[]> {
+    return db.select().from(appointments).where(eq(appointments.confirmationToken, token));
+  }
+
   async createAppointment(appointment: InsertAppointment): Promise<Appointment> {
     const [newAppointment] = await db
       .insert(appointments)
-      .values({ ...appointment, status: "scheduled" })
+      .values(appointment)
       .returning();
     return newAppointment;
   }
@@ -444,6 +450,13 @@ export class DatabaseStorage implements IStorage {
       .where(eq(appointments.id, id))
       .returning();
     return updatedAppointment;
+  }
+
+  async clearAppointmentToken(id: number): Promise<void> {
+    await db
+      .update(appointments)
+      .set({ confirmationToken: null })
+      .where(eq(appointments.id, id));
   }
 
   async updateAppointment(id: number, updates: Partial<Appointment>): Promise<Appointment | undefined> {

@@ -109,10 +109,11 @@ export const appointments = pgTable("appointments", {
   patientId: integer("patient_id").notNull(),
   doctorId: integer("doctor_id").notNull(),
   date: timestamp("date").notNull(),
-  status: text("status").notNull().default("scheduled"),
+  status: text("status").notNull().default("pending_confirmation"),
   type: text("type").notNull().default("in-person"),
   reason: text("reason"),
   notes: text("notes"),
+  confirmationToken: text("confirmation_token"),
 });
 
 // Define a type enum for notes

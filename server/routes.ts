@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from 'ws';
+import { randomBytes } from 'crypto';
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { FileStorage } from "./file-storage";
@@ -11,6 +12,7 @@ import { monitoringRouter } from "./routes/monitoring";
 import { labInterpreterRouter } from "./routes/lab-interpreter";
 import { patientDocumentsRouter } from "./routes/patient-documents-updated";
 import { adminRouter } from "./routes/admin";
+import { createPublicRouter } from "./routes/public";
 import { 
   globalErrorHandler, 
   requireAuth, 
@@ -60,6 +62,9 @@ const activeRooms = new Map<string, VideoChatRoom>();
 
 export async function registerRoutes(app: Express): Promise<Server> {
   setupAuth(app);
+  
+  // Register public routes (no auth required)
+  app.use('/api/public', createPublicRouter(storage));
   
   // Register AI routes
   app.use('/api/ai', aiRouter);
@@ -290,19 +295,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       throw new AppError(validation.error!, 400, 'VALIDATION_ERROR');
     }
     
+    // Generate unique confirmation token
+    const confirmationToken = randomBytes(32).toString('hex');
+    
     const appointment = await handleDatabaseOperation(
       () => storage.createAppointment({
         ...validation.data,
         doctorId: req.user.id,
+        confirmationToken,
       }),
       'Failed to create appointment'
     );
     
-    // Send confirmation email to patient
+    // Send confirmation email to patient with confirm/decline buttons
     try {
       const patient = await storage.getPatient(appointment.patientId);
       if (patient && patient.email) {
         const appointmentDate = new Date(appointment.date);
+        const baseUrl = process.env.REPL_SLUG 
+          ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`
+          : 'http://localhost:5000';
+        
         await sendPatientEmail(
           patient.email,
           `${patient.firstName} ${patient.lastName || ''}`.trim(),
@@ -311,7 +324,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             patientName: `${patient.firstName} ${patient.lastName || ''}`.trim(),
             appointmentDate: appointmentDate.toLocaleDateString(),
             appointmentTime: appointmentDate.toLocaleTimeString(),
-            notes: appointment.notes || 'No additional notes'
+            notes: appointment.notes || 'No additional notes',
+            confirmUrl: `${baseUrl}/confirm-appointment?token=${confirmationToken}`,
+            declineUrl: `${baseUrl}/decline-appointment?token=${confirmationToken}`
           }
         );
       }
