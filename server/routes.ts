@@ -1370,84 +1370,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Upload media (audio or video) for a telemedicine recording
-  app.post('/api/telemedicine/recordings/:id/media', async (req, res) => {
+  const uploadMediaMiddleware = multer({ 
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 100 * 1024 * 1024, // 100MB limit for video files
+    }
+  }).single('media');
+  
+  app.post('/api/telemedicine/recordings/:id/media', uploadMediaMiddleware, async (req, res) => {
     try {
+      console.log(`Received media upload request for recording ${req.params.id}`);
+      
       if (!req.isAuthenticated()) {
+        console.log('Upload rejected: not authenticated');
         return res.status(401).json({ message: "Unauthorized" });
       }
       
-      const doctorId = req.user.id;
+      const doctorId = req.user!.id;
       const recordingId = parseInt(req.params.id);
       
       if (isNaN(recordingId)) {
+        console.log('Upload rejected: invalid recording ID');
         return res.status(400).json({ message: 'Invalid recording ID format' });
       }
       
-      // Set up multer for file handling
-      const multerStorage = multer.memoryStorage();
-      const upload = multer({ 
-        storage: multerStorage,
-        limits: {
-          fileSize: 100 * 1024 * 1024, // 100MB limit for video files
-        }
-      }).single('media');
+      if (!req.file) {
+        console.log('Upload rejected: no file uploaded');
+        return res.status(400).json({ message: 'No file uploaded' });
+      }
       
-      // Handle the file upload
-      upload(req, res, async (err: any) => {
-        if (err) {
-          console.error('Multer error:', err);
-          return res.status(400).json({ message: 'File upload failed', error: err.message });
-        }
-        
-        if (!req.file) {
-          return res.status(400).json({ message: 'No file uploaded' });
-        }
-        
-        // Get the recording session
-        const recording = await storage.getRecordingSession(recordingId);
-        
-        if (!recording) {
-          return res.status(404).json({ message: 'Recording not found' });
-        }
-        
-        // Security check: Only allow the doctor who owns the recording to upload to it
-        if (recording.doctorId !== doctorId) {
-          return res.status(403).json({ message: 'You do not have permission to modify this recording' });
-        }
-        
-        const mediaType = (req.body.type || 'audio') as 'audio' | 'video';
-        const fileBuffer = req.file.buffer;
-        const extension = req.file.originalname.split('.').pop() || 'webm';
-        
-        // Save the file permanently to disk
-        const filepath = await FileStorage.saveRecording(
-          recordingId,
-          fileBuffer,
-          mediaType,
-          extension
-        );
-        
-        console.log(`Saved ${mediaType} recording to: ${filepath}`);
-        
-        // Update the recording session with the appropriate URL
-        const updateData: any = {};
-        if (mediaType === 'audio') {
-          updateData.audioUrl = `/api/telemedicine/recordings/${recordingId}/audio`;
-        } else {
-          updateData.videoUrl = `/api/telemedicine/recordings/${recordingId}/video`;
-        }
-        
-        // Update the database record
-        await storage.updateRecordingSession(recordingId, updateData);
-        
-        res.status(200).json({ 
-          message: `${mediaType} recording uploaded successfully`,
-          recordingId
-        });
+      console.log(`File received: ${req.file.originalname}, size: ${req.file.size} bytes`);
+      
+      // Get the recording session
+      const recording = await storage.getRecordingSession(recordingId);
+      
+      if (!recording) {
+        console.log(`Upload rejected: recording ${recordingId} not found`);
+        return res.status(404).json({ message: 'Recording not found' });
+      }
+      
+      // Security check: Only allow the doctor who owns the recording to upload to it
+      if (recording.doctorId !== doctorId) {
+        console.log(`Upload rejected: doctor ${doctorId} does not own recording ${recordingId}`);
+        return res.status(403).json({ message: 'You do not have permission to modify this recording' });
+      }
+      
+      const mediaType = (req.body.type || 'audio') as 'audio' | 'video';
+      const fileBuffer = req.file.buffer;
+      const extension = req.file.originalname.split('.').pop() || 'webm';
+      
+      console.log(`Saving ${mediaType} recording with extension ${extension}`);
+      
+      // Save the file permanently to disk
+      const filepath = await FileStorage.saveRecording(
+        recordingId,
+        fileBuffer,
+        mediaType,
+        extension
+      );
+      
+      console.log(`Saved ${mediaType} recording to: ${filepath}`);
+      
+      // Update the recording session with the appropriate URL
+      const updateData: any = {};
+      if (mediaType === 'audio') {
+        updateData.audioUrl = `/api/telemedicine/recordings/${recordingId}/audio`;
+      } else {
+        updateData.videoUrl = `/api/telemedicine/recordings/${recordingId}/video`;
+      }
+      
+      // Update the database record
+      await storage.updateRecordingSession(recordingId, updateData);
+      
+      console.log(`Successfully uploaded ${mediaType} recording ${recordingId}`);
+      
+      res.status(200).json({ 
+        message: `${mediaType} recording uploaded successfully`,
+        recordingId
       });
     } catch (error) {
       console.error(`Error uploading recording:`, error);
-      res.status(500).json({ message: 'Failed to upload recording' });
+      res.status(500).json({ message: 'Failed to upload recording', error: String(error) });
     }
   });
 
