@@ -1388,6 +1388,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Generate transcript from video recording using Deepgram
+  app.patch('/api/telemedicine/recordings/:id/generate-transcript', async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: 'Invalid recording ID format' });
+      }
+      
+      const recording = await storage.getRecordingSession(id);
+      if (!recording) {
+        return res.status(404).json({ message: 'Recording session not found' });
+      }
+      
+      if (!recording.videoUrl) {
+        return res.status(400).json({ message: 'No video recording available for transcription' });
+      }
+      
+      // Check if Deepgram API key is available
+      if (!process.env.DEEPGRAM_API_KEY) {
+        return res.status(500).json({ message: 'Deepgram API key not configured' });
+      }
+      
+      try {
+        // Import Deepgram SDK
+        const { createClient } = await import('@deepgram/sdk');
+        const deepgram = createClient(process.env.DEEPGRAM_API_KEY);
+        
+        // Get the video file URL (Cloudinary URL)
+        const videoUrl = recording.videoUrl;
+        
+        // Transcribe using Deepgram's URL source
+        const { result, error } = await deepgram.listen.prerecorded.transcribeUrl(
+          { url: videoUrl },
+          {
+            model: 'nova-2',
+            smart_format: true,
+            punctuate: true,
+            paragraphs: true,
+            utterances: true,
+            language: 'en'
+          }
+        );
+        
+        if (error) {
+          console.error('Deepgram transcription error:', error);
+          return res.status(500).json({ message: 'Failed to transcribe video: ' + error.message });
+        }
+        
+        // Extract transcript from Deepgram response
+        const transcript = result?.results?.channels?.[0]?.alternatives?.[0]?.transcript || 
+                          result?.results?.channels?.[0]?.alternatives?.[0]?.paragraphs?.transcript ||
+                          '';
+        
+        if (!transcript) {
+          return res.status(500).json({ message: 'No transcript generated from video' });
+        }
+        
+        // Update the recording with the transcript
+        const updatedRecording = await storage.updateRecordingSession(id, { transcript });
+        
+        res.json({
+          ...updatedRecording,
+          message: 'Transcript generated successfully'
+        });
+      } catch (deepgramError: any) {
+        console.error('Deepgram API error:', deepgramError);
+        return res.status(500).json({ 
+          message: 'Transcription failed: ' + (deepgramError.message || 'Unknown error') 
+        });
+      }
+    } catch (error) {
+      console.error('Error generating transcript:', error);
+      res.status(500).json({ message: 'Failed to generate transcript' });
+    }
+  });
+  
   // Delete a recording session
   app.delete('/api/telemedicine/recordings/:id', async (req, res) => {
     try {
