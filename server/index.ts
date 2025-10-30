@@ -52,6 +52,11 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
+  // Set server timeout to 10 minutes for large uploads
+  server.timeout = 600000;
+  server.keepAliveTimeout = 610000;
+  server.headersTimeout = 620000;
+
   // ALWAYS serve the app on port 5000
   // this serves both the API and the client
   const port = 5000;

@@ -464,12 +464,18 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
               console.log(`Video blob size: ${recordingBlob.size} bytes (${(recordingBlob.size / 1024 / 1024).toFixed(2)} MB)`);
               
               try {
+                // Create abort controller for timeout
+                const abortController = new AbortController();
+                const timeoutId = setTimeout(() => abortController.abort(), 300000); // 5 minute timeout
+                
                 const videoUploadResponse = await fetch(`/api/telemedicine/recordings/${recordingData.id}/media`, {
                   method: 'POST',
                   body: videoFormData,
                   credentials: 'same-origin',
+                  signal: abortController.signal,
                 });
                 
+                clearTimeout(timeoutId);
                 console.log(`Video upload response status: ${videoUploadResponse.status}`);
                 
                 if (!videoUploadResponse.ok) {
@@ -492,7 +498,14 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                 }
               } catch (error) {
                 console.error('Error uploading video recording:', error);
-                const errorMessage = error instanceof Error ? error.message : String(error);
+                let errorMessage = 'Unknown error';
+                if (error instanceof Error) {
+                  errorMessage = error.name === 'AbortError' 
+                    ? 'Upload timed out after 5 minutes' 
+                    : error.message;
+                } else {
+                  errorMessage = String(error);
+                }
                 toast({
                   title: "Upload Error",
                   description: `Failed to upload video: ${errorMessage}`,
@@ -509,12 +522,18 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
               console.log(`Audio blob size: ${audioBlob.size} bytes (${(audioBlob.size / 1024 / 1024).toFixed(2)} MB)`);
               
               try {
+                // Create abort controller for timeout
+                const abortController = new AbortController();
+                const timeoutId = setTimeout(() => abortController.abort(), 300000); // 5 minute timeout
+                
                 const audioUploadResponse = await fetch(`/api/telemedicine/recordings/${recordingData.id}/media`, {
                   method: 'POST',
                   body: audioFormData,
                   credentials: 'same-origin',
+                  signal: abortController.signal,
                 });
                 
+                clearTimeout(timeoutId);
                 console.log(`Audio upload response status: ${audioUploadResponse.status}`);
                 
                 if (!audioUploadResponse.ok) {
@@ -537,7 +556,14 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                 }
               } catch (error) {
                 console.error('Error uploading audio recording:', error);
-                const errorMessage = error instanceof Error ? error.message : String(error);
+                let errorMessage = 'Unknown error';
+                if (error instanceof Error) {
+                  errorMessage = error.name === 'AbortError' 
+                    ? 'Upload timed out after 5 minutes' 
+                    : error.message;
+                } else {
+                  errorMessage = String(error);
+                }
                 toast({
                   title: "Upload Error",
                   description: `Failed to upload audio: ${errorMessage}`,

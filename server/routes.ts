@@ -1587,6 +1587,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }).single('media');
   
   app.post('/api/telemedicine/recordings/:id/media', uploadMediaMiddleware, async (req, res) => {
+    // Increase timeout for large file uploads (10 minutes)
+    req.setTimeout(600000);
+    res.setTimeout(600000);
+    
     try {
       console.log(`=== MEDIA UPLOAD START ===`);
       console.log(`Received media upload request for recording ${req.params.id}`);
