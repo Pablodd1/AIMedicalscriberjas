@@ -57,6 +57,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Patient, Appointment } from "@shared/schema";
+import { useUploadManager } from "@/contexts/upload-manager";
 
 // We'll use 'any' types for the Speech Recognition API to avoid TypeScript complexities
 // This is fine for our demonstration purposes
@@ -73,6 +74,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
 
   const { user } = useAuth();
   const { toast } = useToast();
+  const { enqueueUpload } = useUploadManager();
   const [connected, setConnected] = useState(false);
   const [participants, setParticipants] = useState<any[]>([]);
   const [audioEnabled, setAudioEnabled] = useState(true);
@@ -447,149 +449,19 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             let audioBlob = recordingBlob;
             
             console.log(`Preparing to upload ${isVideoRecording ? 'video' : 'audio'} recording, blob size: ${recordingBlob.size} bytes`);
-            console.log('About to start upload process...');
+            console.log('About to enqueue upload to background manager...');
             
-            if (isVideoRecording) {
-              // For video, we need to extract audio for transcription
-              // But we'll also keep the video for download
-              setIsUploading(true);
-              setUploadProgress("Uploading video to cloud storage...");
-              
-              toast({
-                title: "Uploading Recording",
-                description: "Saving video recording to cloud storage. Please wait...",
-              });
-              
-              // Upload the video file to the server
-              const videoFormData = new FormData();
-              videoFormData.append('media', recordingBlob, `video_${recordingData.id}.${fileExt}`);
-              videoFormData.append('type', 'video');
-              
-              console.log(`Uploading video to /api/telemedicine/recordings/${recordingData.id}/media`);
-              console.log(`Video blob size: ${recordingBlob.size} bytes (${(recordingBlob.size / 1024 / 1024).toFixed(2)} MB)`);
-              
-              try {
-                // Create abort controller for timeout (30 minutes for large files from 45+ min recordings)
-                const abortController = new AbortController();
-                const timeoutId = setTimeout(() => abortController.abort(), 1800000); // 30 minute timeout
-                
-                const videoUploadResponse = await fetch(`/api/telemedicine/recordings/${recordingData.id}/media`, {
-                  method: 'POST',
-                  body: videoFormData,
-                  credentials: 'same-origin',
-                  signal: abortController.signal,
-                });
-                
-                clearTimeout(timeoutId);
-                console.log(`Video upload response status: ${videoUploadResponse.status}`);
-                
-                if (!videoUploadResponse.ok) {
-                  const errorText = await videoUploadResponse.text();
-                  console.error('Failed to upload video file:', errorText);
-                  toast({
-                    title: "Upload Failed",
-                    description: `Video upload failed: ${errorText}`,
-                    variant: "destructive"
-                  });
-                } else {
-                  const responseData = await videoUploadResponse.json();
-                  console.log('Video recording uploaded successfully:', responseData);
-                  toast({
-                    title: "Upload Complete",
-                    description: "Video recording saved to cloud storage successfully!",
-                  });
-                  // Refresh the recordings list to show the new recording
-                  queryClient.invalidateQueries({ queryKey: ["/api/telemedicine/recordings"] });
-                }
-              } catch (error) {
-                console.error('Error uploading video recording:', error);
-                let errorMessage = 'Unknown error';
-                if (error instanceof Error) {
-                  errorMessage = error.name === 'AbortError' 
-                    ? 'Upload timed out after 30 minutes. File may be too large.' 
-                    : error.message;
-                } else {
-                  errorMessage = String(error);
-                }
-                toast({
-                  title: "Upload Error",
-                  description: `Failed to upload video: ${errorMessage}`,
-                  variant: "destructive"
-                });
-              } finally {
-                setIsUploading(false);
-                setUploadProgress("");
-              }
-            } else {
-              // Upload the audio file to the server
-              setIsUploading(true);
-              setUploadProgress("Uploading audio to cloud storage...");
-              
-              toast({
-                title: "Uploading Recording",
-                description: "Saving audio recording to cloud storage. Please wait...",
-              });
-              
-              const audioFormData = new FormData();
-              audioFormData.append('media', audioBlob, `audio_${recordingData.id}.${fileExt}`);
-              audioFormData.append('type', 'audio');
-              
-              console.log(`Uploading audio to /api/telemedicine/recordings/${recordingData.id}/media`);
-              console.log(`Audio blob size: ${audioBlob.size} bytes (${(audioBlob.size / 1024 / 1024).toFixed(2)} MB)`);
-              
-              try {
-                // Create abort controller for timeout (30 minutes for large files from 45+ min recordings)
-                const abortController = new AbortController();
-                const timeoutId = setTimeout(() => abortController.abort(), 1800000); // 30 minute timeout
-                
-                const audioUploadResponse = await fetch(`/api/telemedicine/recordings/${recordingData.id}/media`, {
-                  method: 'POST',
-                  body: audioFormData,
-                  credentials: 'same-origin',
-                  signal: abortController.signal,
-                });
-                
-                clearTimeout(timeoutId);
-                console.log(`Audio upload response status: ${audioUploadResponse.status}`);
-                
-                if (!audioUploadResponse.ok) {
-                  const errorText = await audioUploadResponse.text();
-                  console.error('Failed to upload audio file:', errorText);
-                  toast({
-                    title: "Upload Failed",
-                    description: `Audio upload failed: ${errorText}`,
-                    variant: "destructive"
-                  });
-                } else {
-                  const responseData = await audioUploadResponse.json();
-                  console.log('Audio recording uploaded successfully:', responseData);
-                  toast({
-                    title: "Upload Complete",
-                    description: "Audio recording saved to cloud storage successfully!",
-                  });
-                  // Refresh the recordings list to show the new recording
-                  queryClient.invalidateQueries({ queryKey: ["/api/telemedicine/recordings"] });
-                }
-              } catch (error) {
-                console.error('Error uploading audio recording:', error);
-                let errorMessage = 'Unknown error';
-                if (error instanceof Error) {
-                  errorMessage = error.name === 'AbortError' 
-                    ? 'Upload timed out after 30 minutes. File may be too large.' 
-                    : error.message;
-                } else {
-                  errorMessage = String(error);
-                }
-                toast({
-                  title: "Upload Error",
-                  description: `Failed to upload audio: ${errorMessage}`,
-                  variant: "destructive"
-                });
-              } finally {
-                setIsUploading(false);
-                setUploadProgress("");
-              }
-            }
+            // Enqueue the upload to the background manager
+            // This allows the upload to continue even if the meeting is closed
+            enqueueUpload({
+              id: Date.now(), // Unique ID for this upload
+              recordingId: recordingData.id,
+              blob: recordingBlob,
+              filename: `${isVideoRecording ? 'video' : 'audio'}_${recordingData.id}.${fileExt}`,
+              type: isVideoRecording ? 'video' : 'audio'
+            });
+            
+            console.log(`Upload queued for background processing. You can now close the meeting safely.`);
 
             // Send the audio to the backend for transcription
             const formData = new FormData();
@@ -1143,14 +1015,8 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
 
 
   const handleEndCall = () => {
-    if (isUploading) {
-      toast({
-        title: "Upload in Progress",
-        description: "Please wait for the recording upload to complete before ending the meeting. This prevents data loss.",
-        variant: "destructive"
-      });
-      return;
-    }
+    // Uploads now happen in background via UploadManager
+    // Safe to close meeting immediately - uploads will continue
     onClose();
   };
 
@@ -1354,12 +1220,9 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           </Dialog>
           
 
-          <Button variant="destructive" size="icon" onClick={handleEndCall} disabled={isUploading}>
+          <Button variant="destructive" size="icon" onClick={handleEndCall} data-testid="button-end-meeting">
             <X className="h-4 w-4" />
           </Button>
-          {isUploading && (
-            <span className="text-sm text-muted-foreground ml-2">{uploadProgress}</span>
-          )}
         </div>
       </div>
 

@@ -1,4 +1,5 @@
 import Sidebar from "@/components/layout/sidebar";
+import { UploadStatusIndicator } from "@/components/upload-status-indicator";
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -8,11 +9,16 @@ export default function MainLayout({ children }: MainLayoutProps) {
   return (
     <div className="min-h-screen bg-background flex">
       <Sidebar />
-      <main className="flex-1 p-8 overflow-auto">
-        <div className="max-w-6xl mx-auto">
-          {children}
-        </div>
-      </main>
+      <div className="flex-1 flex flex-col">
+        <header className="border-b bg-background px-8 py-4 flex items-center justify-end">
+          <UploadStatusIndicator />
+        </header>
+        <main className="flex-1 p-8 overflow-auto">
+          <div className="max-w-6xl mx-auto">
+            {children}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

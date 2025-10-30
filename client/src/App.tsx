@@ -8,6 +8,7 @@ import PatientJoin from "@/pages/patient-join";
 import MainLayout from "@/components/layout/main-layout";
 import Assistant from "@/pages/assistant";
 import { AuthProvider } from "@/hooks/use-auth";
+import { UploadManagerProvider } from "@/contexts/upload-manager";
 import JoinConsultation from "@/pages/join-consultation";
 import ConsultationComplete from "@/pages/consultation-complete";
 import AuthPage from "@/pages/auth-page";
@@ -154,8 +155,10 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <Router />
-        <Toaster />
+        <UploadManagerProvider>
+          <Router />
+          <Toaster />
+        </UploadManagerProvider>
       </AuthProvider>
     </QueryClientProvider>
   );
