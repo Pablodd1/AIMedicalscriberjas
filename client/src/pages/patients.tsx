@@ -243,26 +243,26 @@ const filteredPatients = patients?.filter((patient, index) => {
   });
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-4 md:space-y-6 p-4 md:p-0">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Patients</h1>
-          <p className="text-muted-foreground">Manage your patient records and information</p>
+          <h1 className="text-2xl md:text-3xl font-bold">Patients</h1>
+          <p className="text-sm md:text-base text-muted-foreground">Manage your patient records and information</p>
         </div>
         <Dialog>
           <DialogTrigger asChild>
-            <Button>
+            <Button className="w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-2" />
               Add Patient
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[550px]">
+          <DialogContent className="w-[95vw] sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Add New Patient</DialogTitle>
+              <DialogTitle className="text-lg md:text-xl">Add New Patient</DialogTitle>
             </DialogHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit((data) => createPatientMutation.mutate(data))} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
                     name="firstName"
@@ -290,7 +290,7 @@ const filteredPatients = patients?.filter((patient, index) => {
                     )}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
                     name="email"
@@ -366,9 +366,9 @@ const filteredPatients = patients?.filter((patient, index) => {
         </Dialog>
       </div>
 
-      <div className="flex items-center gap-4 flex-wrap">
-        <div className="flex items-center border rounded-md px-3 flex-1 min-w-[240px]">
-          <Search className="h-4 w-4 text-muted-foreground" />
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4">
+        <div className="flex items-center border rounded-md px-3 flex-1 min-w-0">
+          <Search className="h-4 w-4 text-muted-foreground flex-shrink-0" />
           <Input
             placeholder="Search patients..."
             className="border-0 focus-visible:ring-0"
@@ -377,51 +377,55 @@ const filteredPatients = patients?.filter((patient, index) => {
           />
         </div>
         
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button 
-                variant={showTodayPatients ? "default" : "outline"} 
-                onClick={() => setShowTodayPatients(!showTodayPatients)}
-              >
-                <Calendar className="h-4 w-4 mr-2" />
-                Today's Patients
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Show only patients with appointments today</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-        
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button 
-                variant="outline" 
-                onClick={exportPatients}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Export
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Export patient data as CSV</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-        
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button 
-                variant="outline" 
-                onClick={() => setShowImportDialog(true)}
-              >
-                <Upload className="h-4 w-4 mr-2" />
-                Import
-              </Button>
-            </TooltipTrigger>
+        <div className="grid grid-cols-3 sm:flex gap-2">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant={showTodayPatients ? "default" : "outline"} 
+                  onClick={() => setShowTodayPatients(!showTodayPatients)}
+                  className="whitespace-nowrap"
+                >
+                  <Calendar className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Today's Patients</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Show only patients with appointments today</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  onClick={exportPatients}
+                  className="whitespace-nowrap"
+                >
+                  <Download className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Export</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Export patient data as CSV</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowImportDialog(true)}
+                  className="whitespace-nowrap"
+                >
+                  <Upload className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Import</span>
+                </Button>
+              </TooltipTrigger>
             <TooltipContent>
               <p>Import patients from Excel file</p>
             </TooltipContent>
@@ -444,9 +448,11 @@ const filteredPatients = patients?.filter((patient, index) => {
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
+        </div>
       </div>
 
-      <div className="border rounded-lg">
+      {/* Desktop Table View */}
+      <div className="hidden md:block border rounded-lg overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -483,9 +489,49 @@ const filteredPatients = patients?.filter((patient, index) => {
         </Table>
       </div>
 
+      {/* Mobile Card View */}
+      <div className="md:hidden space-y-3">
+        {filteredPatients?.map((patient) => (
+          <div key={patient.id} className="border rounded-lg p-4 space-y-3">
+            <div className="flex items-start justify-between">
+              <div className="flex-1 min-w-0">
+                <h3 className="font-medium text-base truncate">{`${patient.firstName} ${patient.lastName || ''}`}</h3>
+                <Badge variant="secondary" className="mt-1">Active</Badge>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setSelectedPatient(patient.id)}
+                className="flex-shrink-0"
+              >
+                <FileText className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="space-y-2 text-sm">
+              <div className="flex items-start gap-2">
+                <span className="text-muted-foreground min-w-[80px]">Email:</span>
+                <span className="break-all">{patient.email}</span>
+              </div>
+              {patient.phone && (
+                <div className="flex items-start gap-2">
+                  <span className="text-muted-foreground min-w-[80px]">Phone:</span>
+                  <span>{patient.phone}</span>
+                </div>
+              )}
+              {patient.dateOfBirth && (
+                <div className="flex items-start gap-2">
+                  <span className="text-muted-foreground min-w-[80px]">DOB:</span>
+                  <span>{patient.dateOfBirth}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
       {selectedPatient && (
         <Dialog open={!!selectedPatient} onOpenChange={() => setSelectedPatient(null)}>
-          <DialogContent className="max-w-4xl h-[80vh]">
+          <DialogContent className="w-[95vw] max-w-4xl h-[90vh] max-h-[90vh] overflow-y-auto">
             <PatientDetails patientId={selectedPatient} />
           </DialogContent>
         </Dialog>
@@ -493,7 +539,7 @@ const filteredPatients = patients?.filter((patient, index) => {
 
       {/* Import Dialog */}
       <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
-        <DialogContent className="sm:max-w-[550px]">
+        <DialogContent className="w-[95vw] sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Import Patients</DialogTitle>
             <DialogDescription>
@@ -545,7 +591,7 @@ const filteredPatients = patients?.filter((patient, index) => {
 
       {/* Guidelines Dialog */}
       <Dialog open={showGuidelinesDialog} onOpenChange={setShowGuidelinesDialog}>
-        <DialogContent className="sm:max-w-[700px]">
+        <DialogContent className="w-[95vw] sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Patient Import Guidelines</DialogTitle>
             <DialogDescription>

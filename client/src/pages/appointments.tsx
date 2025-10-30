@@ -319,15 +319,16 @@ export default function Appointments() {
   });
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Appointments</h1>
-        <div className="flex gap-2">
+    <div className="space-y-4 md:space-y-6 p-4 md:p-0">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+        <h1 className="text-2xl md:text-3xl font-bold">Appointments</h1>
+        <div className="flex flex-col sm:flex-row gap-2">
           <Dialog open={isPatientListDialogOpen} onOpenChange={setIsPatientListDialogOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline" data-testid="button-send-patient-list">
+              <Button variant="outline" data-testid="button-send-patient-list" className="w-full sm:w-auto">
                 <Mail className="h-4 w-4 mr-2" />
-                Send Patient List to Doctor
+                <span className="hidden sm:inline">Send Patient List to Doctor</span>
+                <span className="sm:hidden">Patient List</span>
               </Button>
             </DialogTrigger>
             <DialogContent>
@@ -384,7 +385,7 @@ export default function Appointments() {
           </Dialog>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button>
+              <Button className="w-full sm:w-auto">
                 <Plus className="h-4 w-4 mr-2" />
                 New Appointment
               </Button>
@@ -424,7 +425,7 @@ export default function Appointments() {
                             </Button>
                           </FormControl>
                         </PopoverTrigger>
-                        <PopoverContent className="w-[400px] p-0">
+                        <PopoverContent className="w-[90vw] sm:w-[400px] p-0">
                           <Command>
                             <CommandInput placeholder="Search patients..." />
                             <CommandList>
@@ -597,7 +598,7 @@ export default function Appointments() {
               appointments?.map((appointment) => (
                 <div
                   key={appointment.id}
-                  className="flex items-center justify-between p-4 border rounded-lg"
+                  className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-lg gap-4"
                 >
                   <div className="space-y-1">
                     <p className="font-medium">
@@ -630,7 +631,7 @@ export default function Appointments() {
                       </Badge>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
                     <Button 
                       variant="outline" 
                       size="sm"
@@ -639,8 +640,10 @@ export default function Appointments() {
                         setIsEditDialogOpen(true);
                       }}
                       data-testid={`button-edit-appointment-${appointment.id}`}
+                      className="flex-1 sm:flex-initial"
                     >
-                      <Edit2 className="h-4 w-4" />
+                      <Edit2 className="h-4 w-4 sm:mr-0" />
+                      <span className="sm:hidden ml-2">Edit</span>
                     </Button>
                     <Button 
                       variant="outline" 
@@ -651,12 +654,14 @@ export default function Appointments() {
                         }
                       }}
                       data-testid={`button-delete-appointment-${appointment.id}`}
+                      className="flex-1 sm:flex-initial"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-4 w-4 sm:mr-0" />
+                      <span className="sm:hidden ml-2">Delete</span>
                     </Button>
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" size="sm">
+                        <Button variant="outline" size="sm" className="w-full sm:w-auto">
                           <Badge variant={
                             appointment.status === "scheduled" ? "outline" : 
                             appointment.status === "completed" ? "default" : 
@@ -665,10 +670,11 @@ export default function Appointments() {
                           } className="mr-2">
                             {appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
                           </Badge>
-                          Appointment Status
+                          <span className="hidden sm:inline">Appointment Status</span>
+                          <span className="sm:hidden">Status</span>
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-80" align="end">
+                      <PopoverContent className="w-[90vw] sm:w-80" align="end">
                         <div className="space-y-4">
                           <h4 className="font-medium">Update Appointment Status</h4>
                           <p className="text-xs text-muted-foreground">This is your internal appointment status (not patient confirmation)</p>
@@ -741,36 +747,37 @@ export default function Appointments() {
 
         <TabsContent value="calendar" className="mt-4">
           <div className="bg-white border rounded-lg overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="font-medium">{format(currentMonth, 'MMMM yyyy')}</h3>
+            <div className="flex items-center justify-between p-2 md:p-4 border-b">
+              <h3 className="font-medium text-sm md:text-base">{format(currentMonth, 'MMMM yyyy')}</h3>
               <div className="flex space-x-2">
-                <Button variant="outline" size="icon" onClick={() => navigateMonth('prev')}>
-                  <ChevronLeft className="h-4 w-4" />
+                <Button variant="outline" size="icon" onClick={() => navigateMonth('prev')} className="h-8 w-8 md:h-10 md:w-10">
+                  <ChevronLeft className="h-3 w-3 md:h-4 md:w-4" />
                 </Button>
-                <Button variant="outline" size="icon" onClick={() => navigateMonth('next')}>
-                  <ChevronRight className="h-4 w-4" />
+                <Button variant="outline" size="icon" onClick={() => navigateMonth('next')} className="h-8 w-8 md:h-10 md:w-10">
+                  <ChevronRight className="h-3 w-3 md:h-4 md:w-4" />
                 </Button>
               </div>
             </div>
 
             <div className="grid grid-cols-7 text-center">
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-                <div key={day} className="py-2 font-medium text-xs">
-                  {day}
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, idx) => (
+                <div key={day} className="py-1 md:py-2 font-medium text-[10px] md:text-xs">
+                  <span className="hidden sm:inline">{day}</span>
+                  <span className="sm:hidden">{day.charAt(0)}</span>
                 </div>
               ))}
             </div>
 
             <div className="grid grid-cols-7">
               {Array.from({ length: getDay(days[0].date) }).map((_, index) => (
-                <div key={`empty-${index}`} className="h-24 border-t border-r p-1 bg-gray-50"></div>
+                <div key={`empty-${index}`} className="h-16 md:h-24 border-t border-r p-0.5 md:p-1 bg-gray-50"></div>
               ))}
 
               {days.map((day, index) => (
                 <div
                   key={index}
                   className={cn(
-                    "h-24 border-t border-r p-1 cursor-pointer hover:bg-gray-50",
+                    "h-16 md:h-24 border-t border-r p-0.5 md:p-1 cursor-pointer hover:bg-gray-50",
                     day.isToday && "bg-blue-50",
                     selectedDate && isSameDay(day.date, selectedDate) && "ring-2 ring-blue-500",
                     "relative overflow-hidden"
@@ -785,20 +792,20 @@ export default function Appointments() {
                   <div className="flex justify-between items-start">
                     <span
                       className={cn(
-                        "text-sm font-medium",
-                        day.isToday && "text-blue-600 bg-blue-100 rounded-full w-6 h-6 flex items-center justify-center"
+                        "text-xs md:text-sm font-medium",
+                        day.isToday && "text-blue-600 bg-blue-100 rounded-full w-5 h-5 md:w-6 md:h-6 flex items-center justify-center text-[10px] md:text-sm"
                       )}
                     >
                       {format(day.date, 'd')}
                     </span>
                     {day.appointments.length > 0 && (
-                      <Badge variant="default" className="text-[10px]">
+                      <Badge variant="default" className="text-[8px] md:text-[10px] h-4 md:h-5 px-1">
                         {day.appointments.length}
                       </Badge>
                     )}
                   </div>
 
-                  <div className="mt-1 overflow-y-auto max-h-16 space-y-1">
+                  <div className="mt-0.5 md:mt-1 overflow-y-auto max-h-10 md:max-h-16 space-y-0.5 md:space-y-1">
                     {day.appointments.slice(0, 2).map((appointment, i) => {
                       const patient = patients?.find(p => p.id === appointment.patientId);
                       const patientName = patient ? `${patient.firstName} ${patient.lastName || ''}` : '';
@@ -808,7 +815,7 @@ export default function Appointments() {
                         <div
                           key={i}
                           className={cn(
-                            "text-xs p-1 mb-1 text-white rounded truncate",
+                            "text-[10px] md:text-xs p-0.5 md:p-1 mb-0.5 md:mb-1 text-white rounded truncate",
                             appointment.status === "completed" ? "bg-green-600" :
                             appointment.status === "cancelled" ? "bg-red-600" :
                             "bg-blue-500"
@@ -817,14 +824,15 @@ export default function Appointments() {
 Patient: ${patientStatus === 'confirmed' ? 'Confirmed' : patientStatus === 'declined' ? 'Declined' : 'Pending'}
 Status: ${appointment.status}`}
                         >
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-0.5 md:gap-1">
                             <span className={cn(
-                              "inline-block w-2 h-2 rounded-full flex-shrink-0",
+                              "inline-block w-1.5 h-1.5 md:w-2 md:h-2 rounded-full flex-shrink-0",
                               patientStatus === "confirmed" && "bg-green-300",
                               patientStatus === "pending_confirmation" && "bg-orange-300",
                               patientStatus === "declined" && "bg-red-300"
                             )} />
-                            <span className="truncate">{format(new Date(appointment.date), 'p')} - {patientName}</span>
+                            <span className="truncate hidden md:inline">{format(new Date(appointment.date), 'p')} - {patientName}</span>
+                            <span className="truncate md:hidden">{format(new Date(appointment.date), 'p')}</span>
                           </div>
                         </div>
                       );
@@ -885,7 +893,7 @@ Status: ${appointment.status}`}
                             </Button>
                           </FormControl>
                         </PopoverTrigger>
-                        <PopoverContent className="w-[400px] p-0">
+                        <PopoverContent className="w-[90vw] sm:w-[400px] p-0">
                           <Command>
                             <CommandInput placeholder="Search patients..." />
                             <CommandList>

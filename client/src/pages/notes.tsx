@@ -500,23 +500,23 @@ Plan:
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-4 md:space-y-6 p-4 md:p-0">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Medical Notes</h1>
-          <p className="text-muted-foreground">Generate and manage medical notes with AI assistance</p>
+          <h1 className="text-2xl md:text-3xl font-bold">Medical Notes</h1>
+          <p className="text-sm md:text-base text-muted-foreground">Generate and manage medical notes with AI assistance</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 justify-end">
           <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline" size="icon">
+              <Button variant="outline" size="icon" className="h-9 w-9 md:h-10 md:w-10">
                 <Settings className="h-4 w-4" />
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[625px]">
+            <DialogContent className="w-[95vw] sm:max-w-[625px] max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Medical Notes Settings</DialogTitle>
-                <DialogDescription>
+                <DialogTitle className="text-lg md:text-xl">Medical Notes Settings</DialogTitle>
+                <DialogDescription className="text-sm">
                   Configure templates and prompts used for note generation
                 </DialogDescription>
               </DialogHeader>
@@ -604,7 +604,7 @@ Plan:
                 variant="outline"
                 role="combobox"
                 aria-expanded={patientSearchOpen}
-                className="w-[250px] justify-between"
+                className="w-full sm:w-[250px] justify-between"
               >
                 {selectedPatientId ? (
                   patients?.find((patient) => patient.id === selectedPatientId)
@@ -616,7 +616,7 @@ Plan:
                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[250px] p-0">
+            <PopoverContent className="w-[90vw] sm:w-[250px] p-0">
               <Command>
                 <CommandInput placeholder="Search patients..." />
                 <CommandList>
@@ -657,13 +657,16 @@ Plan:
             variant="outline"
             onClick={handleStartConsultation}
             disabled={!selectedPatientId}
+            className="w-full sm:w-auto"
           >
             <MessageSquare className="h-4 w-4 mr-2" />
-            Start Consultation
+            <span className="hidden sm:inline">Start Consultation</span>
+            <span className="sm:hidden">Consult</span>
           </Button>
           <Button 
             onClick={handleGenerateNotes} 
             disabled={isGenerating || !selectedPatientId}
+            className="w-full sm:w-auto"
           >
             {isGenerating ? (
               <>
@@ -681,18 +684,18 @@ Plan:
       </div>
 
       {selectedPatient && (
-        <Card className="mb-6">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 bg-primary/10 rounded-full flex items-center justify-center">
-                <Users className="h-6 w-6 text-primary" />
+        <Card className="mb-4 md:mb-6">
+          <CardContent className="p-3 md:p-4">
+            <div className="flex items-center gap-3 md:gap-4">
+              <div className="h-10 w-10 md:h-12 md:w-12 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                <Users className="h-5 w-5 md:h-6 md:w-6 text-primary" />
               </div>
-              <div>
-                <h3 className="font-medium">{`${selectedPatient.firstName} ${selectedPatient.lastName || ''}`}</h3>
-                <div className="text-sm text-muted-foreground flex gap-4">
-                  <span>DOB: {selectedPatient.dateOfBirth}</span>
-                  <span>Email: {selectedPatient.email}</span>
-                  <span>Phone: {selectedPatient.phone}</span>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-medium text-sm md:text-base truncate">{`${selectedPatient.firstName} ${selectedPatient.lastName || ''}`}</h3>
+                <div className="text-xs md:text-sm text-muted-foreground flex flex-col sm:flex-row sm:gap-4 gap-1">
+                  <span className="truncate">DOB: {selectedPatient.dateOfBirth}</span>
+                  <span className="truncate">Email: {selectedPatient.email}</span>
+                  <span className="truncate">Phone: {selectedPatient.phone}</span>
                 </div>
               </div>
             </div>
@@ -700,20 +703,20 @@ Plan:
         </Card>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>SOAP Note</CardTitle>
+            <CardTitle className="text-lg md:text-xl">SOAP Note</CardTitle>
             {selectedPatient ? (
-              <CardDescription>Writing note for {`${selectedPatient.firstName} ${selectedPatient.lastName || ''}`}</CardDescription>
+              <CardDescription className="text-sm">Writing note for {`${selectedPatient.firstName} ${selectedPatient.lastName || ''}`}</CardDescription>
             ) : (
-              <CardDescription>Select a patient to begin</CardDescription>
+              <CardDescription className="text-sm">Select a patient to begin</CardDescription>
             )}
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="noteTitle">Note Title</Label>
+                <Label htmlFor="noteTitle" className="text-sm">Note Title</Label>
                 <Input
                   id="noteTitle"
                   value={noteTitle}
@@ -725,12 +728,12 @@ Plan:
               </div>
               <Textarea
                 placeholder="Select a patient and start typing or record your notes..."
-                className="min-h-[300px]"
+                className="min-h-[250px] md:min-h-[300px] text-sm md:text-base"
                 value={noteText}
                 onChange={(e) => setNoteText(e.target.value)}
                 disabled={!selectedPatientId}
               />
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <Button 
                   variant="outline"
                   onClick={() => setShowPreview(true)}
@@ -782,14 +785,14 @@ Plan:
 
         <Card>
           <CardHeader>
-            <CardTitle>AI Suggestions</CardTitle>
+            <CardTitle className="text-lg md:text-xl">AI Suggestions</CardTitle>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="templates">
-              <TabsList className="mb-4">
-                <TabsTrigger value="templates">Templates</TabsTrigger>
-                <TabsTrigger value="analysis">Analysis</TabsTrigger>
-                <TabsTrigger value="assistant">Doctor Assistant</TabsTrigger>
+              <TabsList className="mb-4 grid grid-cols-3 w-full">
+                <TabsTrigger value="templates" className="text-xs sm:text-sm">Templates</TabsTrigger>
+                <TabsTrigger value="analysis" className="text-xs sm:text-sm">Analysis</TabsTrigger>
+                <TabsTrigger value="assistant" className="text-xs sm:text-sm">Assistant</TabsTrigger>
               </TabsList>
               <TabsContent value="templates">
                 <div className="space-y-2">

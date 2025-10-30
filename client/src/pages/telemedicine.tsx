@@ -2139,19 +2139,19 @@ export default function Telemedicine() {
           />
         </div>
       ) : (
-        <div className="space-y-6">
-          <div className="flex justify-between items-center">
+        <div className="space-y-4 md:space-y-6 p-4 md:p-0">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
             <div>
-              <h1 className="text-3xl font-bold">Telemedicine</h1>
-              <p className="text-muted-foreground">Manage virtual consultations</p>
+              <h1 className="text-2xl md:text-3xl font-bold">Telemedicine</h1>
+              <p className="text-sm md:text-base text-muted-foreground">Manage virtual consultations</p>
             </div>
-            <Button onClick={() => setShowStartDialog(true)}>
+            <Button onClick={() => setShowStartDialog(true)} className="w-full sm:w-auto">
               <Video className="h-4 w-4 mr-2" />
               Start Consultation
             </Button>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Upcoming Sessions</CardTitle>
@@ -2230,15 +2230,15 @@ export default function Telemedicine() {
                       return (
                         <div
                           key={appointment.id}
-                          className="flex items-center justify-between p-4 border rounded-lg"
+                          className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 md:p-4 border rounded-lg gap-3"
                         >
-                          <div className="flex items-center gap-4">
-                            <Avatar>
+                          <div className="flex items-center gap-3 md:gap-4 w-full sm:w-auto">
+                            <Avatar className="h-10 w-10 md:h-12 md:w-12">
                               <AvatarFallback>{initials}</AvatarFallback>
                             </Avatar>
-                            <div>
-                              <p className="font-medium">{`${patient.firstName} ${patient.lastName || ''}`}</p>
-                              <p className="text-sm text-muted-foreground">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium text-sm md:text-base truncate">{`${patient.firstName} ${patient.lastName || ''}`}</p>
+                              <p className="text-xs md:text-sm text-muted-foreground line-clamp-1">
                                 Scheduled: {appointmentTime} - {appointment.reason || 'Telemedicine consultation'}
                               </p>
                             </div>
@@ -2287,25 +2287,25 @@ export default function Telemedicine() {
                   <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full" />
                 </div>
               ) : recordings && recordings.length > 0 ? (
-                <div className="space-y-4">
+                <div className="space-y-3 md:space-y-4">
                   {recordings.map((recording) => (
-                    <div key={recording.id} className="border rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <Avatar className="h-8 w-8">
+                    <div key={recording.id} className="border rounded-lg p-3 md:p-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-2 gap-2">
+                        <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
+                          <Avatar className="h-8 w-8 md:h-10 md:w-10 flex-shrink-0">
                             <AvatarFallback>
                               {recording.patient ? 
                                 `${recording.patient.firstName?.charAt(0) || ''}${recording.patient.lastName?.charAt(0) || ''}` : 
                                 'P'}
                             </AvatarFallback>
                           </Avatar>
-                          <div>
-                            <p className="font-medium">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-sm md:text-base truncate">
                               {recording.patient ? 
                                 `${recording.patient.firstName} ${recording.patient.lastName || ''}` : 
                                 'Unknown Patient'}
                             </p>
-                            <p className="text-sm text-muted-foreground">
+                            <p className="text-xs md:text-sm text-muted-foreground truncate">
                               {new Date(recording.startTime).toLocaleString()}
                             </p>
                           </div>
