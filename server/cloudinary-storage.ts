@@ -5,7 +5,8 @@ cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
-  secure: true
+  secure: true,
+  upload_timeout: 600000 // 10 minutes timeout for large video files
 });
 
 export class CloudinaryStorage {
@@ -28,13 +29,15 @@ export class CloudinaryStorage {
       const folder = 'telemedicine/recordings';
       const publicId = `${folder}/${recordingId}_${mediaType}`;
       
-      // Upload to Cloudinary using upload_stream
+      // Upload to Cloudinary using upload_stream with extended timeout
       const uploadStream = cloudinary.uploader.upload_stream(
         {
           resource_type: resourceType,
           public_id: publicId,
           format: extension,
           overwrite: true,
+          timeout: 600000, // 10 minutes for large files
+          chunk_size: 6000000 // 6MB chunks for better reliability
         },
         (error, result) => {
           if (error) {
