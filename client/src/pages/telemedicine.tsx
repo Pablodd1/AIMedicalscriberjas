@@ -461,12 +461,16 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
               videoFormData.append('type', 'video');
               
               console.log(`Uploading video to /api/telemedicine/recordings/${recordingData.id}/media`);
+              console.log(`Video blob size: ${recordingBlob.size} bytes (${(recordingBlob.size / 1024 / 1024).toFixed(2)} MB)`);
               
               try {
                 const videoUploadResponse = await fetch(`/api/telemedicine/recordings/${recordingData.id}/media`, {
                   method: 'POST',
                   body: videoFormData,
+                  credentials: 'same-origin',
                 });
+                
+                console.log(`Video upload response status: ${videoUploadResponse.status}`);
                 
                 if (!videoUploadResponse.ok) {
                   const errorText = await videoUploadResponse.text();
@@ -477,19 +481,21 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                     variant: "destructive"
                   });
                 } else {
-                  console.log('Video recording uploaded successfully');
+                  const responseData = await videoUploadResponse.json();
+                  console.log('Video recording uploaded successfully:', responseData);
                   toast({
                     title: "Upload Complete",
-                    description: "Video recording saved successfully",
+                    description: "Video recording saved to cloud storage",
                   });
                   // Refresh the recordings list to show the new recording
                   queryClient.invalidateQueries({ queryKey: ["/api/telemedicine/recordings"] });
                 }
               } catch (error) {
                 console.error('Error uploading video recording:', error);
+                const errorMessage = error instanceof Error ? error.message : String(error);
                 toast({
                   title: "Upload Error",
-                  description: `Failed to upload video: ${error}`,
+                  description: `Failed to upload video: ${errorMessage}`,
                   variant: "destructive"
                 });
               }
@@ -500,12 +506,16 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
               audioFormData.append('type', 'audio');
               
               console.log(`Uploading audio to /api/telemedicine/recordings/${recordingData.id}/media`);
+              console.log(`Audio blob size: ${audioBlob.size} bytes (${(audioBlob.size / 1024 / 1024).toFixed(2)} MB)`);
               
               try {
                 const audioUploadResponse = await fetch(`/api/telemedicine/recordings/${recordingData.id}/media`, {
                   method: 'POST',
                   body: audioFormData,
+                  credentials: 'same-origin',
                 });
+                
+                console.log(`Audio upload response status: ${audioUploadResponse.status}`);
                 
                 if (!audioUploadResponse.ok) {
                   const errorText = await audioUploadResponse.text();
@@ -516,19 +526,21 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                     variant: "destructive"
                   });
                 } else {
-                  console.log('Audio recording uploaded successfully');
+                  const responseData = await audioUploadResponse.json();
+                  console.log('Audio recording uploaded successfully:', responseData);
                   toast({
                     title: "Upload Complete",
-                    description: "Audio recording saved successfully",
+                    description: "Audio recording saved to cloud storage",
                   });
                   // Refresh the recordings list to show the new recording
                   queryClient.invalidateQueries({ queryKey: ["/api/telemedicine/recordings"] });
                 }
               } catch (error) {
                 console.error('Error uploading audio recording:', error);
+                const errorMessage = error instanceof Error ? error.message : String(error);
                 toast({
                   title: "Upload Error",
-                  description: `Failed to upload audio: ${error}`,
+                  description: `Failed to upload audio: ${errorMessage}`,
                   variant: "destructive"
                 });
               }

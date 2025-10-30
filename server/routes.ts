@@ -1588,7 +1588,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.post('/api/telemedicine/recordings/:id/media', uploadMediaMiddleware, async (req, res) => {
     try {
+      console.log(`=== MEDIA UPLOAD START ===`);
       console.log(`Received media upload request for recording ${req.params.id}`);
+      console.log(`Request authenticated: ${req.isAuthenticated()}`);
       
       if (!req.isAuthenticated()) {
         console.log('Upload rejected: not authenticated');
@@ -1597,6 +1599,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const doctorId = req.user!.id;
       const recordingId = parseInt(req.params.id);
+      console.log(`Doctor ID: ${doctorId}, Recording ID: ${recordingId}`);
       
       if (isNaN(recordingId)) {
         console.log('Upload rejected: invalid recording ID');
@@ -1605,22 +1608,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!req.file) {
         console.log('Upload rejected: no file uploaded');
+        console.log('Request body:', req.body);
         return res.status(400).json({ message: 'No file uploaded' });
       }
       
-      console.log(`File received: ${req.file.originalname}, size: ${req.file.size} bytes`);
+      console.log(`File received: ${req.file.originalname}, size: ${req.file.size} bytes (${(req.file.size / 1024 / 1024).toFixed(2)} MB)`);
+      console.log(`File mimetype: ${req.file.mimetype}`);
       
       // Get the recording session
       const recording = await storage.getRecordingSession(recordingId);
       
       if (!recording) {
-        console.log(`Upload rejected: recording ${recordingId} not found`);
+        console.log(`Upload rejected: recording ${recordingId} not found in database`);
         return res.status(404).json({ message: 'Recording not found' });
       }
       
+      console.log(`Recording found - Doctor ID: ${recording.doctorId}, Status: ${recording.status}`);
+      
       // Security check: Only allow the doctor who owns the recording to upload to it
       if (recording.doctorId !== doctorId) {
-        console.log(`Upload rejected: doctor ${doctorId} does not own recording ${recordingId}`);
+        console.log(`Upload rejected: doctor ${doctorId} does not own recording ${recordingId} (owner: ${recording.doctorId})`);
         return res.status(403).json({ message: 'You do not have permission to modify this recording' });
       }
       
@@ -1628,7 +1635,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const fileBuffer = req.file.buffer;
       const extension = req.file.originalname.split('.').pop() || 'webm';
       
-      console.log(`Uploading ${mediaType} recording to Cloudinary with extension ${extension}`);
+      console.log(`Starting Cloudinary upload - Type: ${mediaType}, Extension: ${extension}`);
+      console.log(`Buffer size: ${fileBuffer.length} bytes`);
       
       // Upload the file to Cloudinary
       const cloudinaryUrl = await CloudinaryStorage.uploadRecording(
@@ -1638,7 +1646,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         extension
       );
       
-      console.log(`Uploaded ${mediaType} recording to Cloudinary: ${cloudinaryUrl}`);
+      console.log(`✓ Successfully uploaded to Cloudinary: ${cloudinaryUrl}`);
       
       // Update the recording session with the Cloudinary URL
       const updateData: any = {};
@@ -1648,18 +1656,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updateData.videoUrl = cloudinaryUrl;
       }
       
+      console.log(`Updating database with ${mediaType}Url...`);
+      
       // Update the database record
       await storage.updateRecordingSession(recordingId, updateData);
       
-      console.log(`Successfully uploaded ${mediaType} recording ${recordingId}`);
+      console.log(`✓ Database updated successfully`);
+      console.log(`=== MEDIA UPLOAD COMPLETE ===`);
       
       res.status(200).json({ 
         message: `${mediaType} recording uploaded successfully`,
-        recordingId
+        recordingId,
+        url: cloudinaryUrl
       });
     } catch (error) {
-      console.error(`Error uploading recording:`, error);
-      res.status(500).json({ message: 'Failed to upload recording', error: String(error) });
+      console.error(`❌ Error uploading recording:`, error);
+      console.error(`Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
+      res.status(500).json({ 
+        message: 'Failed to upload recording', 
+        error: error instanceof Error ? error.message : String(error)
+      });
     }
   });
 
