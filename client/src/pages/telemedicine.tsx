@@ -83,6 +83,8 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
   const [isRecording, setIsRecording] = useState(false);
   const [recordedTime, setRecordedTime] = useState(0);
   const [transcription, setTranscription] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState("");
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -450,9 +452,12 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             if (isVideoRecording) {
               // For video, we need to extract audio for transcription
               // But we'll also keep the video for download
+              setIsUploading(true);
+              setUploadProgress("Uploading video to cloud storage...");
+              
               toast({
                 title: "Uploading Recording",
-                description: "Saving video recording to the server...",
+                description: "Saving video recording to cloud storage. Please wait...",
               });
               
               // Upload the video file to the server
@@ -491,7 +496,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                   console.log('Video recording uploaded successfully:', responseData);
                   toast({
                     title: "Upload Complete",
-                    description: "Video recording saved to cloud storage",
+                    description: "Video recording saved to cloud storage successfully!",
                   });
                   // Refresh the recordings list to show the new recording
                   queryClient.invalidateQueries({ queryKey: ["/api/telemedicine/recordings"] });
@@ -511,9 +516,20 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                   description: `Failed to upload video: ${errorMessage}`,
                   variant: "destructive"
                 });
+              } finally {
+                setIsUploading(false);
+                setUploadProgress("");
               }
             } else {
               // Upload the audio file to the server
+              setIsUploading(true);
+              setUploadProgress("Uploading audio to cloud storage...");
+              
+              toast({
+                title: "Uploading Recording",
+                description: "Saving audio recording to cloud storage. Please wait...",
+              });
+              
               const audioFormData = new FormData();
               audioFormData.append('media', audioBlob, `audio_${recordingData.id}.${fileExt}`);
               audioFormData.append('type', 'audio');
@@ -549,7 +565,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                   console.log('Audio recording uploaded successfully:', responseData);
                   toast({
                     title: "Upload Complete",
-                    description: "Audio recording saved to cloud storage",
+                    description: "Audio recording saved to cloud storage successfully!",
                   });
                   // Refresh the recordings list to show the new recording
                   queryClient.invalidateQueries({ queryKey: ["/api/telemedicine/recordings"] });
@@ -569,6 +585,9 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                   description: `Failed to upload audio: ${errorMessage}`,
                   variant: "destructive"
                 });
+              } finally {
+                setIsUploading(false);
+                setUploadProgress("");
               }
             }
 
@@ -1123,7 +1142,17 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
 
 
 
-  const handleEndCall = onClose;
+  const handleEndCall = () => {
+    if (isUploading) {
+      toast({
+        title: "Upload in Progress",
+        description: "Please wait for the recording upload to complete before ending the meeting. This prevents data loss.",
+        variant: "destructive"
+      });
+      return;
+    }
+    onClose();
+  };
 
   // Live transcription functions
   const addLiveTranscription = (speaker: string, text: string) => {
@@ -1325,9 +1354,12 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           </Dialog>
           
 
-          <Button variant="destructive" size="icon" onClick={onClose}>
+          <Button variant="destructive" size="icon" onClick={handleEndCall} disabled={isUploading}>
             <X className="h-4 w-4" />
           </Button>
+          {isUploading && (
+            <span className="text-sm text-muted-foreground ml-2">{uploadProgress}</span>
+          )}
         </div>
       </div>
 
