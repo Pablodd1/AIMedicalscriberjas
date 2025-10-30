@@ -1582,14 +1582,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const uploadMediaMiddleware = multer({ 
     storage: multer.memoryStorage(),
     limits: {
-      fileSize: 100 * 1024 * 1024, // 100MB limit for video files
+      fileSize: 500 * 1024 * 1024, // 500MB limit for long video recordings (45+ minutes)
     }
   }).single('media');
   
   app.post('/api/telemedicine/recordings/:id/media', uploadMediaMiddleware, async (req, res) => {
-    // Increase timeout for large file uploads (10 minutes)
-    req.setTimeout(600000);
-    res.setTimeout(600000);
+    // Increase timeout for large file uploads (30 minutes for 45+ min recordings)
+    req.setTimeout(1800000); // 30 minutes
+    res.setTimeout(1800000); // 30 minutes
     
     try {
       console.log(`=== MEDIA UPLOAD START ===`);

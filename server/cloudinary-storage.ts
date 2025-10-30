@@ -6,7 +6,7 @@ cloudinary.config({
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
   secure: true,
-  upload_timeout: 600000 // 10 minutes timeout for large video files
+  upload_timeout: 1800000 // 30 minutes timeout for large video files (45+ min recordings can be 100-200+ MB)
 });
 
 export class CloudinaryStorage {
@@ -36,7 +36,7 @@ export class CloudinaryStorage {
           public_id: publicId,
           format: extension,
           overwrite: true,
-          timeout: 600000, // 10 minutes for large files
+          timeout: 1800000, // 30 minutes for large files (supports 45+ min recordings, 100-200+ MB)
           chunk_size: 6000000 // 6MB chunks for better reliability
         },
         (error, result) => {

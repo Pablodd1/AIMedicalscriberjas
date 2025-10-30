@@ -469,9 +469,9 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
               console.log(`Video blob size: ${recordingBlob.size} bytes (${(recordingBlob.size / 1024 / 1024).toFixed(2)} MB)`);
               
               try {
-                // Create abort controller for timeout
+                // Create abort controller for timeout (30 minutes for large files from 45+ min recordings)
                 const abortController = new AbortController();
-                const timeoutId = setTimeout(() => abortController.abort(), 300000); // 5 minute timeout
+                const timeoutId = setTimeout(() => abortController.abort(), 1800000); // 30 minute timeout
                 
                 const videoUploadResponse = await fetch(`/api/telemedicine/recordings/${recordingData.id}/media`, {
                   method: 'POST',
@@ -506,7 +506,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                 let errorMessage = 'Unknown error';
                 if (error instanceof Error) {
                   errorMessage = error.name === 'AbortError' 
-                    ? 'Upload timed out after 5 minutes' 
+                    ? 'Upload timed out after 30 minutes. File may be too large.' 
                     : error.message;
                 } else {
                   errorMessage = String(error);
@@ -538,9 +538,9 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
               console.log(`Audio blob size: ${audioBlob.size} bytes (${(audioBlob.size / 1024 / 1024).toFixed(2)} MB)`);
               
               try {
-                // Create abort controller for timeout
+                // Create abort controller for timeout (30 minutes for large files from 45+ min recordings)
                 const abortController = new AbortController();
-                const timeoutId = setTimeout(() => abortController.abort(), 300000); // 5 minute timeout
+                const timeoutId = setTimeout(() => abortController.abort(), 1800000); // 30 minute timeout
                 
                 const audioUploadResponse = await fetch(`/api/telemedicine/recordings/${recordingData.id}/media`, {
                   method: 'POST',
@@ -575,7 +575,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                 let errorMessage = 'Unknown error';
                 if (error instanceof Error) {
                   errorMessage = error.name === 'AbortError' 
-                    ? 'Upload timed out after 5 minutes' 
+                    ? 'Upload timed out after 30 minutes. File may be too large.' 
                     : error.message;
                 } else {
                   errorMessage = String(error);
