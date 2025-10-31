@@ -168,7 +168,7 @@ export default function Assistant() {
                 <div className="truncate flex-1">
                   <p className="font-medium truncate">{session.title}</p>
                   <p className="text-xs text-muted-foreground">
-                    {new Date(session.createdAt).toLocaleDateString()}
+                    {new Date(session.createdAt).toLocaleDateString('en-US')}
                   </p>
                 </div>
                 <Button 

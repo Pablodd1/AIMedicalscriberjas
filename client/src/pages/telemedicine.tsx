@@ -601,7 +601,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
         body: JSON.stringify({
           patientId: patient.id,
           content: transcription,
-          title: `Consultation with ${patient.firstName} ${patient.lastName || ''} - ${new Date().toLocaleDateString()}`
+          title: `Consultation with ${patient.firstName} ${patient.lastName || ''} - ${new Date().toLocaleDateString('en-US')}`
         }),
       });
 
@@ -621,7 +621,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           consultationId: consultationData.id,
           patientId: patient.id,
           content: data.notes,
-          title: `SOAP Notes: ${patient.firstName} ${patient.lastName || ''} - ${new Date().toLocaleDateString()}`,
+          title: `SOAP Notes: ${patient.firstName} ${patient.lastName || ''} - ${new Date().toLocaleDateString('en-US')}`,
           type: 'soap'
         }),
       });
@@ -1444,7 +1444,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                           'text-muted-foreground'
                         }`}>{item.speaker}</p>
                       <p className="text-xs text-muted-foreground">
-                        {item.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        {item.timestamp.toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit', hour12: true})}
                       </p>
                     </div>
                     <div className={`rounded-lg p-2 sm:p-3 mt-1 inline-block max-w-[85%] ${
@@ -2220,9 +2220,10 @@ export default function Telemedicine() {
                       const patient = patients.find(p => p.id === appointment.patientId);
                       if (!patient) return null;
 
-                      const appointmentTime = new Date(appointment.date).toLocaleTimeString([], {
+                      const appointmentTime = new Date(appointment.date).toLocaleTimeString('en-US', {
                         hour: '2-digit',
-                        minute: '2-digit'
+                        minute: '2-digit',
+                        hour12: true
                       });
 
                       const initials = `${patient.firstName.charAt(0)}${patient.lastName ? patient.lastName.charAt(0) : ''}`;

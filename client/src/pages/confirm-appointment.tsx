@@ -71,8 +71,8 @@ export default function ConfirmAppointment() {
                 <p className="text-muted-foreground">{message}</p>
                 {appointment && (
                   <div className="mt-4 p-4 bg-muted rounded-lg text-left space-y-1">
-                    <p><strong>Date:</strong> {new Date(appointment.date).toLocaleDateString()}</p>
-                    <p><strong>Time:</strong> {new Date(appointment.date).toLocaleTimeString()}</p>
+                    <p><strong>Date:</strong> {new Date(appointment.date).toLocaleDateString('en-US')}</p>
+                    <p><strong>Time:</strong> {new Date(appointment.date).toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit', hour12: true})}</p>
                     {appointment.reason && <p><strong>Reason:</strong> {appointment.reason}</p>}
                   </div>
                 )}

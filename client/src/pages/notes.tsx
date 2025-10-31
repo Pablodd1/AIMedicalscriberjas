@@ -392,7 +392,7 @@ Plan:
         new Paragraph({
           children: [
             new TextRun({
-              text: `SOAP Note • Generated ${new Date().toLocaleDateString()}`,
+              text: `SOAP Note • Generated ${new Date().toLocaleDateString('en-US')}`,
               italics: true,
               size: 20,
             }),

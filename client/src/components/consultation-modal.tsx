@@ -301,7 +301,7 @@ export function ConsultationModal({
       // Create temporary note data for download
       const noteData = {
         content: notes,
-        title: `SOAP Note - ${new Date().toLocaleDateString()}`,
+        title: `SOAP Note - ${new Date().toLocaleDateString('en-US')}`,
         type: 'soap',
         patientId: patientInfo?.id,
         createdAt: new Date().toISOString()
@@ -325,7 +325,7 @@ export function ConsultationModal({
         new Paragraph({
           children: [
             new TextRun({
-              text: `${noteData.type.toUpperCase()} Note • Generated ${new Date().toLocaleDateString()}`,
+              text: `${noteData.type.toUpperCase()} Note • Generated ${new Date().toLocaleDateString('en-US')}`,
               italics: true,
               size: 20,
             }),

@@ -726,7 +726,7 @@ export default function QuickNotes() {
                       <CardHeader className="p-4 pb-2">
                         <CardTitle className="text-lg">{note.title}</CardTitle>
                         <CardDescription>
-                          {new Date(note.createdAt).toLocaleDateString()}
+                          {new Date(note.createdAt).toLocaleDateString('en-US')}
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="p-4 pt-0">

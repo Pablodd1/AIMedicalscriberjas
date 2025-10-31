@@ -759,7 +759,7 @@ export default function LabInterpreter() {
         new Paragraph({
           children: [
             new TextRun({
-              text: `Generated on: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`,
+              text: `Generated on: ${new Date().toLocaleDateString('en-US')} at ${new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit', hour12: true})}`,
               italics: true,
             }),
           ],
@@ -1063,7 +1063,7 @@ export default function LabInterpreter() {
       yPosition += 5;
       
       // Add date
-      addText(`Generated on: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`, 10);
+      addText(`Generated on: ${new Date().toLocaleDateString('en-US')} at ${new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit', hour12: true})}`, 10);
       yPosition += 10;
       
       // Add patient info if available
@@ -1345,7 +1345,7 @@ export default function LabInterpreter() {
         patientId: parseInt(selectedPatientId),
         reportData: inputText,
         analysis: JSON.stringify(analysisResult),
-        title: `Lab Report Analysis - ${new Date().toLocaleDateString()}`
+        title: `Lab Report Analysis - ${new Date().toLocaleDateString('en-US')}`
       });
       
       const result = await response.json();
