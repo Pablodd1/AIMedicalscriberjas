@@ -53,7 +53,19 @@ Preferred communication style: Simple, everyday language.
 - **Communication**: @sendgrid/mail, nodemailer, WebSockets
 - **Medical Device Integration**: Web Bluetooth API, custom Bluetooth utilities
 
-## Recent Updates (Oct 30, 2025)
+## Recent Updates (Oct 30-31, 2025)
+
+### U.S. Time Standards Implementation (Oct 31, 2025)
+- **Locale Configuration**: All date and time displays now use 'en-US' locale for consistency
+- **Date Format**: MM/DD/YYYY format (U.S. standard) throughout the application
+- **Time Format**: 12-hour format with AM/PM indicators (hour12: true)
+- **Calendar Week Start**: Calendar components start week on Sunday (weekStartsOn: 0)
+- **Updated Components**:
+  - All `toLocaleDateString()` calls explicitly use 'en-US' locale
+  - All `toLocaleTimeString()` calls use 'en-US' with 12-hour format
+  - Calendar component (react-day-picker) configured for Sunday week start
+  - Date-fns formatting uses default en-US locale for proper U.S. date display
+- **Affected Pages**: Appointments, Medical Notes, Telemedicine, Lab Interpreter, Patient Intake, Assistant, Quick Notes, Patient Details, Billing, Analytics
 
 ### Mobile Responsiveness (Oct 30, 2025)
 - **Complete Mobile Support**: All main pages now fully responsive for mobile, tablet, and desktop devices
