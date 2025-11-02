@@ -1,80 +1,36 @@
-import { useState, useEffect, useRef } from "react";
-import { useAuth } from "@/hooks/use-auth";
-import { useToast } from "@/hooks/use-toast";
-import { recordingService, generateSoapNotes } from "@/lib/recording-service";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { 
-  Mic, 
-  Upload, 
-  FileText as FileTextIcon, 
+  Loader2, 
+  FileText, 
   Save, 
-  Download, 
-  Check,
   Stethoscope,
-  UserPlus,
+  ClipboardList,
   MessageSquare,
-  Loader2,
-  ClipboardList
+  Settings,
+  Eye,
+  Download,
+  UserPlus
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
-import { Switch } from "@/components/ui/switch";
-import SignatureCanvas from 'react-signature-canvas';
-
-// Define templates
-const templates = [
-  { id: "blank", name: "Blank Template", content: "" },
-  { id: "soap", name: "SOAP Note", content: "## Subjective:\n\n## Objective:\n\n## Assessment:\n\n## Plan:\n" },
-  { id: "progress", name: "Progress Note", content: "## Patient Progress\n\n## Current Status\n\n## Treatment Plan\n\n## Next Steps\n" },
-  { id: "procedure", name: "Procedure Note", content: "## Procedure Type\n\n## Indications\n\n## Technique\n\n## Findings\n\n## Complications\n\n## Post-Procedure Care\n" },
-];
-
-// Define a schema for the quick note form
-const quickNoteSchema = z.object({
-  title: z.string().min(1, "Title is required"),
-  content: z.string().min(1, "Content is required"),
-  type: z.enum(["soap", "progress", "procedure"]),
-  template: z.string().optional(),
-});
-
-type QuickNoteFormValues = z.infer<typeof quickNoteSchema>;
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { format } from "date-fns";
+import { ConsultationModal } from "@/components/consultation-modal";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -82,264 +38,121 @@ interface ChatMessage {
 }
 
 export default function QuickNotes() {
-  const { user } = useAuth();
-  const { toast } = useToast();
-  const [recordingTime, setRecordingTime] = useState<number>(0);
-  const [isRecording, setIsRecording] = useState<boolean>(false);
-  const [recordingTimer, setRecordingTimer] = useState<NodeJS.Timeout | null>(null);
-  const [transcript, setTranscript] = useState<string>("");
-  const [inputMethod, setInputMethod] = useState<string>("text");
-  const [fileUploaded, setFileUploaded] = useState<boolean>(false);
-  const [fileName, setFileName] = useState<string>("");
-  const [generatedContent, setGeneratedContent] = useState<string>("");
-  const [selectedTemplate, setSelectedTemplate] = useState<string>("blank");
-  const [signature, setSignature] = useState<string | null>(null);
-  const [editableContent, setEditableContent] = useState<string>("");
-  const [showPreview, setShowPreview] = useState<boolean>(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [noteText, setNoteText] = useState("");
+  const [showNoteSuccess, setShowNoteSuccess] = useState(false);
+  const [noteTitle, setNoteTitle] = useState("");
+  const [showConsultationModal, setShowConsultationModal] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [selectedNoteType, setSelectedNoteType] = useState<"initial" | "followup" | "physical" | "reevaluation" | "procedure" | "psychiatric" | "discharge">("initial");
+  const [systemPrompt, setSystemPrompt] = useState("");
+  const [templateContent, setTemplateContent] = useState("");
+  const [showPreview, setShowPreview] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [isAssistantThinking, setIsAssistantThinking] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const signatureRef = useRef<SignatureCanvas>(null);
+  const { toast } = useToast();
+  const { user } = useAuth();
 
-  const form = useForm<QuickNoteFormValues>({
-    resolver: zodResolver(quickNoteSchema),
-    defaultValues: {
-      title: "",
-      content: "",
-      type: "soap",
-      template: "blank",
-    },
+  // Generate default SOAP note structure
+  useEffect(() => {
+    if (!noteText) {
+      setNoteText(
+`SOAP Note
+
+Subjective:
+-
+-
+-
+
+Objective:
+-
+-
+-
+
+Assessment:
+-
+-
+-
+
+Plan:
+-
+-
+-
+`);
+    }
+  }, [noteText]);
+
+  // Fetch note templates
+  const { data: templates } = useQuery({
+    queryKey: ["/api/note-templates", selectedNoteType],
+    enabled: isSettingsOpen,
   });
 
-  // Fetch quick notes from the API
-  const { data: quickNotes = [], isLoading: isLoadingNotes } = useQuery({
-    queryKey: ["/api/quick-notes"],
-    queryFn: async () => {
-      const res = await apiRequest("GET", "/api/quick-notes");
-      return await res.json();
-    },
-  });
+  const selectedTemplate = templates?.find((t: any) => t.noteType === selectedNoteType);
 
+  // Create quick note mutation
   const createNoteMutation = useMutation({
-    mutationFn: async (data: QuickNoteFormValues) => {
-      const response = await apiRequest("POST", "/api/quick-notes", {
-        ...data,
-        signature: signature
-      });
+    mutationFn: async (noteData: { title: string; content: string; doctorId: number; type: string }) => {
+      const response = await apiRequest("POST", "/api/quick-notes", noteData);
       return await response.json();
     },
     onSuccess: () => {
       toast({
-        title: "Note saved successfully",
-        description: "Your quick note has been saved.",
+        title: "Success",
+        description: "Quick note saved successfully",
       });
+      setShowNoteSuccess(true);
+      setTimeout(() => setShowNoteSuccess(false), 3000);
       queryClient.invalidateQueries({ queryKey: ["/api/quick-notes"] });
-      resetForm();
+      // Reset form
+      setNoteText("");
+      setNoteTitle("");
     },
     onError: (error: Error) => {
       toast({
-        title: "Failed to save note",
-        description: error.message,
+        title: "Error",
+        description: error.message || "Failed to save note",
         variant: "destructive",
       });
     },
   });
 
-  // Start recording logic
-  const startRecording = async () => {
-    try {
-      await recordingService.startRecording();
-      setIsRecording(true);
-      setRecordingTime(0);
-      
-      // Start timer
-      const timer = setInterval(() => {
-        setRecordingTime((prev) => prev + 1);
-      }, 1000);
-      
-      setRecordingTimer(timer);
-    } catch (error) {
+  // Save custom prompt mutation
+  const saveCustomPromptMutation = useMutation({
+    mutationFn: async (data: { noteType: string; systemPrompt: string; templateContent: string }) => {
+      const response = await apiRequest("POST", "/api/note-templates", data);
+      return await response.json();
+    },
+    onSuccess: () => {
       toast({
-        title: "Microphone Error",
-        description: "Could not access microphone. Please check permissions.",
+        title: "Success",
+        description: "Custom prompt saved successfully",
+      });
+      setIsSettingsOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/note-templates"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save custom prompt",
         variant: "destructive",
       });
+    },
+  });
+
+  const handleStartConsultation = () => {
+    setShowConsultationModal(true);
+  };
+
+  const handleConsultationComplete = (transcript: string, notes: string) => {
+    if (notes) {
+      setNoteText(notes);
+      setNoteTitle(`Quick Note - ${format(new Date(), "MM/dd/yyyy")}`);
     }
-  };
-
-  // Stop recording logic
-  const stopRecording = async () => {
-    if (recordingTimer) {
-      clearInterval(recordingTimer);
-      setRecordingTimer(null);
-    }
-    
-    setIsRecording(false);
-    await recordingService.stopRecording();
-    const transcriptText = await recordingService.getTranscript();
-    setTranscript(transcriptText);
-    
-    // Generate SOAP notes from transcript
-    try {
-      const content = await generateSoapNotes(transcriptText, {});
-      setGeneratedContent(content);
-      form.setValue("content", content);
-      setEditableContent(content);
-    } catch (error) {
-      toast({
-        title: "Error generating notes",
-        description: "Could not generate notes from transcript. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Handle file upload
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    setFileName(file.name);
-    setFileUploaded(true);
-    
-    try {
-      const transcriptText = await recordingService.processAudioFile(file);
-      setTranscript(transcriptText);
-      
-      // Generate SOAP notes from transcript
-      const content = await generateSoapNotes(transcriptText, {});
-      setGeneratedContent(content);
-      form.setValue("content", content);
-      setEditableContent(content);
-    } catch (error) {
-      toast({
-        title: "Error processing file",
-        description: "Could not process audio file. Please try a different file.",
-        variant: "destructive",
-      });
-      setFileUploaded(false);
-      setFileName("");
-    }
-  };
-
-  // Handle text input directly
-  const handleTextInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setTranscript(e.target.value);
-  };
-
-  // Generate notes from text input
-  const generateNotesFromText = async () => {
-    if (!transcript) {
-      toast({
-        title: "No text input",
-        description: "Please enter some text before generating notes.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    try {
-      const content = await generateSoapNotes(transcript, {});
-      setGeneratedContent(content);
-      form.setValue("content", content);
-      setEditableContent(content);
-    } catch (error) {
-      toast({
-        title: "Error generating notes",
-        description: "Could not generate notes from text. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Handle template selection
-  const handleTemplateChange = (templateId: string) => {
-    setSelectedTemplate(templateId);
-    const template = templates.find(t => t.id === templateId);
-    if (template) {
-      setEditableContent(template.content);
-      form.setValue("content", template.content);
-      form.setValue("template", templateId);
-    }
-  };
-
-  // Format time for recording display (MM:SS)
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60).toString().padStart(2, "0");
-    const secs = (seconds % 60).toString().padStart(2, "0");
-    return `${mins}:${secs}`;
-  };
-
-  // Clear signature pad
-  const clearSignature = () => {
-    if (signatureRef.current) {
-      signatureRef.current.clear();
-      setSignature(null);
-    }
-  };
-
-  // Save signature
-  const saveSignature = () => {
-    if (signatureRef.current && !signatureRef.current.isEmpty()) {
-      setSignature(signatureRef.current.toDataURL());
-      toast({
-        title: "Signature captured",
-        description: "Your signature has been saved with the note.",
-      });
-    } else {
-      toast({
-        title: "Empty signature",
-        description: "Please draw a signature before saving.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Submit form
-  const onSubmit = (data: QuickNoteFormValues) => {
-    if (signature) {
-      createNoteMutation.mutate({
-        ...data,
-        content: editableContent,
-      });
-    } else {
-      toast({
-        title: "Signature required",
-        description: "Please add your signature before saving the note.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Reset form
-  const resetForm = () => {
-    form.reset({
-      title: "",
-      content: "",
-      type: "soap",
-      template: "blank",
-    });
-    setTranscript("");
-    setGeneratedContent("");
-    setEditableContent("");
-    setFileUploaded(false);
-    setFileName("");
-    setInputMethod("text");
-    clearSignature();
-    setSignature(null);
-    setShowPreview(false);
-  };
-
-  // Download note as PDF or text file
-  const downloadNote = () => {
-    const element = document.createElement("a");
-    const file = new Blob([editableContent], { type: "text/plain" });
-    element.href = URL.createObjectURL(file);
-    element.download = `${form.getValues().title || "quick-note"}.txt`;
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
+    setShowConsultationModal(false);
   };
 
   // Handle chat with AI assistant
@@ -394,600 +207,711 @@ export default function QuickNotes() {
     }
   };
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (recordingTimer) {
-        clearInterval(recordingTimer);
+  const handleGenerateNotes = async () => {
+    setIsGenerating(true);
+    
+    try {
+      const transcript = noteText || `Quick note documentation. Please generate a structured medical note.`;
+
+      const response = await fetch('/api/ai/generate-soap', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transcript,
+          noteType: selectedNoteType,
+          patientInfo: {
+            firstName: "Quick",
+            lastName: "Note",
+            id: 0,
+            dateOfBirth: format(new Date(), "yyyy-MM-dd"),
+          }
+        })
+      });
+
+      const data = await response.json();
+      
+      if (data.success && data.soap) {
+        setNoteText(data.soap);
+        setNoteTitle(`Quick Note - ${selectedNoteType.charAt(0).toUpperCase() + selectedNoteType.slice(1)}`);
+        toast({
+          title: "Success",
+          description: "Note generated successfully",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: data.soap || "Failed to generate note",
+          variant: "destructive",
+        });
       }
-    };
-  }, [recordingTimer]);
+    } catch (error) {
+      console.error('Error generating notes:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate note",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleSaveNote = () => {
+    if (!noteText.trim()) {
+      toast({
+        title: "Note Required",
+        description: "Please enter note content before saving",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!noteTitle.trim()) {
+      toast({
+        title: "Title Required",
+        description: "Please enter a title for the note",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    createNoteMutation.mutate({
+      doctorId: user?.id || 1,
+      content: noteText,
+      type: "soap",
+      title: noteTitle
+    });
+  };
+
+  const handleDownloadNote = async () => {
+    if (!noteText.trim() || !noteTitle.trim()) {
+      toast({
+        title: "Cannot Download",
+        description: "Please enter note content and title before downloading",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsDownloading(true);
+
+      const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx');
+      
+      const docSections = [];
+      
+      // Title
+      docSections.push(
+        new Paragraph({
+          text: noteTitle,
+          heading: HeadingLevel.TITLE,
+        })
+      );
+      
+      // Note type and date info
+      docSections.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `Quick Note • Generated ${new Date().toLocaleDateString('en-US')}`,
+              italics: true,
+              size: 20,
+            }),
+          ],
+        })
+      );
+      
+      docSections.push(new Paragraph({ text: "" })); // Empty line
+      
+      // Note content
+      docSections.push(
+        new Paragraph({
+          text: "Note Content",
+          heading: HeadingLevel.HEADING_1,
+        })
+      );
+      
+      // Split content by lines and create paragraphs
+      const contentLines = noteText.split('\n');
+      contentLines.forEach(line => {
+        docSections.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: line,
+                size: 24,
+              }),
+            ],
+          })
+        );
+      });
+      
+      // Add timestamp
+      docSections.push(new Paragraph({ text: "" })); // Empty line
+      docSections.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `Generated: ${new Date().toLocaleString('en-US', { hour12: true })}`,
+              italics: true,
+              size: 18,
+            }),
+          ],
+        })
+      );
+      
+      const doc = new Document({
+        sections: [{
+          properties: {},
+          children: docSections,
+        }],
+      });
+
+      const blob = await Packer.toBlob(doc);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${noteTitle.replace(/[^a-z0-9]/gi, '_')}.docx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Download Complete",
+        description: "Note downloaded successfully",
+      });
+    } catch (error) {
+      console.error('Error downloading note:', error);
+      toast({
+        title: "Download Failed",
+        description: "Could not download the note",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div className="flex justify-between items-start">
+    <div className="container mx-auto p-4 md:p-6 space-y-4 md:space-y-6">
+      <ConsultationModal
+        open={showConsultationModal}
+        onClose={() => setShowConsultationModal(false)}
+        onComplete={handleConsultationComplete}
+        patientId={null}
+        patientName="Quick Note"
+      />
+
+      <Dialog open={showPreview} onOpenChange={setShowPreview}>
+        <DialogContent className="w-[95vw] sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-lg md:text-xl">Note Preview</DialogTitle>
+            <DialogDescription className="text-sm">Preview your quick note before saving</DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="border rounded-md p-6 bg-background">
+              <h2 className="text-2xl font-bold mb-4">{noteTitle || "Untitled Note"}</h2>
+              <p className="text-sm text-muted-foreground mb-4">
+                {new Date().toLocaleDateString('en-US')} • Quick Note
+              </p>
+              <div className="prose max-w-none">
+                {noteText.split('\n').map((line, i) => (
+                  <p key={i} className="mb-2 whitespace-pre-wrap">{line}</p>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPreview(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Quick Notes</h1>
-          <p className="text-muted-foreground">Create notes without patient selection</p>
+          <h1 className="text-2xl md:text-3xl font-bold">Quick Notes</h1>
+          <p className="text-sm md:text-base text-muted-foreground">Create medical notes without patient selection</p>
+        </div>
+        <div className="flex gap-2 justify-end w-full sm:w-auto flex-wrap">
+          <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="icon" className="h-9 w-9 md:h-10 md:w-10">
+                <Settings className="h-4 w-4" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="w-[95vw] sm:max-w-[625px] max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="text-lg md:text-xl">Quick Notes Settings</DialogTitle>
+                <DialogDescription className="text-sm">
+                  Configure templates and prompts used for note generation
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="noteType">Note Type</Label>
+                  <Select
+                    value={selectedNoteType}
+                    onValueChange={(value) => setSelectedNoteType(value as any)}
+                  >
+                    <SelectTrigger id="noteType">
+                      <SelectValue placeholder="Select Note Type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="initial">Initial Consultation</SelectItem>
+                      <SelectItem value="followup">Follow-up Visit</SelectItem>
+                      <SelectItem value="physical">Physical Examination</SelectItem>
+                      <SelectItem value="reevaluation">Re-evaluation Note</SelectItem>
+                      <SelectItem value="procedure">Procedure Note</SelectItem>
+                      <SelectItem value="psychiatric">Psychiatric Evaluation</SelectItem>
+                      <SelectItem value="discharge">Discharge Summary</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="systemPrompt">System Prompt</Label>
+                  <Textarea
+                    id="systemPrompt"
+                    rows={4}
+                    value={systemPrompt || (selectedTemplate?.systemPrompt || "")}
+                    onChange={(e) => setSystemPrompt(e.target.value)}
+                    placeholder="Enter system prompt for the AI..."
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    This is the main instruction for the AI assistant when generating this type of note.
+                  </p>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="templateContent">Template Structure</Label>
+                  <Textarea
+                    id="templateContent"
+                    rows={8}
+                    value={templateContent || (selectedTemplate?.template || "")}
+                    onChange={(e) => setTemplateContent(e.target.value)}
+                    placeholder="Enter the template structure for this note type..."
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    This is the structure that will be used when creating this type of note.
+                  </p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsSettingsOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={() => {
+                    saveCustomPromptMutation.mutate({
+                      noteType: selectedNoteType,
+                      systemPrompt: systemPrompt || selectedTemplate?.systemPrompt || "",
+                      templateContent: templateContent || selectedTemplate?.template || ""
+                    });
+                  }}
+                  disabled={saveCustomPromptMutation.isPending}
+                  data-testid="button-save-settings"
+                >
+                  {saveCustomPromptMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Custom Prompt"
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          <Button
+            variant="outline"
+            onClick={handleStartConsultation}
+            className="w-full sm:w-auto"
+          >
+            <MessageSquare className="h-4 w-4 mr-2" />
+            <span className="hidden sm:inline">Start Consultation</span>
+            <span className="sm:hidden">Consult</span>
+          </Button>
+          <Button 
+            onClick={handleGenerateNotes} 
+            disabled={isGenerating}
+            className="w-full sm:w-auto"
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <FileText className="h-4 w-4 mr-2" />
+                Generate SOAP
+              </>
+            )}
+          </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6">
-        {/* Left Panel - Note Creation */}
-        <div className="md:col-span-2 lg:col-span-3 space-y-4 md:space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Create New Quick Note</CardTitle>
-              <CardDescription>
-                Choose a template, record audio, upload a file, or type directly to create your note
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Tabs defaultValue="create" className="w-full">
-                <TabsList className="grid grid-cols-2 mb-4">
-                  <TabsTrigger value="create">Create Note</TabsTrigger>
-                  <TabsTrigger value="preview">Preview</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="create" className="space-y-4">
-                  <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                      <FormField
-                        control={form.control}
-                        name="title"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Note Title</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Enter a title for your note" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="type"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Note Type</FormLabel>
-                            <Select
-                              onValueChange={field.onChange}
-                              defaultValue={field.value}
-                            >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select note type" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="soap">SOAP Note</SelectItem>
-                                <SelectItem value="progress">Progress Note</SelectItem>
-                                <SelectItem value="procedure">Procedure Note</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <div className="space-y-2">
-                        <Label>Select Template</Label>
-                        <Select
-                          onValueChange={handleTemplateChange}
-                          defaultValue={selectedTemplate}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a template" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {templates.map((template) => (
-                              <SelectItem key={template.id} value={template.id}>
-                                {template.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Input Method</Label>
-                        <div className="grid grid-cols-3 gap-2">
-                          <Button
-                            type="button"
-                            variant={inputMethod === "record" ? "default" : "outline"}
-                            onClick={() => setInputMethod("record")}
-                            className="flex flex-col items-center py-4 h-auto"
-                          >
-                            <Mic className="mb-2 h-5 w-5" />
-                            Record Audio
-                          </Button>
-                          <Button
-                            type="button"
-                            variant={inputMethod === "upload" ? "default" : "outline"}
-                            onClick={() => setInputMethod("upload")}
-                            className="flex flex-col items-center py-4 h-auto"
-                          >
-                            <Upload className="mb-2 h-5 w-5" />
-                            Upload Audio
-                          </Button>
-                          <Button
-                            type="button"
-                            variant={inputMethod === "text" ? "default" : "outline"}
-                            onClick={() => setInputMethod("text")}
-                            className="flex flex-col items-center py-4 h-auto"
-                          >
-                            <FileTextIcon className="mb-2 h-5 w-5" />
-                            Text Input
-                          </Button>
-                        </div>
-                      </div>
-
-                      {/* Recording UI */}
-                      {inputMethod === "record" && (
-                        <div className="p-4 border rounded-md space-y-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-2">
-                              <div className={`h-3 w-3 rounded-full ${isRecording ? "bg-red-500 animate-pulse" : "bg-gray-300"}`}></div>
-                              <span>{isRecording ? "Recording..." : "Not recording"}</span>
-                            </div>
-                            <div className="text-lg font-mono">{formatTime(recordingTime)}</div>
-                          </div>
-                          
-                          <div className="flex space-x-2">
-                            {!isRecording ? (
-                              <Button 
-                                type="button" 
-                                onClick={startRecording} 
-                                className="w-full"
-                              >
-                                Start Recording
-                              </Button>
-                            ) : (
-                              <Button 
-                                type="button" 
-                                onClick={stopRecording} 
-                                variant="destructive"
-                                className="w-full"
-                              >
-                                Stop Recording
-                              </Button>
-                            )}
-                          </div>
-                          
-                          {transcript && (
-                            <div className="space-y-2">
-                              <Label>Transcript</Label>
-                              <div className="p-3 bg-muted rounded-md max-h-60 overflow-y-auto">
-                                <p className="text-sm">{transcript}</p>
-                              </div>
-                              <Button 
-                                type="button" 
-                                onClick={generateNotesFromText}
-                                variant="outline" 
-                                className="w-full"
-                              >
-                                Generate Notes from Transcript
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Upload Audio UI */}
-                      {inputMethod === "upload" && (
-                        <div className="p-4 border rounded-md space-y-4">
-                          <div className="flex flex-col items-center justify-center py-4">
-                            <input 
-                              type="file" 
-                              accept="audio/*" 
-                              ref={fileInputRef}
-                              onChange={handleFileUpload}
-                              className="hidden"
-                            />
-                            {!fileUploaded ? (
-                              <Button 
-                                type="button" 
-                                variant="outline" 
-                                onClick={() => fileInputRef.current?.click()}
-                                className="w-full"
-                              >
-                                <Upload className="mr-2 h-4 w-4" />
-                                Upload Audio File
-                              </Button>
-                            ) : (
-                              <div className="space-y-2 w-full">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-sm font-medium truncate max-w-xs">{fileName}</span>
-                                  <Button 
-                                    type="button" 
-                                    variant="ghost" 
-                                    size="sm"
-                                    onClick={() => {
-                                      setFileUploaded(false);
-                                      setFileName("");
-                                    }}
-                                  >
-                                    Change
-                                  </Button>
-                                </div>
-                                {transcript && (
-                                  <div className="space-y-2">
-                                    <Label>Transcript</Label>
-                                    <div className="p-3 bg-muted rounded-md max-h-60 overflow-y-auto">
-                                      <p className="text-sm">{transcript}</p>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Text Input UI */}
-                      {inputMethod === "text" && (
-                        <div className="space-y-3">
-                          <Label>Text Input</Label>
-                          <Textarea 
-                            placeholder="Paste or type your text here to generate structured notes..." 
-                            rows={8}
-                            value={transcript}
-                            onChange={(e) => {
-                              handleTextInputChange(e);
-                              if (e.target.value) {
-                                // Auto-generate notes when text is pasted
-                                generateNotesFromText();
-                              }
-                            }}
-                            onPaste={() => {
-                              // Small delay to ensure pasted content is available
-                              setTimeout(generateNotesFromText, 100);
-                            }}
-                            className="resize-none text-base p-4"
-                          />
-                          <Button 
-                            type="button" 
-                            onClick={generateNotesFromText}
-                            variant="outline" 
-                            className="w-full md:w-auto"
-                          >
-                            Generate Notes
-                          </Button>
-                        </div>
-                      )}
-
-                      {/* Editable Content */}
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <Label>Note Content</Label>
-                          <div className="flex items-center space-x-2">
-                            <Label htmlFor="auto-generate" className="text-sm">Show Preview</Label>
-                            <Switch 
-                              id="show-preview" 
-                              checked={showPreview}
-                              onCheckedChange={setShowPreview}
-                            />
-                          </div>
-                        </div>
-                        <Textarea 
-                          value={editableContent}
-                          onChange={(e) => setEditableContent(e.target.value)}
-                          className="font-mono min-h-[200px]"
-                          placeholder="Note content will appear here..."
-                        />
-                      </div>
-
-                      {/* Signature Pad */}
-                      <div className="space-y-2">
-                        <Label>Signature</Label>
-                        <div className="border rounded-md p-2 bg-white">
-                          <SignatureCanvas
-                            ref={signatureRef}
-                            canvasProps={{
-                              className: "signature-canvas w-full h-[150px] border border-dashed border-gray-300 rounded-md"
-                            }}
-                            penColor="black"
-                            dotSize={2}
-                            throttle={16}
-                            minWidth={1}
-                            maxWidth={2.5}
-                          />
-                        </div>
-                        <div className="flex space-x-2">
-                          <Button 
-                            type="button" 
-                            variant="outline" 
-                            onClick={clearSignature}
-                            className="flex-1"
-                          >
-                            Clear
-                          </Button>
-                          <Button 
-                            type="button" 
-                            onClick={saveSignature}
-                            className="flex-1"
-                          >
-                            Save Signature
-                          </Button>
-                        </div>
-                        {signature && (
-                          <div className="flex items-center space-x-2 text-sm text-green-600">
-                            <Check className="h-4 w-4" />
-                            <span>Signature captured</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Submit Buttons */}
-                      <div className="flex space-x-2 pt-4">
-                        <Button 
-                          type="submit" 
-                          className="flex-1"
-                          disabled={createNoteMutation.isPending}
-                        >
-                          {createNoteMutation.isPending ? "Saving..." : "Save Note"}
-                        </Button>
-                        <Button 
-                          type="button" 
-                          variant="outline" 
-                          onClick={downloadNote}
-                          className="flex-1"
-                        >
-                          <Download className="mr-2 h-4 w-4" />
-                          Download as Text
-                        </Button>
-                      </div>
-                    </form>
-                  </Form>
-                </TabsContent>
-                
-                <TabsContent value="preview">
-                  {editableContent ? (
-                    <div className="p-6 border rounded-md bg-white min-h-[600px]">
-                      <h2 className="text-xl font-bold mb-4">{form.getValues().title || "Untitled Note"}</h2>
-                      <div className="prose max-w-none">
-                        {editableContent.split("\n").map((line, i) => (
-                          <p key={i} className="mb-2">{line}</p>
-                        ))}
-                      </div>
-                      {signature && (
-                        <div className="mt-8 border-t pt-4">
-                          <p className="text-sm text-muted-foreground mb-2">Signed by:</p>
-                          <img src={signature} alt="Signature" className="max-h-20" />
-                        </div>
-                      )}
-                    </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg md:text-xl">SOAP Note</CardTitle>
+            <CardDescription className="text-sm">Create a quick note without patient selection</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="noteTitle" className="text-sm">Note Title</Label>
+                <Input
+                  id="noteTitle"
+                  value={noteTitle}
+                  onChange={(e) => setNoteTitle(e.target.value)}
+                  placeholder="Enter note title"
+                  className="mb-4"
+                />
+              </div>
+              <Textarea
+                placeholder="Start typing or record your notes..."
+                className="min-h-[250px] md:min-h-[300px] text-sm md:text-base"
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <Button 
+                  variant="outline"
+                  onClick={() => setShowPreview(true)}
+                  disabled={!noteText.trim() || !noteTitle.trim()}
+                  data-testid="button-preview-note"
+                >
+                  <Eye className="h-4 w-4 mr-2" />
+                  Preview
+                </Button>
+                <Button 
+                  variant="outline"
+                  onClick={handleDownloadNote}
+                  disabled={!noteText.trim() || !noteTitle.trim() || isDownloading}
+                  data-testid="button-download-note"
+                >
+                  {isDownloading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Downloading...
+                    </>
                   ) : (
-                    <div className="flex items-center justify-center p-12 border rounded-md bg-muted">
-                      <p className="text-muted-foreground">No content to preview</p>
-                    </div>
+                    <>
+                      <Download className="h-4 w-4 mr-2" />
+                      Download
+                    </>
                   )}
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
+                </Button>
+                <Button 
+                  onClick={handleSaveNote}
+                  disabled={!noteText.trim() || !noteTitle.trim() || createNoteMutation.isPending}
+                  data-testid="button-save-note"
+                >
+                  {createNoteMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Save Note
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-          {/* AI Suggestions Card */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg md:text-xl">AI Suggestions</CardTitle>
-              <CardDescription>Get AI-powered assistance with your notes</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Tabs defaultValue="templates" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="templates" className="text-xs sm:text-sm">Templates</TabsTrigger>
-                  <TabsTrigger value="analysis" className="text-xs sm:text-sm">Analysis</TabsTrigger>
-                  <TabsTrigger value="assistant" className="text-xs sm:text-sm">Assistant</TabsTrigger>
-                </TabsList>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg md:text-xl">AI Suggestions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="templates">
+              <TabsList className="mb-4 grid grid-cols-3 w-full">
+                <TabsTrigger value="templates" className="text-xs sm:text-sm">Templates</TabsTrigger>
+                <TabsTrigger value="analysis" className="text-xs sm:text-sm">Analysis</TabsTrigger>
+                <TabsTrigger value="assistant" className="text-xs sm:text-sm">Assistant</TabsTrigger>
+              </TabsList>
+              <TabsContent value="templates">
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Select a template to quickly create standardized notes
+                  </p>
+                  
+                  <Button 
+                    variant="outline" 
+                    className="w-full justify-start"
+                    onClick={() => {
+                      setNoteTitle("SOAP - Initial Consultation");
+                      setNoteText(
+`SOAP Note
 
-                <TabsContent value="templates" className="space-y-4 mt-4">
-                  <div className="grid grid-cols-1 gap-2">
-                    <Button
-                      variant="outline"
-                      className="justify-start text-left h-auto py-3"
-                      onClick={() => {
-                        const content = "## Subjective:\n\n## Objective:\n\n## Assessment:\n\n## Plan:\n";
-                        setEditableContent(content);
-                        form.setValue("content", content);
-                        form.setValue("type", "soap");
-                      }}
-                    >
-                      <ClipboardList className="h-4 w-4 mr-2" />
-                      SOAP Note
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="justify-start text-left h-auto py-3"
-                      onClick={() => {
-                        const content = "## Patient Progress\n\n## Current Status\n\n## Treatment Plan\n\n## Next Steps\n";
-                        setEditableContent(content);
-                        form.setValue("content", content);
-                        form.setValue("type", "progress");
-                      }}
-                    >
-                      <ClipboardList className="h-4 w-4 mr-2" />
-                      Progress Note
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="justify-start text-left h-auto py-3"
-                      onClick={() => {
-                        const content = "## Procedure Type\n\n## Indications\n\n## Technique\n\n## Findings\n\n## Complications\n\n## Post-Procedure Care\n";
-                        setEditableContent(content);
-                        form.setValue("content", content);
-                        form.setValue("type", "procedure");
-                      }}
-                    >
-                      <ClipboardList className="h-4 w-4 mr-2" />
-                      Procedure Note
-                    </Button>
-                  </div>
-                </TabsContent>
+Subjective:
+- Chief complaint:
+- History of present illness:
+- Past medical history:
+- Medications:
+- Allergies:
+- Social history:
 
-                <TabsContent value="analysis">
-                  <div className="text-center text-muted-foreground py-8">
-                    <div className="space-y-4">
-                      <div className="border p-3 rounded-md text-left">
-                        <p className="font-medium mb-2">Quick Notes Overview</p>
-                        <p className="text-sm text-muted-foreground">
-                          Quick notes allow you to create medical documentation without patient selection. This is useful for general observations, personal reminders, or documentation that will be linked to a patient later.
-                        </p>
-                      </div>
-                      <div className="border p-3 rounded-md text-left">
-                        <p className="font-medium mb-2">Documentation Tips</p>
-                        <p className="text-sm text-muted-foreground">
-                          • Be specific and concise<br />
-                          • Include relevant timestamps<br />
-                          • Use standard medical terminology<br />
-                          • Add your signature before saving
-                        </p>
-                      </div>
-                      <div className="border p-3 rounded-md text-left">
-                        <p className="font-medium mb-2">Note Types</p>
-                        <p className="text-sm text-muted-foreground">
-                          <strong>SOAP:</strong> Structured clinical documentation<br />
-                          <strong>Progress:</strong> Track patient improvements<br />
-                          <strong>Procedure:</strong> Document interventions
-                        </p>
-                      </div>
+Objective:
+- Vital signs:
+- General appearance:
+- Physical examination findings:
+
+Assessment:
+- Primary diagnosis:
+- Differential diagnoses:
+- Clinical reasoning:
+
+Plan:
+- Diagnostics:
+- Treatment:
+- Patient education:
+- Follow-up:
+`);
+                    }}
+                  >
+                    <ClipboardList className="h-4 w-4 mr-2" />
+                    Initial Consultation
+                  </Button>
+                  
+                  <Button 
+                    variant="outline" 
+                    className="w-full justify-start"
+                    onClick={() => {
+                      setNoteTitle("SOAP - Follow-up Visit");
+                      setNoteText(
+`SOAP Note - Follow-up
+
+Subjective:
+- Response to treatment:
+- New or persistent symptoms:
+- Medication compliance:
+- Patient concerns:
+
+Objective:
+- Vital signs compared to last visit:
+- Examination findings:
+- Test results:
+
+Assessment:
+- Progress evaluation:
+- Current status of diagnosis:
+- New issues identified:
+
+Plan:
+- Medication adjustments:
+- Additional testing:
+- Referrals:
+- Next appointment:
+`);
+                    }}
+                  >
+                    <ClipboardList className="h-4 w-4 mr-2" />
+                    Follow-up Visit
+                  </Button>
+                  
+                  <Button 
+                    variant="outline" 
+                    className="w-full justify-start"
+                    onClick={() => {
+                      setNoteTitle("SOAP - Physical Examination");
+                      setNoteText(
+`SOAP Note - Physical Examination
+
+Subjective:
+- Presenting concerns:
+- Health changes since last visit:
+- Preventive care history:
+
+Objective:
+- Vital signs: BP, HR, RR, Temp, O2 Sat, Weight, Height, BMI
+- HEENT:
+- Cardiovascular:
+- Respiratory:
+- Gastrointestinal:
+- Musculoskeletal:
+- Neurological:
+- Skin:
+
+Assessment:
+- General health status:
+- Risk factors:
+- Age-appropriate screening status:
+
+Plan:
+- Preventive recommendations:
+- Screening tests:
+- Lifestyle modifications:
+- Immunization updates:
+`);
+                    }}
+                  >
+                    <ClipboardList className="h-4 w-4 mr-2" />
+                    Physical Examination
+                  </Button>
+                  
+                  <Button 
+                    variant="outline" 
+                    className="w-full justify-start"
+                    onClick={() => {
+                      setNoteTitle("Re-evaluation Note");
+                      setNoteText(
+`Re-evaluation Note
+
+Date of Service: ${format(new Date(), "MM/dd/yyyy")}
+
+Reason for Re-evaluation:
+- 
+
+Previous Diagnosis:
+- 
+
+Changes Since Last Visit:
+- Symptom changes:
+- Response to treatment:
+- Medication adjustments:
+- New concerns:
+
+Current Assessment:
+- Updated diagnosis:
+- Disease progression/regression:
+- Functional status:
+
+Treatment Plan Modifications:
+- Medication changes:
+- Therapy adjustments:
+- New interventions:
+
+Goals and Prognosis:
+- Short-term goals:
+- Long-term goals:
+- Expected outcomes:
+`);
+                    }}
+                  >
+                    <ClipboardList className="h-4 w-4 mr-2" />
+                    Re-evaluation Note
+                  </Button>
+                </div>
+              </TabsContent>
+              <TabsContent value="analysis">
+                <div className="text-center text-muted-foreground py-8">
+                  <div className="space-y-4">
+                    <div className="border p-3 rounded-md text-left">
+                      <p className="font-medium mb-2">Quick Notes Overview</p>
+                      <p className="text-sm text-muted-foreground">
+                        Quick notes allow you to create medical documentation without patient selection. This is useful for general observations, personal reminders, or documentation that will be linked to a patient later.
+                      </p>
+                    </div>
+                    <div className="border p-3 rounded-md text-left">
+                      <p className="font-medium mb-2">Documentation Tips</p>
+                      <p className="text-sm text-muted-foreground">
+                        • Be specific and concise<br />
+                        • Include relevant timestamps<br />
+                        • Use standard medical terminology<br />
+                        • Document objectively and factually
+                      </p>
+                    </div>
+                    <div className="border p-3 rounded-md text-left">
+                      <p className="font-medium mb-2">Note Types</p>
+                      <p className="text-sm text-muted-foreground">
+                        <strong>SOAP:</strong> Structured clinical documentation<br />
+                        <strong>Progress:</strong> Track improvements over time<br />
+                        <strong>Procedure:</strong> Document interventions and outcomes
+                      </p>
                     </div>
                   </div>
-                </TabsContent>
-
-                <TabsContent value="assistant">
-                  <div className="h-[400px] flex flex-col">
-                    <div className="flex-1 border rounded-md mb-4 p-4 overflow-y-auto bg-secondary/5">
-                      <div className="space-y-4">
+                </div>
+              </TabsContent>
+              <TabsContent value="assistant">
+                <div className="h-[400px] flex flex-col">
+                  <div className="flex-1 border rounded-md mb-4 p-4 overflow-y-auto bg-secondary/5">
+                    <div className="space-y-4">
+                      <div className="flex justify-start">
+                        <div className="bg-primary/10 rounded-lg p-3 max-w-[85%]">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Stethoscope className="h-4 w-4 text-primary" />
+                            <span className="font-medium text-sm">AI Assistant</span>
+                          </div>
+                          <p className="text-sm">Hello! I'm your AI medical assistant. How can I help you with your quick note today?</p>
+                        </div>
+                      </div>
+                      {chatMessages.map((message, index) => (
+                        <div key={index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`rounded-lg p-3 max-w-[85%] ${
+                            message.role === 'user' 
+                              ? 'bg-primary text-primary-foreground' 
+                              : 'bg-primary/10'
+                          }`}>
+                            <div className="flex items-center gap-2 mb-1">
+                              {message.role === 'assistant' && <Stethoscope className="h-4 w-4 text-primary" />}
+                              <span className="font-medium text-sm">
+                                {message.role === 'user' ? 'You' : 'AI Assistant'}
+                              </span>
+                              {message.role === 'user' && <UserPlus className="h-4 w-4" />}
+                            </div>
+                            <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                          </div>
+                        </div>
+                      ))}
+                      {isAssistantThinking && (
                         <div className="flex justify-start">
                           <div className="bg-primary/10 rounded-lg p-3 max-w-[85%]">
                             <div className="flex items-center gap-2 mb-1">
                               <Stethoscope className="h-4 w-4 text-primary" />
                               <span className="font-medium text-sm">AI Assistant</span>
                             </div>
-                            <p className="text-sm">Hello! I'm your AI medical assistant. How can I help you with your quick note today?</p>
+                            <p className="text-sm flex items-center">
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Thinking...
+                            </p>
                           </div>
                         </div>
-                        {chatMessages.map((message, index) => (
-                          <div key={index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`rounded-lg p-3 max-w-[85%] ${
-                              message.role === 'user' 
-                                ? 'bg-primary text-primary-foreground' 
-                                : 'bg-primary/10'
-                            }`}>
-                              <div className="flex items-center gap-2 mb-1">
-                                {message.role === 'assistant' && <Stethoscope className="h-4 w-4 text-primary" />}
-                                <span className="font-medium text-sm">
-                                  {message.role === 'user' ? 'You' : 'AI Assistant'}
-                                </span>
-                                {message.role === 'user' && <UserPlus className="h-4 w-4" />}
-                              </div>
-                              <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                            </div>
-                          </div>
-                        ))}
-                        {isAssistantThinking && (
-                          <div className="flex justify-start">
-                            <div className="bg-primary/10 rounded-lg p-3 max-w-[85%]">
-                              <div className="flex items-center gap-2 mb-1">
-                                <Stethoscope className="h-4 w-4 text-primary" />
-                                <span className="font-medium text-sm">AI Assistant</span>
-                              </div>
-                              <p className="text-sm flex items-center">
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                Thinking...
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Input 
-                        placeholder="Ask a medical question or request help with your note..." 
-                        value={chatInput}
-                        onChange={(e) => setChatInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            handleSendChatMessage();
-                          }
-                        }}
-                        disabled={isAssistantThinking}
-                        data-testid="input-assistant-chat"
-                      />
-                      <Button 
-                        onClick={handleSendChatMessage}
-                        disabled={!chatInput.trim() || isAssistantThinking}
-                        data-testid="button-send-chat"
-                      >
-                        {isAssistantThinking ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <MessageSquare className="h-4 w-4" />
-                        )}
-                      </Button>
+                      )}
                     </div>
                   </div>
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Right Panel - Saved Notes List */}
-        <div className="md:col-span-1 lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Saved Quick Notes</CardTitle>
-              <CardDescription>View and manage your saved notes</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoadingNotes ? (
-                <div className="flex items-center justify-center p-12">
-                  <div className="space-y-2 w-full">
-                    <Progress value={45} className="w-full" />
-                    <p className="text-center text-sm text-muted-foreground">Loading notes...</p>
+                  <div className="flex gap-2">
+                    <Input 
+                      placeholder="Ask a medical question or request help with your note..." 
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSendChatMessage();
+                        }
+                      }}
+                      disabled={isAssistantThinking}
+                      data-testid="input-assistant-chat"
+                    />
+                    <Button 
+                      onClick={handleSendChatMessage}
+                      disabled={!chatInput.trim() || isAssistantThinking}
+                      data-testid="button-send-chat"
+                    >
+                      {isAssistantThinking ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <MessageSquare className="h-4 w-4" />
+                      )}
+                    </Button>
                   </div>
                 </div>
-              ) : quickNotes.length === 0 ? (
-                <div className="flex flex-col items-center justify-center p-12 text-center">
-                  <FileTextIcon className="h-12 w-12 text-muted-foreground mb-4 opacity-20" />
-                  <h3 className="text-lg font-medium">No saved notes</h3>
-                  <p className="text-sm text-muted-foreground">Your saved quick notes will appear here</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {quickNotes.map((note: any) => (
-                    <Card key={note.id} className="overflow-hidden">
-                      <CardHeader className="p-4 pb-2">
-                        <CardTitle className="text-lg">{note.title}</CardTitle>
-                        <CardDescription>
-                          {new Date(note.createdAt).toLocaleDateString('en-US')}
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="p-4 pt-0">
-                        <p className="text-sm text-muted-foreground truncate">
-                          {note.content.substring(0, 100)}...
-                        </p>
-                      </CardContent>
-                      <CardFooter className="p-4 pt-0 flex justify-between">
-                        <Button variant="link" size="sm" className="px-0">
-                          View Details
-                        </Button>
-                        <Button variant="ghost" size="sm">
-                          <Download className="h-4 w-4" />
-                        </Button>
-                      </CardFooter>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
