@@ -93,6 +93,14 @@ Plan:
 
   const selectedTemplate = templates?.find((t: any) => t.noteType === selectedNoteType);
 
+  // Sync template content when note type changes or templates load
+  useEffect(() => {
+    if (selectedTemplate) {
+      setSystemPrompt(selectedTemplate.systemPrompt || "");
+      setTemplateContent(selectedTemplate.template || "");
+    }
+  }, [selectedNoteType, selectedTemplate]);
+
   // Create quick note mutation
   const createNoteMutation = useMutation({
     mutationFn: async (noteData: { title: string; content: string; doctorId: number; type: string }) => {
