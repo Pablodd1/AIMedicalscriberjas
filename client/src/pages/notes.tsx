@@ -43,7 +43,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
-import { Patient, InsertMedicalNote, MedicalNoteTemplate, InsertMedicalNoteTemplate } from "@shared/schema";
+import { Patient, InsertMedicalNote, MedicalNote, MedicalNoteTemplate, InsertMedicalNoteTemplate } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
 import { ConsultationModal } from "@/components/consultation-modal";
@@ -62,6 +62,11 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export default function Notes() {
   const [isRecording, setIsRecording] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -77,6 +82,9 @@ export default function Notes() {
   const [patientSearchOpen, setPatientSearchOpen] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [isAssistantThinking, setIsAssistantThinking] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -259,6 +267,64 @@ Plan:
   const handleGeneratedNotesFromConsultation = (notes: string) => {
     setNoteText(notes);
     setNoteTitle(`${selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : ""} - Consultation Notes ${format(new Date(), "yyyy-MM-dd")}`);
+  };
+
+  // Fetch patient's medical notes for analysis
+  const { data: patientMedicalNotes } = useQuery<MedicalNote[]>({
+    queryKey: ["/api/medical-notes", selectedPatientId],
+    enabled: !!selectedPatientId,
+  });
+
+  // Handle chat with AI assistant
+  const handleSendChatMessage = async () => {
+    if (!chatInput.trim()) return;
+
+    const userMessage: ChatMessage = {
+      role: 'user',
+      content: chatInput.trim()
+    };
+
+    setChatMessages(prev => [...prev, userMessage]);
+    setChatInput("");
+    setIsAssistantThinking(true);
+
+    try {
+      const messages = [
+        {
+          role: 'system',
+          content: 'You are an AI medical assistant helping a healthcare professional. Provide accurate, evidence-based information and always clarify that the doctor should use their professional judgment. Keep responses concise and relevant to medical practice.'
+        },
+        ...chatMessages.map(msg => ({ role: msg.role, content: msg.content })),
+        { role: 'user', content: userMessage.content }
+      ];
+
+      const response = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages }),
+      });
+
+      const data = await response.json();
+
+      if (data.content) {
+        const assistantMessage: ChatMessage = {
+          role: 'assistant',
+          content: data.content
+        };
+        setChatMessages(prev => [...prev, assistantMessage]);
+      } else {
+        throw new Error('No response from AI');
+      }
+    } catch (error) {
+      console.error('Error calling AI API:', error);
+      const errorMessage: ChatMessage = {
+        role: 'assistant',
+        content: 'Sorry, I encountered an error processing your request. Please try again.'
+      };
+      setChatMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsAssistantThinking(false);
+    }
   };
 
   const handleGenerateNotes = async () => {
@@ -1207,35 +1273,53 @@ Provider Signature: ______________________________
               </TabsContent>
               <TabsContent value="analysis">
                 <div className="text-center text-muted-foreground py-8">
-                  {selectedPatientId ? (
+                  {selectedPatientId && selectedPatient ? (
                     <div className="space-y-4">
-                      <div className="border p-3 rounded-md">
-                        <p className="font-medium">Keywords Analysis</p>
+                      <div className="border p-3 rounded-md text-left">
+                        <p className="font-medium mb-2">Patient Overview</p>
                         <p className="text-sm text-muted-foreground">
-                          The medical note contains references to vital signs, symptoms, and treatment plan.
+                          <strong>Name:</strong> {selectedPatient.firstName} {selectedPatient.lastName || ''}<br />
+                          <strong>DOB:</strong> {selectedPatient.dateOfBirth ? new Date(selectedPatient.dateOfBirth).toLocaleDateString('en-US') : 'Not provided'}<br />
+                          <strong>Email:</strong> {selectedPatient.email || 'Not provided'}<br />
+                          <strong>Phone:</strong> {selectedPatient.phone || 'Not provided'}<br />
+                          <strong>Address:</strong> {selectedPatient.address || 'Not provided'}
                         </p>
                       </div>
-                      <div className="border p-3 rounded-md">
-                        <p className="font-medium">Missing Information</p>
+                      <div className="border p-3 rounded-md text-left">
+                        <p className="font-medium mb-2">Medical History</p>
                         <p className="text-sm text-muted-foreground">
-                          Consider adding details about medication dosages and follow-up timing.
+                          {selectedPatient.medicalHistory || 'No medical history recorded'}
                         </p>
                       </div>
-                      <div className="border p-3 rounded-md">
-                        <p className="font-medium">Documentation Tips</p>
+                      <div className="border p-3 rounded-md text-left">
+                        <p className="font-medium mb-2">Previous Notes</p>
                         <p className="text-sm text-muted-foreground">
-                          Ensure clear documentation of patient education and instructions provided.
+                          {patientMedicalNotes && patientMedicalNotes.length > 0 
+                            ? `${patientMedicalNotes.length} medical note(s) on file. Most recent: ${new Date(patientMedicalNotes[0].createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                            : 'No previous medical notes found'}
+                        </p>
+                      </div>
+                      <div className="border p-3 rounded-md text-left">
+                        <p className="font-medium mb-2">Current Note Type</p>
+                        <p className="text-sm text-muted-foreground">
+                          {selectedNoteType === 'initial' && 'Initial Consultation - First visit documentation'}
+                          {selectedNoteType === 'followup' && 'Follow-up Visit - Progress evaluation'}
+                          {selectedNoteType === 'physical' && 'Physical Examination - Comprehensive assessment'}
+                          {selectedNoteType === 'reevaluation' && 'Re-evaluation Note - Treatment review'}
+                          {selectedNoteType === 'procedure' && 'Procedure Note - Intervention documentation'}
+                          {selectedNoteType === 'psychiatric' && 'Psychiatric Evaluation - Mental health assessment'}
+                          {selectedNoteType === 'discharge' && 'Discharge Summary - Care conclusion'}
                         </p>
                       </div>
                     </div>
                   ) : (
-                    "AI analysis will appear when a patient is selected"
+                    "Select a patient to view their analysis and medical information"
                   )}
                 </div>
               </TabsContent>
               <TabsContent value="assistant">
                 <div className="h-[400px] flex flex-col">
-                  <div className="flex-1 border rounded-md mb-4 p-4 overflow-y-auto bg-secondary/5" id="assistant-chat-area">
+                  <div className="flex-1 border rounded-md mb-4 p-4 overflow-y-auto bg-secondary/5">
                     <div className="space-y-4">
                       <div className="flex justify-start">
                         <div className="bg-primary/10 rounded-lg p-3 max-w-[85%]">
@@ -1246,147 +1330,64 @@ Provider Signature: ______________________________
                           <p className="text-sm">Hello! I'm your AI medical assistant. How can I help you today? You can ask me about medical conditions, treatments, or help with note-taking.</p>
                         </div>
                       </div>
-                      {/* Chat messages will be added here dynamically */}
+                      {chatMessages.map((message, index) => (
+                        <div key={index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`rounded-lg p-3 max-w-[85%] ${
+                            message.role === 'user' 
+                              ? 'bg-primary text-primary-foreground' 
+                              : 'bg-primary/10'
+                          }`}>
+                            <div className="flex items-center gap-2 mb-1">
+                              {message.role === 'assistant' && <Stethoscope className="h-4 w-4 text-primary" />}
+                              <span className="font-medium text-sm">
+                                {message.role === 'user' ? 'You' : 'AI Assistant'}
+                              </span>
+                              {message.role === 'user' && <UserPlus className="h-4 w-4" />}
+                            </div>
+                            <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                          </div>
+                        </div>
+                      ))}
+                      {isAssistantThinking && (
+                        <div className="flex justify-start">
+                          <div className="bg-primary/10 rounded-lg p-3 max-w-[85%]">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Stethoscope className="h-4 w-4 text-primary" />
+                              <span className="font-medium text-sm">AI Assistant</span>
+                            </div>
+                            <p className="text-sm flex items-center">
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Thinking...
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex gap-2">
                     <Input 
                       placeholder="Ask a medical question or request help with your note..." 
-                      id="assistant-input"
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
-                          const input = document.getElementById('assistant-input') as HTMLInputElement;
-                          const chatArea = document.getElementById('assistant-chat-area');
-                          
-                          if (input.value.trim() && chatArea) {
-                            // Add user message to chat
-                            const userDiv = document.createElement('div');
-                            userDiv.className = 'flex justify-end my-4';
-                            userDiv.innerHTML = `
-                              <div class="bg-primary text-primary-foreground rounded-lg p-3 max-w-[85%]">
-                                <div class="flex items-center gap-2 mb-1">
-                                  <span class="font-medium text-sm">You</span>
-                                  <UserPlus class="h-4 w-4" />
-                                </div>
-                                <p class="text-sm">${input.value.trim()}</p>
-                              </div>
-                            `;
-                            chatArea.appendChild(userDiv);
-                            
-                            // Add loading message
-                            const loadingDiv = document.createElement('div');
-                            loadingDiv.className = 'flex justify-start my-4 ai-loading';
-                            loadingDiv.innerHTML = `
-                              <div class="bg-primary/10 rounded-lg p-3 max-w-[85%]">
-                                <div class="flex items-center gap-2 mb-1">
-                                  <Stethoscope class="h-4 w-4 text-primary" />
-                                  <span class="font-medium text-sm">AI Assistant</span>
-                                </div>
-                                <p class="text-sm flex items-center">
-                                  <Loader2 class="h-4 w-4 mr-2 animate-spin" />
-                                  Thinking...
-                                </p>
-                              </div>
-                            `;
-                            chatArea.appendChild(loadingDiv);
-                            
-                            // Scroll to bottom
-                            chatArea.scrollTop = chatArea.scrollHeight;
-                            
-                            // Prepare messages for API
-                            const messages = [
-                              {
-                                role: 'system',
-                                content: 'You are an AI medical assistant helping a healthcare professional. Provide accurate, evidence-based information and always clarify that the doctor should use their professional judgment. Keep responses concise and relevant to medical practice.'
-                              },
-                              {
-                                role: 'user',
-                                content: input.value.trim()
-                              }
-                            ];
-                            
-                            // Call API
-                            fetch('/api/ai/chat', {
-                              method: 'POST',
-                              headers: {
-                                'Content-Type': 'application/json',
-                              },
-                              body: JSON.stringify({ messages }),
-                            })
-                              .then(response => response.json())
-                              .then(data => {
-                                // Remove loading message
-                                const loadingElement = chatArea.querySelector('.ai-loading');
-                                if (loadingElement) {
-                                  chatArea.removeChild(loadingElement);
-                                }
-                                
-                                // Add AI response
-                                const aiDiv = document.createElement('div');
-                                aiDiv.className = 'flex justify-start my-4';
-                                aiDiv.innerHTML = `
-                                  <div class="bg-primary/10 rounded-lg p-3 max-w-[85%]">
-                                    <div class="flex items-center gap-2 mb-1">
-                                      <Stethoscope class="h-4 w-4 text-primary" />
-                                      <span class="font-medium text-sm">AI Assistant</span>
-                                    </div>
-                                    <p class="text-sm">${data.content || 'Sorry, I encountered an error.'}</p>
-                                  </div>
-                                `;
-                                chatArea.appendChild(aiDiv);
-                                
-                                // Scroll to bottom
-                                chatArea.scrollTop = chatArea.scrollHeight;
-                              })
-                              .catch(error => {
-                                console.error('Error calling AI API:', error);
-                                
-                                // Remove loading message
-                                const loadingElement = chatArea.querySelector('.ai-loading');
-                                if (loadingElement) {
-                                  chatArea.removeChild(loadingElement);
-                                }
-                                
-                                // Add error message
-                                const errorDiv = document.createElement('div');
-                                errorDiv.className = 'flex justify-start my-4';
-                                errorDiv.innerHTML = `
-                                  <div class="bg-destructive/10 text-destructive rounded-lg p-3 max-w-[85%]">
-                                    <div class="flex items-center gap-2 mb-1">
-                                      <Stethoscope class="h-4 w-4" />
-                                      <span class="font-medium text-sm">AI Assistant</span>
-                                    </div>
-                                    <p class="text-sm">Sorry, I encountered an error processing your request.</p>
-                                  </div>
-                                `;
-                                chatArea.appendChild(errorDiv);
-                                
-                                // Scroll to bottom
-                                chatArea.scrollTop = chatArea.scrollHeight;
-                              });
-                            
-                            // Clear input
-                            input.value = '';
-                          }
+                          handleSendChatMessage();
                         }
                       }}
+                      disabled={isAssistantThinking}
+                      data-testid="input-assistant-chat"
                     />
                     <Button 
-                      onClick={() => {
-                        const input = document.getElementById('assistant-input') as HTMLInputElement;
-                        // Trigger Enter key event
-                        if (input.value.trim()) {
-                          const event = new KeyboardEvent('keydown', {
-                            key: 'Enter',
-                            bubbles: true
-                          });
-                          input.dispatchEvent(event);
-                        }
-                      }}
+                      onClick={handleSendChatMessage}
+                      disabled={!chatInput.trim() || isAssistantThinking}
+                      data-testid="button-send-chat"
                     >
-                      <FileText className="h-4 w-4" />
-                      Ask
+                      {isAssistantThinking ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <MessageSquare className="h-4 w-4" />
+                      )}
                     </Button>
                   </div>
                 </div>
