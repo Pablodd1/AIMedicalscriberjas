@@ -53,6 +53,20 @@ export function ConsultationModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
+  // Reset all state variables to clear the modal
+  const resetModalState = () => {
+    setActiveTab("live-recording");
+    setIsRecording(false);
+    setIsProcessing(false);
+    setTranscript("");
+    setNotes("");
+    setIsLiveTranscribing(false);
+    setLiveTranscript("");
+    setConsultationId(null);
+    setIsSaving(false);
+    setIsDownloading(false);
+  };
+
   const handleStartRecording = async () => {
     try {
       setIsRecording(true);
@@ -476,6 +490,9 @@ export function ConsultationModal({
       // Call the callback to use the notes
       onGeneratedNotes(notes);
       
+      // Reset modal state to clear all data
+      resetModalState();
+      
       // Close the modal
       onClose();
     } catch (error) {
@@ -488,8 +505,14 @@ export function ConsultationModal({
     }
   };
 
+  // Handle modal close - reset state when closing
+  const handleModalClose = () => {
+    resetModalState();
+    onClose();
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleModalClose}>
       <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Consultation Recording</DialogTitle>
@@ -738,7 +761,7 @@ export function ConsultationModal({
           )}
           
           <DialogFooter className="mt-6 flex sm:justify-between justify-center flex-wrap gap-2">
-            <Button variant="outline" onClick={onClose}>
+            <Button variant="outline" onClick={handleModalClose}>
               Cancel
             </Button>
             <Button onClick={handleUseNotes} disabled={!notes}>
