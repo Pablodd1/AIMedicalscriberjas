@@ -378,13 +378,29 @@ Return the complete JSON object with ehr_payload and human_note fields.`
         const aimsResponse = JSON.parse(responseContent);
         
         // Extract the human-readable note
-        const humanNote = aimsResponse.human_note || '';
+        let humanNote = aimsResponse.human_note || '';
+        
+        // If human_note is missing or empty, convert the JSON to a formatted string
+        if (!humanNote || humanNote.trim().length === 0) {
+          // Convert JSON object to a readable SOAP note format
+          if (typeof aimsResponse === 'object') {
+            // Check if it's in SOAP format (Subjective, Objective, Assessment, Plan)
+            if (aimsResponse.Subjective || aimsResponse.Objective || aimsResponse.Assessment || aimsResponse.Plan) {
+              humanNote = `SUBJECTIVE:\n${aimsResponse.Subjective || 'N/A'}\n\nOBJECTIVE:\n${aimsResponse.Objective || 'N/A'}\n\nASSESSMENT:\n${aimsResponse.Assessment || 'N/A'}\n\nPLAN:\n${aimsResponse.Plan || 'N/A'}`;
+            } else {
+              // For other JSON structures, pretty print it
+              humanNote = JSON.stringify(aimsResponse, null, 2);
+            }
+          } else {
+            humanNote = String(aimsResponse);
+          }
+        }
         
         // Return successful response with the generated notes and structured data
         return res.json({ 
           success: true,
           soap: humanNote,
-          structuredData: aimsResponse.ehr_payload
+          structuredData: aimsResponse.ehr_payload || aimsResponse
         });
       } catch (parseError) {
         console.error('Failed to parse AIMS AI response:', parseError);
