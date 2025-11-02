@@ -53,7 +53,18 @@ Preferred communication style: Simple, everyday language.
 - **Communication**: @sendgrid/mail, nodemailer, WebSockets
 - **Medical Device Integration**: Web Bluetooth API, custom Bluetooth utilities
 
-## Recent Updates (Oct 30-31, 2025)
+## Recent Updates (Oct 30 - Nov 2, 2025)
+
+### Consultation Modal Fixes (Nov 2, 2025)
+- **JSON Response Handling**: Fixed blank screen issue when pasting text in consultation modal with custom SOAP note prompts
+- **Smart Format Detection**: Backend now automatically detects SOAP-formatted JSON responses (Subjective/Objective/Assessment/Plan) and converts them to readable text
+- **State Management**: Added `resetModalState()` function to clear all previous consultation data when closing modal or using generated notes
+- **Flexible Prompt Support**: System handles both default AIMS AI format (with `human_note` field) and custom JSON formats
+- **Format Conversion**: 
+  - SOAP-structured JSON → Professional multi-section text format
+  - Other JSON structures → Pretty-printed readable format
+  - Prevents React "Objects are not valid as a React child" errors
+- **Files Updated**: `server/routes/ai.ts`, `client/src/components/consultation-modal.tsx`
 
 ### U.S. Time Standards Implementation (Oct 31, 2025)
 - **Locale Configuration**: All date and time displays now use 'en-US' locale for consistency
