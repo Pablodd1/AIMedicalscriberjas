@@ -40,7 +40,19 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Mic, Upload, FileText as FileTextIcon, Save, Download, Check } from "lucide-react";
+import { 
+  Mic, 
+  Upload, 
+  FileText as FileTextIcon, 
+  Save, 
+  Download, 
+  Check,
+  Stethoscope,
+  UserPlus,
+  MessageSquare,
+  Loader2,
+  ClipboardList
+} from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
@@ -64,6 +76,11 @@ const quickNoteSchema = z.object({
 
 type QuickNoteFormValues = z.infer<typeof quickNoteSchema>;
 
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export default function QuickNotes() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -79,6 +96,9 @@ export default function QuickNotes() {
   const [signature, setSignature] = useState<string | null>(null);
   const [editableContent, setEditableContent] = useState<string>("");
   const [showPreview, setShowPreview] = useState<boolean>(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [isAssistantThinking, setIsAssistantThinking] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const signatureRef = useRef<SignatureCanvas>(null);
 
@@ -320,6 +340,58 @@ export default function QuickNotes() {
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
+  };
+
+  // Handle chat with AI assistant
+  const handleSendChatMessage = async () => {
+    if (!chatInput.trim()) return;
+
+    const userMessage: ChatMessage = {
+      role: 'user',
+      content: chatInput.trim()
+    };
+
+    setChatMessages(prev => [...prev, userMessage]);
+    setChatInput("");
+    setIsAssistantThinking(true);
+
+    try {
+      const messages = [
+        {
+          role: 'system',
+          content: 'You are an AI medical assistant helping a healthcare professional with quick note documentation. Provide accurate, evidence-based information and help with note-taking. Keep responses concise and relevant to medical practice.'
+        },
+        ...chatMessages.map(msg => ({ role: msg.role, content: msg.content })),
+        { role: 'user', content: userMessage.content }
+      ];
+
+      const response = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages }),
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.data?.content) {
+        const assistantMessage: ChatMessage = {
+          role: 'assistant',
+          content: data.data.content
+        };
+        setChatMessages(prev => [...prev, assistantMessage]);
+      } else {
+        throw new Error('No response from AI');
+      }
+    } catch (error) {
+      console.error('Error calling AI API:', error);
+      const errorMessage: ChatMessage = {
+        role: 'assistant',
+        content: 'Sorry, I encountered an error processing your request. Please try again.'
+      };
+      setChatMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsAssistantThinking(false);
+    }
   };
 
   // Cleanup on unmount
@@ -692,6 +764,173 @@ export default function QuickNotes() {
                       <p className="text-muted-foreground">No content to preview</p>
                     </div>
                   )}
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
+
+          {/* AI Suggestions Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg md:text-xl">AI Suggestions</CardTitle>
+              <CardDescription>Get AI-powered assistance with your notes</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Tabs defaultValue="templates" className="w-full">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="templates" className="text-xs sm:text-sm">Templates</TabsTrigger>
+                  <TabsTrigger value="analysis" className="text-xs sm:text-sm">Analysis</TabsTrigger>
+                  <TabsTrigger value="assistant" className="text-xs sm:text-sm">Assistant</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="templates" className="space-y-4 mt-4">
+                  <div className="grid grid-cols-1 gap-2">
+                    <Button
+                      variant="outline"
+                      className="justify-start text-left h-auto py-3"
+                      onClick={() => {
+                        const content = "## Subjective:\n\n## Objective:\n\n## Assessment:\n\n## Plan:\n";
+                        setEditableContent(content);
+                        form.setValue("content", content);
+                        form.setValue("type", "soap");
+                      }}
+                    >
+                      <ClipboardList className="h-4 w-4 mr-2" />
+                      SOAP Note
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="justify-start text-left h-auto py-3"
+                      onClick={() => {
+                        const content = "## Patient Progress\n\n## Current Status\n\n## Treatment Plan\n\n## Next Steps\n";
+                        setEditableContent(content);
+                        form.setValue("content", content);
+                        form.setValue("type", "progress");
+                      }}
+                    >
+                      <ClipboardList className="h-4 w-4 mr-2" />
+                      Progress Note
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="justify-start text-left h-auto py-3"
+                      onClick={() => {
+                        const content = "## Procedure Type\n\n## Indications\n\n## Technique\n\n## Findings\n\n## Complications\n\n## Post-Procedure Care\n";
+                        setEditableContent(content);
+                        form.setValue("content", content);
+                        form.setValue("type", "procedure");
+                      }}
+                    >
+                      <ClipboardList className="h-4 w-4 mr-2" />
+                      Procedure Note
+                    </Button>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="analysis">
+                  <div className="text-center text-muted-foreground py-8">
+                    <div className="space-y-4">
+                      <div className="border p-3 rounded-md text-left">
+                        <p className="font-medium mb-2">Quick Notes Overview</p>
+                        <p className="text-sm text-muted-foreground">
+                          Quick notes allow you to create medical documentation without patient selection. This is useful for general observations, personal reminders, or documentation that will be linked to a patient later.
+                        </p>
+                      </div>
+                      <div className="border p-3 rounded-md text-left">
+                        <p className="font-medium mb-2">Documentation Tips</p>
+                        <p className="text-sm text-muted-foreground">
+                          • Be specific and concise<br />
+                          • Include relevant timestamps<br />
+                          • Use standard medical terminology<br />
+                          • Add your signature before saving
+                        </p>
+                      </div>
+                      <div className="border p-3 rounded-md text-left">
+                        <p className="font-medium mb-2">Note Types</p>
+                        <p className="text-sm text-muted-foreground">
+                          <strong>SOAP:</strong> Structured clinical documentation<br />
+                          <strong>Progress:</strong> Track patient improvements<br />
+                          <strong>Procedure:</strong> Document interventions
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="assistant">
+                  <div className="h-[400px] flex flex-col">
+                    <div className="flex-1 border rounded-md mb-4 p-4 overflow-y-auto bg-secondary/5">
+                      <div className="space-y-4">
+                        <div className="flex justify-start">
+                          <div className="bg-primary/10 rounded-lg p-3 max-w-[85%]">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Stethoscope className="h-4 w-4 text-primary" />
+                              <span className="font-medium text-sm">AI Assistant</span>
+                            </div>
+                            <p className="text-sm">Hello! I'm your AI medical assistant. How can I help you with your quick note today?</p>
+                          </div>
+                        </div>
+                        {chatMessages.map((message, index) => (
+                          <div key={index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`rounded-lg p-3 max-w-[85%] ${
+                              message.role === 'user' 
+                                ? 'bg-primary text-primary-foreground' 
+                                : 'bg-primary/10'
+                            }`}>
+                              <div className="flex items-center gap-2 mb-1">
+                                {message.role === 'assistant' && <Stethoscope className="h-4 w-4 text-primary" />}
+                                <span className="font-medium text-sm">
+                                  {message.role === 'user' ? 'You' : 'AI Assistant'}
+                                </span>
+                                {message.role === 'user' && <UserPlus className="h-4 w-4" />}
+                              </div>
+                              <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                            </div>
+                          </div>
+                        ))}
+                        {isAssistantThinking && (
+                          <div className="flex justify-start">
+                            <div className="bg-primary/10 rounded-lg p-3 max-w-[85%]">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Stethoscope className="h-4 w-4 text-primary" />
+                                <span className="font-medium text-sm">AI Assistant</span>
+                              </div>
+                              <p className="text-sm flex items-center">
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Thinking...
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Input 
+                        placeholder="Ask a medical question or request help with your note..." 
+                        value={chatInput}
+                        onChange={(e) => setChatInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSendChatMessage();
+                          }
+                        }}
+                        disabled={isAssistantThinking}
+                        data-testid="input-assistant-chat"
+                      />
+                      <Button 
+                        onClick={handleSendChatMessage}
+                        disabled={!chatInput.trim() || isAssistantThinking}
+                        data-testid="button-send-chat"
+                      >
+                        {isAssistantThinking ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <MessageSquare className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
                 </TabsContent>
               </Tabs>
             </CardContent>
