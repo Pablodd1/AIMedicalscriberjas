@@ -306,10 +306,10 @@ Plan:
 
       const data = await response.json();
 
-      if (data.content) {
+      if (data.success && data.data?.content) {
         const assistantMessage: ChatMessage = {
           role: 'assistant',
-          content: data.content
+          content: data.data.content
         };
         setChatMessages(prev => [...prev, assistantMessage]);
       } else {
