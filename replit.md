@@ -117,6 +117,12 @@ Preferred communication style: Simple, everyday language.
 
 ### Appointments Page Search Bar in List View (Nov 07, 2025)
 - **Search/Filter Section**: Added comprehensive search functionality to list view
+  - **Mini Appointment Reports Cards**: Compact status summary cards at the top of search section
+    - Same colorful theme as calendar view (blue, red, green, orange, purple)
+    - Smaller size with p-3 padding and text-xl count display
+    - Clickable to show filtered appointment details dialog
+    - Displays count for Scheduled, Cancelled, Complete, Pending, and All appointments
+    - 2 columns (mobile) to 3 (tablet) to 5 (desktop) responsive grid
   - **Name Filter**: Text input to filter appointments by patient name (case-insensitive, partial match)
   - **Email Filter**: Text input to filter appointments by patient email (case-insensitive, partial match)
   - **Date Filter**: Calendar picker to filter appointments by specific date
