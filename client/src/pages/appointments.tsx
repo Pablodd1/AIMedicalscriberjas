@@ -9,7 +9,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, ChevronLeft, ChevronRight, Edit2, Trash2, Mail } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Edit2, Trash2, Mail, Calendar as CalendarIcon2, CheckCircle, XCircle, Clock, ClipboardCheck } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -746,6 +746,102 @@ export default function Appointments() {
         </TabsContent>
 
         <TabsContent value="calendar" className="mt-4">
+          {/* Appointment Status Summary */}
+          <div className="mb-6">
+            <h2 className="text-xl font-semibold mb-4">Appointment Reports</h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
+              {/* Scheduled */}
+              <div className="bg-gradient-to-br from-slate-800 to-slate-700 rounded-lg p-4 md:p-6 shadow-lg">
+                <div className="flex items-center gap-2 mb-2 md:mb-3">
+                  <CalendarIcon2 className="h-4 w-4 md:h-5 md:w-5 text-white" />
+                  <h3 className="text-white text-xs md:text-sm font-medium">Scheduled</h3>
+                </div>
+                <div className="text-3xl md:text-4xl font-bold text-white mb-3 md:mb-4">
+                  {appointments?.filter(apt => apt.status === "scheduled").length || 0}
+                </div>
+                <Button 
+                  variant="secondary" 
+                  size="sm" 
+                  className="w-full text-xs bg-blue-500 hover:bg-blue-600 text-white"
+                >
+                  Download 📥
+                </Button>
+              </div>
+
+              {/* Cancelled */}
+              <div className="bg-gradient-to-br from-slate-800 to-slate-700 rounded-lg p-4 md:p-6 shadow-lg">
+                <div className="flex items-center gap-2 mb-2 md:mb-3">
+                  <XCircle className="h-4 w-4 md:h-5 md:w-5 text-white" />
+                  <h3 className="text-white text-xs md:text-sm font-medium">Cancelled</h3>
+                </div>
+                <div className="text-3xl md:text-4xl font-bold text-white mb-3 md:mb-4">
+                  {appointments?.filter(apt => apt.status === "cancelled").length || 0}
+                </div>
+                <Button 
+                  variant="secondary" 
+                  size="sm" 
+                  className="w-full text-xs bg-blue-500 hover:bg-blue-600 text-white"
+                >
+                  Download 📥
+                </Button>
+              </div>
+
+              {/* Complete */}
+              <div className="bg-gradient-to-br from-slate-800 to-slate-700 rounded-lg p-4 md:p-6 shadow-lg">
+                <div className="flex items-center gap-2 mb-2 md:mb-3">
+                  <CheckCircle className="h-4 w-4 md:h-5 md:w-5 text-white" />
+                  <h3 className="text-white text-xs md:text-sm font-medium">Complete</h3>
+                </div>
+                <div className="text-3xl md:text-4xl font-bold text-white mb-3 md:mb-4">
+                  {appointments?.filter(apt => apt.status === "completed").length || 0}
+                </div>
+                <Button 
+                  variant="secondary" 
+                  size="sm" 
+                  className="w-full text-xs bg-blue-500 hover:bg-blue-600 text-white"
+                >
+                  Download 📥
+                </Button>
+              </div>
+
+              {/* Pending */}
+              <div className="bg-gradient-to-br from-slate-800 to-slate-700 rounded-lg p-4 md:p-6 shadow-lg">
+                <div className="flex items-center gap-2 mb-2 md:mb-3">
+                  <Clock className="h-4 w-4 md:h-5 md:w-5 text-white" />
+                  <h3 className="text-white text-xs md:text-sm font-medium">Pending</h3>
+                </div>
+                <div className="text-3xl md:text-4xl font-bold text-white mb-3 md:mb-4">
+                  {appointments?.filter(apt => apt.status === "pending").length || 0}
+                </div>
+                <Button 
+                  variant="secondary" 
+                  size="sm" 
+                  className="w-full text-xs bg-blue-500 hover:bg-blue-600 text-white"
+                >
+                  Download 📥
+                </Button>
+              </div>
+
+              {/* All */}
+              <div className="bg-gradient-to-br from-slate-800 to-slate-700 rounded-lg p-4 md:p-6 shadow-lg">
+                <div className="flex items-center gap-2 mb-2 md:mb-3">
+                  <ClipboardCheck className="h-4 w-4 md:h-5 md:w-5 text-white" />
+                  <h3 className="text-white text-xs md:text-sm font-medium">All</h3>
+                </div>
+                <div className="text-3xl md:text-4xl font-bold text-white mb-3 md:mb-4">
+                  {appointments?.length || 0}
+                </div>
+                <Button 
+                  variant="secondary" 
+                  size="sm" 
+                  className="w-full text-xs bg-blue-500 hover:bg-blue-600 text-white"
+                >
+                  Download 📥
+                </Button>
+              </div>
+            </div>
+          </div>
+
           <div className="bg-white border rounded-lg overflow-hidden">
             <div className="flex items-center justify-between p-2 md:p-4 border-b">
               <h3 className="font-medium text-sm md:text-base">{format(currentMonth, 'MMMM yyyy')}</h3>
