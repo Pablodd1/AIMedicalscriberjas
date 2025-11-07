@@ -115,6 +115,22 @@ Preferred communication style: Simple, everyday language.
   - Prevents old consultation data from appearing in new sessions
 - **Type Safety**: Eliminated `any` types in favor of proper TypeScript types from @shared/schema
 
+### Appointments Page Search Bar in List View (Nov 07, 2025)
+- **Search/Filter Section**: Added comprehensive search functionality to list view
+  - **Name Filter**: Text input to filter appointments by patient name (case-insensitive, partial match)
+  - **Email Filter**: Text input to filter appointments by patient email (case-insensitive, partial match)
+  - **Date Filter**: Calendar picker to filter appointments by specific date
+  - **Status Filter**: Dropdown to filter by status (All, Scheduled, Cancelled, Complete, Pending)
+  - **Clear Button**: One-click button to reset all search filters
+- **Search Logic**: Real-time filtering as user types or selects options
+  - Filters work together (AND logic) - all selected criteria must match
+  - Shows helpful message when no appointments match search criteria
+  - Maintains original appointments list when no filters applied
+- **Styling**: Uses shadcn Card component with theme colors (not black)
+  - Responsive grid layout: 1 column (mobile) to 2 (tablet) to 4 (desktop)
+  - Clean, professional appearance matching existing design system
+- **User Experience**: Instant feedback with no "Search" button needed - filters apply automatically
+
 ### Appointments Page Status Summary & Enhanced Functionality (Nov 07, 2025)
 - **Appointment Reports Section**: Interactive status summary cards at the top of calendar view
   - **Scheduled Card**: Blue gradient (blue-500→blue-600) showing scheduled appointments count
