@@ -710,6 +710,89 @@ export default function Appointments() {
               <CardTitle className="text-lg">Search Appointments</CardTitle>
             </CardHeader>
             <CardContent>
+              {/* Mini Appointment Reports Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mb-4">
+                <Card 
+                  className="cursor-pointer hover:shadow-md transition-all bg-gradient-to-br from-blue-500 to-blue-600 border-blue-300"
+                  onClick={() => showFilteredAppointments("scheduled")}
+                  data-testid="mini-card-scheduled"
+                >
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-1 mb-1">
+                      <CalendarIcon2 className="h-3 w-3 text-white" />
+                      <span className="text-white text-xs font-medium">Scheduled</span>
+                    </div>
+                    <div className="text-xl font-bold text-white">
+                      {appointments?.filter(apt => apt.status === "scheduled").length || 0}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card 
+                  className="cursor-pointer hover:shadow-md transition-all bg-gradient-to-br from-red-500 to-red-600 border-red-300"
+                  onClick={() => showFilteredAppointments("cancelled")}
+                  data-testid="mini-card-cancelled"
+                >
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-1 mb-1">
+                      <XCircle className="h-3 w-3 text-white" />
+                      <span className="text-white text-xs font-medium">Cancelled</span>
+                    </div>
+                    <div className="text-xl font-bold text-white">
+                      {appointments?.filter(apt => apt.status === "cancelled").length || 0}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card 
+                  className="cursor-pointer hover:shadow-md transition-all bg-gradient-to-br from-green-500 to-green-600 border-green-300"
+                  onClick={() => showFilteredAppointments("completed")}
+                  data-testid="mini-card-complete"
+                >
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-1 mb-1">
+                      <CheckCircle className="h-3 w-3 text-white" />
+                      <span className="text-white text-xs font-medium">Complete</span>
+                    </div>
+                    <div className="text-xl font-bold text-white">
+                      {appointments?.filter(apt => apt.status === "completed").length || 0}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card 
+                  className="cursor-pointer hover:shadow-md transition-all bg-gradient-to-br from-orange-500 to-orange-600 border-orange-300"
+                  onClick={() => showFilteredAppointments("pending")}
+                  data-testid="mini-card-pending"
+                >
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-1 mb-1">
+                      <Clock className="h-3 w-3 text-white" />
+                      <span className="text-white text-xs font-medium">Pending</span>
+                    </div>
+                    <div className="text-xl font-bold text-white">
+                      {appointments?.filter(apt => apt.status === "pending").length || 0}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card 
+                  className="cursor-pointer hover:shadow-md transition-all bg-gradient-to-br from-purple-500 to-purple-600 border-purple-300"
+                  onClick={() => showFilteredAppointments(null)}
+                  data-testid="mini-card-all"
+                >
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-1 mb-1">
+                      <ClipboardCheck className="h-3 w-3 text-white" />
+                      <span className="text-white text-xs font-medium">All</span>
+                    </div>
+                    <div className="text-xl font-bold text-white">
+                      {appointments?.length || 0}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
                 <div className="space-y-1">
                   <label className="text-sm font-medium">Name</label>
