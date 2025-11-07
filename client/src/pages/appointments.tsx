@@ -57,6 +57,10 @@ export default function Appointments() {
   const [doctorEmail, setDoctorEmail] = useState("");
   const [filteredStatus, setFilteredStatus] = useState<string | null>(null);
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
+  const [searchName, setSearchName] = useState("");
+  const [searchEmail, setSearchEmail] = useState("");
+  const [searchDate, setSearchDate] = useState<Date | undefined>(undefined);
+  const [searchStatus, setSearchStatus] = useState<string>("all");
 
   const { data: appointments } = useQuery<Appointment[]>({
     queryKey: ["/api/appointments"],
@@ -382,6 +386,53 @@ export default function Appointments() {
     return appointments?.filter(apt => apt.status === filteredStatus) || [];
   };
 
+  // Filter appointments for list view based on search criteria
+  const getSearchFilteredAppointments = () => {
+    if (!appointments) return [];
+    
+    return appointments.filter(apt => {
+      const patient = patients?.find(p => p.id === apt.patientId);
+      const patientName = patient ? `${patient.firstName} ${patient.lastName || ''}`.toLowerCase() : '';
+      const patientEmail = patient?.email?.toLowerCase() || '';
+      
+      // Name filter
+      if (searchName && !patientName.includes(searchName.toLowerCase())) {
+        return false;
+      }
+      
+      // Email filter
+      if (searchEmail && !patientEmail.includes(searchEmail.toLowerCase())) {
+        return false;
+      }
+      
+      // Date filter
+      if (searchDate) {
+        const aptDate = new Date(apt.date);
+        const searchDateOnly = new Date(searchDate);
+        searchDateOnly.setHours(0, 0, 0, 0);
+        aptDate.setHours(0, 0, 0, 0);
+        if (aptDate.getTime() !== searchDateOnly.getTime()) {
+          return false;
+        }
+      }
+      
+      // Status filter
+      if (searchStatus !== "all" && apt.status !== searchStatus) {
+        return false;
+      }
+      
+      return true;
+    });
+  };
+
+  // Clear search filters
+  const clearSearch = () => {
+    setSearchName("");
+    setSearchEmail("");
+    setSearchDate(undefined);
+    setSearchStatus("all");
+  };
+
   return (
     <div className="space-y-4 md:space-y-6 p-4 md:p-0">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
@@ -653,13 +704,97 @@ export default function Appointments() {
         </TabsList>
 
         <TabsContent value="list" className="mt-4">
+          {/* Search/Filter Section */}
+          <Card className="mb-6">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">Search Appointments</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">Name</label>
+                  <Input
+                    placeholder="Enter name"
+                    value={searchName}
+                    onChange={(e) => setSearchName(e.target.value)}
+                    data-testid="input-search-name"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">Email</label>
+                  <Input
+                    placeholder="Enter email"
+                    value={searchEmail}
+                    onChange={(e) => setSearchEmail(e.target.value)}
+                    data-testid="input-search-email"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">Date</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !searchDate && "text-muted-foreground"
+                        )}
+                        data-testid="button-search-date"
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {searchDate ? format(searchDate, "MM/dd/yyyy") : "Select date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={searchDate}
+                        onSelect={setSearchDate}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">Status</label>
+                  <Select value={searchStatus} onValueChange={setSearchStatus}>
+                    <SelectTrigger data-testid="select-search-status">
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="scheduled">Scheduled</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                      <SelectItem value="completed">Complete</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={clearSearch} 
+                  variant="outline"
+                  className="flex-1 sm:flex-initial"
+                  data-testid="button-clear-search"
+                >
+                  Clear
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="grid gap-4">
-            {appointments?.length === 0 ? (
+            {getSearchFilteredAppointments().length === 0 ? (
               <div className="text-center p-6 border rounded-lg">
-                <p className="text-muted-foreground">No appointments scheduled.</p>
+                <p className="text-muted-foreground">
+                  {appointments?.length === 0 
+                    ? "No appointments scheduled." 
+                    : "No appointments found matching your search criteria."}
+                </p>
               </div>
             ) : (
-              appointments?.map((appointment) => (
+              getSearchFilteredAppointments().map((appointment) => (
                 <div
                   key={appointment.id}
                   className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-lg gap-4"
