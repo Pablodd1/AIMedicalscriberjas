@@ -115,18 +115,32 @@ Preferred communication style: Simple, everyday language.
   - Prevents old consultation data from appearing in new sessions
 - **Type Safety**: Eliminated `any` types in favor of proper TypeScript types from @shared/schema
 
-### Appointments Page Status Summary (Nov 07, 2025)
-- **Appointment Reports Section**: Added status summary cards at the top of calendar view
-  - **Scheduled Card**: Shows count of appointments with status "scheduled"
-  - **Cancelled Card**: Shows count of appointments with status "cancelled"
-  - **Complete Card**: Shows count of appointments with status "completed"
-  - **Pending Card**: Shows count of appointments with status "pending"
-  - **All Card**: Shows total count of all appointments
-- **Styling**: Dark gradient background (slate-800 to slate-700) with white text and prominent count numbers
-- **Icons**: Status-specific icons for each card (Calendar, XCircle, CheckCircle, Clock, ClipboardCheck)
-- **Download Buttons**: Blue download buttons on each card for future report export functionality
+### Appointments Page Status Summary & Enhanced Functionality (Nov 07, 2025)
+- **Appointment Reports Section**: Interactive status summary cards at the top of calendar view
+  - **Scheduled Card**: Blue gradient (blue-500→blue-600) showing scheduled appointments count
+  - **Cancelled Card**: Red gradient (red-500→red-600) showing cancelled appointments count
+  - **Complete Card**: Green gradient (green-500→green-600) showing completed appointments count
+  - **Pending Card**: Orange gradient (orange-500→orange-600) showing pending appointments count
+  - **All Card**: Purple gradient (purple-500→purple-600) showing total appointments count
+- **Theme-Based Styling**: Uses colorful gradients matching theme colors instead of black
+  - shadcn Card components with CardHeader and CardContent
+  - Hover effects: hover:shadow-lg and hover:scale-105 for better interactivity
+  - White text on colored backgrounds for high contrast
+  - White download buttons with colored text matching card theme
+- **Functional Download Buttons**: Excel export functionality for each status
+  - Downloads filtered appointments to .xlsx format using xlsx library
+  - Includes patient name, email, date (MM/DD/YYYY), time (12-hour format), status, patient confirmation, notes
+  - Filename includes status and current date (e.g., "Scheduled_Appointments_11-07-2025.xlsx")
+  - Toast notifications for success/empty results
+  - Event propagation prevented to allow both card click and download button
+- **Clickable Cards**: Cards open filtered appointments dialog
+  - Shows detailed list of appointments for clicked status
+  - Displays patient info, status badges, patient confirmation badges, date/time, notes
+  - Includes Edit and Delete buttons for each appointment
+  - Mobile-responsive dialog with flexible layouts
+- **Icons**: Status-specific icons for each card (Calendar, XCircle, CheckCircle, Clock, ClipboardCheck, Download)
 - **Responsive Design**: Grid layout adapts from 2 columns (mobile) to 3 (tablet) to 5 (desktop)
-- **Real-time Updates**: Counts automatically update when appointments data changes
+- **Real-time Updates**: Counts and data automatically update when appointments change
 
 ### Quick Notes Complete Redesign (Nov 02, 2025)
 - **Complete UI Overhaul**: Rebuilt Quick Notes to match Medical Notes page exactly (minus patient selection)
