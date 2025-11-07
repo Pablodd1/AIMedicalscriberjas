@@ -115,6 +115,19 @@ Preferred communication style: Simple, everyday language.
   - Prevents old consultation data from appearing in new sessions
 - **Type Safety**: Eliminated `any` types in favor of proper TypeScript types from @shared/schema
 
+### Appointments Page Status Summary (Nov 07, 2025)
+- **Appointment Reports Section**: Added status summary cards at the top of calendar view
+  - **Scheduled Card**: Shows count of appointments with status "scheduled"
+  - **Cancelled Card**: Shows count of appointments with status "cancelled"
+  - **Complete Card**: Shows count of appointments with status "completed"
+  - **Pending Card**: Shows count of appointments with status "pending"
+  - **All Card**: Shows total count of all appointments
+- **Styling**: Dark gradient background (slate-800 to slate-700) with white text and prominent count numbers
+- **Icons**: Status-specific icons for each card (Calendar, XCircle, CheckCircle, Clock, ClipboardCheck)
+- **Download Buttons**: Blue download buttons on each card for future report export functionality
+- **Responsive Design**: Grid layout adapts from 2 columns (mobile) to 3 (tablet) to 5 (desktop)
+- **Real-time Updates**: Counts automatically update when appointments data changes
+
 ### Quick Notes Complete Redesign (Nov 02, 2025)
 - **Complete UI Overhaul**: Rebuilt Quick Notes to match Medical Notes page exactly (minus patient selection)
   - **2-Column Grid Layout**: SOAP Note editor on left, AI Suggestions on right
