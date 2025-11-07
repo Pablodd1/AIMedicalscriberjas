@@ -9,7 +9,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, ChevronLeft, ChevronRight, Edit2, Trash2, Mail, Calendar as CalendarIcon2, CheckCircle, XCircle, Clock, ClipboardCheck } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Edit2, Trash2, Mail, Calendar as CalendarIcon2, CheckCircle, XCircle, Clock, ClipboardCheck, Download } from "lucide-react";
+import * as XLSX from 'xlsx';
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -34,6 +35,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Check } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function Appointments() {
   const { toast } = useToast();
@@ -53,6 +55,8 @@ export default function Appointments() {
     return today;
   });
   const [doctorEmail, setDoctorEmail] = useState("");
+  const [filteredStatus, setFilteredStatus] = useState<string | null>(null);
+  const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
 
   const { data: appointments } = useQuery<Appointment[]>({
     queryKey: ["/api/appointments"],
@@ -317,6 +321,66 @@ export default function Appointments() {
       });
     },
   });
+
+  // Download appointments by status
+  const downloadAppointmentsByStatus = (status: string | null) => {
+    const appointmentsToExport = status === null 
+      ? appointments || []
+      : appointments?.filter(apt => apt.status === status) || [];
+
+    if (appointmentsToExport.length === 0) {
+      toast({
+        title: "No Appointments",
+        description: `No ${status || 'all'} appointments found to export.`,
+        variant: "default",
+      });
+      return;
+    }
+
+    // Prepare data for Excel
+    const exportData = appointmentsToExport.map(apt => {
+      const patient = patients?.find(p => p.id === apt.patientId);
+      return {
+        'Patient Name': patient ? `${patient.firstName} ${patient.lastName || ''}` : '',
+        'Patient Email': patient?.email || '',
+        'Date': new Date(apt.date).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }),
+        'Time': new Date(apt.date).toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' }),
+        'Status': apt.status.charAt(0).toUpperCase() + apt.status.slice(1),
+        'Patient Confirmation': (apt as any).patientConfirmationStatus || 'pending_confirmation',
+        'Notes': apt.notes || '',
+      };
+    });
+
+    // Create worksheet and workbook
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Appointments");
+
+    // Download file
+    const fileName = status === null 
+      ? `All_Appointments_${new Date().toLocaleDateString('en-US').replace(/\//g, '-')}.xlsx`
+      : `${status.charAt(0).toUpperCase() + status.slice(1)}_Appointments_${new Date().toLocaleDateString('en-US').replace(/\//g, '-')}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+
+    toast({
+      title: "Download Complete",
+      description: `Downloaded ${appointmentsToExport.length} appointment(s)`,
+    });
+  };
+
+  // Show filtered appointments dialog
+  const showFilteredAppointments = (status: string | null) => {
+    setFilteredStatus(status);
+    setIsStatusDialogOpen(true);
+  };
+
+  // Get filtered appointments
+  const getFilteredAppointments = () => {
+    if (filteredStatus === null) {
+      return appointments || [];
+    }
+    return appointments?.filter(apt => apt.status === filteredStatus) || [];
+  };
 
   return (
     <div className="space-y-4 md:space-y-6 p-4 md:p-0">
@@ -751,94 +815,164 @@ export default function Appointments() {
             <h2 className="text-xl font-semibold mb-4">Appointment Reports</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
               {/* Scheduled */}
-              <div className="bg-gradient-to-br from-slate-800 to-slate-700 rounded-lg p-4 md:p-6 shadow-lg">
-                <div className="flex items-center gap-2 mb-2 md:mb-3">
-                  <CalendarIcon2 className="h-4 w-4 md:h-5 md:w-5 text-white" />
-                  <h3 className="text-white text-xs md:text-sm font-medium">Scheduled</h3>
-                </div>
-                <div className="text-3xl md:text-4xl font-bold text-white mb-3 md:mb-4">
-                  {appointments?.filter(apt => apt.status === "scheduled").length || 0}
-                </div>
-                <Button 
-                  variant="secondary" 
-                  size="sm" 
-                  className="w-full text-xs bg-blue-500 hover:bg-blue-600 text-white"
-                >
-                  Download 📥
-                </Button>
-              </div>
+              <Card 
+                className="cursor-pointer hover:shadow-lg transition-all hover:scale-105 bg-gradient-to-br from-blue-500 to-blue-600 border-blue-300"
+                onClick={() => showFilteredAppointments("scheduled")}
+                data-testid="card-scheduled"
+              >
+                <CardHeader className="pb-2">
+                  <div className="flex items-center gap-2">
+                    <CalendarIcon2 className="h-5 w-5 text-white" />
+                    <CardTitle className="text-white text-sm md:text-base">Scheduled</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl md:text-4xl font-bold text-white mb-3">
+                    {appointments?.filter(apt => apt.status === "scheduled").length || 0}
+                  </div>
+                  <Button 
+                    variant="secondary" 
+                    size="sm" 
+                    className="w-full text-xs bg-white hover:bg-gray-100 text-blue-700"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      downloadAppointmentsByStatus("scheduled");
+                    }}
+                    data-testid="button-download-scheduled"
+                  >
+                    <Download className="h-3 w-3 mr-1" />
+                    Download
+                  </Button>
+                </CardContent>
+              </Card>
 
               {/* Cancelled */}
-              <div className="bg-gradient-to-br from-slate-800 to-slate-700 rounded-lg p-4 md:p-6 shadow-lg">
-                <div className="flex items-center gap-2 mb-2 md:mb-3">
-                  <XCircle className="h-4 w-4 md:h-5 md:w-5 text-white" />
-                  <h3 className="text-white text-xs md:text-sm font-medium">Cancelled</h3>
-                </div>
-                <div className="text-3xl md:text-4xl font-bold text-white mb-3 md:mb-4">
-                  {appointments?.filter(apt => apt.status === "cancelled").length || 0}
-                </div>
-                <Button 
-                  variant="secondary" 
-                  size="sm" 
-                  className="w-full text-xs bg-blue-500 hover:bg-blue-600 text-white"
-                >
-                  Download 📥
-                </Button>
-              </div>
+              <Card 
+                className="cursor-pointer hover:shadow-lg transition-all hover:scale-105 bg-gradient-to-br from-red-500 to-red-600 border-red-300"
+                onClick={() => showFilteredAppointments("cancelled")}
+                data-testid="card-cancelled"
+              >
+                <CardHeader className="pb-2">
+                  <div className="flex items-center gap-2">
+                    <XCircle className="h-5 w-5 text-white" />
+                    <CardTitle className="text-white text-sm md:text-base">Cancelled</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl md:text-4xl font-bold text-white mb-3">
+                    {appointments?.filter(apt => apt.status === "cancelled").length || 0}
+                  </div>
+                  <Button 
+                    variant="secondary" 
+                    size="sm" 
+                    className="w-full text-xs bg-white hover:bg-gray-100 text-red-700"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      downloadAppointmentsByStatus("cancelled");
+                    }}
+                    data-testid="button-download-cancelled"
+                  >
+                    <Download className="h-3 w-3 mr-1" />
+                    Download
+                  </Button>
+                </CardContent>
+              </Card>
 
               {/* Complete */}
-              <div className="bg-gradient-to-br from-slate-800 to-slate-700 rounded-lg p-4 md:p-6 shadow-lg">
-                <div className="flex items-center gap-2 mb-2 md:mb-3">
-                  <CheckCircle className="h-4 w-4 md:h-5 md:w-5 text-white" />
-                  <h3 className="text-white text-xs md:text-sm font-medium">Complete</h3>
-                </div>
-                <div className="text-3xl md:text-4xl font-bold text-white mb-3 md:mb-4">
-                  {appointments?.filter(apt => apt.status === "completed").length || 0}
-                </div>
-                <Button 
-                  variant="secondary" 
-                  size="sm" 
-                  className="w-full text-xs bg-blue-500 hover:bg-blue-600 text-white"
-                >
-                  Download 📥
-                </Button>
-              </div>
+              <Card 
+                className="cursor-pointer hover:shadow-lg transition-all hover:scale-105 bg-gradient-to-br from-green-500 to-green-600 border-green-300"
+                onClick={() => showFilteredAppointments("completed")}
+                data-testid="card-complete"
+              >
+                <CardHeader className="pb-2">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5 text-white" />
+                    <CardTitle className="text-white text-sm md:text-base">Complete</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl md:text-4xl font-bold text-white mb-3">
+                    {appointments?.filter(apt => apt.status === "completed").length || 0}
+                  </div>
+                  <Button 
+                    variant="secondary" 
+                    size="sm" 
+                    className="w-full text-xs bg-white hover:bg-gray-100 text-green-700"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      downloadAppointmentsByStatus("completed");
+                    }}
+                    data-testid="button-download-complete"
+                  >
+                    <Download className="h-3 w-3 mr-1" />
+                    Download
+                  </Button>
+                </CardContent>
+              </Card>
 
               {/* Pending */}
-              <div className="bg-gradient-to-br from-slate-800 to-slate-700 rounded-lg p-4 md:p-6 shadow-lg">
-                <div className="flex items-center gap-2 mb-2 md:mb-3">
-                  <Clock className="h-4 w-4 md:h-5 md:w-5 text-white" />
-                  <h3 className="text-white text-xs md:text-sm font-medium">Pending</h3>
-                </div>
-                <div className="text-3xl md:text-4xl font-bold text-white mb-3 md:mb-4">
-                  {appointments?.filter(apt => apt.status === "pending").length || 0}
-                </div>
-                <Button 
-                  variant="secondary" 
-                  size="sm" 
-                  className="w-full text-xs bg-blue-500 hover:bg-blue-600 text-white"
-                >
-                  Download 📥
-                </Button>
-              </div>
+              <Card 
+                className="cursor-pointer hover:shadow-lg transition-all hover:scale-105 bg-gradient-to-br from-orange-500 to-orange-600 border-orange-300"
+                onClick={() => showFilteredAppointments("pending")}
+                data-testid="card-pending"
+              >
+                <CardHeader className="pb-2">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-5 w-5 text-white" />
+                    <CardTitle className="text-white text-sm md:text-base">Pending</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl md:text-4xl font-bold text-white mb-3">
+                    {appointments?.filter(apt => apt.status === "pending").length || 0}
+                  </div>
+                  <Button 
+                    variant="secondary" 
+                    size="sm" 
+                    className="w-full text-xs bg-white hover:bg-gray-100 text-orange-700"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      downloadAppointmentsByStatus("pending");
+                    }}
+                    data-testid="button-download-pending"
+                  >
+                    <Download className="h-3 w-3 mr-1" />
+                    Download
+                  </Button>
+                </CardContent>
+              </Card>
 
               {/* All */}
-              <div className="bg-gradient-to-br from-slate-800 to-slate-700 rounded-lg p-4 md:p-6 shadow-lg">
-                <div className="flex items-center gap-2 mb-2 md:mb-3">
-                  <ClipboardCheck className="h-4 w-4 md:h-5 md:w-5 text-white" />
-                  <h3 className="text-white text-xs md:text-sm font-medium">All</h3>
-                </div>
-                <div className="text-3xl md:text-4xl font-bold text-white mb-3 md:mb-4">
-                  {appointments?.length || 0}
-                </div>
-                <Button 
-                  variant="secondary" 
-                  size="sm" 
-                  className="w-full text-xs bg-blue-500 hover:bg-blue-600 text-white"
-                >
-                  Download 📥
-                </Button>
-              </div>
+              <Card 
+                className="cursor-pointer hover:shadow-lg transition-all hover:scale-105 bg-gradient-to-br from-purple-500 to-purple-600 border-purple-300"
+                onClick={() => showFilteredAppointments(null)}
+                data-testid="card-all"
+              >
+                <CardHeader className="pb-2">
+                  <div className="flex items-center gap-2">
+                    <ClipboardCheck className="h-5 w-5 text-white" />
+                    <CardTitle className="text-white text-sm md:text-base">All</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl md:text-4xl font-bold text-white mb-3">
+                    {appointments?.length || 0}
+                  </div>
+                  <Button 
+                    variant="secondary" 
+                    size="sm" 
+                    className="w-full text-xs bg-white hover:bg-gray-100 text-purple-700"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      downloadAppointmentsByStatus(null);
+                    }}
+                    data-testid="button-download-all"
+                  >
+                    <Download className="h-3 w-3 mr-1" />
+                    Download
+                  </Button>
+                </CardContent>
+              </Card>
             </div>
           </div>
 
@@ -1143,6 +1277,113 @@ Status: ${appointment.status}`}
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Status Filtered Appointments Dialog */}
+      <Dialog open={isStatusDialogOpen} onOpenChange={setIsStatusDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>
+              {filteredStatus === null 
+                ? "All Appointments" 
+                : `${filteredStatus.charAt(0).toUpperCase() + filteredStatus.slice(1)} Appointments`}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto">
+            {getFilteredAppointments().length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No {filteredStatus || "all"} appointments found
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {getFilteredAppointments()
+                  .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+                  .map((appointment) => (
+                    <div
+                      key={appointment.id}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-lg hover:bg-gray-50 gap-4"
+                    >
+                      <div className="space-y-2 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-medium">
+                            {(() => {
+                              const patient = patients?.find(p => p.id === appointment.patientId);
+                              return patient ? `${patient.firstName} ${patient.lastName || ''}` : 'Unknown Patient';
+                            })()}
+                          </p>
+                          <Badge variant={
+                            appointment.status === "scheduled" ? "outline" : 
+                            appointment.status === "completed" ? "default" : 
+                            appointment.status === "cancelled" ? "destructive" : 
+                            "secondary"
+                          }>
+                            {appointment.status}
+                          </Badge>
+                          <Badge variant={
+                            (appointment as any).patientConfirmationStatus === "confirmed" ? "default" : 
+                            (appointment as any).patientConfirmationStatus === "pending_confirmation" ? "secondary" : 
+                            (appointment as any).patientConfirmationStatus === "declined" ? "destructive" : 
+                            "secondary"
+                          } className={cn("text-xs",
+                            (appointment as any).patientConfirmationStatus === "confirmed" && "bg-green-500 hover:bg-green-600 text-white",
+                            (appointment as any).patientConfirmationStatus === "pending_confirmation" && "bg-orange-500 hover:bg-orange-600 text-white",
+                            (appointment as any).patientConfirmationStatus === "declined" && "bg-red-500 hover:bg-red-600 text-white"
+                          )}>
+                            Patient: {(appointment as any).patientConfirmationStatus === "pending_confirmation" ? "Pending" : 
+                                     (appointment as any).patientConfirmationStatus === "confirmed" ? "Confirmed" : 
+                                     (appointment as any).patientConfirmationStatus === "declined" ? "Declined" : 
+                                     (appointment as any).patientConfirmationStatus || 'Pending'}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(appointment.date).toLocaleDateString('en-US', { 
+                            month: '2-digit', 
+                            day: '2-digit', 
+                            year: 'numeric' 
+                          })} at {new Date(appointment.date).toLocaleTimeString('en-US', { 
+                            hour12: true, 
+                            hour: '2-digit', 
+                            minute: '2-digit' 
+                          })}
+                        </p>
+                        {appointment.notes && (
+                          <p className="text-sm text-muted-foreground">{appointment.notes}</p>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            setEditingAppointment(appointment);
+                            setIsStatusDialogOpen(false);
+                            setIsEditDialogOpen(true);
+                          }}
+                          className="flex-1 sm:flex-initial"
+                        >
+                          <Edit2 className="h-4 w-4 sm:mr-2" />
+                          <span className="sm:inline">Edit</span>
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            if (confirm('Are you sure you want to delete this appointment?')) {
+                              deleteAppointmentMutation.mutate(appointment.id);
+                            }
+                          }}
+                          className="flex-1 sm:flex-initial"
+                        >
+                          <Trash2 className="h-4 w-4 sm:mr-2" />
+                          <span className="sm:inline">Delete</span>
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Day Appointments Dialog */}
       <Dialog open={showDayAppointments} onOpenChange={setShowDayAppointments}>
