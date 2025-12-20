@@ -4,7 +4,7 @@
   "type": "module",
   "license": "MIT",
   "engines": {
-    "node": "20.x"
+    "node": ">=18.x"
   },
   "scripts": {
     "dev": "tsx server/index.ts",
