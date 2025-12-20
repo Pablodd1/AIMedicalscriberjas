@@ -63,6 +63,72 @@ const activeRooms = new Map<string, VideoChatRoom>();
 export async function registerRoutes(app: Express): Promise<Server> {
   setupAuth(app);
   
+  // Setup/Seed endpoint - creates default users if they don't exist
+  app.post('/api/setup', asyncHandler(async (req, res) => {
+    const { hashPassword } = await import('./auth');
+    
+    const defaultUsers = [
+      {
+        username: 'admin',
+        password: 'admin123',
+        name: 'System Administrator',
+        role: 'admin' as const,
+        email: 'admin@aims.medical',
+        specialty: 'Administration',
+        isActive: true,
+      },
+      {
+        username: 'provider',
+        password: 'provider123',
+        name: 'Dr. John Smith',
+        role: 'doctor' as const,
+        email: 'provider@aims.medical',
+        specialty: 'Internal Medicine',
+        licenseNumber: 'MD-12345',
+        isActive: true,
+      },
+      {
+        username: 'doctor',
+        password: 'doctor123',
+        name: 'Dr. Sarah Johnson',
+        role: 'doctor' as const,
+        email: 'doctor@aims.medical',
+        specialty: 'Family Medicine',
+        licenseNumber: 'MD-67890',
+        isActive: true,
+      },
+    ];
+
+    const results = [];
+    for (const userData of defaultUsers) {
+      try {
+        const existing = await storage.getUserByUsername(userData.username);
+        if (!existing) {
+          const hashedPassword = await hashPassword(userData.password);
+          const user = await storage.createUser({
+            ...userData,
+            password: hashedPassword,
+          });
+          results.push({ username: userData.username, status: 'created' });
+        } else {
+          results.push({ username: userData.username, status: 'exists' });
+        }
+      } catch (error: any) {
+        results.push({ username: userData.username, status: 'error', message: error.message });
+      }
+    }
+
+    sendSuccessResponse(res, {
+      message: 'Setup complete',
+      users: results,
+      credentials: {
+        admin: { username: 'admin', password: 'admin123' },
+        provider: { username: 'provider', password: 'provider123' },
+        doctor: { username: 'doctor', password: 'doctor123' },
+      }
+    });
+  }));
+  
   // Register public routes (no auth required)
   app.use('/api/public', createPublicRouter(storage));
   
