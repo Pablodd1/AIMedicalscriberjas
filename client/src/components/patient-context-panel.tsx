@@ -180,16 +180,16 @@ export function PatientContextPanel({ patientId, onContextLoaded }: PatientConte
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
-      case 'critical': return 'bg-red-500 text-white';
+      case 'critical': return 'bg-medical-red text-white';
       case 'high': return 'bg-orange-500 text-white';
-      case 'medium': return 'bg-yellow-500 text-black';
-      case 'low': return 'bg-blue-500 text-white';
+      case 'medium': return 'bg-medical-yellow text-black';
+      case 'low': return 'bg-medical-dark-blue text-white';
       default: return 'bg-gray-500 text-white';
     }
   };
 
   return (
-    <Card className="mb-4 border-primary/20">
+    <Card className="mb-4 border-medical-dark-blue/20">
       <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
@@ -229,9 +229,9 @@ export function PatientContextPanel({ patientId, onContextLoaded }: PatientConte
           <CardContent className="pt-2">
             {/* AI Generated Summary */}
             {showAISummary && generateSummaryMutation.data?.data?.summary && (
-              <div className="mb-4 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+              <div className="mb-4 p-3 bg-medical-dark-blue/5 border border-medical-dark-blue/20 rounded-lg">
                 <div className="flex items-center gap-2 mb-2">
-                  <Sparkles className="h-4 w-4 text-primary" />
+                  <Sparkles className="h-4 w-4 text-medical-dark-blue" />
                   <span className="font-medium text-sm">AI Pre-Consultation Summary</span>
                 </div>
                 <p className="text-sm whitespace-pre-wrap">{generateSummaryMutation.data.data.summary}</p>
@@ -244,7 +244,7 @@ export function PatientContextPanel({ patientId, onContextLoaded }: PatientConte
                 {patientContext.activeAlerts.length > 0 && (
                   <div>
                     <h4 className="font-medium text-sm flex items-center gap-2 mb-2">
-                      <AlertTriangle className="h-4 w-4 text-red-500" />
+                      <AlertTriangle className="h-4 w-4 text-medical-red" />
                       Active Alerts
                     </h4>
                     <div className="flex flex-wrap gap-2">
@@ -261,7 +261,7 @@ export function PatientContextPanel({ patientId, onContextLoaded }: PatientConte
                 {patientContext.activeMedications.length > 0 && (
                   <div>
                     <h4 className="font-medium text-sm flex items-center gap-2 mb-2">
-                      <Pill className="h-4 w-4 text-blue-500" />
+                      <Pill className="h-4 w-4 text-medical-dark-blue" />
                       Current Medications ({patientContext.activeMedications.length})
                     </h4>
                     <div className="space-y-1">
@@ -286,7 +286,7 @@ export function PatientContextPanel({ patientId, onContextLoaded }: PatientConte
                 {patientContext.lastVisit && (
                   <div>
                     <h4 className="font-medium text-sm flex items-center gap-2 mb-2">
-                      <Calendar className="h-4 w-4 text-green-500" />
+                      <Calendar className="h-4 w-4 text-primary" />
                       Last Visit
                     </h4>
                     <div className="text-sm">
@@ -310,7 +310,7 @@ export function PatientContextPanel({ patientId, onContextLoaded }: PatientConte
                 {patientContext.medicalHistory && (
                   <div>
                     <h4 className="font-medium text-sm flex items-center gap-2 mb-2">
-                      <Heart className="h-4 w-4 text-red-500" />
+                      <Heart className="h-4 w-4 text-medical-red" />
                       Medical History
                     </h4>
                     <p className="text-sm text-muted-foreground line-clamp-3">
@@ -323,7 +323,7 @@ export function PatientContextPanel({ patientId, onContextLoaded }: PatientConte
                 {patientContext.recentNotes.length > 0 && (
                   <div>
                     <h4 className="font-medium text-sm flex items-center gap-2 mb-2">
-                      <FileText className="h-4 w-4 text-purple-500" />
+                      <FileText className="h-4 w-4 text-primary" />
                       Recent Notes ({patientContext.recentNotes.length})
                     </h4>
                     <div className="space-y-2">
@@ -348,7 +348,7 @@ export function PatientContextPanel({ patientId, onContextLoaded }: PatientConte
                 {patientContext.recentActivity.length > 0 && (
                   <div>
                     <h4 className="font-medium text-sm flex items-center gap-2 mb-2">
-                      <Activity className="h-4 w-4 text-orange-500" />
+                      <Activity className="h-4 w-4 text-medical-yellow" />
                       Recent Activity
                     </h4>
                     <div className="space-y-1">

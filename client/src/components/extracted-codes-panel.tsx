@@ -108,11 +108,11 @@ export function ExtractedCodesPanel({
   const getConfidenceBadge = (confidence?: string) => {
     switch (confidence) {
       case 'high':
-        return <Badge className="bg-green-500 text-white text-xs">High</Badge>;
+        return <Badge className="bg-medical-dark-blue text-white text-xs">High</Badge>;
       case 'medium':
-        return <Badge className="bg-yellow-500 text-black text-xs">Medium</Badge>;
+        return <Badge className="bg-medical-yellow text-black text-xs">Medium</Badge>;
       case 'low':
-        return <Badge className="bg-red-500 text-white text-xs">Low ⚠️</Badge>;
+        return <Badge className="bg-medical-red text-white text-xs">Low ⚠️</Badge>;
       default:
         return <Badge variant="outline" className="text-xs">N/A</Badge>;
     }
@@ -136,7 +136,7 @@ export function ExtractedCodesPanel({
   }
 
   return (
-    <Card className={hasLowConfidenceCodes ? 'border-yellow-500' : 'border-green-500/30'}>
+    <Card className={hasLowConfidenceCodes ? 'border-medical-yellow' : 'border-primary/30'}>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
@@ -154,7 +154,7 @@ export function ExtractedCodesPanel({
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger>
-                    <Badge className="bg-yellow-500 text-black">
+                    <Badge className="bg-medical-yellow text-black">
                       <AlertTriangle className="h-3 w-3 mr-1" />
                       Review Needed
                     </Badge>
@@ -221,7 +221,7 @@ export function ExtractedCodesPanel({
                 </TableHeader>
                 <TableBody>
                   {icd10Codes.map((dx, i) => (
-                    <TableRow key={i} className={dx.confidence === 'low' ? 'bg-yellow-50 dark:bg-yellow-950/20' : ''}>
+                    <TableRow key={i} className={dx.confidence === 'low' ? 'bg-amber-50 dark:bg-amber-950/20' : ''}>
                       <TableCell className="font-mono font-medium">
                         {dx.code}
                       </TableCell>
@@ -280,7 +280,7 @@ export function ExtractedCodesPanel({
                 </TableHeader>
                 <TableBody>
                   {cptCodes.map((cpt, i) => (
-                    <TableRow key={i} className={cpt.confidence === 'low' ? 'bg-yellow-50 dark:bg-yellow-950/20' : ''}>
+                    <TableRow key={i} className={cpt.confidence === 'low' ? 'bg-amber-50 dark:bg-amber-950/20' : ''}>
                       <TableCell className="font-mono font-medium">
                         <div>
                           {cpt.code}
