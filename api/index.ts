@@ -5,6 +5,38 @@ import passport from 'passport';
 import { Strategy as LocalStrategy } from 'passport-local';
 import multer from 'multer';
 import OpenAI from 'openai';
+import { neon } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/neon-http';
+import { eq } from 'drizzle-orm';
+import { pgTable, serial, text, boolean, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { scrypt, randomBytes } from 'crypto';
+import { promisify } from 'util';
+
+const scryptAsync = promisify(scrypt);
+
+// Define users schema for Vercel serverless
+const users = pgTable('users', {
+  id: serial('id').primaryKey(),
+  username: text('username').notNull().unique(),
+  password: text('password').notNull(),
+  name: text('name'),
+  role: varchar('role', { length: 20 }).default('doctor'),
+  email: text('email'),
+  specialty: text('specialty'),
+  licenseNumber: text('license_number'),
+  isActive: boolean('is_active').default(false),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// Database setup
+function getDb() {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    return null;
+  }
+  const sql = neon(databaseUrl);
+  return drizzle(sql, { schema: { users } });
+}
 
 // Create Express app
 const app = express();
@@ -42,13 +74,108 @@ function getOpenAIClient(): OpenAI | null {
   return new OpenAI({ apiKey });
 }
 
+// Password hashing helper (same as server/auth.ts)
+async function hashPassword(password: string): Promise<string> {
+  const salt = randomBytes(16).toString("hex");
+  const buf = (await scryptAsync(password, salt, 64)) as Buffer;
+  return `${buf.toString("hex")}.${salt}`;
+}
+
 // Health check
 app.get('/api/health', (req: Request, res: Response) => {
   res.json({ 
     status: 'ok', 
     timestamp: new Date().toISOString(),
-    version: '2.4'
+    version: '2.4',
+    database: process.env.DATABASE_URL ? 'configured' : 'not configured'
   });
+});
+
+// Setup endpoint - creates default users
+app.post('/api/setup', async (req: Request, res: Response) => {
+  try {
+    const db = getDb();
+    if (!db) {
+      return res.status(503).json({ 
+        error: 'Database not configured',
+        message: 'Please set DATABASE_URL environment variable'
+      });
+    }
+
+    const defaultUsers = [
+      {
+        username: 'admin',
+        password: 'admin123',
+        name: 'System Administrator',
+        role: 'admin',
+        email: 'admin@aims.medical',
+        specialty: 'Administration',
+        isActive: true,
+      },
+      {
+        username: 'provider',
+        password: 'provider123',
+        name: 'Dr. John Smith',
+        role: 'doctor',
+        email: 'provider@aims.medical',
+        specialty: 'Internal Medicine',
+        licenseNumber: 'MD-12345',
+        isActive: true,
+      },
+      {
+        username: 'doctor',
+        password: 'doctor123',
+        name: 'Dr. Sarah Johnson',
+        role: 'doctor',
+        email: 'doctor@aims.medical',
+        specialty: 'Family Medicine',
+        licenseNumber: 'MD-67890',
+        isActive: true,
+      },
+    ];
+
+    const results = [];
+    
+    for (const userData of defaultUsers) {
+      try {
+        // Check if user exists
+        const existingUsers = await db.select().from(users).where(eq(users.username, userData.username));
+        
+        if (existingUsers.length === 0) {
+          const hashedPassword = await hashPassword(userData.password);
+          await db.insert(users).values({
+            username: userData.username,
+            password: hashedPassword,
+            name: userData.name,
+            role: userData.role,
+            email: userData.email,
+            specialty: userData.specialty,
+            licenseNumber: userData.licenseNumber,
+            isActive: userData.isActive,
+          });
+          results.push({ username: userData.username, status: 'created' });
+        } else {
+          results.push({ username: userData.username, status: 'exists' });
+        }
+      } catch (error: any) {
+        results.push({ username: userData.username, status: 'error', message: error.message });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Setup complete',
+      users: results,
+      credentials: {
+        admin: { username: 'admin', password: 'admin123' },
+        provider: { username: 'provider', password: 'provider123' },
+        doctor: { username: 'doctor', password: 'doctor123' },
+      }
+    });
+  } catch (error: any) {
+    console.error('Setup error:', error);
+    res.status(500).json({ error: 'Setup failed', message: error.message });
+  }
 });
 
 // AI Chat endpoint
@@ -435,7 +562,20 @@ Format as a clear, professional intake summary for physician review.`;
 
 // Catch-all for unhandled routes
 app.all('*', (req: Request, res: Response) => {
-  res.status(404).json({ error: 'API endpoint not found' });
+  res.status(404).json({ 
+    error: 'API endpoint not found',
+    path: req.path,
+    method: req.method,
+    availableEndpoints: [
+      'GET /api/health',
+      'POST /api/setup',
+      'POST /api/ai/chat',
+      'POST /api/ai/transcribe',
+      'POST /api/ai/generate-soap',
+      'POST /api/ai/generate-title',
+      'POST /api/ai/generate-intake-summary'
+    ]
+  });
 });
 
 // Export for Vercel
