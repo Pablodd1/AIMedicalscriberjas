@@ -242,6 +242,28 @@ Your composite roles:
 • Certified Professional Coder & Biller
 • Medical Scribe trained in AMA, CMS, Medicare, and Florida PIP standards
 
+#############################################
+# CRITICAL: ZERO HALLUCINATION PROTOCOL
+#############################################
+⚠️ ABSOLUTE RULES - VIOLATION IS UNACCEPTABLE:
+1. ONLY document information EXPLICITLY stated in the transcript
+2. If information is NOT mentioned, use "[Not documented in this encounter]"
+3. NEVER fabricate, assume, or infer:
+   - Vital signs not provided → "[Vitals not documented]"
+   - Medications not mentioned → "[Per patient history - verify current list]"
+   - Diagnoses not discussed → DO NOT create diagnoses
+   - Physical exam findings not described → "[Exam deferred/not performed]"
+   - Lab values not stated → "[Labs pending/not available]"
+4. For any uncertain information, mark as "[Needs clarification]"
+5. Quote patient directly when documenting subjective complaints
+
+SOURCE MARKERS (use these in documentation):
+- [Patient reported]: Direct patient statement
+- [Per provider]: Information from healthcare provider
+- [Per medical record]: Information from patient's existing record
+- [Not documented]: Information not provided in this encounter
+- [Needs clarification]: Information unclear or incomplete
+
 #####################################
 # OUTPUT — RETURN **ONE** JSON OBJECT
 #####################################
@@ -267,11 +289,19 @@ Your composite roles:
       "Consent": "..."
     },
     "icd10_codes": [
-      { "code": "...", "description": "...", "rationale": "..." }
+      { "code": "...", "description": "...", "rationale": "...", "confidence": "high|medium|low", "supporting_text": "..." }
     ],
     "cpt_codes_today": [
-      { "code": "...", "description": "...", "modifiers": [""], "rationale": "..." }
+      { "code": "...", "description": "...", "modifiers": [""], "rationale": "...", "linked_dx": "...", "confidence": "high|medium|low" }
     ],
+    "evaluation_coding": {
+      "em_code": "...",
+      "em_level": "...",
+      "mdm_complexity": "straightforward|low|moderate|high",
+      "time_spent_minutes": null,
+      "coding_method": "mdm|time",
+      "justification": "..."
+    },
     "orders_referrals": [
       { "service": "...", "reason": "...", "location": "..." }
     ],
@@ -280,8 +310,14 @@ Your composite roles:
     ],
     "patient_reported_outcomes": [],
     "red_flags": [],
+    "verification_report": {
+      "documented_items": 0,
+      "inferred_items": 0,
+      "missing_items": [],
+      "needs_clarification": []
+    },
     "timestamp": "${new Date().toISOString()}",
-    "version": "2.3"
+    "version": "2.4"
   },
   "human_note": "{{FULL_NOTE_IN_PARAGRAPH_FORM}}\\n\\n---\\nPatient Take-Home Summary (plain English):\\n• ..."
 }
@@ -289,9 +325,10 @@ Your composite roles:
 #####################################
 # DOCUMENTATION RULES
 #####################################
-A. **WNL Logic**
-   • Absent systems → "Within Normal Limits (WNL) — provider to verify."
-   • Uncertain or missing data → flag in **red_flags**.
+A. **Zero Inference Policy**
+   • If not explicitly stated → "[Not documented in this encounter]"
+   • Absent systems → DO NOT assume WNL without explicit statement
+   • Uncertain or missing data → flag in **red_flags** AND **verification_report.missing_items**
 
 B. **Specialty-Aware Detail**
    • Auto-expand PE & HPI with specialty maneuvers based on specialty hint.
@@ -299,31 +336,26 @@ B. **Specialty-Aware Detail**
    • Psychiatry → include DSM-5-aligned criteria, screening tools (PHQ-9, GAD-7).
    • Functional medicine → integrate thyroid, metabolic, hormone labs if mentioned.
 
-C. **Coding & Billing**
-   • ICD-10 & CPT must be justified by documentation.
-   • cpt_codes_today = procedures performed today.
-   • Future diagnostics/therapies → orders_referrals.
+C. **Coding & Billing - WITH CONFIDENCE LEVELS**
+   • ICD-10 & CPT must be DIRECTLY justified by transcript documentation
+   • Each code must have:
+     - confidence: "high" (explicitly discussed), "medium" (strongly implied), "low" (reasonable inference)
+     - supporting_text: Quote from transcript supporting the code
+   • cpt_codes_today = procedures performed today ONLY
+   • linked_dx = ICD-10 code supporting medical necessity
+   • Future diagnostics/therapies → orders_referrals (NOT CPT)
    • New prescriptions → medication_rxs. Chronic meds remain in "Medications."
-   • Include time-based coding support (MDM vs time in visit).
 
 D. **Compliance & Audit Trail**
-   • Red flag missing vitals, ROS, pain scale, consent.
+   • Red flag missing vitals, ROS, pain scale, consent
    • Explicit attestation: "Patient consent obtained for treatment. Risks/benefits explained."
-   • Telemedicine → include patient location, provider location, CPT modifier -95.
+   • Telemedicine → include patient location, provider location, CPT modifier -95
    • HIPAA: Do not output PHI outside JSON. Never fabricate.
 
 E. **Language**
    • Clinical tone, U.S. English.
-   • human_note = readable narrative.
+   • human_note = readable narrative with source markers
    • Patient summary = 8th-grade level.
-
-#####################################
-# STYLE NOTES
-#####################################
-• Use paragraph form, not fragments.
-• Bullet lists only when improving clarity.
-• Always justify coding.
-• Include outcome metrics when possible.
 
 #####################################
 # RED_FLAG TRIGGERS
@@ -331,9 +363,10 @@ E. **Language**
 • Missing BP, HR, or SpO₂ in vitals.
 • Medication without dose/route/frequency.
 • Imaging/therapy codes listed as CPT instead of order.
-• No ROS in a Level-4+ visit.
+• No ROS documented.
 • No pain score documented.
 • No consent documented for procedure or telemedicine.
+• Any "low" confidence codes that need provider verification.
 
 **CRITICAL**: Return ONLY valid JSON. Do not include any text outside the JSON object.`;
 
@@ -414,25 +447,324 @@ Return the complete JSON object with ehr_payload and human_note fields.`
   }
 });
 
-// Route to handle audio transcription
+// Route to handle audio transcription using Deepgram
 aiRouter.post('/transcribe', upload.single('audio'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No audio file provided' });
     }
+
+    // Check for Deepgram API key
+    const deepgramApiKey = process.env.DEEPGRAM_API_KEY;
     
-    // Since we can't use OpenAI's Whisper API directly due to the Node.js environment,
-    // let's take a simpler approach for the prototype
-    // In a real implementation, we'd use temp files or a cloud storage solution
-    // For now, just return a mock transcript for demonstration
+    if (!deepgramApiKey) {
+      // Fallback to OpenAI Whisper if Deepgram not configured
+      const userId = req.user?.id;
+      if (userId) {
+        const openai = await getOpenAIClient(userId);
+        if (openai) {
+          try {
+            // Create a File object from the buffer for OpenAI
+            const file = new File([req.file.buffer], req.file.originalname || 'audio.webm', {
+              type: req.file.mimetype || 'audio/webm'
+            });
+            
+            const transcription = await openai.audio.transcriptions.create({
+              file: file,
+              model: 'whisper-1',
+              language: 'en',
+              response_format: 'text'
+            });
+            
+            return res.json({ 
+              transcript: transcription,
+              provider: 'openai-whisper'
+            });
+          } catch (whisperError) {
+            console.error('OpenAI Whisper error:', whisperError);
+            // Continue to browser speech recognition fallback message
+          }
+        }
+      }
+      
+      return res.status(503).json({ 
+        error: 'Transcription service not configured. Please set DEEPGRAM_API_KEY or use browser speech recognition.',
+        fallbackAvailable: true
+      });
+    }
+
+    // Use Deepgram for transcription
+    const { createClient } = await import('@deepgram/sdk');
+    const deepgram = createClient(deepgramApiKey);
+
+    const audioBuffer = req.file.buffer;
+    const mimetype = req.file.mimetype || 'audio/webm';
+
+    const { result, error } = await deepgram.listen.prerecorded.transcribeFile(
+      audioBuffer,
+      {
+        model: 'nova-2-medical', // Medical-optimized model
+        smart_format: true,
+        punctuate: true,
+        paragraphs: true,
+        diarize: true, // Speaker identification
+        language: 'en-US',
+        mimetype: mimetype
+      }
+    );
+
+    if (error) {
+      console.error('Deepgram transcription error:', error);
+      return res.status(500).json({ error: 'Transcription failed: ' + error.message });
+    }
+
+    // Extract transcript from Deepgram response
+    const transcript = result?.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
+    
+    // Also extract word-level timestamps and speaker diarization if available
+    const words = result?.results?.channels?.[0]?.alternatives?.[0]?.words || [];
+    const paragraphs = result?.results?.channels?.[0]?.alternatives?.[0]?.paragraphs?.paragraphs || [];
     
     return res.json({ 
-      transcript: "This is a simulated transcript for your audio file. In a production environment, " +
-                 "this would be processed by the OpenAI Whisper API. To use the actual transcription " +
-                 "functionality, proper file handling with temp files would be implemented."
+      transcript,
+      provider: 'deepgram-nova-2-medical',
+      metadata: {
+        confidence: result?.results?.channels?.[0]?.alternatives?.[0]?.confidence,
+        words: words.length,
+        duration: result?.metadata?.duration,
+        paragraphs: paragraphs.length
+      }
     });
   } catch (error) {
     console.error('Transcription API error:', error);
-    return res.status(500).json({ error: 'Failed to transcribe audio' });
+    return res.status(500).json({ error: 'Failed to transcribe audio: ' + (error instanceof Error ? error.message : 'Unknown error') });
   }
 });
+
+// Route to generate AI summary for patient intake forms
+aiRouter.post('/generate-intake-summary', requireAuth, asyncHandler(async (req, res) => {
+  const { formId, responses } = req.body;
+  const userId = req.user.id;
+
+  if (!responses || !Array.isArray(responses)) {
+    throw new AppError('Responses must be provided as an array', 400, 'INVALID_RESPONSES');
+  }
+
+  const openai = await getOpenAIClient(userId);
+  if (!openai) {
+    throw new AppError('No OpenAI API key configured', 503, 'NO_API_KEY');
+  }
+
+  try {
+    const systemPrompt = `You are a medical intake specialist creating a clinical summary from patient intake responses.
+
+CRITICAL RULES FOR ZERO HALLUCINATION:
+1. ONLY include information EXPLICITLY provided in the patient responses
+2. If information is unclear or missing, mark it as "[Not provided]" or "[Needs clarification]"
+3. NEVER fabricate, assume, or infer medical details not stated
+4. Use exact quotes from patient when relevant
+
+Create a structured clinical summary with these sections:
+- Patient Demographics (name, DOB, contact info)
+- Chief Complaint / Reason for Visit
+- Medical History (conditions, surgeries, family history)
+- Current Medications
+- Allergies
+- Social History (occupation, lifestyle)
+- Review of Systems (symptoms reported)
+- Risk Factors Identified
+- Priority Concerns for Provider
+
+Format as a clear, professional intake summary for physician review.`;
+
+    const formattedResponses = responses.map((r: any) => 
+      `Q: ${r.question}\nA: ${r.answer || '[No response]'}`
+    ).join('\n\n');
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `Generate a clinical intake summary from these patient responses:\n\n${formattedResponses}` }
+      ],
+      temperature: 0.1, // Low temperature for factual accuracy
+      max_tokens: 2000
+    });
+
+    const summary = response.choices[0]?.message?.content?.trim() || '';
+    
+    sendSuccessResponse(res, {
+      summary,
+      formId,
+      generatedAt: new Date().toISOString()
+    }, 'Intake summary generated successfully');
+  } catch (error) {
+    console.error('Error generating intake summary:', error);
+    throw handleOpenAIError(error);
+  }
+}));
+
+// Route to get patient consultation context (previous notes, history, etc.)
+aiRouter.get('/patient-context/:patientId', requireAuth, asyncHandler(async (req, res) => {
+  const patientId = parseInt(req.params.patientId);
+  const userId = req.user.id;
+
+  if (isNaN(patientId)) {
+    throw new AppError('Invalid patient ID', 400, 'INVALID_PATIENT_ID');
+  }
+
+  try {
+    // Fetch patient data
+    const patient = await dbStorage.getPatient(patientId);
+    if (!patient) {
+      throw new AppError('Patient not found', 404, 'PATIENT_NOT_FOUND');
+    }
+
+    // Fetch patient's medical notes (last 5)
+    const medicalNotes = await dbStorage.getMedicalNotesByPatient(patientId);
+    const recentNotes = medicalNotes.slice(0, 5);
+
+    // Fetch prescriptions
+    const prescriptions = await dbStorage.getPrescriptionsByPatient(patientId);
+    const activePrescriptions = prescriptions.filter(p => p.isActive);
+
+    // Fetch medical alerts
+    const alerts = await dbStorage.getMedicalAlertsByPatient(patientId);
+    const activeAlerts = alerts.filter(a => a.isActive);
+
+    // Fetch medical history entries
+    const historyEntries = await dbStorage.getMedicalHistoryEntriesByPatient(patientId);
+
+    // Fetch recent activity
+    const activities = await dbStorage.getPatientActivityByPatient(patientId);
+    const recentActivities = activities.slice(0, 10);
+
+    // Build last visit summary if there are notes
+    let lastVisitSummary = null;
+    if (recentNotes.length > 0) {
+      const lastNote = recentNotes[0];
+      lastVisitSummary = {
+        date: lastNote.createdAt,
+        title: lastNote.title,
+        type: lastNote.type,
+        contentPreview: lastNote.content.substring(0, 500) + (lastNote.content.length > 500 ? '...' : '')
+      };
+    }
+
+    // Calculate age from DOB
+    let age = null;
+    if (patient.dateOfBirth) {
+      const dob = new Date(patient.dateOfBirth);
+      const today = new Date();
+      age = Math.floor((today.getTime() - dob.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+    }
+
+    const context = {
+      patient: {
+        id: patient.id,
+        name: `${patient.firstName} ${patient.lastName || ''}`.trim(),
+        age,
+        dateOfBirth: patient.dateOfBirth,
+        email: patient.email,
+        phone: patient.phone,
+        address: patient.address
+      },
+      medicalHistory: patient.medicalHistory,
+      historyEntries: historyEntries.map(h => ({
+        category: h.category,
+        title: h.title,
+        description: h.description,
+        date: h.date
+      })),
+      activeMedications: activePrescriptions.map(p => ({
+        name: p.medicationName,
+        dosage: p.dosage,
+        frequency: p.frequency,
+        instructions: p.instructions
+      })),
+      activeAlerts: activeAlerts.map(a => ({
+        type: a.type,
+        severity: a.severity,
+        title: a.title,
+        description: a.description
+      })),
+      lastVisit: lastVisitSummary,
+      recentNotes: recentNotes.map(n => ({
+        id: n.id,
+        title: n.title,
+        type: n.type,
+        date: n.createdAt,
+        preview: n.content.substring(0, 200)
+      })),
+      recentActivity: recentActivities.map(a => ({
+        type: a.activityType,
+        title: a.title,
+        date: a.date
+      })),
+      totalVisits: medicalNotes.length
+    };
+
+    sendSuccessResponse(res, context, 'Patient context retrieved successfully');
+  } catch (error) {
+    console.error('Error fetching patient context:', error);
+    if (error instanceof AppError) throw error;
+    throw new AppError('Failed to fetch patient context', 500, 'CONTEXT_FETCH_ERROR');
+  }
+}));
+
+// Route to generate AI pre-consultation summary from patient history
+aiRouter.post('/pre-consultation-summary', requireAuth, asyncHandler(async (req, res) => {
+  const { patientId, patientContext } = req.body;
+  const userId = req.user.id;
+
+  if (!patientContext) {
+    throw new AppError('Patient context is required', 400, 'MISSING_CONTEXT');
+  }
+
+  const openai = await getOpenAIClient(userId);
+  if (!openai) {
+    throw new AppError('No OpenAI API key configured', 503, 'NO_API_KEY');
+  }
+
+  try {
+    const systemPrompt = `You are a medical assistant preparing a concise pre-consultation summary for a physician.
+
+CRITICAL RULES FOR ZERO HALLUCINATION:
+1. ONLY summarize information from the provided patient context
+2. If data is missing, explicitly state "[Not documented]"
+3. NEVER fabricate or assume any medical information
+4. Highlight any active alerts or concerning patterns
+5. Note any gaps in documentation that need attention
+
+Create a brief, scannable summary with:
+1. Patient Snapshot (key demographics, chief concerns)
+2. Active Problems/Diagnoses
+3. Current Medications (with any concerns about interactions)
+4. Recent Visit Summary (what was addressed, any pending items)
+5. Active Alerts (allergies, warnings)
+6. Suggested Focus Areas for This Visit
+
+Keep it concise - the physician should be able to review in 30 seconds.`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `Generate a pre-consultation summary for this patient:\n\n${JSON.stringify(patientContext, null, 2)}` }
+      ],
+      temperature: 0.1,
+      max_tokens: 1000
+    });
+
+    const summary = response.choices[0]?.message?.content?.trim() || '';
+    
+    sendSuccessResponse(res, {
+      summary,
+      patientId,
+      generatedAt: new Date().toISOString()
+    }, 'Pre-consultation summary generated successfully');
+  } catch (error) {
+    console.error('Error generating pre-consultation summary:', error);
+    throw handleOpenAIError(error);
+  }
+}));
