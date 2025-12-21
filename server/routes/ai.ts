@@ -320,8 +320,126 @@ SOURCE MARKERS (use these in documentation):
     "timestamp": "${new Date().toISOString()}",
     "version": "2.4"
   },
-  "human_note": "{{FULL_NOTE_IN_PARAGRAPH_FORM}}\\n\\n---\\nPatient Take-Home Summary (plain English):\\n• ..."
+  "human_note": "{{STRUCTURED_CLINICAL_NOTE}}"
 }
+
+The human_note MUST be a comprehensive, well-formatted clinical document with these EXACT sections:
+
+═══════════════════════════════════════
+CLINICAL DOCUMENTATION
+═══════════════════════════════════════
+
+📋 PATIENT INFORMATION
+• Name: [Patient Name]
+• DOB: [Date of Birth]  
+• Visit Date: [Today's Date]
+• Visit Type: [Office Visit/Telemedicine]
+• Provider: [Provider Name]
+
+📍 CHIEF COMPLAINT (CC)
+[Primary reason for visit in patient's own words]
+
+📝 HISTORY OF PRESENT ILLNESS (HPI)
+[Comprehensive narrative including: Location, Quality, Severity, Duration, Timing, Context, Modifying factors, Associated signs/symptoms - use OLDCARTS or SOCRATES mnemonic]
+
+📊 REVIEW OF SYSTEMS (ROS)
+[List all systems reviewed, mark as positive (+), negative (-), or not reviewed]
+• Constitutional: 
+• HEENT:
+• Cardiovascular:
+• Respiratory:
+• GI:
+• Musculoskeletal:
+• Neurological:
+• Psychiatric:
+• [Other relevant systems]
+
+💊 CURRENT MEDICATIONS
+[List all current medications with dose, route, frequency]
+
+⚠️ ALLERGIES
+[List all allergies with reaction type]
+
+📜 PAST MEDICAL/SURGICAL HISTORY
+[Relevant past conditions, surgeries, hospitalizations]
+
+👥 FAMILY/SOCIAL HISTORY
+[Relevant family medical history and social factors]
+
+📈 VITAL SIGNS
+[BP, HR, RR, Temp, O2 Sat, Weight, Height, BMI - mark "[Not documented]" if not provided]
+
+🔍 PHYSICAL EXAMINATION
+[Detailed exam findings organized by body system]
+
+═══════════════════════════════════════
+ASSESSMENT & DIAGNOSIS
+═══════════════════════════════════════
+
+🏥 DIAGNOSES (ICD-10 Codes):
+1. [Diagnosis] - [ICD-10 Code]
+   → Rationale: [Why this diagnosis based on documentation]
+   → Supporting Evidence: "[Quote from transcript]"
+
+📋 DIFFERENTIAL DIAGNOSES:
+[List other conditions considered if applicable]
+
+═══════════════════════════════════════
+TREATMENT PLAN
+═══════════════════════════════════════
+
+💉 PROCEDURES PERFORMED TODAY:
+[List any procedures with CPT codes]
+
+💊 PRESCRIPTIONS (RX):
+1. [Medication] [Dose] [Route] [Frequency] x [Duration]
+   → Indication: [Why prescribed]
+   → Rationale: [Clinical reasoning]
+
+📋 ORDERS & REFERRALS:
+[Labs, imaging, referrals ordered]
+
+📚 PATIENT EDUCATION:
+[Instructions given to patient]
+
+📅 FOLLOW-UP:
+[Return visit timing and instructions]
+
+═══════════════════════════════════════
+BILLING & CODING SUMMARY
+═══════════════════════════════════════
+
+📊 E&M CODING:
+• CPT Code: [99XXX]
+• Level: [Level 1-5]
+• Coding Method: [MDM/Time-Based]
+• MDM Complexity: [Straightforward/Low/Moderate/High]
+• Time Spent: [XX minutes if time-based]
+• Justification: [Why this level is supported]
+
+💰 CPT CODES FOR TODAY'S SERVICES:
+| Code | Description | Modifier | Linked DX | Confidence |
+[Table of CPT codes]
+
+🏷️ ICD-10 DIAGNOSIS CODES:
+| Code | Description | Confidence | Supporting Text |
+[Table of diagnosis codes]
+
+⚠️ COMPLIANCE ALERTS:
+[List any red flags or missing documentation that needs attention]
+
+═══════════════════════════════════════
+ATTESTATION
+═══════════════════════════════════════
+I have personally reviewed the patient's history and symptoms, examined the patient as documented, and rendered my professional medical opinion. This documentation accurately reflects the services provided.
+
+---
+📋 PATIENT TAKE-HOME SUMMARY (Plain Language):
+• What we found: [Simple explanation]
+• What this means: [Plain language diagnosis]
+• What to do: [Action items for patient]
+• When to return: [Follow-up instructions]
+• Warning signs: [Red flags to watch for]
 
 #####################################
 # DOCUMENTATION RULES

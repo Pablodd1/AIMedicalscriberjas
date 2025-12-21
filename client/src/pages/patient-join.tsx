@@ -450,10 +450,13 @@ export default function PatientJoinPage() {
                     variant="destructive"
                     size="icon"
                     onClick={handleStopRecording}
-                    className="h-12 w-12"
+                    className="h-14 w-14 relative shadow-lg shadow-red-500/30"
                     data-testid="button-stop-recording"
                   >
-                    <MicOff className="h-5 w-5" />
+                    {/* Pulsing animation */}
+                    <span className="absolute inset-0 rounded-md border-2 border-red-500 animate-ping opacity-30" />
+                    <span className="absolute inset-1 rounded-md bg-red-500/20 animate-pulse" />
+                    <MicOff className="h-6 w-6 relative z-10" />
                   </Button>
                 ) : (
                   <Button
@@ -461,19 +464,92 @@ export default function PatientJoinPage() {
                     variant="outline"
                     size="icon"
                     onClick={handleStartRecording}
-                    className="h-12 w-12"
+                    className="h-14 w-14 hover:bg-primary/10 hover:border-primary transition-all"
                     data-testid="button-start-recording"
                   >
-                    <Mic className="h-5 w-5" />
+                    <Mic className="h-6 w-6" />
                   </Button>
                 )}
               </div>
             </div>
+            {/* Enhanced Recording Status Display */}
             {isRecording && (
-              <div className="text-sm text-primary mt-2 animate-pulse flex items-center gap-2">
-                <span className="inline-block h-2 w-2 rounded-full bg-red-500"></span>
-                Recording in progress... Speak clearly and click stop when finished.
+              <div className="mt-4 p-4 rounded-lg border-2 border-red-200 bg-red-50">
+                {/* Recording Header */}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center">
+                        <div className="absolute h-10 w-10 rounded-full bg-red-500/30 animate-ping" />
+                        <Radio className="h-5 w-5 text-red-500 relative z-10" />
+                      </div>
+                    </div>
+                    <div>
+                      <span className="font-bold text-red-600 text-lg flex items-center gap-2">
+                        <span className="animate-pulse">●</span> REC
+                      </span>
+                      <span className="text-xs text-red-500">Live Recording</span>
+                    </div>
+                  </div>
+                  <div className="font-mono text-xl text-red-600 bg-white px-3 py-1 rounded border border-red-200">
+                    {formatDuration(recordingDuration)}
+                  </div>
+                </div>
+                
+                {/* Audio Waveform */}
+                <div className="p-2 bg-white rounded-md mb-3">
+                  <AudioWaveform level={audioLevel} />
+                </div>
+                
+                {/* Audio Status */}
+                <div className="flex items-center gap-2 text-sm">
+                  {hasAudioInput ? (
+                    <>
+                      <Volume2 className="h-4 w-4 text-green-500" />
+                      <span className="text-green-700">Audio detected - speak clearly</span>
+                    </>
+                  ) : (
+                    <>
+                      <VolumeX className="h-4 w-4 text-amber-500 animate-pulse" />
+                      <span className="text-amber-700">Waiting for audio... speak into microphone</span>
+                    </>
+                  )}
+                </div>
+                
+                {/* Audio Level Bar */}
+                <div className="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full transition-all duration-75 rounded-full bg-gradient-to-r from-red-400 to-red-500"
+                    style={{ width: `${Math.max(5, audioLevel)}%` }}
+                  />
+                </div>
+                
+                {/* Live Transcript Preview */}
+                {liveTranscript && (
+                  <div className="mt-3 p-2 bg-white rounded border border-green-200">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Activity className="h-3 w-3 text-green-500" />
+                      <span className="text-xs font-medium text-green-700">Live Transcript</span>
+                    </div>
+                    <p className="text-sm text-gray-700 italic">"{liveTranscript.slice(-100)}..."</p>
+                  </div>
+                )}
+                
+                {/* Warning if no audio detected */}
+                {!hasAudioInput && recordingDuration > 3 && (
+                  <Alert className="mt-3 border-amber-300 bg-amber-50">
+                    <AlertCircle className="h-4 w-4 text-amber-600" />
+                    <AlertDescription className="text-amber-700 text-sm">
+                      No audio detected. Check your microphone is working and not muted.
+                    </AlertDescription>
+                  </Alert>
+                )}
               </div>
+            )}
+            
+            {/* Recording Error */}
+            {recordingError && !isRecording && (
+              <RecordingTroubleshoot />
             )}
           </div>
 
