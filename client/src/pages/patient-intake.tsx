@@ -292,7 +292,7 @@ export default function PatientIntakeFormPage() {
               <span className="font-semibold">{pendingForms}</span>
             </div>
           </div>
-        <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="mr-2 h-4 w-4" />
@@ -393,6 +393,7 @@ export default function PatientIntakeFormPage() {
             </Form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {formsLoading ? (
