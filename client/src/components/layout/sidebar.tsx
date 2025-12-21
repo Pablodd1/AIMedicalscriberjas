@@ -20,6 +20,7 @@ import {
   PenTool,
   ClipboardList,
   Activity,
+  Shield,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useState } from "react";
@@ -31,20 +32,40 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
+// Main navigation - grouped by category for better UX
 const navigation = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Patients", href: "/patients", icon: Users },
-  { name: "Appointments", href: "/appointments", icon: Calendar },
-  { name: "Medical Notes", href: "/notes", icon: FileText },
-  { name: "Quick Notes", href: "/quick-notes", icon: PenTool },
-  { name: "Patient Intake", href: "/patient-intake", icon: ClipboardList },
-  { name: "Telemedicine", href: "/telemedicine", icon: Video },
-  { name: "Patient Monitoring", href: "/monitoring", icon: Activity },
-  { name: "Lab Interpreter", href: "/lab-interpreter", icon: Stethoscope },
-  { name: "AI Assistant", href: "/assistant", icon: Bot },
-  { name: "Billing", href: "/billing", icon: CreditCard },
-  { name: "Analytics", href: "/analytics", icon: LineChart },
-  { name: "Settings", href: "/settings", icon: Settings },
+  // Core - Always visible first
+  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, category: "core" },
+  
+  // Patient Management
+  { name: "Patients", href: "/patients", icon: Users, category: "patients" },
+  { name: "Patient Intake", href: "/patient-intake", icon: ClipboardList, category: "patients" },
+  { name: "Appointments", href: "/appointments", icon: Calendar, category: "patients" },
+  
+  // Clinical Documentation
+  { name: "Medical Notes", href: "/notes", icon: FileText, category: "clinical" },
+  { name: "Quick Notes", href: "/quick-notes", icon: PenTool, category: "clinical" },
+  
+  // Consultations
+  { name: "Telemedicine", href: "/telemedicine", icon: Video, category: "consult" },
+  { name: "Patient Monitoring", href: "/monitoring", icon: Activity, category: "consult" },
+  
+  // AI & Tools
+  { name: "Lab Interpreter", href: "/lab-interpreter", icon: Stethoscope, category: "tools" },
+  { name: "AI Assistant", href: "/assistant", icon: Bot, category: "tools" },
+  
+  // Business
+  { name: "Billing", href: "/billing", icon: CreditCard, category: "business" },
+  { name: "Analytics", href: "/analytics", icon: LineChart, category: "business" },
+  
+  // System
+  { name: "Settings", href: "/settings", icon: Settings, category: "system" },
+];
+
+// Admin-only navigation items
+const adminNavigation = [
+  { name: "Admin Panel", href: "/admin", icon: Shield, adminOnly: true },
+  { name: "Global Prompts", href: "/admin/prompts", icon: FileText, adminOnly: true },
 ];
 
 export default function Sidebar() {
@@ -127,6 +148,16 @@ export default function Sidebar() {
         {navigation.map((item) => (
           <SidebarLink key={item.name} item={item} isCollapsed={isCollapsed} />
         ))}
+        
+        {/* Admin-only navigation items */}
+        {user?.role === 'admin' && (
+          <>
+            <div className={cn("my-2 border-t border-muted", { "mx-2": !isCollapsed })} />
+            {adminNavigation.map((item) => (
+              <SidebarLink key={item.name} item={item} isCollapsed={isCollapsed} />
+            ))}
+          </>
+        )}
       </div>
 
       <div className={cn("px-3 py-4 border-t", { "text-center": isCollapsed })}>

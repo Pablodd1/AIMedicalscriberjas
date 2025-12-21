@@ -204,10 +204,11 @@ aiRouter.post('/generate-soap', async (req, res) => {
       
       const patientInfoString = `Patient: ${patientName}, ID: ${patientInfo?.id || 'Unknown'}`;
       
-      // Prepare visit metadata
+      // Prepare visit metadata - use location from patientInfo if provided
       const visitMeta = {
         visitType: patientInfo?.visitType || "General Consultation",
-        location: "Telemedicine",
+        location: patientInfo?.location || "Office Visit",
+        inputSource: patientInfo?.inputSource || "unknown",
         provider: req.user.email || "Provider",
         patientDemographics: {
           name: patientName,
@@ -349,7 +350,8 @@ C. **Coding & Billing - WITH CONFIDENCE LEVELS**
 D. **Compliance & Audit Trail**
    • Red flag missing vitals, ROS, pain scale, consent
    • Explicit attestation: "Patient consent obtained for treatment. Risks/benefits explained."
-   • Telemedicine → include patient location, provider location, CPT modifier -95
+   • If visit is Telemedicine/Video → include patient location, provider location, CPT modifier -95
+   • If visit is Office Visit/In-Person → document as standard encounter (no -95 modifier needed)
    • HIPAA: Do not output PHI outside JSON. Never fabricate.
 
 E. **Language**
@@ -382,8 +384,13 @@ E. **Language**
             role: 'user',
             content: `Generate comprehensive medical documentation for this consultation.
 
-VISIT METADATA:
+VISIT METADATA (use this to determine visit type and location):
 ${JSON.stringify(visitMeta, null, 2)}
+
+IMPORTANT: Use the 'location' and 'inputSource' fields above to determine visit context:
+- If inputSource is 'voice' or location is 'In-Office' → This is an in-person office visit
+- If inputSource is 'telemedicine' or location contains 'Telemedicine' → This is a telemedicine/video visit
+- If inputSource is 'text' or 'upload' → Document as the location specifies, default to office visit
 
 TRANSCRIPT:
 ${sanitizedTranscript}

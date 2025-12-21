@@ -9,7 +9,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, ChevronLeft, ChevronRight, Edit2, Trash2, Mail, Calendar as CalendarIcon2, CheckCircle, XCircle, Clock, ClipboardCheck, Download } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Edit2, Trash2, Mail, Calendar as CalendarIcon2, CheckCircle, XCircle, Clock, ClipboardCheck, Download, GripVertical, RefreshCw } from "lucide-react";
 import * as XLSX from 'xlsx';
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -61,6 +61,11 @@ export default function Appointments() {
   const [searchEmail, setSearchEmail] = useState("");
   const [searchDate, setSearchDate] = useState<Date | undefined>(undefined);
   const [searchStatus, setSearchStatus] = useState<string>("all");
+  const [draggedAppointment, setDraggedAppointment] = useState<Appointment | null>(null);
+  const [dropTargetDate, setDropTargetDate] = useState<Date | null>(null);
+  const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
+  const [rescheduleTarget, setRescheduleTarget] = useState<{appointment: Appointment, newDate: Date} | null>(null);
+  const [rescheduleTime, setRescheduleTime] = useState<{hour: string, minute: string}>({hour: "9", minute: "0"});
 
   const { data: appointments } = useQuery<Appointment[]>({
     queryKey: ["/api/appointments"],
@@ -431,6 +436,76 @@ export default function Appointments() {
     setSearchEmail("");
     setSearchDate(undefined);
     setSearchStatus("all");
+  };
+
+  // Drag and Drop handlers
+  const handleDragStart = (e: React.DragEvent, appointment: Appointment) => {
+    setDraggedAppointment(appointment);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', appointment.id.toString());
+    // Add a visual indicator
+    const target = e.target as HTMLElement;
+    target.style.opacity = '0.5';
+  };
+
+  const handleDragEnd = (e: React.DragEvent) => {
+    const target = e.target as HTMLElement;
+    target.style.opacity = '1';
+    setDraggedAppointment(null);
+    setDropTargetDate(null);
+  };
+
+  const handleDragOver = (e: React.DragEvent, date: Date) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDropTargetDate(date);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    setDropTargetDate(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetDate: Date) => {
+    e.preventDefault();
+    setDropTargetDate(null);
+    
+    if (draggedAppointment) {
+      // Show reschedule dialog with time selection
+      setRescheduleTarget({appointment: draggedAppointment, newDate: targetDate});
+      // Set initial time to the original appointment time
+      const originalDate = new Date(draggedAppointment.date);
+      setRescheduleTime({
+        hour: originalDate.getHours().toString(),
+        minute: originalDate.getMinutes().toString()
+      });
+      setShowRescheduleDialog(true);
+    }
+    
+    setDraggedAppointment(null);
+  };
+
+  const confirmReschedule = () => {
+    if (!rescheduleTarget) return;
+    
+    const newDateTime = new Date(rescheduleTarget.newDate);
+    newDateTime.setHours(parseInt(rescheduleTime.hour), parseInt(rescheduleTime.minute), 0, 0);
+    
+    // Update the appointment
+    updateAppointmentMutation.mutate({
+      id: rescheduleTarget.appointment.id,
+      data: {
+        ...rescheduleTarget.appointment,
+        date: newDateTime.getTime(),
+        status: 'rescheduled'
+      }
+    });
+    
+    setShowRescheduleDialog(false);
+    setRescheduleTarget(null);
+    toast({
+      title: "Appointment Rescheduled",
+      description: `Appointment moved to ${format(newDateTime, 'PPP')} at ${format(newDateTime, 'p')}`,
+    });
   };
 
   return (
@@ -1196,7 +1271,13 @@ export default function Appointments() {
 
           <div className="bg-white border rounded-lg overflow-hidden">
             <div className="flex items-center justify-between p-2 md:p-4 border-b">
-              <h3 className="font-medium text-sm md:text-base">{format(currentMonth, 'MMMM yyyy')}</h3>
+              <div className="flex flex-col gap-1">
+                <h3 className="font-medium text-sm md:text-base">{format(currentMonth, 'MMMM yyyy')}</h3>
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <GripVertical className="h-3 w-3" />
+                  <span>Drag appointments to reschedule</span>
+                </p>
+              </div>
               <div className="flex space-x-2">
                 <Button variant="outline" size="icon" onClick={() => navigateMonth('prev')} className="h-8 w-8 md:h-10 md:w-10">
                   <ChevronLeft className="h-3 w-3 md:h-4 md:w-4" />
@@ -1218,16 +1299,21 @@ export default function Appointments() {
 
             <div className="grid grid-cols-7">
               {Array.from({ length: getDay(days[0].date) }).map((_, index) => (
-                <div key={`empty-${index}`} className="h-16 md:h-24 border-t border-r p-0.5 md:p-1 bg-gray-50"></div>
+                <div 
+                  key={`empty-${index}`} 
+                  className="h-16 md:h-24 border-t border-r p-0.5 md:p-1 bg-gray-50"
+                  onDragOver={(e) => e.preventDefault()}
+                ></div>
               ))}
 
               {days.map((day, index) => (
                 <div
                   key={index}
                   className={cn(
-                    "h-16 md:h-24 border-t border-r p-0.5 md:p-1 cursor-pointer hover:bg-gray-50",
+                    "h-16 md:h-24 border-t border-r p-0.5 md:p-1 cursor-pointer hover:bg-gray-50 transition-all duration-200",
                     day.isToday && "bg-blue-50",
                     selectedDate && isSameDay(day.date, selectedDate) && "ring-2 ring-blue-500",
+                    dropTargetDate && isSameDay(day.date, dropTargetDate) && "bg-green-100 ring-2 ring-green-500 ring-dashed",
                     "relative overflow-hidden"
                   )}
                   onClick={() => {
@@ -1236,6 +1322,9 @@ export default function Appointments() {
                       setShowDayAppointments(true);
                     }
                   }}
+                  onDragOver={(e) => handleDragOver(e, day.date)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, day.date)}
                 >
                   <div className="flex justify-between items-start">
                     <span
@@ -1262,17 +1351,24 @@ export default function Appointments() {
                       return (
                         <div
                           key={i}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, appointment)}
+                          onDragEnd={handleDragEnd}
                           className={cn(
-                            "text-[10px] md:text-xs p-0.5 md:p-1 mb-0.5 md:mb-1 text-white rounded truncate",
+                            "text-[10px] md:text-xs p-0.5 md:p-1 mb-0.5 md:mb-1 text-white rounded truncate cursor-grab active:cursor-grabbing",
                             appointment.status === "completed" ? "bg-green-600" :
                             appointment.status === "cancelled" ? "bg-red-600" :
-                            "bg-blue-500"
+                            appointment.status === "rescheduled" ? "bg-purple-500" :
+                            "bg-blue-500",
+                            draggedAppointment?.id === appointment.id && "opacity-50"
                           )}
                           title={`${patientName} - ${format(new Date(appointment.date), 'p')}
 Patient: ${patientStatus === 'confirmed' ? 'Confirmed' : patientStatus === 'declined' ? 'Declined' : 'Pending'}
-Status: ${appointment.status}`}
+Status: ${appointment.status}
+💡 Drag to reschedule`}
                         >
                           <div className="flex items-center gap-0.5 md:gap-1">
+                            <GripVertical className="h-2 w-2 md:h-3 md:w-3 flex-shrink-0 opacity-60" />
                             <span className={cn(
                               "inline-block w-1.5 h-1.5 md:w-2 md:h-2 rounded-full flex-shrink-0",
                               patientStatus === "confirmed" && "bg-green-300",
@@ -1600,6 +1696,92 @@ Status: ${appointment.status}`}
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Drag-and-Drop Reschedule Confirmation Dialog */}
+      <Dialog open={showRescheduleDialog} onOpenChange={setShowRescheduleDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RefreshCw className="h-5 w-5 text-blue-500" />
+              Reschedule Appointment
+            </DialogTitle>
+          </DialogHeader>
+          {rescheduleTarget && (
+            <div className="space-y-4 py-4">
+              <div className="bg-muted/50 p-4 rounded-lg space-y-2">
+                <p className="text-sm">
+                  <span className="font-medium">Patient:</span>{' '}
+                  {(() => {
+                    const patient = patients?.find(p => p.id === rescheduleTarget.appointment.patientId);
+                    return patient ? `${patient.firstName} ${patient.lastName || ''}` : 'Unknown Patient';
+                  })()}
+                </p>
+                <p className="text-sm">
+                  <span className="font-medium">Current Date:</span>{' '}
+                  {format(new Date(rescheduleTarget.appointment.date), 'PPP p')}
+                </p>
+                <div className="border-t pt-2 mt-2">
+                  <p className="text-sm font-medium text-green-600">
+                    New Date: {format(rescheduleTarget.newDate, 'PPP')}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Select New Time</label>
+                <div className="flex items-center gap-2">
+                  <Select 
+                    value={rescheduleTime.hour}
+                    onValueChange={(hour) => setRescheduleTime(prev => ({...prev, hour}))}
+                  >
+                    <SelectTrigger className="w-[100px]">
+                      <SelectValue placeholder="Hour" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 24 }, (_, i) => (
+                        <SelectItem key={i} value={i.toString()}>
+                          {i.toString().padStart(2, '0')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span className="text-lg font-medium">:</span>
+                  <Select 
+                    value={rescheduleTime.minute}
+                    onValueChange={(minute) => setRescheduleTime(prev => ({...prev, minute}))}
+                  >
+                    <SelectTrigger className="w-[100px]">
+                      <SelectValue placeholder="Min" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[0, 15, 30, 45].map((minute) => (
+                        <SelectItem key={minute} value={minute.toString()}>
+                          {minute.toString().padStart(2, '0')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              <div className="flex justify-end gap-2 pt-4">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setShowRescheduleDialog(false);
+                    setRescheduleTarget(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={confirmReschedule}>
+                  Confirm Reschedule
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

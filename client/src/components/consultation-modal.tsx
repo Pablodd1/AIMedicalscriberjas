@@ -25,7 +25,9 @@ import {
   Loader2,
   ClipboardCopy,
   Download,
+  FileSignature,
 } from "lucide-react";
+import { SignaturePad, SignatureDisplay, SignatureData } from "@/components/signature-pad";
 
 interface ConsultationModalProps {
   isOpen: boolean;
@@ -50,6 +52,7 @@ export function ConsultationModal({
   const [isLiveTranscribing, setIsLiveTranscribing] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState("");
   const [isDownloading, setIsDownloading] = useState(false);
+  const [signatureData, setSignatureData] = useState<SignatureData | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -152,7 +155,7 @@ export function ConsultationModal({
       
       // Generate notes from the final transcript
       if (finalTranscript.trim()) {
-        generateNotes(finalTranscript);
+        generateNotes(finalTranscript, 'voice');
       } else {
         toast({
           title: "No Transcript Available",
@@ -180,7 +183,7 @@ export function ConsultationModal({
       setIsProcessing(true);
       const text = await recordingService.processAudioFile(file);
       setTranscript(text);
-      generateNotes(text);
+      generateNotes(text, 'upload');
     } catch (error) {
       console.error("Failed to process audio file:", error);
       toast({
@@ -193,7 +196,7 @@ export function ConsultationModal({
     }
   };
 
-  const generateNotes = async (text: string) => {
+  const generateNotes = async (text: string, inputSource?: 'voice' | 'text' | 'upload') => {
     try {
       setIsProcessing(true);
       
@@ -217,8 +220,11 @@ export function ConsultationModal({
         return;
       }
       
+      // Determine input source based on active tab if not provided
+      const source = inputSource || (activeTab === 'live-recording' ? 'voice' : activeTab === 'upload' ? 'upload' : 'text');
+      
       // Generate the notes using custom prompts for the selected note type
-      const generatedNotes = await generateSoapNotes(text, patientInfo, noteType);
+      const generatedNotes = await generateSoapNotes(text, patientInfo, noteType, source);
       
       // Set the notes in the state
       setNotes(generatedNotes);
@@ -695,7 +701,7 @@ export function ConsultationModal({
                   value={transcript}
                 />
                 <Button
-                  onClick={() => generateNotes(transcript)}
+                  onClick={() => generateNotes(transcript, 'text')}
                   disabled={!transcript.trim() || isProcessing}
                   className="w-full"
                 >
@@ -752,11 +758,32 @@ export function ConsultationModal({
                       </>
                     )}
                   </Button>
+                  {/* Electronic Signature */}
+                  <SignaturePad
+                    compact
+                    documentTitle="SOAP Note"
+                    documentType="consultation"
+                    patientName={patientInfo?.firstName ? `${patientInfo.firstName} ${patientInfo.lastName || ''}` : patientInfo?.name}
+                    onSignatureComplete={(data) => {
+                      setSignatureData(data);
+                      toast({
+                        title: "Signature Captured",
+                        description: "Your electronic signature has been added.",
+                      });
+                    }}
+                  />
                 </div>
               </div>
               <div className="p-4 border rounded-md bg-muted/50 max-h-[200px] overflow-y-auto">
                 <pre className="whitespace-pre-wrap font-sans text-sm">{notes}</pre>
               </div>
+              
+              {/* Display signature if captured */}
+              {signatureData && (
+                <div className="mt-2">
+                  <SignatureDisplay signatureData={signatureData} showDetails={false} />
+                </div>
+              )}
             </div>
           )}
           

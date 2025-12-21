@@ -4,6 +4,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { randomBytes } from 'crypto';
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
+import { pool } from "./db";
 import { FileStorage } from "./file-storage";
 import { CloudinaryStorage } from "./cloudinary-storage";
 import { aiRouter } from "./routes/ai";
@@ -1029,6 +1030,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get all active global prompts (for dropdown menus)
+  app.get("/api/global-prompts", async (req, res) => {
+    try {
+      const result = await pool.query(`
+        SELECT id, note_type as "noteType", name, description, 
+               system_prompt as "systemPrompt", template_content as "templateContent",
+               is_active as "isActive", version
+        FROM custom_note_prompts 
+        WHERE is_global = true AND is_active = true
+        ORDER BY note_type
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error("Error fetching global prompts:", error);
+      res.status(500).json({ message: "Failed to fetch global prompts" });
+    }
+  });
+
   app.get("/api/custom-note-prompts/:noteType", async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
@@ -1037,8 +1056,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const userId = req.user!.id;
       const { noteType } = req.params;
-      const prompt = await storage.getCustomNotePrompt(userId, noteType);
-      res.json(prompt || null);
+      
+      // First, try to get user's custom prompt
+      const userPrompt = await storage.getCustomNotePrompt(userId, noteType);
+      
+      if (userPrompt) {
+        return res.json(userPrompt);
+      }
+      
+      // If no user prompt, get global prompt from database
+      try {
+        const globalResult = await pool.query(`
+          SELECT id, note_type as "noteType", name, description, 
+                 system_prompt as "systemPrompt", template_content as "templateContent",
+                 is_global as "isGlobal", is_active as "isActive", version
+          FROM custom_note_prompts 
+          WHERE note_type = $1 AND is_global = true AND is_active = true
+          LIMIT 1
+        `, [noteType]);
+        
+        if (globalResult.rows.length > 0) {
+          return res.json(globalResult.rows[0]);
+        }
+      } catch (dbError) {
+        console.log("Could not fetch global prompt:", dbError);
+      }
+      
+      res.json(null);
     } catch (error) {
       console.error("Error fetching custom note prompt:", error);
       res.status(500).json({ message: "Failed to fetch custom note prompt" });

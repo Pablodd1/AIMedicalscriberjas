@@ -138,18 +138,42 @@ class BrowserRecordingService implements RecordingServiceInterface {
       // Handle errors
       this.speechRecognition.onerror = (event: any) => {
         console.error("Speech recognition error:", event.error);
-        let errorMsg = "Speech recognition error: " + event.error;
+        let errorMsg = "";
+        let shouldNotify = true;
         
-        if (event.error === 'not-allowed') {
-          errorMsg = "Microphone access denied. Please allow microphone access and try again.";
-        } else if (event.error === 'network') {
-          errorMsg = "Network error during speech recognition. Please check your internet connection.";
+        switch (event.error) {
+          case 'not-allowed':
+            errorMsg = "Microphone access denied. Please allow microphone access and try again.";
+            break;
+          case 'network':
+            // Network errors are common and usually recoverable - don't spam user
+            errorMsg = "network";
+            shouldNotify = false; // Don't show notification for network errors
+            console.log("Network error in speech recognition - this is normal, will retry automatically");
+            break;
+          case 'no-speech':
+            // No speech detected - don't show error, just log
+            console.log("No speech detected - waiting for speech...");
+            shouldNotify = false;
+            return; // Don't call error callback
+          case 'audio-capture':
+            errorMsg = "No microphone detected. Please connect a microphone and try again.";
+            break;
+          case 'aborted':
+            // User or system aborted - don't show error
+            shouldNotify = false;
+            return;
+          default:
+            errorMsg = "Speech recognition error: " + event.error;
         }
         
-        if (this.onErrorCallback) {
+        if (this.onErrorCallback && errorMsg) {
           this.onErrorCallback(errorMsg);
         }
-        notify(errorMsg, "error");
+        
+        if (shouldNotify && errorMsg) {
+          notify(errorMsg, "error");
+        }
       };
       
       // Handle end event
@@ -272,8 +296,20 @@ class BrowserRecordingService implements RecordingServiceInterface {
 }
 
 // Generate SOAP notes from transcript using AI
-export async function generateSoapNotes(transcript: string, patientInfo: any, noteType?: string): Promise<string> {
+export async function generateSoapNotes(
+  transcript: string, 
+  patientInfo: any, 
+  noteType?: string,
+  inputSource?: 'voice' | 'text' | 'upload' | 'telemedicine'
+): Promise<string> {
   try {
+    // Determine location/input method for the note
+    const location = inputSource === 'telemedicine' ? 'Telemedicine/Video Consultation' 
+                   : inputSource === 'voice' ? 'In-Office Voice Recording'
+                   : inputSource === 'upload' ? 'Audio File Upload (Pre-recorded)'
+                   : inputSource === 'text' ? 'Manual Transcript Entry'
+                   : 'Office Visit'; // Default for unknown
+    
     // Simple direct implementation that should work reliably
     const response = await fetch('/api/ai/generate-soap', {
       method: 'POST',
@@ -286,6 +322,9 @@ export async function generateSoapNotes(transcript: string, patientInfo: any, no
         patientInfo: {
           id: patientInfo?.id || 0,
           name: `${patientInfo?.firstName || ''} ${patientInfo?.lastName || ''}`.trim() || 'Unknown',
+          visitType: patientInfo?.visitType || 'General Consultation',
+          location: location, // Pass the determined location
+          inputSource: inputSource || 'unknown'
         }
       }),
     });

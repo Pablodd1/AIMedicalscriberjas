@@ -376,3 +376,182 @@ adminRouter.put('/users/:userId/api-key-setting', async (req: Request, res: Resp
     res.status(500).json({ error: 'Failed to update user API key setting' });
   }
 });
+
+// ==========================================
+// GLOBAL PROMPTS MANAGEMENT
+// ==========================================
+
+// Get all global prompts
+adminRouter.get('/global-prompts', async (req: Request, res: Response) => {
+  try {
+    const result = await pool.query(`
+      SELECT id, user_id, note_type, name, description, system_prompt, 
+             template_content, is_global, is_active, version,
+             created_at, updated_at
+      FROM custom_note_prompts 
+      WHERE is_global = true 
+      ORDER BY note_type, id
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching global prompts:', error);
+    res.status(500).json({ error: 'Failed to fetch global prompts' });
+  }
+});
+
+// Get a single global prompt
+adminRouter.get('/global-prompts/:id', async (req: Request, res: Response) => {
+  try {
+    const promptId = parseInt(req.params.id);
+    if (isNaN(promptId)) {
+      return res.status(400).json({ error: 'Invalid prompt ID' });
+    }
+    
+    const result = await pool.query(`
+      SELECT id, user_id, note_type, name, description, system_prompt, 
+             template_content, is_global, is_active, version,
+             created_at, updated_at
+      FROM custom_note_prompts 
+      WHERE id = $1 AND is_global = true
+    `, [promptId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Prompt not found' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error fetching global prompt:', error);
+    res.status(500).json({ error: 'Failed to fetch global prompt' });
+  }
+});
+
+// Create a new global prompt
+adminRouter.post('/global-prompts', async (req: Request, res: Response) => {
+  try {
+    const { name, description, note_type, system_prompt, template_content, is_active } = req.body;
+    
+    if (!name || !note_type || !system_prompt) {
+      return res.status(400).json({ error: 'Name, note_type, and system_prompt are required' });
+    }
+    
+    const userId = req.user?.id || 1;
+    
+    const result = await pool.query(`
+      INSERT INTO custom_note_prompts 
+        (user_id, note_type, name, description, system_prompt, template_content, is_global, is_active, version)
+      VALUES ($1, $2, $3, $4, $5, $6, true, $7, '1.0')
+      RETURNING *
+    `, [userId, note_type, name, description || '', system_prompt, template_content || '', is_active !== false]);
+    
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating global prompt:', error);
+    res.status(500).json({ error: 'Failed to create global prompt' });
+  }
+});
+
+// Update a global prompt
+adminRouter.put('/global-prompts/:id', async (req: Request, res: Response) => {
+  try {
+    const promptId = parseInt(req.params.id);
+    if (isNaN(promptId)) {
+      return res.status(400).json({ error: 'Invalid prompt ID' });
+    }
+    
+    const { name, description, note_type, system_prompt, template_content, is_active } = req.body;
+    
+    // Increment version
+    const currentResult = await pool.query(
+      'SELECT version FROM custom_note_prompts WHERE id = $1 AND is_global = true',
+      [promptId]
+    );
+    
+    if (currentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Prompt not found' });
+    }
+    
+    const currentVersion = parseFloat(currentResult.rows[0].version) || 1.0;
+    const newVersion = (currentVersion + 0.1).toFixed(1);
+    
+    const result = await pool.query(`
+      UPDATE custom_note_prompts 
+      SET name = COALESCE($1, name),
+          description = COALESCE($2, description),
+          note_type = COALESCE($3, note_type),
+          system_prompt = COALESCE($4, system_prompt),
+          template_content = COALESCE($5, template_content),
+          is_active = COALESCE($6, is_active),
+          version = $7,
+          updated_at = NOW()
+      WHERE id = $8 AND is_global = true
+      RETURNING *
+    `, [name, description, note_type, system_prompt, template_content, is_active, newVersion, promptId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Prompt not found' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating global prompt:', error);
+    res.status(500).json({ error: 'Failed to update global prompt' });
+  }
+});
+
+// Toggle prompt active status
+adminRouter.patch('/global-prompts/:id/toggle', async (req: Request, res: Response) => {
+  try {
+    const promptId = parseInt(req.params.id);
+    if (isNaN(promptId)) {
+      return res.status(400).json({ error: 'Invalid prompt ID' });
+    }
+    
+    const { is_active } = req.body;
+    
+    if (typeof is_active !== 'boolean') {
+      return res.status(400).json({ error: 'is_active must be a boolean' });
+    }
+    
+    const result = await pool.query(`
+      UPDATE custom_note_prompts 
+      SET is_active = $1, updated_at = NOW()
+      WHERE id = $2 AND is_global = true
+      RETURNING *
+    `, [is_active, promptId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Prompt not found' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error toggling prompt status:', error);
+    res.status(500).json({ error: 'Failed to toggle prompt status' });
+  }
+});
+
+// Delete a global prompt
+adminRouter.delete('/global-prompts/:id', async (req: Request, res: Response) => {
+  try {
+    const promptId = parseInt(req.params.id);
+    if (isNaN(promptId)) {
+      return res.status(400).json({ error: 'Invalid prompt ID' });
+    }
+    
+    const result = await pool.query(`
+      DELETE FROM custom_note_prompts 
+      WHERE id = $1 AND is_global = true
+      RETURNING id
+    `, [promptId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Prompt not found' });
+    }
+    
+    res.json({ success: true, message: 'Prompt deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting global prompt:', error);
+    res.status(500).json({ error: 'Failed to delete global prompt' });
+  }
+});

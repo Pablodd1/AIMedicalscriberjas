@@ -120,10 +120,14 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
 
   // Enhanced recording functions for both audio and video
   const startRecording = () => {
-    if (!remoteVideoRef.current || !remoteVideoRef.current.srcObject) {
+    // Allow recording with just local stream if no remote stream
+    const hasRemoteStream = remoteVideoRef.current && remoteVideoRef.current.srcObject;
+    const hasLocalStream = localStreamRef.current;
+    
+    if (!hasLocalStream) {
       toast({
         title: "Recording Error",
-        description: "Cannot start recording. No remote stream available.",
+        description: "Cannot start recording. Camera/microphone not available.",
         variant: "destructive"
       });
       return;
@@ -136,12 +140,12 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
 
       // ---- Create a composite stream with both video and audio ----
       
-      // 1. Get the streams
-      const remoteStream = remoteVideoRef.current.srcObject as MediaStream;
+      // 1. Get the streams - remote stream is optional
+      const remoteStream = hasRemoteStream ? remoteVideoRef.current!.srcObject as MediaStream : null;
       const localStream = localStreamRef.current;
       
-      if (!remoteStream || !localStream) {
-        throw new Error("Video streams are not available");
+      if (!localStream) {
+        throw new Error("Local video stream is not available");
       }
       
       // 2. Create canvas for picture-in-picture effect
@@ -160,8 +164,8 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       const remoteVideo = remoteVideoRef.current;
       const localVideo = localVideoRef.current;
       
-      if (!remoteVideo || !localVideo) {
-        throw new Error("Video elements not found");
+      if (!localVideo) {
+        throw new Error("Local video element not found");
       }
       
       // 3. Create audio context for high-quality audio mixing
@@ -170,19 +174,8 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
         latencyHint: 'interactive'
       });
       
-      // Get audio from both streams
-      const remoteAudio = audioContext.createMediaStreamSource(remoteStream);
-      const localAudio = audioContext.createMediaStreamSource(localStream);
-      
       // Create destination for mixed audio
       const audioDestination = audioContext.createMediaStreamDestination();
-      
-      // Add gain nodes for audio balancing
-      const remoteGain = audioContext.createGain();
-      remoteGain.gain.value = 1.1; // Boost remote audio slightly
-      
-      const localGain = audioContext.createGain();
-      localGain.gain.value = 1.0; // Keep local audio at normal level
       
       // Add dynamics compression for better audio quality
       const compressor = audioContext.createDynamicsCompressor();
@@ -191,12 +184,21 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       compressor.attack.value = 0.003;
       compressor.release.value = 0.25;
       
-      // Connect audio processing chain
-      remoteAudio.connect(remoteGain);
+      // Get audio from local stream (always available)
+      const localAudio = audioContext.createMediaStreamSource(localStream);
+      const localGain = audioContext.createGain();
+      localGain.gain.value = 1.0;
       localAudio.connect(localGain);
-      
-      remoteGain.connect(compressor);
       localGain.connect(compressor);
+      
+      // Get audio from remote stream if available
+      if (remoteStream) {
+        const remoteAudio = audioContext.createMediaStreamSource(remoteStream);
+        const remoteGain = audioContext.createGain();
+        remoteGain.gain.value = 1.1; // Boost remote audio slightly
+        remoteAudio.connect(remoteGain);
+        remoteGain.connect(compressor);
+      }
       
       compressor.connect(audioDestination);
       
@@ -248,39 +250,51 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       const mediaRecorder = new MediaRecorder(compositeStream, options);
       mediaRecorderRef.current = mediaRecorder;
       
-      // 6. Set up continuous drawing of video frames (picture-in-picture)
+      // 6. Set up continuous drawing of video frames (picture-in-picture or local only)
       const drawVideoFrame = () => {
         if (!ctx) return;
         
         // Clear canvas
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        // Draw main (remote) video filling the canvas
-        ctx.drawImage(remoteVideo, 0, 0, canvas.width, canvas.height);
-        
-        // Calculate picture-in-picture size (1/4 width, positioned in top-right)
-        const pipWidth = canvas.width / 4;
-        const pipHeight = canvas.height / 4;
-        const pipMargin = 20;
-        
-        // Draw local video (picture-in-picture)
-        ctx.drawImage(
-          localVideo, 
-          canvas.width - pipWidth - pipMargin, 
-          pipMargin, 
-          pipWidth, 
-          pipHeight
-        );
-        
-        // Add border to picture-in-picture
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(
-          canvas.width - pipWidth - pipMargin, 
-          pipMargin, 
-          pipWidth, 
-          pipHeight
-        );
+        if (remoteVideo && remoteStream) {
+          // Draw main (remote) video filling the canvas
+          ctx.drawImage(remoteVideo, 0, 0, canvas.width, canvas.height);
+          
+          // Calculate picture-in-picture size (1/4 width, positioned in top-right)
+          const pipWidth = canvas.width / 4;
+          const pipHeight = canvas.height / 4;
+          const pipMargin = 20;
+          
+          // Draw local video (picture-in-picture)
+          ctx.drawImage(
+            localVideo, 
+            canvas.width - pipWidth - pipMargin, 
+            pipMargin, 
+            pipWidth, 
+            pipHeight
+          );
+          
+          // Add border to picture-in-picture
+          ctx.strokeStyle = '#FFFFFF';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(
+            canvas.width - pipWidth - pipMargin, 
+            pipMargin, 
+            pipWidth, 
+            pipHeight
+          );
+        } else {
+          // No remote stream - just show local video full screen
+          ctx.drawImage(localVideo, 0, 0, canvas.width, canvas.height);
+          
+          // Add "Recording" indicator
+          ctx.fillStyle = 'rgba(255, 0, 0, 0.7)';
+          ctx.fillRect(20, 20, 120, 40);
+          ctx.fillStyle = '#FFFFFF';
+          ctx.font = 'bold 20px Arial';
+          ctx.fillText('● REC', 35, 48);
+        }
         
         // Request next animation frame
         window.requestAnimationFrame(drawVideoFrame);

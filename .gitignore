@@ -6,3 +6,6 @@ vite.config.ts.*
 *.tar.gz
 .local
 test_openai.js
+.env
+.env.local
+.env.*.local

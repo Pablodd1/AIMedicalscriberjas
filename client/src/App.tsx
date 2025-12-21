@@ -31,6 +31,7 @@ import PatientIntake from "@/pages/patient-intake";
 import MonitoringSystem from "@/pages/monitoring";
 import LabInterpreter from "@/pages/lab-interpreter";
 import AdminPanel from "@/pages/admin-panel";
+import AdminPrompts from "@/pages/admin-prompts";
 
 // Wrapper components for each page with the MainLayout
 const DashboardPage = () => (
@@ -111,6 +112,18 @@ const LabInterpreterPage = () => (
   </MainLayout>
 );
 
+const AdminPromptsPage = () => (
+  <MainLayout>
+    <AdminPrompts />
+  </MainLayout>
+);
+
+const AdminPanelPage = () => (
+  <MainLayout>
+    <AdminPanel />
+  </MainLayout>
+);
+
 function Router() {
   return (
     <Switch>
@@ -131,7 +144,8 @@ function Router() {
       <ProtectedRoute path="/patient-intake" component={PatientIntakePage} />
       <ProtectedRoute path="/monitoring" component={MonitoringPage} />
       <ProtectedRoute path="/lab-interpreter" component={LabInterpreterPage} />
-      <Route path="/admin" component={AdminPanel} />
+      <ProtectedRoute path="/admin" component={AdminPanelPage} />
+      <ProtectedRoute path="/admin/prompts" component={AdminPromptsPage} />
       
       {/* Public Routes - accessible without authentication */}
       <Route path="/login" component={AuthPage} />

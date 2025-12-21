@@ -1,13 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { Patient, Appointment, User } from "@shared/schema";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
 import { format } from "date-fns";
-import { Calendar, Users, Clock, Stethoscope, Activity } from "lucide-react";
+import { Calendar, Users, Clock, Stethoscope, Activity, Plus, FileText, Video, PenTool, UserPlus, CalendarPlus, ClipboardList } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Link } from "wouter";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -81,6 +82,57 @@ export default function Dashboard() {
           </Card>
         ))}
       </div>
+
+      {/* Quick Actions */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Plus className="h-5 w-5" />
+            Quick Actions
+          </CardTitle>
+          <CardDescription>Common tasks you can start right away</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <Link href="/patients">
+              <Button variant="outline" className="w-full h-20 flex flex-col gap-2">
+                <UserPlus className="h-5 w-5" />
+                <span className="text-xs">New Patient</span>
+              </Button>
+            </Link>
+            <Link href="/appointments">
+              <Button variant="outline" className="w-full h-20 flex flex-col gap-2">
+                <CalendarPlus className="h-5 w-5" />
+                <span className="text-xs">New Appointment</span>
+              </Button>
+            </Link>
+            <Link href="/notes">
+              <Button variant="outline" className="w-full h-20 flex flex-col gap-2">
+                <FileText className="h-5 w-5" />
+                <span className="text-xs">Medical Notes</span>
+              </Button>
+            </Link>
+            <Link href="/quick-notes">
+              <Button variant="outline" className="w-full h-20 flex flex-col gap-2">
+                <PenTool className="h-5 w-5" />
+                <span className="text-xs">Quick Notes</span>
+              </Button>
+            </Link>
+            <Link href="/telemedicine">
+              <Button variant="outline" className="w-full h-20 flex flex-col gap-2">
+                <Video className="h-5 w-5" />
+                <span className="text-xs">Telemedicine</span>
+              </Button>
+            </Link>
+            <Link href="/patient-intake">
+              <Button variant="outline" className="w-full h-20 flex flex-col gap-2">
+                <ClipboardList className="h-5 w-5" />
+                <span className="text-xs">Patient Intake</span>
+              </Button>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>

@@ -60,7 +60,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Check, X, Trash2, UserPlus, UserCog, Shield, Users, Key, AlertCircle, CheckCircle } from 'lucide-react';
+import { Loader2, Check, X, Trash2, UserPlus, UserCog, Shield, Users, Key, AlertCircle, CheckCircle, ShieldAlert } from 'lucide-react';
+import { useAuth } from '@/hooks/use-auth';
+import { Link } from 'wouter';
 
 interface User {
   id: number;
@@ -93,8 +95,16 @@ const AdminLoginSchema = z.object({
 
 const AdminPanel = () => {
   const queryClient = useQueryClient();
+  const { user: currentUser } = useAuth();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+
+  // Auto-authenticate if user is admin
+  useEffect(() => {
+    if (currentUser?.role === 'admin') {
+      setIsAuthenticated(true);
+    }
+  }, [currentUser]);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showResetPasswordDialog, setShowResetPasswordDialog] = useState(false);
@@ -549,12 +559,47 @@ const AdminPanel = () => {
     }
   };
 
+  // Show access denied for non-admin users
+  if (currentUser && currentUser.role !== 'admin' && !isAuthenticated) {
+    return (
+      <div className="container mx-auto py-8">
+        <Card className="max-w-md mx-auto">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="h-6 w-6 text-destructive" />
+              <CardTitle>Access Denied</CardTitle>
+            </div>
+            <CardDescription>
+              You don't have permission to access the Admin Panel.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Only users with the <Badge variant="destructive">admin</Badge> role can access this page.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Your current role: <Badge variant="secondary">{currentUser.role}</Badge>
+            </p>
+          </CardContent>
+          <CardFooter>
+            <Link href="/dashboard">
+              <Button className="w-full">Return to Dashboard</Button>
+            </Link>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
+
   if (!isAuthenticated) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <Card className="w-[350px]">
+      <div className="container mx-auto py-8">
+        <Card className="max-w-md mx-auto">
           <CardHeader>
-            <CardTitle>Admin Authentication</CardTitle>
+            <div className="flex items-center gap-2">
+              <Shield className="h-6 w-6" />
+              <CardTitle>Admin Authentication</CardTitle>
+            </div>
             <CardDescription>
               Enter the admin password to access the admin panel.
             </CardDescription>
@@ -588,9 +633,21 @@ const AdminPanel = () => {
 
   return (
     <div className="container mx-auto py-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Admin Panel</h1>
-        <div className="flex gap-2">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+        <div>
+          <h1 className="text-3xl font-bold flex items-center gap-2">
+            <Shield className="h-8 w-8" />
+            Admin Panel
+          </h1>
+          <p className="text-muted-foreground mt-1">Manage users, API keys, and system settings</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/admin/prompts">
+            <Button variant="outline" size="sm">
+              <FileText className="h-4 w-4 mr-2" />
+              Global Prompts
+            </Button>
+          </Link>
           <Button 
             variant="outline" 
             size="sm"
@@ -598,18 +655,21 @@ const AdminPanel = () => {
           >
             Refresh Data
           </Button>
-          <Button 
-            variant="outline" 
-            onClick={() => {
-              setIsAuthenticated(false);
-              toast({
-                title: 'Logged out',
-                description: 'You have been logged out of the admin panel.'
-              });
-            }}
-          >
-            Logout
-          </Button>
+          {currentUser?.role !== 'admin' && (
+            <Button 
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setIsAuthenticated(false);
+                toast({
+                  title: 'Logged out',
+                  description: 'You have been logged out of the admin panel.'
+                });
+              }}
+            >
+              Logout Admin
+            </Button>
+          )}
         </div>
       </div>
       

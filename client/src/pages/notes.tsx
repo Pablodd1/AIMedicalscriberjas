@@ -61,6 +61,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import { SignaturePad, SignatureDisplay, SignatureData } from "@/components/signature-pad";
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -85,6 +86,7 @@ export default function Notes() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [isAssistantThinking, setIsAssistantThinking] = useState(false);
+  const [signatureData, setSignatureData] = useState<SignatureData | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -844,7 +846,29 @@ Plan:
                     </>
                   )}
                 </Button>
+                
+                {/* Electronic Signature */}
+                <SignaturePad
+                  compact
+                  documentTitle={noteTitle || "Medical Note"}
+                  documentType="medical_note"
+                  patientName={selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : undefined}
+                  onSignatureComplete={(data) => {
+                    setSignatureData(data);
+                    toast({
+                      title: "Signature Captured",
+                      description: "Your electronic signature has been added to this note.",
+                    });
+                  }}
+                />
               </div>
+              
+              {/* Signature Display */}
+              {signatureData && (
+                <div className="mt-4">
+                  <SignatureDisplay signatureData={signatureData} />
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
