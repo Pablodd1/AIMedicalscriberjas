@@ -24,7 +24,7 @@ export function ProtectedRoute({
         }
 
         if (!user) {
-          return <Redirect to="/auth" />;
+          return <Redirect to="/login" />;
         }
 
         return <Component />;
