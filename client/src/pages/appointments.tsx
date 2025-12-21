@@ -236,10 +236,21 @@ export default function Appointments() {
 
   const updateAppointmentMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number, data: any }) => {
-      const dateObj = typeof data.date === 'string' ? new Date(data.date) : data.date;
+      // Handle date in various formats: number (timestamp), string, or Date object
+      let dateTimestamp: number;
+      if (typeof data.date === 'number') {
+        dateTimestamp = data.date;
+      } else if (typeof data.date === 'string') {
+        dateTimestamp = new Date(data.date).getTime();
+      } else if (data.date instanceof Date) {
+        dateTimestamp = data.date.getTime();
+      } else {
+        dateTimestamp = new Date().getTime();
+      }
+      
       const formattedData = {
         ...data,
-        date: dateObj.getTime(),
+        date: dateTimestamp,
       };
       const res = await apiRequest("PUT", `/api/appointments/${id}`, formattedData);
       return res.json();

@@ -4,6 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import { 
   Mic, 
   Loader2, 
@@ -18,7 +21,20 @@ import {
   Settings,
   ChevronsUpDown,
   Eye,
-  Download
+  Download,
+  ChevronRight,
+  ChevronLeft,
+  Calendar,
+  Clock,
+  AlertCircle,
+  Sparkles,
+  History,
+  FileCheck,
+  Phone,
+  Mail,
+  MapPin,
+  ArrowRight,
+  Activity
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
@@ -47,29 +63,30 @@ import { Patient, InsertMedicalNote, MedicalNote, MedicalNoteTemplate, InsertMed
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
 import { ConsultationModal } from "@/components/consultation-modal";
-// Import individual dialog components
-import { Dialog } from "@/components/ui/dialog";
-import { DialogContent } from "@/components/ui/dialog";
-import { DialogHeader } from "@/components/ui/dialog";
-import { DialogTitle } from "@/components/ui/dialog";
-import { DialogFooter } from "@/components/ui/dialog";
-import { DialogTrigger } from "@/components/ui/dialog";
-import { DialogDescription } from "@/components/ui/dialog";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SignaturePad, SignatureDisplay, SignatureData } from "@/components/signature-pad";
+import { cn } from "@/lib/utils";
 
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
 }
 
+// Note type configuration with specialty prompts
+const NOTE_TYPES = [
+  { id: "initial", name: "Initial Consultation", icon: "🏥", description: "First visit with new patient", specialty: "General" },
+  { id: "followup", name: "Follow-Up Visit", icon: "🔄", description: "Progress check for existing patient", specialty: "General" },
+  { id: "physical", name: "Physical Examination", icon: "📋", description: "Annual wellness exam", specialty: "Primary Care" },
+  { id: "reevaluation", name: "Re-Evaluation", icon: "🔍", description: "Treatment review and adjustment", specialty: "General" },
+  { id: "procedure", name: "Procedure Note", icon: "🔧", description: "Document medical procedure", specialty: "Procedural" },
+  { id: "psychiatric", name: "Psychiatric Evaluation", icon: "🧠", description: "Mental health assessment", specialty: "Psychiatry" },
+  { id: "discharge", name: "Discharge Summary", icon: "📝", description: "Hospital/care discharge", specialty: "Hospital" },
+];
+
 export default function Notes() {
-  const [isRecording, setIsRecording] = useState(false);
+  // Workflow state: 1=Select Patient, 2=Review Summary, 3=Consultation, 4=Review & Sign
+  const [workflowStep, setWorkflowStep] = useState(1);
   const [isGenerating, setIsGenerating] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
@@ -77,7 +94,7 @@ export default function Notes() {
   const [noteTitle, setNoteTitle] = useState("");
   const [showConsultationModal, setShowConsultationModal] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [selectedNoteType, setSelectedNoteType] = useState<"initial" | "followup" | "physical" | "reevaluation" | "procedure" | "psychiatric" | "discharge">("initial");
+  const [selectedNoteType, setSelectedNoteType] = useState<string>("initial");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [templateContent, setTemplateContent] = useState("");
   const [patientSearchOpen, setPatientSearchOpen] = useState(false);
@@ -87,37 +104,9 @@ export default function Notes() {
   const [chatInput, setChatInput] = useState("");
   const [isAssistantThinking, setIsAssistantThinking] = useState(false);
   const [signatureData, setSignatureData] = useState<SignatureData | null>(null);
+  const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
-
-  // Generate a SOAP note structure if none exists
-  useEffect(() => {
-    if (!noteText && selectedPatientId) {
-      setNoteText(
-`SOAP Note
-
-Subjective:
--
--
--
-
-Objective:
--
--
--
-
-Assessment:
--
--
--
-
-Plan:
--
--
--
-`);
-    }
-  }, [selectedPatientId, noteText]);
 
   // Fetch patients
   const { data: patients, isLoading: isLoadingPatients } = useQuery<Patient[]>({
@@ -125,55 +114,95 @@ Plan:
   });
 
   // Fetch note templates
-  const { data: noteTemplates, isLoading: isLoadingTemplates } = useQuery<MedicalNoteTemplate[]>({
+  const { data: noteTemplates } = useQuery<MedicalNoteTemplate[]>({
     queryKey: ["/api/medical-note-templates"],
   });
 
   // Get selected patient details
   const selectedPatient = patients?.find(patient => patient.id === selectedPatientId);
-  
-  // Get selected template
-  const selectedTemplate = noteTemplates?.find(template => template.type === selectedNoteType);
+
+  // Fetch patient's medical notes
+  const { data: patientMedicalNotes } = useQuery<MedicalNote[]>({
+    queryKey: ["/api/medical-notes", selectedPatientId],
+    enabled: !!selectedPatientId,
+  });
+
+  // Fetch patient's intake forms
+  const { data: patientIntakeForms } = useQuery<any[]>({
+    queryKey: ["/api/intake-forms", selectedPatientId],
+    enabled: !!selectedPatientId,
+    queryFn: async () => {
+      if (!selectedPatientId) return [];
+      try {
+        const res = await fetch(`/api/intake-forms?patientId=${selectedPatientId}`);
+        if (!res.ok) return [];
+        return res.json();
+      } catch {
+        return [];
+      }
+    }
+  });
+
+  // Fetch patient's appointments
+  const { data: patientAppointments } = useQuery<any[]>({
+    queryKey: ["/api/appointments", selectedPatientId],
+    enabled: !!selectedPatientId,
+    queryFn: async () => {
+      if (!selectedPatientId) return [];
+      try {
+        const res = await fetch(`/api/appointments?patientId=${selectedPatientId}`);
+        if (!res.ok) return [];
+        return res.json();
+      } catch {
+        return [];
+      }
+    }
+  });
 
   // Load custom prompt when note type changes
   useEffect(() => {
     let isActive = true;
-
     (async () => {
       if (!selectedNoteType || !user?.id) return;
-      
       try {
         const res = await fetch(`/api/custom-note-prompts/${selectedNoteType}`);
-        if (!res.ok) {
-          throw new Error('Failed to fetch custom prompt');
-        }
+        if (!res.ok) throw new Error('Failed to fetch custom prompt');
         const prompt = await res.json();
-        
         if (!isActive) return;
-        
-        // Check if we got a valid prompt (not null)
         if (prompt && prompt.id) {
-          console.log(`Loaded custom prompt for ${selectedNoteType}:`, prompt.systemPrompt?.substring(0, 50));
           setSystemPrompt(prompt.systemPrompt || '');
           setTemplateContent(prompt.templateContent || '');
-        } else {
-          console.log(`No custom prompt found for ${selectedNoteType}, using default`);
-          setSystemPrompt(selectedTemplate?.systemPrompt || '');
-          setTemplateContent(selectedTemplate?.template || '');
         }
       } catch (error) {
         console.error('Error loading custom prompt:', error);
-        if (isActive) {
-          setSystemPrompt(selectedTemplate?.systemPrompt || '');
-          setTemplateContent(selectedTemplate?.template || '');
-        }
       }
     })();
+    return () => { isActive = false; };
+  }, [selectedNoteType, user?.id]);
 
-    return () => {
-      isActive = false;
-    };
-  }, [selectedNoteType, selectedTemplate, user?.id]);
+  // Generate AI suggestion for note type based on patient history
+  useEffect(() => {
+    if (selectedPatient && patientMedicalNotes && workflowStep === 2) {
+      const hasNotes = patientMedicalNotes.length > 0;
+      const lastNote = hasNotes ? patientMedicalNotes[0] : null;
+      
+      if (!hasNotes) {
+        setAiSuggestion("This is a new patient with no previous notes. Recommend: Initial Consultation");
+        setSelectedNoteType("initial");
+      } else if (lastNote) {
+        const daysSinceLastNote = Math.floor((Date.now() - new Date(lastNote.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+        if (daysSinceLastNote > 365) {
+          setAiSuggestion(`Last visit was ${daysSinceLastNote} days ago. Recommend: Annual Physical or Re-Evaluation`);
+        } else if (daysSinceLastNote > 30) {
+          setAiSuggestion(`Last visit was ${daysSinceLastNote} days ago. Recommend: Follow-Up Visit`);
+          setSelectedNoteType("followup");
+        } else {
+          setAiSuggestion(`Recent visit ${daysSinceLastNote} days ago. Recommend: Follow-Up Visit or Procedure Note`);
+          setSelectedNoteType("followup");
+        }
+      }
+    }
+  }, [selectedPatient, patientMedicalNotes, workflowStep]);
 
   // Create medical note mutation
   const createNoteMutation = useMutation({
@@ -184,53 +213,14 @@ Plan:
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/medical-notes"] });
       setShowNoteSuccess(true);
-      toast({
-        title: "Success",
-        description: "Medical note saved successfully",
-      });
+      toast({ title: "Success", description: "Medical note saved successfully" });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-  
-  // Save template mutation
-  const saveTemplateMutation = useMutation({
-    mutationFn: async (templateData: InsertMedicalNoteTemplate) => {
-      let url = "/api/medical-note-templates";
-      let method = "POST";
-      
-      // If template already exists, update it instead
-      if (selectedTemplate?.id) {
-        url = `/api/medical-note-templates/${selectedTemplate.id}`;
-        method = "PUT";
-      }
-      
-      const res = await apiRequest(method, url, templateData);
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/medical-note-templates"] });
-      setIsSettingsOpen(false);
-      toast({
-        title: "Success",
-        description: "Template settings saved successfully",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     },
   });
 
-  // Save custom note prompt mutation
+  // Save custom prompt mutation
   const saveCustomPromptMutation = useMutation({
     mutationFn: async (data: { noteType: string; systemPrompt: string; templateContent: string }) => {
       const res = await apiRequest('POST', '/api/custom-note-prompts', data);
@@ -238,189 +228,25 @@ Plan:
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/custom-note-prompts'] });
-      toast({
-        title: "Success",
-        description: "Custom prompt saved successfully",
-      });
+      toast({ title: "Success", description: "Custom prompt saved successfully" });
       setIsSettingsOpen(false);
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     },
   });
 
-  const handleStartConsultation = () => {
-    if (!selectedPatientId) {
-      toast({
-        title: "Patient Required",
-        description: "Please select a patient before starting consultation",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    setShowConsultationModal(true);
-  };
-  
   const handleGeneratedNotesFromConsultation = (notes: string) => {
     setNoteText(notes);
-    setNoteTitle(`${selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : ""} - Consultation Notes ${format(new Date(), "yyyy-MM-dd")}`);
-  };
-
-  // Fetch patient's medical notes for analysis
-  const { data: patientMedicalNotes } = useQuery<MedicalNote[]>({
-    queryKey: ["/api/medical-notes", selectedPatientId],
-    enabled: !!selectedPatientId,
-  });
-
-  // Handle chat with AI assistant
-  const handleSendChatMessage = async () => {
-    if (!chatInput.trim()) return;
-
-    const userMessage: ChatMessage = {
-      role: 'user',
-      content: chatInput.trim()
-    };
-
-    setChatMessages(prev => [...prev, userMessage]);
-    setChatInput("");
-    setIsAssistantThinking(true);
-
-    try {
-      const messages = [
-        {
-          role: 'system',
-          content: 'You are an AI medical assistant helping a healthcare professional. Provide accurate, evidence-based information and always clarify that the doctor should use their professional judgment. Keep responses concise and relevant to medical practice.'
-        },
-        ...chatMessages.map(msg => ({ role: msg.role, content: msg.content })),
-        { role: 'user', content: userMessage.content }
-      ];
-
-      const response = await fetch('/api/ai/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages }),
-      });
-
-      const data = await response.json();
-
-      if (data.success && data.data?.content) {
-        const assistantMessage: ChatMessage = {
-          role: 'assistant',
-          content: data.data.content
-        };
-        setChatMessages(prev => [...prev, assistantMessage]);
-      } else {
-        throw new Error('No response from AI');
-      }
-    } catch (error) {
-      console.error('Error calling AI API:', error);
-      const errorMessage: ChatMessage = {
-        role: 'assistant',
-        content: 'Sorry, I encountered an error processing your request. Please try again.'
-      };
-      setChatMessages(prev => [...prev, errorMessage]);
-    } finally {
-      setIsAssistantThinking(false);
-    }
-  };
-
-  const handleGenerateNotes = async () => {
-    if (!selectedPatientId) {
-      toast({
-        title: "Patient Required",
-        description: "Please select a patient before generating notes",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    setIsGenerating(true);
-    
-    try {
-      const patient = patients?.find(p => p.id === selectedPatientId);
-      if (!patient) {
-        throw new Error("Patient not found");
-      }
-
-      // Use existing note text as transcript, or provide a template
-      const transcript = noteText || `Patient visit for ${patient.firstName} ${patient.lastName || ''}. Please document this consultation.`;
-
-      const response = await fetch('/api/ai/generate-soap', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transcript,
-          noteType: selectedNoteType,
-          patientInfo: {
-            firstName: patient.firstName,
-            lastName: patient.lastName,
-            id: patient.id,
-            dateOfBirth: patient.dateOfBirth,
-          }
-        })
-      });
-
-      const data = await response.json();
-      
-      if (data.success && data.soap) {
-        setNoteText(data.soap);
-        setNoteTitle(`${patient.firstName} ${patient.lastName || ''} - ${selectedNoteType.charAt(0).toUpperCase() + selectedNoteType.slice(1)} Note`);
-        toast({
-          title: "Success",
-          description: "Note generated using your custom prompts",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: data.soap || "Failed to generate note",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error('Error generating notes:', error);
-      toast({
-        title: "Error",
-        description: "Failed to generate note",
-        variant: "destructive",
-      });
-    } finally {
-      setIsGenerating(false);
-    }
+    setNoteTitle(`${selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : ""} - ${NOTE_TYPES.find(t => t.id === selectedNoteType)?.name || 'Consultation'} ${format(new Date(), "yyyy-MM-dd")}`);
+    setWorkflowStep(4); // Move to review step
   };
 
   const handleSaveNote = () => {
-    if (!selectedPatientId) {
-      toast({
-        title: "Patient Required",
-        description: "Please select a patient before saving notes",
-        variant: "destructive",
-      });
+    if (!selectedPatientId || !noteText.trim() || !noteTitle.trim()) {
+      toast({ title: "Error", description: "Please fill all required fields", variant: "destructive" });
       return;
     }
-
-    if (!noteText.trim()) {
-      toast({
-        title: "Note Required",
-        description: "Please enter note content before saving",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!noteTitle.trim()) {
-      toast({
-        title: "Title Required",
-        description: "Please enter a title for the note",
-        variant: "destructive",
-      });
-      return;
-    }
-
     createNoteMutation.mutate({
       patientId: selectedPatientId,
       doctorId: user?.id || 1,
@@ -431,994 +257,692 @@ Plan:
   };
 
   const handleDownloadNote = async () => {
-    if (!noteText.trim() || !noteTitle.trim()) {
-      toast({
-        title: "Cannot Download",
-        description: "Please enter note content and title before downloading",
-        variant: "destructive",
-      });
-      return;
-    }
-
+    if (!noteText.trim() || !noteTitle.trim()) return;
     try {
       setIsDownloading(true);
-
       const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx');
-      
       const docSections = [];
-      
-      // Title
-      docSections.push(
-        new Paragraph({
-          text: noteTitle,
-          heading: HeadingLevel.TITLE,
-        })
-      );
-      
-      // Note type and date info
-      docSections.push(
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: `SOAP Note • Generated ${new Date().toLocaleDateString('en-US')}`,
-              italics: true,
-              size: 20,
-            }),
-          ],
-        })
-      );
-      
-      docSections.push(new Paragraph({ text: "" })); // Empty line
-      
-      // Patient information if available
+      docSections.push(new Paragraph({ text: noteTitle, heading: HeadingLevel.TITLE }));
+      docSections.push(new Paragraph({
+        children: [new TextRun({ text: `${NOTE_TYPES.find(t => t.id === selectedNoteType)?.name || 'SOAP Note'} • ${new Date().toLocaleDateString('en-US')}`, italics: true, size: 20 })]
+      }));
+      docSections.push(new Paragraph({ text: "" }));
       if (selectedPatient) {
-        docSections.push(
-          new Paragraph({
-            text: "Patient Information",
-            heading: HeadingLevel.HEADING_1,
-          })
-        );
-        
-        const patientName = `${selectedPatient.firstName || ''} ${selectedPatient.lastName || ''}`.trim();
-        if (patientName) {
-          docSections.push(
-            new Paragraph({
-              children: [
-                new TextRun({ text: "Name: ", bold: true }),
-                new TextRun({ text: patientName }),
-              ],
-            })
-          );
-        }
-        
-        docSections.push(new Paragraph({ text: "" })); // Empty line
-      }
-      
-      // Note content
-      docSections.push(
-        new Paragraph({
-          text: "Medical Note Content",
-          heading: HeadingLevel.HEADING_1,
-        })
-      );
-      
-      // Split content by lines and create paragraphs
-      const contentLines = noteText.split('\n');
-      contentLines.forEach(line => {
-        docSections.push(
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: line,
-                size: 24,
-              }),
-            ],
-          })
-        );
-      });
-      
-      // Add timestamp
-      docSections.push(new Paragraph({ text: "" })); // Empty line
-      docSections.push(
-        new Paragraph({
+        docSections.push(new Paragraph({ text: "Patient Information", heading: HeadingLevel.HEADING_1 }));
+        docSections.push(new Paragraph({
           children: [
-            new TextRun({
-              text: `Generated: ${new Date().toLocaleString()}`,
-              italics: true,
-              size: 20,
-            }),
-          ],
-        })
-      );
-      
-      // Create the document
-      const doc = new Document({
-        sections: [{
-          properties: {},
-          children: docSections,
-        }],
+            new TextRun({ text: "Name: ", bold: true }),
+            new TextRun({ text: `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` }),
+          ]
+        }));
+        docSections.push(new Paragraph({ text: "" }));
+      }
+      docSections.push(new Paragraph({ text: "Medical Note Content", heading: HeadingLevel.HEADING_1 }));
+      noteText.split('\n').forEach(line => {
+        docSections.push(new Paragraph({ children: [new TextRun({ text: line, size: 24 })] }));
       });
-      
-      // Generate the DOCX blob for browser
+      docSections.push(new Paragraph({ text: "" }));
+      docSections.push(new Paragraph({
+        children: [new TextRun({ text: `Generated: ${new Date().toLocaleString()}`, italics: true, size: 20 })]
+      }));
+      const doc = new Document({ sections: [{ properties: {}, children: docSections }] });
       const blob = await Packer.toBlob(doc);
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `soap-note-${new Date().toISOString().split('T')[0]}.docx`;
+      link.download = `medical-note-${new Date().toISOString().split('T')[0]}.docx`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      
-      toast({
-        title: "Downloaded",
-        description: "Note downloaded as Word document",
-      });
-      
+      toast({ title: "Downloaded", description: "Note downloaded as Word document" });
     } catch (error) {
-      console.error("Failed to download note:", error);
-      toast({
-        title: "Download Failed",
-        description: "Failed to generate Word document",
-        variant: "destructive",
-      });
+      toast({ title: "Download Failed", description: "Failed to generate Word document", variant: "destructive" });
     } finally {
       setIsDownloading(false);
     }
   };
 
-  return (
-    <div className="space-y-4 md:space-y-6 p-4 md:p-0">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold">Medical Notes</h1>
-          <p className="text-sm md:text-base text-muted-foreground">Generate and manage medical notes with AI assistance</p>
+  // Chat with AI assistant
+  const handleSendChatMessage = async () => {
+    if (!chatInput.trim()) return;
+    const userMessage: ChatMessage = { role: 'user', content: chatInput.trim() };
+    setChatMessages(prev => [...prev, userMessage]);
+    setChatInput("");
+    setIsAssistantThinking(true);
+    try {
+      const messages = [
+        { role: 'system', content: 'You are an AI medical assistant helping a healthcare professional. Provide accurate, evidence-based information and always clarify that the doctor should use their professional judgment. Keep responses concise and relevant to medical practice.' },
+        ...chatMessages.map(msg => ({ role: msg.role, content: msg.content })),
+        { role: 'user', content: userMessage.content }
+      ];
+      const response = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages }),
+      });
+      const data = await response.json();
+      if (data.success && data.data?.content) {
+        setChatMessages(prev => [...prev, { role: 'assistant', content: data.data.content }]);
+      } else {
+        throw new Error('No response from AI');
+      }
+    } catch (error) {
+      setChatMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, I encountered an error. Please try again.' }]);
+    } finally {
+      setIsAssistantThinking(false);
+    }
+  };
+
+  const resetWorkflow = () => {
+    setWorkflowStep(1);
+    setSelectedPatientId(null);
+    setNoteText("");
+    setNoteTitle("");
+    setSignatureData(null);
+    setChatMessages([]);
+    setShowNoteSuccess(false);
+  };
+
+  // Calculate patient age
+  const calculateAge = (dob: string | null | undefined) => {
+    if (!dob) return "N/A";
+    const birthDate = new Date(dob);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
+    return age;
+  };
+
+  // Render workflow step indicator
+  const WorkflowIndicator = () => (
+    <div className="flex items-center justify-center mb-6 gap-2">
+      {[1, 2, 3, 4].map((step) => (
+        <div key={step} className="flex items-center">
+          <button
+            onClick={() => {
+              if (step === 1) resetWorkflow();
+              else if (step <= workflowStep) setWorkflowStep(step);
+            }}
+            className={cn(
+              "w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium transition-all",
+              workflowStep === step ? "bg-primary text-primary-foreground" :
+              workflowStep > step ? "bg-green-500 text-white" : "bg-muted text-muted-foreground"
+            )}
+          >
+            {workflowStep > step ? <Check className="h-5 w-5" /> : step}
+          </button>
+          {step < 4 && (
+            <div className={cn("w-8 h-1 mx-1", workflowStep > step ? "bg-green-500" : "bg-muted")} />
+          )}
         </div>
-        <div className="flex gap-2 justify-end">
-          <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="icon" className="h-9 w-9 md:h-10 md:w-10">
-                <Settings className="h-4 w-4" />
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="w-[95vw] sm:max-w-[625px] max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle className="text-lg md:text-xl">Medical Notes Settings</DialogTitle>
-                <DialogDescription className="text-sm">
-                  Configure templates and prompts used for note generation
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="noteType">Note Type</Label>
-                  <Select
-                    value={selectedNoteType}
-                    onValueChange={(value) => setSelectedNoteType(value as any)}
-                  >
-                    <SelectTrigger id="noteType">
-                      <SelectValue placeholder="Select Note Type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="initial">Initial Consultation</SelectItem>
-                      <SelectItem value="followup">Follow-up Visit</SelectItem>
-                      <SelectItem value="physical">Physical Examination</SelectItem>
-                      <SelectItem value="reevaluation">Re-evaluation Note</SelectItem>
-                      <SelectItem value="procedure">Procedure Note</SelectItem>
-                      <SelectItem value="psychiatric">Psychiatric Evaluation</SelectItem>
-                      <SelectItem value="discharge">Discharge Summary</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="systemPrompt">System Prompt</Label>
-                  <Textarea
-                    id="systemPrompt"
-                    rows={4}
-                    value={systemPrompt || (selectedTemplate?.systemPrompt || "")}
-                    onChange={(e) => setSystemPrompt(e.target.value)}
-                    placeholder="Enter system prompt for the AI..."
-                  />
-                  <p className="text-sm text-muted-foreground">
-                    This is the main instruction for the AI assistant when generating this type of note.
-                  </p>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="templateContent">Template Structure</Label>
-                  <Textarea
-                    id="templateContent"
-                    rows={8}
-                    value={templateContent || (selectedTemplate?.template || "")}
-                    onChange={(e) => setTemplateContent(e.target.value)}
-                    placeholder="Enter the template structure for this note type..."
-                  />
-                  <p className="text-sm text-muted-foreground">
-                    This is the structure that will be used when creating this type of note.
-                  </p>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button 
-                  variant="outline" 
-                  onClick={() => setIsSettingsOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  onClick={() => {
-                    saveCustomPromptMutation.mutate({
-                      noteType: selectedNoteType,
-                      systemPrompt: systemPrompt || selectedTemplate?.systemPrompt || "",
-                      templateContent: templateContent || selectedTemplate?.template || ""
-                    });
-                  }}
-                  disabled={saveCustomPromptMutation.isPending}
-                  data-testid="button-save-settings"
-                >
-                  {saveCustomPromptMutation.isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    "Save Custom Prompt"
-                  )}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+      ))}
+    </div>
+  );
+
+  // Step 1: Patient Selection
+  const renderPatientSelection = () => (
+    <div className="space-y-6">
+      <div className="text-center mb-8">
+        <h2 className="text-2xl font-bold">Select Patient</h2>
+        <p className="text-muted-foreground">Choose a patient to create a medical note</p>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Patient Search
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
           <Popover open={patientSearchOpen} onOpenChange={setPatientSearchOpen}>
             <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                role="combobox"
-                aria-expanded={patientSearchOpen}
-                className="w-full sm:w-[250px] justify-between"
-              >
+              <Button variant="outline" className="w-full justify-between h-12 text-lg">
                 {selectedPatientId ? (
-                  patients?.find((patient) => patient.id === selectedPatientId)
-                    ? `${patients.find((patient) => patient.id === selectedPatientId)!.firstName} ${patients.find((patient) => patient.id === selectedPatientId)!.lastName || ''}`
+                  patients?.find((p) => p.id === selectedPatientId)
+                    ? `${patients.find((p) => p.id === selectedPatientId)!.firstName} ${patients.find((p) => p.id === selectedPatientId)!.lastName || ''}`
                     : "Select Patient"
-                ) : (
-                  "Select Patient"
-                )}
+                ) : "Search and select a patient..."}
                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[90vw] sm:w-[250px] p-0">
+            <PopoverContent className="w-full p-0" align="start">
               <Command>
-                <CommandInput placeholder="Search patients..." />
-                <CommandList>
+                <CommandInput placeholder="Search by name, email, or phone..." />
+                <CommandList className="max-h-[300px]">
                   <CommandEmpty>No patient found.</CommandEmpty>
                   <CommandGroup>
                     {isLoadingPatients ? (
-                      <div className="flex items-center justify-center p-2">
+                      <div className="flex items-center justify-center p-4">
                         <Loader2 className="h-4 w-4 animate-spin mr-2" />
                         Loading...
                       </div>
-                    ) : patients?.length ? (
-                      patients.map((patient) => (
-                        <CommandItem
-                          key={patient.id}
-                          value={`${patient.firstName} ${patient.lastName || ''}`}
-                          onSelect={() => {
-                            setSelectedPatientId(patient.id);
-                            setPatientSearchOpen(false);
-                          }}
-                        >
-                          <Check
-                            className={`mr-2 h-4 w-4 ${
-                              selectedPatientId === patient.id ? "opacity-100" : "opacity-0"
-                            }`}
-                          />
-                          {`${patient.firstName} ${patient.lastName || ''}`}
-                        </CommandItem>
-                      ))
-                    ) : (
-                      <div className="text-center p-2 text-muted-foreground">No patients found</div>
-                    )}
+                    ) : patients?.map((patient) => (
+                      <CommandItem
+                        key={patient.id}
+                        value={`${patient.firstName} ${patient.lastName || ''} ${patient.email} ${patient.phone || ''}`}
+                        onSelect={() => {
+                          setSelectedPatientId(patient.id);
+                          setPatientSearchOpen(false);
+                        }}
+                        className="py-3"
+                      >
+                        <Check className={cn("mr-2 h-4 w-4", selectedPatientId === patient.id ? "opacity-100" : "opacity-0")} />
+                        <div className="flex flex-col">
+                          <span className="font-medium">{patient.firstName} {patient.lastName || ''}</span>
+                          <span className="text-sm text-muted-foreground">{patient.email}</span>
+                        </div>
+                      </CommandItem>
+                    ))}
                   </CommandGroup>
                 </CommandList>
               </Command>
             </PopoverContent>
           </Popover>
-          <Button
-            variant="outline"
-            onClick={handleStartConsultation}
-            disabled={!selectedPatientId}
-            className="w-full sm:w-auto"
-          >
-            <MessageSquare className="h-4 w-4 mr-2" />
-            <span className="hidden sm:inline">Start Consultation</span>
-            <span className="sm:hidden">Consult</span>
-          </Button>
-          <Button 
-            onClick={handleGenerateNotes} 
-            disabled={isGenerating || !selectedPatientId}
-            className="w-full sm:w-auto"
-          >
-            {isGenerating ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <FileText className="h-4 w-4 mr-2" />
-                Generate SOAP
-              </>
-            )}
-          </Button>
-        </div>
+
+          {selectedPatientId && selectedPatient && (
+            <div className="mt-6 p-4 bg-muted/50 rounded-lg">
+              <div className="flex items-start gap-4">
+                <div className="h-16 w-16 bg-primary/10 rounded-full flex items-center justify-center">
+                  <Users className="h-8 w-8 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-lg">{selectedPatient.firstName} {selectedPatient.lastName || ''}</h3>
+                  <div className="grid grid-cols-2 gap-2 mt-2 text-sm">
+                    <div className="flex items-center gap-1 text-muted-foreground">
+                      <Calendar className="h-3 w-3" />
+                      Age: {calculateAge(selectedPatient.dateOfBirth)}
+                    </div>
+                    <div className="flex items-center gap-1 text-muted-foreground">
+                      <Mail className="h-3 w-3" />
+                      {selectedPatient.email}
+                    </div>
+                    <div className="flex items-center gap-1 text-muted-foreground">
+                      <Phone className="h-3 w-3" />
+                      {selectedPatient.phone || 'No phone'}
+                    </div>
+                    <div className="flex items-center gap-1 text-muted-foreground">
+                      <MapPin className="h-3 w-3" />
+                      {selectedPatient.address || 'No address'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="flex justify-end">
+        <Button 
+          size="lg" 
+          onClick={() => setWorkflowStep(2)} 
+          disabled={!selectedPatientId}
+          className="px-8"
+        >
+          Continue
+          <ChevronRight className="ml-2 h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+
+  // Step 2: Patient Summary & Note Type Selection
+  const renderPatientSummary = () => (
+    <div className="space-y-6">
+      <div className="text-center mb-4">
+        <h2 className="text-2xl font-bold">Pre-Consultation Summary</h2>
+        <p className="text-muted-foreground">Review patient history and select consultation type</p>
       </div>
 
+      {/* Patient Quick Info */}
       {selectedPatient && (
-        <Card className="mb-4 md:mb-6">
-          <CardContent className="p-3 md:p-4">
-            <div className="flex items-center gap-3 md:gap-4">
-              <div className="h-10 w-10 md:h-12 md:w-12 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-                <Users className="h-5 w-5 md:h-6 md:w-6 text-primary" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="font-medium text-sm md:text-base truncate">{`${selectedPatient.firstName} ${selectedPatient.lastName || ''}`}</h3>
-                <div className="text-xs md:text-sm text-muted-foreground flex flex-col sm:flex-row sm:gap-4 gap-1">
-                  <span className="truncate">DOB: {selectedPatient.dateOfBirth}</span>
-                  <span className="truncate">Email: {selectedPatient.email}</span>
-                  <span className="truncate">Phone: {selectedPatient.phone}</span>
+        <Card className="bg-primary/5 border-primary/20">
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 bg-primary rounded-full flex items-center justify-center text-primary-foreground font-bold text-lg">
+                  {selectedPatient.firstName[0]}{(selectedPatient.lastName || '')[0] || ''}
                 </div>
+                <div>
+                  <h3 className="font-semibold">{selectedPatient.firstName} {selectedPatient.lastName || ''}</h3>
+                  <p className="text-sm text-muted-foreground">Age {calculateAge(selectedPatient.dateOfBirth)} • {selectedPatient.email}</p>
+                </div>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setWorkflowStep(1)}>
+                Change Patient
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Previous Notes Summary */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <History className="h-4 w-4" />
+              Previous Notes ({patientMedicalNotes?.length || 0})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {patientMedicalNotes && patientMedicalNotes.length > 0 ? (
+              <ScrollArea className="h-[200px]">
+                <div className="space-y-2">
+                  {patientMedicalNotes.slice(0, 5).map((note) => (
+                    <div key={note.id} className="p-2 bg-muted/50 rounded text-sm">
+                      <div className="font-medium truncate">{note.title || 'Untitled Note'}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {format(new Date(note.createdAt), 'MMM d, yyyy')}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            ) : (
+              <div className="h-[200px] flex items-center justify-center text-muted-foreground text-sm">
+                <div className="text-center">
+                  <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p>No previous notes</p>
+                  <p className="text-xs">This is a new patient</p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Intake Forms Summary */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <FileCheck className="h-4 w-4" />
+              Intake Forms ({patientIntakeForms?.length || 0})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {patientIntakeForms && patientIntakeForms.length > 0 ? (
+              <ScrollArea className="h-[200px]">
+                <div className="space-y-2">
+                  {patientIntakeForms.map((form: any) => (
+                    <div key={form.id} className="p-2 bg-muted/50 rounded text-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">Intake Form</span>
+                        <Badge variant={form.status === 'completed' ? 'default' : 'secondary'} className="text-xs">
+                          {form.status}
+                        </Badge>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {format(new Date(form.createdAt), 'MMM d, yyyy')}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            ) : (
+              <div className="h-[200px] flex items-center justify-center text-muted-foreground text-sm">
+                <div className="text-center">
+                  <ClipboardList className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p>No intake forms</p>
+                  <p className="text-xs">Send form from Patient Intake</p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Medical History */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Activity className="h-4 w-4" />
+              Medical History
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[200px]">
+              {selectedPatient?.medicalHistory ? (
+                <p className="text-sm whitespace-pre-wrap">{selectedPatient.medicalHistory}</p>
+              ) : (
+                <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
+                  <div className="text-center">
+                    <Stethoscope className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>No medical history</p>
+                    <p className="text-xs">Add via patient profile</p>
+                  </div>
+                </div>
+              )}
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* AI Suggestion */}
+      {aiSuggestion && (
+        <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20">
+          <CardContent className="pt-4">
+            <div className="flex items-start gap-3">
+              <Sparkles className="h-5 w-5 text-amber-500 mt-0.5" />
+              <div>
+                <p className="font-medium text-amber-800 dark:text-amber-200">AI Suggestion</p>
+                <p className="text-sm text-amber-700 dark:text-amber-300">{aiSuggestion}</p>
               </div>
             </div>
           </CardContent>
         </Card>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg md:text-xl">SOAP Note</CardTitle>
-            {selectedPatient ? (
-              <CardDescription className="text-sm">Writing note for {`${selectedPatient.firstName} ${selectedPatient.lastName || ''}`}</CardDescription>
-            ) : (
-              <CardDescription className="text-sm">Select a patient to begin</CardDescription>
-            )}
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
+      {/* Note Type Selection */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Select Consultation Type
+          </CardTitle>
+          <CardDescription>Choose the type of medical note to create</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {NOTE_TYPES.map((type) => (
+              <button
+                key={type.id}
+                onClick={() => setSelectedNoteType(type.id)}
+                className={cn(
+                  "p-4 rounded-lg border-2 text-left transition-all hover:shadow-md",
+                  selectedNoteType === type.id 
+                    ? "border-primary bg-primary/5" 
+                    : "border-muted hover:border-primary/50"
+                )}
+              >
+                <div className="text-2xl mb-2">{type.icon}</div>
+                <div className="font-medium text-sm">{type.name}</div>
+                <div className="text-xs text-muted-foreground mt-1">{type.description}</div>
+                <Badge variant="outline" className="mt-2 text-xs">{type.specialty}</Badge>
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="flex justify-between">
+        <Button variant="outline" onClick={() => setWorkflowStep(1)}>
+          <ChevronLeft className="mr-2 h-4 w-4" />
+          Back
+        </Button>
+        <Button size="lg" onClick={() => setWorkflowStep(3)} className="px-8">
+          Start Consultation
+          <ArrowRight className="ml-2 h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+
+  // Step 3: Consultation (Recording/Input)
+  const renderConsultation = () => (
+    <div className="space-y-6">
+      <div className="text-center mb-4">
+        <h2 className="text-2xl font-bold">{NOTE_TYPES.find(t => t.id === selectedNoteType)?.name || 'Consultation'}</h2>
+        <p className="text-muted-foreground">
+          {selectedPatient?.firstName} {selectedPatient?.lastName || ''} • {format(new Date(), 'MMMM d, yyyy')}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Main Input Area */}
+        <div className="lg:col-span-2 space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <Mic className="h-5 w-5" />
+                  Consultation Input
+                </span>
+                <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <Settings className="h-4 w-4" />
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>Prompt Settings</DialogTitle>
+                      <DialogDescription>Customize prompts for {NOTE_TYPES.find(t => t.id === selectedNoteType)?.name}</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label>System Prompt</Label>
+                        <Textarea value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} rows={4} />
+                      </div>
+                      <div>
+                        <Label>Template Content</Label>
+                        <Textarea value={templateContent} onChange={(e) => setTemplateContent(e.target.value)} rows={6} />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setIsSettingsOpen(false)}>Cancel</Button>
+                      <Button onClick={() => saveCustomPromptMutation.mutate({ noteType: selectedNoteType, systemPrompt, templateContent })}>
+                        Save
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Action Buttons */}
+              <div className="grid grid-cols-3 gap-3">
+                <Button 
+                  onClick={() => setShowConsultationModal(true)}
+                  className="h-24 flex flex-col gap-2"
+                  variant="outline"
+                >
+                  <Mic className="h-8 w-8" />
+                  <span>Voice Record</span>
+                </Button>
+                <Button 
+                  onClick={() => {
+                    setNoteText("");
+                    setNoteTitle(`${selectedPatient?.firstName} ${selectedPatient?.lastName || ''} - ${NOTE_TYPES.find(t => t.id === selectedNoteType)?.name}`);
+                  }}
+                  className="h-24 flex flex-col gap-2"
+                  variant="outline"
+                >
+                  <FileText className="h-8 w-8" />
+                  <span>Type Notes</span>
+                </Button>
+                <Button 
+                  onClick={() => setShowConsultationModal(true)}
+                  className="h-24 flex flex-col gap-2"
+                  variant="outline"
+                >
+                  <Download className="h-8 w-8" />
+                  <span>Upload Audio</span>
+                </Button>
+              </div>
+
+              <Separator />
+
+              {/* Note Editor */}
               <div>
-                <Label htmlFor="noteTitle" className="text-sm">Note Title</Label>
-                <Input
-                  id="noteTitle"
-                  value={noteTitle}
+                <Label>Note Title</Label>
+                <Input 
+                  value={noteTitle} 
                   onChange={(e) => setNoteTitle(e.target.value)}
-                  placeholder="Enter note title"
-                  disabled={!selectedPatientId}
-                  className="mb-4"
+                  placeholder="Enter note title..."
+                  className="mb-3"
                 />
               </div>
-              <Textarea
-                placeholder="Select a patient and start typing or record your notes..."
-                className="min-h-[250px] md:min-h-[300px] text-sm md:text-base"
-                value={noteText}
-                onChange={(e) => setNoteText(e.target.value)}
-                disabled={!selectedPatientId}
-              />
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <Button 
-                  variant="outline"
-                  onClick={() => setShowPreview(true)}
-                  disabled={!noteText.trim() || !noteTitle.trim()}
-                  data-testid="button-preview-note"
-                >
-                  <Eye className="h-4 w-4 mr-2" />
-                  Preview
-                </Button>
-                <Button 
-                  variant="outline"
-                  onClick={handleDownloadNote}
-                  disabled={!noteText.trim() || !noteTitle.trim() || isDownloading}
-                  data-testid="button-download-note"
-                >
-                  {isDownloading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Downloading...
-                    </>
-                  ) : (
-                    <>
-                      <Download className="h-4 w-4 mr-2" />
-                      Download
-                    </>
+              <div>
+                <Label>Note Content</Label>
+                <Textarea 
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                  placeholder="Enter or paste your consultation notes here..."
+                  className="min-h-[300px]"
+                />
+              </div>
+
+              {noteText && (
+                <div className="flex gap-2">
+                  <Button onClick={() => setWorkflowStep(4)} disabled={!noteText.trim()}>
+                    Review & Sign
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* AI Assistant Sidebar */}
+        <div className="space-y-4">
+          <Card className="h-full">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Stethoscope className="h-4 w-4" />
+                AI Assistant
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col h-[calc(100%-60px)]">
+              <ScrollArea className="flex-1 mb-4">
+                <div className="space-y-3">
+                  <div className="p-3 bg-primary/10 rounded-lg">
+                    <p className="text-sm">Hello! I can help with medical terminology, suggest diagnoses, or answer questions about this consultation.</p>
+                  </div>
+                  {chatMessages.map((msg, i) => (
+                    <div key={i} className={cn("p-3 rounded-lg text-sm", msg.role === 'user' ? "bg-muted ml-4" : "bg-primary/10 mr-4")}>
+                      {msg.content}
+                    </div>
+                  ))}
+                  {isAssistantThinking && (
+                    <div className="p-3 bg-primary/10 rounded-lg flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="text-sm">Thinking...</span>
+                    </div>
                   )}
+                </div>
+              </ScrollArea>
+              <div className="flex gap-2">
+                <Input 
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSendChatMessage()}
+                  placeholder="Ask a question..."
+                  disabled={isAssistantThinking}
+                />
+                <Button onClick={handleSendChatMessage} disabled={!chatInput.trim() || isAssistantThinking} size="icon">
+                  <MessageSquare className="h-4 w-4" />
                 </Button>
-                <Button 
-                  onClick={handleSaveNote}
-                  disabled={!selectedPatientId || !noteText.trim() || !noteTitle.trim() || createNoteMutation.isPending}
-                  data-testid="button-save-note"
-                >
-                  {createNoteMutation.isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="h-4 w-4 mr-2" />
-                      Save Note
-                    </>
-                  )}
-                </Button>
-                
-                {/* Electronic Signature */}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      <div className="flex justify-between">
+        <Button variant="outline" onClick={() => setWorkflowStep(2)}>
+          <ChevronLeft className="mr-2 h-4 w-4" />
+          Back
+        </Button>
+      </div>
+
+      {/* Consultation Modal */}
+      <ConsultationModal
+        isOpen={showConsultationModal}
+        onClose={() => setShowConsultationModal(false)}
+        onGeneratedNotes={handleGeneratedNotesFromConsultation}
+        patientInfo={selectedPatient}
+        noteType={selectedNoteType}
+      />
+    </div>
+  );
+
+  // Step 4: Review & Sign
+  const renderReviewSign = () => (
+    <div className="space-y-6">
+      <div className="text-center mb-4">
+        <h2 className="text-2xl font-bold">Review & Sign</h2>
+        <p className="text-muted-foreground">Review your note and add electronic signature</p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-4">
+          {/* Note Preview */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span>{noteTitle || 'Medical Note'}</span>
+                <Badge>{NOTE_TYPES.find(t => t.id === selectedNoteType)?.name}</Badge>
+              </CardTitle>
+              <CardDescription>
+                Patient: {selectedPatient?.firstName} {selectedPatient?.lastName || ''} • {format(new Date(), 'MMMM d, yyyy')}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="p-4 bg-muted/30 rounded-lg">
+                <pre className="whitespace-pre-wrap text-sm font-sans">{noteText}</pre>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Signature */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Electronic Signature</CardTitle>
+              <CardDescription>Sign to finalize this medical note</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {signatureData ? (
+                <div className="space-y-4">
+                  <SignatureDisplay signatureData={signatureData} />
+                  <Button variant="outline" onClick={() => setSignatureData(null)}>
+                    Clear Signature
+                  </Button>
+                </div>
+              ) : (
                 <SignaturePad
-                  compact
                   documentTitle={noteTitle || "Medical Note"}
                   documentType="medical_note"
                   patientName={selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : undefined}
                   onSignatureComplete={(data) => {
                     setSignatureData(data);
-                    toast({
-                      title: "Signature Captured",
-                      description: "Your electronic signature has been added to this note.",
-                    });
+                    toast({ title: "Signature Captured", description: "Your electronic signature has been added." });
                   }}
                 />
-              </div>
-              
-              {/* Signature Display */}
-              {signatureData && (
-                <div className="mt-4">
-                  <SignatureDisplay signatureData={signatureData} />
-                </div>
               )}
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg md:text-xl">AI Suggestions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="templates">
-              <TabsList className="mb-4 grid grid-cols-3 w-full">
-                <TabsTrigger value="templates" className="text-xs sm:text-sm">Templates</TabsTrigger>
-                <TabsTrigger value="analysis" className="text-xs sm:text-sm">Analysis</TabsTrigger>
-                <TabsTrigger value="assistant" className="text-xs sm:text-sm">Assistant</TabsTrigger>
-              </TabsList>
-              <TabsContent value="templates">
-                <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Select a template to quickly create standardized notes
-                  </p>
-                  
-                  <Button 
-                    variant="outline" 
-                    className="w-full justify-start"
-                    onClick={() => {
-                      if (selectedPatientId) {
-                        setNoteTitle("SOAP - Initial Consultation");
-                        setNoteText(
-`SOAP Note
-
-Subjective:
-- Chief complaint:
-- History of present illness:
-- Past medical history:
-- Medications:
-- Allergies:
-- Social history:
-
-Objective:
-- Vital signs:
-- General appearance:
-- Physical examination findings:
-
-Assessment:
-- Primary diagnosis:
-- Differential diagnoses:
-- Clinical reasoning:
-
-Plan:
-- Diagnostics:
-- Treatment:
-- Patient education:
-- Follow-up:
-`);
-                      } else {
-                        toast({
-                          title: "Patient Required",
-                          description: "Please select a patient first",
-                          variant: "destructive",
-                        });
-                      }
-                    }}
-                  >
-                    <ClipboardList className="h-4 w-4 mr-2" />
-                    Initial Consultation
-                  </Button>
-                  
-                  <Button 
-                    variant="outline" 
-                    className="w-full justify-start"
-                    onClick={() => {
-                      if (selectedPatientId) {
-                        setNoteTitle("SOAP - Follow-up Visit");
-                        setNoteText(
-`SOAP Note - Follow-up
-
-Subjective:
-- Response to treatment:
-- New or persistent symptoms:
-- Medication compliance:
-- Patient concerns:
-
-Objective:
-- Vital signs compared to last visit:
-- Examination findings:
-- Test results:
-
-Assessment:
-- Progress evaluation:
-- Current status of diagnosis:
-- New issues identified:
-
-Plan:
-- Medication adjustments:
-- Additional testing:
-- Referrals:
-- Next appointment:
-`);
-                      } else {
-                        toast({
-                          title: "Patient Required",
-                          description: "Please select a patient first",
-                          variant: "destructive",
-                        });
-                      }
-                    }}
-                  >
-                    <ClipboardList className="h-4 w-4 mr-2" />
-                    Follow-up Visit
-                  </Button>
-                  
-                  <Button 
-                    variant="outline" 
-                    className="w-full justify-start"
-                    onClick={() => {
-                      if (selectedPatientId) {
-                        setNoteTitle("SOAP - Physical Examination");
-                        setNoteText(
-`SOAP Note - Physical Examination
-
-Subjective:
-- Presenting concerns:
-- Health changes since last visit:
-- Preventive care history:
-
-Objective:
-- Vital signs: BP, HR, RR, Temp, O2 Sat, Weight, Height, BMI
-- HEENT:
-- Cardiovascular:
-- Respiratory:
-- Gastrointestinal:
-- Musculoskeletal:
-- Neurological:
-- Skin:
-
-Assessment:
-- General health status:
-- Risk factors:
-- Age-appropriate screening status:
-
-Plan:
-- Preventive recommendations:
-- Screening tests:
-- Lifestyle modifications:
-- Immunization updates:
-`);
-                      } else {
-                        toast({
-                          title: "Patient Required",
-                          description: "Please select a patient first",
-                          variant: "destructive",
-                        });
-                      }
-                    }}
-                  >
-                    <ClipboardList className="h-4 w-4 mr-2" />
-                    Physical Examination
-                  </Button>
-                  
-                  <Button 
-                    variant="outline" 
-                    className="w-full justify-start"
-                    onClick={() => {
-                      if (selectedPatientId) {
-                        setNoteTitle("Re-evaluation Note");
-                        setNoteText(
-`Re-evaluation Note
-
-Patient Information:
-- Name: ${selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : ''}
-- Date of Service: ${format(new Date(), "yyyy-MM-dd")}
-
-Reason for Re-evaluation:
-- 
-
-Previous Diagnosis:
-- 
-
-Changes Since Last Visit:
-- Symptom changes:
-- Response to treatment:
-- Medication adjustments:
-- New concerns:
-
-Current Assessment:
-- Updated diagnosis:
-- Disease progression/regression:
-- Functional status:
-
-Treatment Plan Modifications:
-- Medication changes:
-- Therapy adjustments:
-- New interventions:
-
-Goals and Prognosis:
-- Short-term goals:
-- Long-term goals:
-- Expected outcomes:
-
-Follow-up:
-- Recommended follow-up timeframe:
-- Additional testing:
-- Referrals:
-`);
-                      } else {
-                        toast({
-                          title: "Patient Required",
-                          description: "Please select a patient first",
-                          variant: "destructive",
-                        });
-                      }
-                    }}
-                  >
-                    <ClipboardList className="h-4 w-4 mr-2" />
-                    Re-evaluation Note
-                  </Button>
-                  
-                  <Button 
-                    variant="outline" 
-                    className="w-full justify-start"
-                    onClick={() => {
-                      if (selectedPatientId) {
-                        setNoteTitle("Procedure Note");
-                        setNoteText(
-`Procedure Note
-
-Patient Information:
-- Name: ${selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : ''}
-- Date of Procedure: ${format(new Date(), "yyyy-MM-dd")}
-
-Procedure Details:
-- Procedure name:
-- Indication:
-- Location performed:
-- Consent obtained: Yes/No
-
-Pre-Procedure Assessment:
-- Vital signs:
-- Relevant examination findings:
-- Pre-procedure medications:
-- Allergies:
-
-Procedure Description:
-- Technique:
-- Equipment used:
-- Specimens collected:
-- Medications administered:
-- Local anesthetic details:
-- Complications:
-
-Post-Procedure Assessment:
-- Vital signs:
-- Patient status:
-- Pain level:
-
-Follow-up Instructions:
-- Activity restrictions:
-- Wound care:
-- Medications:
-- Follow-up appointment:
-- When to seek medical attention:
-
-Provider Signature: ______________________________
-`);
-                      } else {
-                        toast({
-                          title: "Patient Required",
-                          description: "Please select a patient first",
-                          variant: "destructive",
-                        });
-                      }
-                    }}
-                  >
-                    <ClipboardList className="h-4 w-4 mr-2" />
-                    Procedure Note
-                  </Button>
-                  
-                  <Button 
-                    variant="outline" 
-                    className="w-full justify-start"
-                    onClick={() => {
-                      if (selectedPatientId) {
-                        setNoteTitle("Psychiatric Evaluation");
-                        setNoteText(
-`Psychiatric Evaluation
-
-Patient Information:
-- Name: ${selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : ''}
-- Date of Evaluation: ${format(new Date(), "yyyy-MM-dd")}
-
-Chief Complaint:
-- 
-
-History of Present Illness:
-- 
-
-Psychiatric History:
-- Previous diagnoses:
-- Previous treatments:
-- Previous hospitalizations:
-- Medication trials and responses:
-
-Medical History:
-- Relevant conditions:
-- Current medications:
-- Allergies:
-
-Substance Use History:
-- 
-
-Family Psychiatric History:
-- 
-
-Social History:
-- 
-
-Mental Status Examination:
-- Appearance:
-- Behavior:
-- Speech:
-- Mood and affect:
-- Thought process:
-- Thought content:
-- Perception:
-- Cognition:
-- Insight:
-- Judgment:
-
-Risk Assessment:
-- Suicidal ideation:
-- Homicidal ideation:
-- Self-harm behaviors:
-- Violence risk:
-
-Diagnosis:
-- 
-
-Treatment Plan:
-- Medications:
-- Therapy recommendations:
-- Level of care:
-- Follow-up plan:
-
-Provider Signature: ______________________________
-`);
-                      } else {
-                        toast({
-                          title: "Patient Required",
-                          description: "Please select a patient first",
-                          variant: "destructive",
-                        });
-                      }
-                    }}
-                  >
-                    <ClipboardList className="h-4 w-4 mr-2" />
-                    Psychiatric Evaluation
-                  </Button>
-                  
-                  <Button 
-                    variant="outline" 
-                    className="w-full justify-start"
-                    onClick={() => {
-                      if (selectedPatientId) {
-                        setNoteTitle("Discharge Summary");
-                        setNoteText(
-`Discharge Summary
-
-Patient Information:
-- Name: ${selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : ''}
-- Admission Date:
-- Discharge Date: ${format(new Date(), "yyyy-MM-dd")}
-- Length of Stay:
-
-Admission Diagnosis:
-- 
-
-Discharge Diagnosis:
-- Primary:
-- Secondary:
-
-Brief History:
-- 
-
-Hospital Course:
-- 
-
-Procedures Performed:
-- 
-
-Consultations:
-- 
-
-Significant Lab/Imaging Results:
-- 
-
-Condition at Discharge:
-- 
-
-Discharge Medications:
-- 
-
-Discharge Instructions:
-- Activity restrictions:
-- Diet:
-- Wound care:
-- Follow-up appointments:
-
-Prognosis:
-- 
-
-Provider Signature: ______________________________
-`);
-                      } else {
-                        toast({
-                          title: "Patient Required",
-                          description: "Please select a patient first",
-                          variant: "destructive",
-                        });
-                      }
-                    }}
-                  >
-                    <ClipboardList className="h-4 w-4 mr-2" />
-                    Discharge Summary
-                  </Button>
-                </div>
-              </TabsContent>
-              <TabsContent value="analysis">
-                <div className="text-center text-muted-foreground py-8">
-                  {selectedPatientId && selectedPatient ? (
-                    <div className="space-y-4">
-                      <div className="border p-3 rounded-md text-left">
-                        <p className="font-medium mb-2">Patient Overview</p>
-                        <p className="text-sm text-muted-foreground">
-                          <strong>Name:</strong> {selectedPatient.firstName} {selectedPatient.lastName || ''}<br />
-                          <strong>DOB:</strong> {selectedPatient.dateOfBirth ? new Date(selectedPatient.dateOfBirth).toLocaleDateString('en-US') : 'Not provided'}<br />
-                          <strong>Email:</strong> {selectedPatient.email || 'Not provided'}<br />
-                          <strong>Phone:</strong> {selectedPatient.phone || 'Not provided'}<br />
-                          <strong>Address:</strong> {selectedPatient.address || 'Not provided'}
-                        </p>
-                      </div>
-                      <div className="border p-3 rounded-md text-left">
-                        <p className="font-medium mb-2">Medical History</p>
-                        <p className="text-sm text-muted-foreground">
-                          {selectedPatient.medicalHistory || 'No medical history recorded'}
-                        </p>
-                      </div>
-                      <div className="border p-3 rounded-md text-left">
-                        <p className="font-medium mb-2">Previous Notes</p>
-                        <p className="text-sm text-muted-foreground">
-                          {patientMedicalNotes && patientMedicalNotes.length > 0 
-                            ? `${patientMedicalNotes.length} medical note(s) on file. Most recent: ${new Date(patientMedicalNotes[0].createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
-                            : 'No previous medical notes found'}
-                        </p>
-                      </div>
-                      <div className="border p-3 rounded-md text-left">
-                        <p className="font-medium mb-2">Current Note Type</p>
-                        <p className="text-sm text-muted-foreground">
-                          {selectedNoteType === 'initial' && 'Initial Consultation - First visit documentation'}
-                          {selectedNoteType === 'followup' && 'Follow-up Visit - Progress evaluation'}
-                          {selectedNoteType === 'physical' && 'Physical Examination - Comprehensive assessment'}
-                          {selectedNoteType === 'reevaluation' && 'Re-evaluation Note - Treatment review'}
-                          {selectedNoteType === 'procedure' && 'Procedure Note - Intervention documentation'}
-                          {selectedNoteType === 'psychiatric' && 'Psychiatric Evaluation - Mental health assessment'}
-                          {selectedNoteType === 'discharge' && 'Discharge Summary - Care conclusion'}
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    "Select a patient to view their analysis and medical information"
-                  )}
-                </div>
-              </TabsContent>
-              <TabsContent value="assistant">
-                <div className="h-[400px] flex flex-col">
-                  <div className="flex-1 border rounded-md mb-4 p-4 overflow-y-auto bg-secondary/5">
-                    <div className="space-y-4">
-                      <div className="flex justify-start">
-                        <div className="bg-primary/10 rounded-lg p-3 max-w-[85%]">
-                          <div className="flex items-center gap-2 mb-1">
-                            <Stethoscope className="h-4 w-4 text-primary" />
-                            <span className="font-medium text-sm">AI Assistant</span>
-                          </div>
-                          <p className="text-sm">Hello! I'm your AI medical assistant. How can I help you today? You can ask me about medical conditions, treatments, or help with note-taking.</p>
-                        </div>
-                      </div>
-                      {chatMessages.map((message, index) => (
-                        <div key={index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`rounded-lg p-3 max-w-[85%] ${
-                            message.role === 'user' 
-                              ? 'bg-primary text-primary-foreground' 
-                              : 'bg-primary/10'
-                          }`}>
-                            <div className="flex items-center gap-2 mb-1">
-                              {message.role === 'assistant' && <Stethoscope className="h-4 w-4 text-primary" />}
-                              <span className="font-medium text-sm">
-                                {message.role === 'user' ? 'You' : 'AI Assistant'}
-                              </span>
-                              {message.role === 'user' && <UserPlus className="h-4 w-4" />}
-                            </div>
-                            <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                          </div>
-                        </div>
-                      ))}
-                      {isAssistantThinking && (
-                        <div className="flex justify-start">
-                          <div className="bg-primary/10 rounded-lg p-3 max-w-[85%]">
-                            <div className="flex items-center gap-2 mb-1">
-                              <Stethoscope className="h-4 w-4 text-primary" />
-                              <span className="font-medium text-sm">AI Assistant</span>
-                            </div>
-                            <p className="text-sm flex items-center">
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              Thinking...
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Input 
-                      placeholder="Ask a medical question or request help with your note..." 
-                      value={chatInput}
-                      onChange={(e) => setChatInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSendChatMessage();
-                        }
-                      }}
-                      disabled={isAssistantThinking}
-                      data-testid="input-assistant-chat"
-                    />
-                    <Button 
-                      onClick={handleSendChatMessage}
-                      disabled={!chatInput.trim() || isAssistantThinking}
-                      data-testid="button-send-chat"
-                    >
-                      {isAssistantThinking ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <MessageSquare className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
+        {/* Actions Sidebar */}
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Actions</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Button className="w-full" onClick={handleSaveNote} disabled={createNoteMutation.isPending}>
+                {createNoteMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                Save to Patient Record
+              </Button>
+              <Button variant="outline" className="w-full" onClick={handleDownloadNote} disabled={isDownloading}>
+                {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                Download as Word
+              </Button>
+              <Button variant="outline" className="w-full" onClick={() => setShowPreview(true)}>
+                <Eye className="mr-2 h-4 w-4" />
+                Print Preview
+              </Button>
+              <Separator />
+              <Button variant="ghost" className="w-full" onClick={() => setWorkflowStep(3)}>
+                <ChevronLeft className="mr-2 h-4 w-4" />
+                Edit Note
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {/* Success Dialog */}
@@ -1430,71 +954,52 @@ Provider Signature: ______________________________
               Note Saved Successfully
             </DialogTitle>
           </DialogHeader>
-          <div className="py-4">
-            <p>
-              The medical note for {selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : ''} has been saved successfully. 
-              The note will be available in the patient's record.
-            </p>
-          </div>
+          <p>The medical note has been saved to {selectedPatient?.firstName}'s record.</p>
           <DialogFooter>
-            <Button onClick={() => {
-              setShowNoteSuccess(false);
-              setNoteText("");
-              setNoteTitle("");
-            }}>
-              Create Another Note
-            </Button>
+            <Button variant="outline" onClick={resetWorkflow}>Create Another Note</Button>
+            <Button onClick={() => setShowNoteSuccess(false)}>Done</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Consultation Modal */}
-      <ConsultationModal
-        isOpen={showConsultationModal}
-        onClose={() => setShowConsultationModal(false)}
-        onGeneratedNotes={handleGeneratedNotesFromConsultation}
-        patientInfo={selectedPatient}
-        noteType={selectedNoteType}
-      />
 
       {/* Preview Dialog */}
       <Dialog open={showPreview} onOpenChange={setShowPreview}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{noteTitle || "SOAP Note Preview"}</DialogTitle>
-            <DialogDescription>
-              {selectedPatient ? `Note for ${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : "Preview of your SOAP note"}
-            </DialogDescription>
+            <DialogTitle>{noteTitle}</DialogTitle>
           </DialogHeader>
-          <div className="mt-4">
-            <div className="p-6 border rounded-md bg-muted/30">
-              <div className="prose prose-sm max-w-none dark:prose-invert">
-                <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                  {noteText}
-                </div>
-              </div>
+          <div className="p-6 border rounded-lg bg-white">
+            <div className="prose prose-sm max-w-none">
+              <pre className="whitespace-pre-wrap font-sans">{noteText}</pre>
             </div>
+            {signatureData && (
+              <div className="mt-6 pt-4 border-t">
+                <SignatureDisplay signatureData={signatureData} />
+              </div>
+            )}
           </div>
-          <DialogFooter className="flex gap-2">
-            <Button variant="outline" onClick={() => setShowPreview(false)}>
-              Close
-            </Button>
-            <Button onClick={handleDownloadNote} disabled={isDownloading}>
-              {isDownloading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Downloading...
-                </>
-              ) : (
-                <>
-                  <Download className="h-4 w-4 mr-2" />
-                  Download
-                </>
-              )}
-            </Button>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPreview(false)}>Close</Button>
+            <Button onClick={() => window.print()}>Print</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+
+  return (
+    <div className="max-w-6xl mx-auto p-4 md:p-6">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold">Medical Notes</h1>
+        <p className="text-muted-foreground">AI-powered clinical documentation</p>
+      </div>
+
+      <WorkflowIndicator />
+
+      {workflowStep === 1 && renderPatientSelection()}
+      {workflowStep === 2 && renderPatientSummary()}
+      {workflowStep === 3 && renderConsultation()}
+      {workflowStep === 4 && renderReviewSign()}
     </div>
   );
 }
