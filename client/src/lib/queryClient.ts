@@ -1,5 +1,30 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
+// Token storage key
+const TOKEN_KEY = 'aims_auth_token';
+
+// Get stored token
+export function getAuthToken(): string | null {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem(TOKEN_KEY);
+  }
+  return null;
+}
+
+// Store token
+export function setAuthToken(token: string): void {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(TOKEN_KEY, token);
+  }
+}
+
+// Remove token
+export function removeAuthToken(): void {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(TOKEN_KEY);
+  }
+}
+
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
@@ -12,12 +37,29 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
+  const token = getAuthToken();
+  const headers: Record<string, string> = {};
+  
+  if (data) {
+    headers["Content-Type"] = "application/json";
+  }
+  
+  // Add JWT token to Authorization header if available
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers,
     body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
+    credentials: "include", // Keep for backwards compatibility
   });
+
+  // Don't throw for login/register - let the mutation handle errors
+  if (url === '/api/login' || url === '/api/register') {
+    return res;
+  }
 
   await throwIfResNotOk(res);
   
@@ -49,8 +91,17 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
+    const token = getAuthToken();
+    const headers: Record<string, string> = {};
+    
+    // Add JWT token to Authorization header if available
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
     const res = await fetch(queryKey[0] as string, {
-      credentials: "include",
+      credentials: "include", // Keep for backwards compatibility
+      headers,
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
