@@ -4,6 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { 
   Loader2, 
   FileText, 
@@ -14,7 +18,21 @@ import {
   Settings,
   Eye,
   Download,
-  UserPlus
+  UserPlus,
+  Users,
+  Check,
+  ChevronsUpDown,
+  Calendar,
+  Phone,
+  Mail,
+  MapPin,
+  History,
+  FileCheck,
+  Activity,
+  Sparkles,
+  Video,
+  Zap,
+  ArrowRight
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
@@ -25,19 +43,51 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
+import { Patient, MedicalNote } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
 import { ConsultationModal } from "@/components/consultation-modal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
+import { SignaturePad, SignatureDisplay, SignatureData } from "@/components/signature-pad";
 
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
 }
 
+// Note type configuration
+const NOTE_TYPES = [
+  { id: "initial", name: "Initial Consultation", icon: "🏥", description: "First visit with new patient" },
+  { id: "followup", name: "Follow-Up Visit", icon: "🔄", description: "Progress check" },
+  { id: "physical", name: "Physical Examination", icon: "📋", description: "Wellness exam" },
+  { id: "reevaluation", name: "Re-Evaluation", icon: "🔍", description: "Treatment review" },
+  { id: "procedure", name: "Procedure Note", icon: "🔧", description: "Medical procedure" },
+  { id: "psychiatric", name: "Psychiatric Evaluation", icon: "🧠", description: "Mental health" },
+  { id: "discharge", name: "Discharge Summary", icon: "📝", description: "Care discharge" },
+];
+
 export default function QuickNotes() {
+  // Mode: 'quick' for no patient, 'patient' for with patient selection
+  const [mode, setMode] = useState<'quick' | 'patient'>('quick');
+  const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
+  const [patientSearchOpen, setPatientSearchOpen] = useState(false);
+  
   const [isRecording, setIsRecording] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [noteText, setNoteText] = useState("");
@@ -45,7 +95,7 @@ export default function QuickNotes() {
   const [noteTitle, setNoteTitle] = useState("");
   const [showConsultationModal, setShowConsultationModal] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [selectedNoteType, setSelectedNoteType] = useState<"initial" | "followup" | "physical" | "reevaluation" | "procedure" | "psychiatric" | "discharge">("initial");
+  const [selectedNoteType, setSelectedNoteType] = useState<string>("initial");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [templateContent, setTemplateContent] = useState("");
   const [showPreview, setShowPreview] = useState(false);
@@ -53,8 +103,41 @@ export default function QuickNotes() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [isAssistantThinking, setIsAssistantThinking] = useState(false);
+  const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
+  const [signatureData, setSignatureData] = useState<SignatureData | null>(null);
+  const [showSignature, setShowSignature] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
+
+  // Fetch patients
+  const { data: patients, isLoading: isLoadingPatients } = useQuery<Patient[]>({
+    queryKey: ["/api/patients"],
+  });
+
+  // Get selected patient details
+  const selectedPatient = patients?.find(patient => patient.id === selectedPatientId);
+
+  // Fetch patient's medical notes
+  const { data: patientMedicalNotes } = useQuery<MedicalNote[]>({
+    queryKey: ["/api/medical-notes", selectedPatientId],
+    enabled: !!selectedPatientId && mode === 'patient',
+  });
+
+  // Fetch patient's intake forms
+  const { data: patientIntakeForms } = useQuery<any[]>({
+    queryKey: ["/api/intake-forms", selectedPatientId],
+    enabled: !!selectedPatientId && mode === 'patient',
+    queryFn: async () => {
+      if (!selectedPatientId) return [];
+      try {
+        const res = await fetch(`/api/intake-forms?patientId=${selectedPatientId}`);
+        if (!res.ok) return [];
+        return res.json();
+      } catch {
+        return [];
+      }
+    }
+  });
 
   // Generate default SOAP note structure
   useEffect(() => {
@@ -83,7 +166,34 @@ Plan:
 -
 `);
     }
-  }, [noteText]);
+  }, []);
+
+  // Generate AI suggestion for note type based on patient history
+  useEffect(() => {
+    if (mode === 'patient' && selectedPatient && patientMedicalNotes) {
+      const hasNotes = patientMedicalNotes.length > 0;
+      const lastNote = hasNotes ? patientMedicalNotes[0] : null;
+      
+      if (!hasNotes) {
+        setAiSuggestion("New patient with no previous notes. Recommend: Initial Consultation");
+        setSelectedNoteType("initial");
+      } else if (lastNote) {
+        const daysSinceLastNote = Math.floor((Date.now() - new Date(lastNote.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+        if (daysSinceLastNote > 365) {
+          setAiSuggestion(`Last visit was ${daysSinceLastNote} days ago. Recommend: Annual Physical or Re-Evaluation`);
+          setSelectedNoteType("physical");
+        } else if (daysSinceLastNote > 30) {
+          setAiSuggestion(`Last visit was ${daysSinceLastNote} days ago. Recommend: Follow-Up Visit`);
+          setSelectedNoteType("followup");
+        } else {
+          setAiSuggestion(`Recent visit ${daysSinceLastNote} days ago. Recommend: Follow-Up or Procedure Note`);
+          setSelectedNoteType("followup");
+        }
+      }
+    } else {
+      setAiSuggestion(null);
+    }
+  }, [mode, selectedPatient, patientMedicalNotes]);
 
   // Fetch note templates
   const { data: templates } = useQuery({
@@ -101,8 +211,19 @@ Plan:
     }
   }, [selectedNoteType, selectedTemplate]);
 
-  // Create quick note mutation
-  const createNoteMutation = useMutation({
+  // Calculate patient age
+  const calculateAge = (dob: string | null | undefined) => {
+    if (!dob) return "N/A";
+    const birthDate = new Date(dob);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
+    return age;
+  };
+
+  // Create quick note mutation (for notes without patient)
+  const createQuickNoteMutation = useMutation({
     mutationFn: async (noteData: { title: string; content: string; doctorId: number; type: string }) => {
       const response = await apiRequest("POST", "/api/quick-notes", noteData);
       return await response.json();
@@ -115,9 +236,7 @@ Plan:
       setShowNoteSuccess(true);
       setTimeout(() => setShowNoteSuccess(false), 3000);
       queryClient.invalidateQueries({ queryKey: ["/api/quick-notes"] });
-      // Reset form
-      setNoteText("");
-      setNoteTitle("");
+      resetForm();
     },
     onError: (error: Error) => {
       toast({
@@ -125,6 +244,24 @@ Plan:
         description: error.message || "Failed to save note",
         variant: "destructive",
       });
+    },
+  });
+
+  // Create medical note mutation (for notes with patient)
+  const createMedicalNoteMutation = useMutation({
+    mutationFn: async (noteData: { patientId: number; doctorId: number; content: string; type: string; title: string }) => {
+      const res = await apiRequest("POST", "/api/medical-notes", noteData);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/medical-notes"] });
+      toast({ title: "Success", description: "Medical note saved to patient record" });
+      setShowNoteSuccess(true);
+      setTimeout(() => setShowNoteSuccess(false), 3000);
+      resetForm();
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     },
   });
 
@@ -151,6 +288,13 @@ Plan:
     },
   });
 
+  const resetForm = () => {
+    setNoteText("");
+    setNoteTitle("");
+    setSignatureData(null);
+    setChatMessages([]);
+  };
+
   const handleStartConsultation = () => {
     setShowConsultationModal(true);
   };
@@ -158,7 +302,8 @@ Plan:
   const handleConsultationComplete = (transcript: string, notes: string) => {
     if (notes) {
       setNoteText(notes);
-      setNoteTitle(`Quick Note - ${format(new Date(), "MM/dd/yyyy")}`);
+      const patientName = selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : "Quick Note";
+      setNoteTitle(`${patientName} - ${NOTE_TYPES.find(t => t.id === selectedNoteType)?.name || 'Note'} ${format(new Date(), "MM/dd/yyyy")}`);
     }
     setShowConsultationModal(false);
   };
@@ -177,10 +322,14 @@ Plan:
     setIsAssistantThinking(true);
 
     try {
+      const patientContext = selectedPatient 
+        ? `Patient: ${selectedPatient.firstName} ${selectedPatient.lastName || ''}, Age: ${calculateAge(selectedPatient.dateOfBirth)}.`
+        : '';
+      
       const messages = [
         {
           role: 'system',
-          content: 'You are an AI medical assistant helping a healthcare professional with quick note documentation. Provide accurate, evidence-based information and help with note-taking. Keep responses concise and relevant to medical practice.'
+          content: `You are an AI medical assistant helping a healthcare professional with documentation. ${patientContext} Provide accurate, evidence-based information. Keep responses concise and relevant to medical practice.`
         },
         ...chatMessages.map(msg => ({ role: msg.role, content: msg.content })),
         { role: 'user', content: userMessage.content }
@@ -227,7 +376,7 @@ Plan:
         body: JSON.stringify({
           transcript,
           noteType: selectedNoteType,
-          patientInfo: {
+          patientInfo: selectedPatient || {
             firstName: "Quick",
             lastName: "Note",
             id: 0,
@@ -240,7 +389,8 @@ Plan:
       
       if (data.success && data.soap) {
         setNoteText(data.soap);
-        setNoteTitle(`Quick Note - ${selectedNoteType.charAt(0).toUpperCase() + selectedNoteType.slice(1)}`);
+        const patientName = selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : "Quick Note";
+        setNoteTitle(`${patientName} - ${NOTE_TYPES.find(t => t.id === selectedNoteType)?.name || selectedNoteType}`);
         toast({
           title: "Success",
           description: "Note generated successfully",
@@ -283,12 +433,24 @@ Plan:
       return;
     }
 
-    createNoteMutation.mutate({
-      doctorId: user?.id || 1,
-      content: noteText,
-      type: "soap",
-      title: noteTitle
-    });
+    if (mode === 'patient' && selectedPatientId) {
+      // Save as medical note linked to patient
+      createMedicalNoteMutation.mutate({
+        patientId: selectedPatientId,
+        doctorId: user?.id || 1,
+        content: noteText,
+        type: "soap",
+        title: noteTitle
+      });
+    } else {
+      // Save as quick note (no patient)
+      createQuickNoteMutation.mutate({
+        doctorId: user?.id || 1,
+        content: noteText,
+        type: "soap",
+        title: noteTitle
+      });
+    }
   };
 
   const handleDownloadNote = async () => {
@@ -317,11 +479,12 @@ Plan:
       );
       
       // Note type and date info
+      const noteTypeLabel = NOTE_TYPES.find(t => t.id === selectedNoteType)?.name || 'Quick Note';
       docSections.push(
         new Paragraph({
           children: [
             new TextRun({
-              text: `Quick Note • Generated ${new Date().toLocaleDateString('en-US')}`,
+              text: `${noteTypeLabel} • Generated ${new Date().toLocaleDateString('en-US')}`,
               italics: true,
               size: 20,
             }),
@@ -330,6 +493,33 @@ Plan:
       );
       
       docSections.push(new Paragraph({ text: "" })); // Empty line
+      
+      // Patient info if selected
+      if (selectedPatient) {
+        docSections.push(
+          new Paragraph({
+            text: "Patient Information",
+            heading: HeadingLevel.HEADING_1,
+          })
+        );
+        docSections.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: "Name: ", bold: true }),
+              new TextRun({ text: `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` }),
+            ],
+          })
+        );
+        docSections.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: "Age: ", bold: true }),
+              new TextRun({ text: `${calculateAge(selectedPatient.dateOfBirth)}` }),
+            ],
+          })
+        );
+        docSections.push(new Paragraph({ text: "" }));
+      }
       
       // Note content
       docSections.push(
@@ -401,33 +591,186 @@ Plan:
     }
   };
 
+  // Patient Summary Component
+  const PatientSummary = () => {
+    if (mode !== 'patient' || !selectedPatient) return null;
+
+    return (
+      <div className="space-y-4 mb-6">
+        {/* Patient Info Card */}
+        <Card className="bg-primary/5 border-primary/20">
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 bg-primary rounded-full flex items-center justify-center text-primary-foreground font-bold text-lg">
+                  {selectedPatient.firstName[0]}{(selectedPatient.lastName || '')[0] || ''}
+                </div>
+                <div>
+                  <h3 className="font-semibold">{selectedPatient.firstName} {selectedPatient.lastName || ''}</h3>
+                  <p className="text-sm text-muted-foreground">Age {calculateAge(selectedPatient.dateOfBirth)} • {selectedPatient.email}</p>
+                </div>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => {
+                setSelectedPatientId(null);
+                setAiSuggestion(null);
+              }}>
+                Change
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* AI Suggestion */}
+        {aiSuggestion && (
+          <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20">
+            <CardContent className="pt-4">
+              <div className="flex items-start gap-3">
+                <Sparkles className="h-5 w-5 text-amber-500 mt-0.5" />
+                <div>
+                  <p className="font-medium text-amber-800 dark:text-amber-200">AI Suggestion</p>
+                  <p className="text-sm text-amber-700 dark:text-amber-300">{aiSuggestion}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Summary Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Previous Notes */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <History className="h-4 w-4" />
+                Previous Notes ({patientMedicalNotes?.length || 0})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {patientMedicalNotes && patientMedicalNotes.length > 0 ? (
+                <ScrollArea className="h-[120px]">
+                  <div className="space-y-2">
+                    {patientMedicalNotes.slice(0, 3).map((note) => (
+                      <div key={note.id} className="p-2 bg-muted/50 rounded text-xs">
+                        <div className="font-medium truncate">{note.title || 'Untitled'}</div>
+                        <div className="text-muted-foreground">
+                          {format(new Date(note.createdAt), 'MMM d, yyyy')}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              ) : (
+                <div className="h-[120px] flex items-center justify-center text-muted-foreground text-xs text-center">
+                  <div>
+                    <FileText className="h-6 w-6 mx-auto mb-1 opacity-50" />
+                    <p>No previous notes</p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Intake Forms */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <FileCheck className="h-4 w-4" />
+                Intake Forms ({patientIntakeForms?.length || 0})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {patientIntakeForms && patientIntakeForms.length > 0 ? (
+                <ScrollArea className="h-[120px]">
+                  <div className="space-y-2">
+                    {patientIntakeForms.slice(0, 3).map((form: any) => (
+                      <div key={form.id} className="p-2 bg-muted/50 rounded text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium">Intake Form</span>
+                          <Badge variant={form.status === 'completed' ? 'default' : 'secondary'} className="text-[10px]">
+                            {form.status}
+                          </Badge>
+                        </div>
+                        <div className="text-muted-foreground">
+                          {format(new Date(form.createdAt), 'MMM d, yyyy')}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              ) : (
+                <div className="h-[120px] flex items-center justify-center text-muted-foreground text-xs text-center">
+                  <div>
+                    <ClipboardList className="h-6 w-6 mx-auto mb-1 opacity-50" />
+                    <p>No intake forms</p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Medical History */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Activity className="h-4 w-4" />
+                Medical History
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[120px]">
+                {selectedPatient?.medicalHistory ? (
+                  <p className="text-xs whitespace-pre-wrap">{selectedPatient.medicalHistory}</p>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-muted-foreground text-xs text-center">
+                    <div>
+                      <Stethoscope className="h-6 w-6 mx-auto mb-1 opacity-50" />
+                      <p>No history recorded</p>
+                    </div>
+                  </div>
+                )}
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="container mx-auto p-4 md:p-6 space-y-4 md:space-y-6">
       <ConsultationModal
         open={showConsultationModal}
         onClose={() => setShowConsultationModal(false)}
         onComplete={handleConsultationComplete}
-        patientId={null}
-        patientName="Quick Note"
+        patientId={selectedPatientId}
+        patientName={selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : "Quick Note"}
       />
 
+      {/* Preview Dialog */}
       <Dialog open={showPreview} onOpenChange={setShowPreview}>
         <DialogContent className="w-[95vw] sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-lg md:text-xl">Note Preview</DialogTitle>
-            <DialogDescription className="text-sm">Preview your quick note before saving</DialogDescription>
+            <DialogDescription className="text-sm">Preview your note before saving</DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <div className="border rounded-md p-6 bg-background">
               <h2 className="text-2xl font-bold mb-4">{noteTitle || "Untitled Note"}</h2>
               <p className="text-sm text-muted-foreground mb-4">
-                {new Date().toLocaleDateString('en-US')} • Quick Note
+                {new Date().toLocaleDateString('en-US')} • {NOTE_TYPES.find(t => t.id === selectedNoteType)?.name || 'Quick Note'}
+                {selectedPatient && ` • ${selectedPatient.firstName} ${selectedPatient.lastName || ''}`}
               </p>
+              <Separator className="my-4" />
               <div className="prose max-w-none">
                 {noteText.split('\n').map((line, i) => (
                   <p key={i} className="mb-2 whitespace-pre-wrap">{line}</p>
                 ))}
               </div>
+              {signatureData && (
+                <div className="mt-6 pt-4 border-t">
+                  <SignatureDisplay signatureData={signatureData} />
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
@@ -438,10 +781,45 @@ Plan:
         </DialogContent>
       </Dialog>
 
+      {/* Signature Dialog */}
+      <Dialog open={showSignature} onOpenChange={setShowSignature}>
+        <DialogContent className="w-[95vw] sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Electronic Signature</DialogTitle>
+            <DialogDescription>Sign to finalize this note</DialogDescription>
+          </DialogHeader>
+          {signatureData ? (
+            <div className="space-y-4">
+              <SignatureDisplay signatureData={signatureData} />
+              <Button variant="outline" className="w-full" onClick={() => setSignatureData(null)}>
+                Clear Signature
+              </Button>
+            </div>
+          ) : (
+            <SignaturePad
+              documentTitle={noteTitle || "Medical Note"}
+              documentType="medical_note"
+              patientName={selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : undefined}
+              onSignatureComplete={(data) => {
+                setSignatureData(data);
+                setShowSignature(false);
+                toast({ title: "Signature Captured", description: "Your electronic signature has been added." });
+              }}
+            />
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSignature(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">Quick Notes</h1>
-          <p className="text-sm md:text-base text-muted-foreground">Create medical notes without patient selection</p>
+          <p className="text-sm md:text-base text-muted-foreground">Fast medical documentation with optional patient context</p>
         </div>
         <div className="flex gap-2 justify-end w-full sm:w-auto flex-wrap">
           <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
@@ -452,9 +830,9 @@ Plan:
             </DialogTrigger>
             <DialogContent className="w-[95vw] sm:max-w-[625px] max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle className="text-lg md:text-xl">Quick Notes Settings</DialogTitle>
+                <DialogTitle className="text-lg md:text-xl">Note Settings</DialogTitle>
                 <DialogDescription className="text-sm">
-                  Configure templates and prompts used for note generation
+                  Configure templates and prompts for note generation
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
@@ -462,19 +840,17 @@ Plan:
                   <Label htmlFor="noteType">Note Type</Label>
                   <Select
                     value={selectedNoteType}
-                    onValueChange={(value) => setSelectedNoteType(value as any)}
+                    onValueChange={(value) => setSelectedNoteType(value)}
                   >
                     <SelectTrigger id="noteType">
                       <SelectValue placeholder="Select Note Type" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="initial">Initial Consultation</SelectItem>
-                      <SelectItem value="followup">Follow-up Visit</SelectItem>
-                      <SelectItem value="physical">Physical Examination</SelectItem>
-                      <SelectItem value="reevaluation">Re-evaluation Note</SelectItem>
-                      <SelectItem value="procedure">Procedure Note</SelectItem>
-                      <SelectItem value="psychiatric">Psychiatric Evaluation</SelectItem>
-                      <SelectItem value="discharge">Discharge Summary</SelectItem>
+                      {NOTE_TYPES.map(type => (
+                        <SelectItem key={type.id} value={type.id}>
+                          {type.icon} {type.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -487,9 +863,6 @@ Plan:
                     onChange={(e) => setSystemPrompt(e.target.value)}
                     placeholder="Enter system prompt for the AI..."
                   />
-                  <p className="text-sm text-muted-foreground">
-                    This is the main instruction for the AI assistant when generating this type of note.
-                  </p>
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="templateContent">Template Structure</Label>
@@ -500,18 +873,10 @@ Plan:
                     onChange={(e) => setTemplateContent(e.target.value)}
                     placeholder="Enter the template structure for this note type..."
                   />
-                  <p className="text-sm text-muted-foreground">
-                    This is the structure that will be used when creating this type of note.
-                  </p>
                 </div>
               </div>
               <DialogFooter>
-                <Button 
-                  variant="outline" 
-                  onClick={() => setIsSettingsOpen(false)}
-                >
-                  Cancel
-                </Button>
+                <Button variant="outline" onClick={() => setIsSettingsOpen(false)}>Cancel</Button>
                 <Button 
                   onClick={() => {
                     saveCustomPromptMutation.mutate({
@@ -521,7 +886,6 @@ Plan:
                     });
                   }}
                   disabled={saveCustomPromptMutation.isPending}
-                  data-testid="button-save-settings"
                 >
                   {saveCustomPromptMutation.isPending ? (
                     <>
@@ -529,46 +893,154 @@ Plan:
                       Saving...
                     </>
                   ) : (
-                    "Save Custom Prompt"
+                    "Save Settings"
                   )}
                 </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
-          <Button
-            variant="outline"
-            onClick={handleStartConsultation}
-            className="w-full sm:w-auto"
-          >
-            <MessageSquare className="h-4 w-4 mr-2" />
-            <span className="hidden sm:inline">Start Consultation</span>
-            <span className="sm:hidden">Consult</span>
-          </Button>
-          <Button 
-            onClick={handleGenerateNotes} 
-            disabled={isGenerating}
-            className="w-full sm:w-auto"
-          >
-            {isGenerating ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <FileText className="h-4 w-4 mr-2" />
-                Generate SOAP
-              </>
-            )}
-          </Button>
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      {/* Mode Toggle */}
+      <Card>
+        <CardContent className="pt-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Zap className={cn("h-5 w-5", mode === 'quick' ? "text-primary" : "text-muted-foreground")} />
+                <span className={cn("font-medium", mode === 'quick' ? "text-primary" : "text-muted-foreground")}>Quick Mode</span>
+              </div>
+              <Switch
+                checked={mode === 'patient'}
+                onCheckedChange={(checked) => {
+                  setMode(checked ? 'patient' : 'quick');
+                  if (!checked) {
+                    setSelectedPatientId(null);
+                    setAiSuggestion(null);
+                  }
+                }}
+              />
+              <div className="flex items-center gap-2">
+                <Users className={cn("h-5 w-5", mode === 'patient' ? "text-primary" : "text-muted-foreground")} />
+                <span className={cn("font-medium", mode === 'patient' ? "text-primary" : "text-muted-foreground")}>Patient Mode</span>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {mode === 'quick' 
+                ? "Create notes without patient selection" 
+                : "Link notes to a patient with full context"}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Patient Selection (only in patient mode) */}
+      {mode === 'patient' && !selectedPatientId && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg md:text-xl">SOAP Note</CardTitle>
-            <CardDescription className="text-sm">Create a quick note without patient selection</CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Select Patient
+            </CardTitle>
+            <CardDescription>Choose a patient to view their history and create a linked note</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Popover open={patientSearchOpen} onOpenChange={setPatientSearchOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-between h-12 text-lg">
+                  Search and select a patient...
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-full p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search by name, email, or phone..." />
+                  <CommandList className="max-h-[300px]">
+                    <CommandEmpty>No patient found.</CommandEmpty>
+                    <CommandGroup>
+                      {isLoadingPatients ? (
+                        <div className="flex items-center justify-center p-4">
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          Loading...
+                        </div>
+                      ) : patients?.map((patient) => (
+                        <CommandItem
+                          key={patient.id}
+                          value={`${patient.firstName} ${patient.lastName || ''} ${patient.email} ${patient.phone || ''}`}
+                          onSelect={() => {
+                            setSelectedPatientId(patient.id);
+                            setPatientSearchOpen(false);
+                          }}
+                          className="py-3"
+                        >
+                          <Check className={cn("mr-2 h-4 w-4", selectedPatientId === patient.id ? "opacity-100" : "opacity-0")} />
+                          <div className="flex flex-col">
+                            <span className="font-medium">{patient.firstName} {patient.lastName || ''}</span>
+                            <span className="text-sm text-muted-foreground">{patient.email}</span>
+                          </div>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Patient Summary (only shown when patient is selected) */}
+      <PatientSummary />
+
+      {/* Note Type Selection */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <FileText className="h-4 w-4" />
+            Note Type
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-2">
+            {NOTE_TYPES.map((type) => (
+              <button
+                key={type.id}
+                onClick={() => setSelectedNoteType(type.id)}
+                className={cn(
+                  "px-3 py-2 rounded-lg border text-sm transition-all hover:shadow-md flex items-center gap-2",
+                  selectedNoteType === type.id 
+                    ? "border-primary bg-primary/10 text-primary" 
+                    : "border-muted hover:border-primary/50"
+                )}
+              >
+                <span>{type.icon}</span>
+                <span className="hidden sm:inline">{type.name}</span>
+                <span className="sm:hidden">{type.name.split(' ')[0]}</span>
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Main Content Grid */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* SOAP Note Editor */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg md:text-xl flex items-center justify-between">
+              <span>{NOTE_TYPES.find(t => t.id === selectedNoteType)?.name || 'SOAP Note'}</span>
+              {mode === 'patient' && selectedPatient && (
+                <Badge variant="secondary">
+                  {selectedPatient.firstName} {selectedPatient.lastName || ''}
+                </Badge>
+              )}
+            </CardTitle>
+            <CardDescription className="text-sm">
+              {mode === 'patient' && selectedPatient 
+                ? `Creating note for ${selectedPatient.firstName}` 
+                : "Quick note without patient assignment"}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -583,17 +1055,58 @@ Plan:
                 />
               </div>
               <Textarea
-                placeholder="Start typing or record your notes..."
+                placeholder="Start typing or use voice to record your notes..."
                 className="min-h-[250px] md:min-h-[300px] text-sm md:text-base"
                 value={noteText}
                 onChange={(e) => setNoteText(e.target.value)}
               />
+              
+              {/* Action Buttons Row 1 */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <Button
+                  variant="outline"
+                  onClick={handleStartConsultation}
+                  className="w-full"
+                >
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  <span className="hidden sm:inline">Voice</span>
+                  <span className="sm:hidden">Voice</span>
+                </Button>
+                <Button 
+                  onClick={handleGenerateNotes} 
+                  disabled={isGenerating}
+                  className="w-full"
+                  variant="outline"
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <span className="hidden sm:inline">Generating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      <span className="hidden sm:inline">AI Generate</span>
+                      <span className="sm:hidden">AI</span>
+                    </>
+                  )}
+                </Button>
+                <Button 
+                  variant="outline"
+                  onClick={() => setShowSignature(true)}
+                  className="w-full col-span-2 sm:col-span-1"
+                >
+                  <FileCheck className="h-4 w-4 mr-2" />
+                  {signatureData ? "Signed ✓" : "Sign"}
+                </Button>
+              </div>
+
+              {/* Action Buttons Row 2 */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <Button 
                   variant="outline"
                   onClick={() => setShowPreview(true)}
                   disabled={!noteText.trim() || !noteTitle.trim()}
-                  data-testid="button-preview-note"
                 >
                   <Eye className="h-4 w-4 mr-2" />
                   Preview
@@ -602,12 +1115,11 @@ Plan:
                   variant="outline"
                   onClick={handleDownloadNote}
                   disabled={!noteText.trim() || !noteTitle.trim() || isDownloading}
-                  data-testid="button-download-note"
                 >
                   {isDownloading ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Downloading...
+                      <span className="hidden sm:inline">Downloading...</span>
                     </>
                   ) : (
                     <>
@@ -618,10 +1130,9 @@ Plan:
                 </Button>
                 <Button 
                   onClick={handleSaveNote}
-                  disabled={!noteText.trim() || !noteTitle.trim() || createNoteMutation.isPending}
-                  data-testid="button-save-note"
+                  disabled={!noteText.trim() || !noteTitle.trim() || createQuickNoteMutation.isPending || createMedicalNoteMutation.isPending}
                 >
-                  {createNoteMutation.isPending ? (
+                  {(createQuickNoteMutation.isPending || createMedicalNoteMutation.isPending) ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       Saving...
@@ -629,7 +1140,7 @@ Plan:
                   ) : (
                     <>
                       <Save className="h-4 w-4 mr-2" />
-                      Save Note
+                      {mode === 'patient' && selectedPatientId ? "Save to Patient" : "Save Note"}
                     </>
                   )}
                 </Button>
@@ -638,30 +1149,35 @@ Plan:
           </CardContent>
         </Card>
 
+        {/* AI Suggestions Panel */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg md:text-xl">AI Suggestions</CardTitle>
+            <CardTitle className="text-lg md:text-xl">AI Assistant</CardTitle>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="templates">
               <TabsList className="mb-4 grid grid-cols-3 w-full">
                 <TabsTrigger value="templates" className="text-xs sm:text-sm">Templates</TabsTrigger>
-                <TabsTrigger value="analysis" className="text-xs sm:text-sm">Analysis</TabsTrigger>
-                <TabsTrigger value="assistant" className="text-xs sm:text-sm">Assistant</TabsTrigger>
+                <TabsTrigger value="analysis" className="text-xs sm:text-sm">
+                  {mode === 'patient' ? 'Patient Info' : 'Tips'}
+                </TabsTrigger>
+                <TabsTrigger value="assistant" className="text-xs sm:text-sm">Chat</TabsTrigger>
               </TabsList>
+              
               <TabsContent value="templates">
                 <div className="space-y-2">
                   <p className="text-sm text-muted-foreground mb-4">
-                    Select a template to quickly create standardized notes
+                    Click a template to populate your note
                   </p>
                   
                   <Button 
                     variant="outline" 
-                    className="w-full justify-start"
+                    className="w-full justify-start text-left h-auto py-3"
                     onClick={() => {
-                      setNoteTitle("SOAP - Initial Consultation");
+                      const patientName = selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : "Patient";
+                      setNoteTitle(`${patientName} - Initial Consultation`);
                       setNoteText(
-`SOAP Note
+`SOAP Note - Initial Consultation
 
 Subjective:
 - Chief complaint:
@@ -689,17 +1205,23 @@ Plan:
 `);
                     }}
                   >
-                    <ClipboardList className="h-4 w-4 mr-2" />
-                    Initial Consultation
+                    <div className="flex items-start gap-2">
+                      <span className="text-xl">🏥</span>
+                      <div>
+                        <div className="font-medium">Initial Consultation</div>
+                        <div className="text-xs text-muted-foreground">Complete SOAP for new patients</div>
+                      </div>
+                    </div>
                   </Button>
                   
                   <Button 
                     variant="outline" 
-                    className="w-full justify-start"
+                    className="w-full justify-start text-left h-auto py-3"
                     onClick={() => {
-                      setNoteTitle("SOAP - Follow-up Visit");
+                      const patientName = selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : "Patient";
+                      setNoteTitle(`${patientName} - Follow-up Visit`);
                       setNoteText(
-`SOAP Note - Follow-up
+`SOAP Note - Follow-up Visit
 
 Subjective:
 - Response to treatment:
@@ -725,15 +1247,21 @@ Plan:
 `);
                     }}
                   >
-                    <ClipboardList className="h-4 w-4 mr-2" />
-                    Follow-up Visit
+                    <div className="flex items-start gap-2">
+                      <span className="text-xl">🔄</span>
+                      <div>
+                        <div className="font-medium">Follow-up Visit</div>
+                        <div className="text-xs text-muted-foreground">Progress check template</div>
+                      </div>
+                    </div>
                   </Button>
                   
                   <Button 
                     variant="outline" 
-                    className="w-full justify-start"
+                    className="w-full justify-start text-left h-auto py-3"
                     onClick={() => {
-                      setNoteTitle("SOAP - Physical Examination");
+                      const patientName = selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : "Patient";
+                      setNoteTitle(`${patientName} - Physical Examination`);
                       setNoteText(
 `SOAP Note - Physical Examination
 
@@ -765,83 +1293,160 @@ Plan:
 `);
                     }}
                   >
-                    <ClipboardList className="h-4 w-4 mr-2" />
-                    Physical Examination
+                    <div className="flex items-start gap-2">
+                      <span className="text-xl">📋</span>
+                      <div>
+                        <div className="font-medium">Physical Examination</div>
+                        <div className="text-xs text-muted-foreground">Annual wellness template</div>
+                      </div>
+                    </div>
                   </Button>
                   
                   <Button 
                     variant="outline" 
-                    className="w-full justify-start"
+                    className="w-full justify-start text-left h-auto py-3"
                     onClick={() => {
-                      setNoteTitle("Re-evaluation Note");
+                      const patientName = selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : "Patient";
+                      setNoteTitle(`${patientName} - Procedure Note`);
                       setNoteText(
-`Re-evaluation Note
+`Procedure Note
 
-Date of Service: ${format(new Date(), "MM/dd/yyyy")}
+Date: ${format(new Date(), "MM/dd/yyyy")}
+${selectedPatient ? `Patient: ${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : ''}
 
-Reason for Re-evaluation:
-- 
+Procedure:
+-
 
-Previous Diagnosis:
-- 
+Indication:
+-
 
-Changes Since Last Visit:
-- Symptom changes:
-- Response to treatment:
-- Medication adjustments:
-- New concerns:
+Consent: Informed consent obtained
 
-Current Assessment:
-- Updated diagnosis:
-- Disease progression/regression:
-- Functional status:
+Pre-procedure Assessment:
+- Vital signs:
+- Relevant history:
 
-Treatment Plan Modifications:
-- Medication changes:
-- Therapy adjustments:
-- New interventions:
+Procedure Details:
+- Anesthesia:
+- Technique:
+- Findings:
+- Complications:
 
-Goals and Prognosis:
-- Short-term goals:
-- Long-term goals:
-- Expected outcomes:
+Post-procedure:
+- Condition:
+- Instructions given:
+- Follow-up:
 `);
                     }}
                   >
-                    <ClipboardList className="h-4 w-4 mr-2" />
-                    Re-evaluation Note
+                    <div className="flex items-start gap-2">
+                      <span className="text-xl">🔧</span>
+                      <div>
+                        <div className="font-medium">Procedure Note</div>
+                        <div className="text-xs text-muted-foreground">Medical procedure documentation</div>
+                      </div>
+                    </div>
                   </Button>
                 </div>
               </TabsContent>
+              
               <TabsContent value="analysis">
-                <div className="text-center text-muted-foreground py-8">
-                  <div className="space-y-4">
-                    <div className="border p-3 rounded-md text-left">
-                      <p className="font-medium mb-2">Quick Notes Overview</p>
-                      <p className="text-sm text-muted-foreground">
-                        Quick notes allow you to create medical documentation without patient selection. This is useful for general observations, personal reminders, or documentation that will be linked to a patient later.
-                      </p>
-                    </div>
-                    <div className="border p-3 rounded-md text-left">
-                      <p className="font-medium mb-2">Documentation Tips</p>
-                      <p className="text-sm text-muted-foreground">
-                        • Be specific and concise<br />
-                        • Include relevant timestamps<br />
-                        • Use standard medical terminology<br />
-                        • Document objectively and factually
-                      </p>
-                    </div>
-                    <div className="border p-3 rounded-md text-left">
-                      <p className="font-medium mb-2">Note Types</p>
-                      <p className="text-sm text-muted-foreground">
-                        <strong>SOAP:</strong> Structured clinical documentation<br />
-                        <strong>Progress:</strong> Track improvements over time<br />
-                        <strong>Procedure:</strong> Document interventions and outcomes
-                      </p>
-                    </div>
-                  </div>
+                <div className="space-y-4">
+                  {mode === 'patient' && selectedPatient ? (
+                    <>
+                      {/* Patient Details */}
+                      <div className="border rounded-md p-3">
+                        <p className="font-medium mb-2 flex items-center gap-2">
+                          <Users className="h-4 w-4" />
+                          Patient Details
+                        </p>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <Calendar className="h-3 w-3" />
+                            Age: {calculateAge(selectedPatient.dateOfBirth)}
+                          </div>
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <Mail className="h-3 w-3" />
+                            {selectedPatient.email}
+                          </div>
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <Phone className="h-3 w-3" />
+                            {selectedPatient.phone || 'No phone'}
+                          </div>
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <MapPin className="h-3 w-3" />
+                            {selectedPatient.address || 'No address'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Visit Stats */}
+                      <div className="border rounded-md p-3">
+                        <p className="font-medium mb-2 flex items-center gap-2">
+                          <Activity className="h-4 w-4" />
+                          Visit Statistics
+                        </p>
+                        <div className="space-y-1 text-sm text-muted-foreground">
+                          <p>Total Notes: {patientMedicalNotes?.length || 0}</p>
+                          <p>Intake Forms: {patientIntakeForms?.length || 0}</p>
+                          {patientMedicalNotes && patientMedicalNotes.length > 0 && (
+                            <p>Last Visit: {format(new Date(patientMedicalNotes[0].createdAt), 'MMM d, yyyy')}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Telemedicine Option */}
+                      <div className="border rounded-md p-3 bg-primary/5">
+                        <p className="font-medium mb-2 flex items-center gap-2">
+                          <Video className="h-4 w-4" />
+                          Start Video Consultation
+                        </p>
+                        <p className="text-sm text-muted-foreground mb-2">
+                          Need a video call? Start a telemedicine session with this patient.
+                        </p>
+                        <Button variant="outline" size="sm" className="w-full" onClick={() => {
+                          window.location.href = '/telemedicine';
+                        }}>
+                          <Video className="h-4 w-4 mr-2" />
+                          Go to Telemedicine
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="border rounded-md p-3">
+                        <p className="font-medium mb-2">Quick Notes Overview</p>
+                        <p className="text-sm text-muted-foreground">
+                          Quick notes allow fast documentation. Enable Patient Mode to link notes to a specific patient with full context.
+                        </p>
+                      </div>
+                      <div className="border rounded-md p-3">
+                        <p className="font-medium mb-2">Documentation Tips</p>
+                        <p className="text-sm text-muted-foreground">
+                          • Be specific and concise<br />
+                          • Include relevant timestamps<br />
+                          • Use standard medical terminology<br />
+                          • Document objectively and factually
+                        </p>
+                      </div>
+                      <div className="border rounded-md p-3 bg-primary/5">
+                        <p className="font-medium mb-2 flex items-center gap-2">
+                          <Users className="h-4 w-4" />
+                          Need Patient Context?
+                        </p>
+                        <p className="text-sm text-muted-foreground mb-2">
+                          Enable Patient Mode to view history, intake forms, and AI suggestions.
+                        </p>
+                        <Button variant="outline" size="sm" className="w-full" onClick={() => setMode('patient')}>
+                          <ArrowRight className="h-4 w-4 mr-2" />
+                          Switch to Patient Mode
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </TabsContent>
+              
               <TabsContent value="assistant">
                 <div className="h-[400px] flex flex-col">
                   <div className="flex-1 border rounded-md mb-4 p-4 overflow-y-auto bg-secondary/5">
@@ -852,7 +1457,11 @@ Goals and Prognosis:
                             <Stethoscope className="h-4 w-4 text-primary" />
                             <span className="font-medium text-sm">AI Assistant</span>
                           </div>
-                          <p className="text-sm">Hello! I'm your AI medical assistant. How can I help you with your quick note today?</p>
+                          <p className="text-sm">
+                            Hello! I'm your AI medical assistant. 
+                            {selectedPatient && ` I see you're working on a note for ${selectedPatient.firstName}.`}
+                            {' '}How can I help you today?
+                          </p>
                         </div>
                       </div>
                       {chatMessages.map((message, index) => (
@@ -891,7 +1500,7 @@ Goals and Prognosis:
                   </div>
                   <div className="flex gap-2">
                     <Input 
-                      placeholder="Ask a medical question or request help with your note..." 
+                      placeholder="Ask a medical question or request help..." 
                       value={chatInput}
                       onChange={(e) => setChatInput(e.target.value)}
                       onKeyDown={(e) => {
@@ -901,12 +1510,10 @@ Goals and Prognosis:
                         }
                       }}
                       disabled={isAssistantThinking}
-                      data-testid="input-assistant-chat"
                     />
                     <Button 
                       onClick={handleSendChatMessage}
                       disabled={!chatInput.trim() || isAssistantThinking}
-                      data-testid="button-send-chat"
                     >
                       {isAssistantThinking ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
