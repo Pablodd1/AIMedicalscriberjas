@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { Patient, Appointment, User } from "@shared/schema";
+import { Patient, Appointment, User, MedicalNote, IntakeForm } from "@shared/schema";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
 import { format } from "date-fns";
-import { Calendar, Users, Clock, Stethoscope, Activity, Plus, FileText, Video, PenTool, UserPlus, CalendarPlus, ClipboardList } from "lucide-react";
+import { Calendar, Users, Clock, Stethoscope, Activity, Plus, FileText, Video, PenTool, UserPlus, CalendarPlus, ClipboardList, CheckCircle2, TrendingUp, FileCheck } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,9 +21,27 @@ export default function Dashboard() {
     queryKey: ["/api/patients"],
   });
 
+  // Fetch medical notes for completed visits count
+  const { data: medicalNotes } = useQuery<MedicalNote[]>({
+    queryKey: ["/api/medical-notes"],
+  });
+
+  // Fetch intake forms
+  const { data: intakeForms } = useQuery<IntakeForm[]>({
+    queryKey: ["/api/intake-forms"],
+  });
+
   const todayAppointments = appointments?.filter(a => 
     new Date(a.date).toDateString() === new Date().toDateString()
   ) || [];
+
+  // Calculate completed visits (appointments with status 'completed' or medical notes created)
+  const completedAppointments = appointments?.filter(a => a.status === 'completed') || [];
+  const completedVisitsCount = medicalNotes?.length || completedAppointments.length || 0;
+
+  // Completed intake forms
+  const completedIntakeForms = intakeForms?.filter(f => f.status === 'completed') || [];
+  const pendingIntakeForms = intakeForms?.filter(f => f.status === 'pending') || [];
 
   const stats = [
     {
@@ -31,28 +49,57 @@ export default function Dashboard() {
       value: patients?.length || 0,
       icon: Users,
       trend: "+5%",
-      description: "from last month"
+      description: "from last month",
+      color: "text-blue-500"
     },
     {
       title: "Today's Appointments",
       value: todayAppointments.length,
       icon: Calendar,
       trend: "+2%",
-      description: "from yesterday"
+      description: "from yesterday",
+      color: "text-purple-500"
+    },
+    {
+      title: "Completed Visits",
+      value: completedVisitsCount,
+      icon: CheckCircle2,
+      trend: `+${medicalNotes?.filter(n => {
+        const noteDate = new Date(n.createdAt);
+        const today = new Date();
+        return noteDate.toDateString() === today.toDateString();
+      }).length || 0} today`,
+      description: "total documented visits",
+      color: "text-green-500"
+    },
+    {
+      title: "Intake Forms",
+      value: `${completedIntakeForms.length}/${intakeForms?.length || 0}`,
+      icon: FileCheck,
+      trend: `${pendingIntakeForms.length} pending`,
+      description: "completed forms",
+      color: "text-orange-500"
     },
     {
       title: "Upcoming Consultations",
       value: appointments?.filter(a => new Date(a.date) > new Date()).length || 0,
       icon: Clock,
       trend: "0%",
-      description: "no change"
+      description: "scheduled ahead",
+      color: "text-indigo-500"
     },
     {
-      title: "Patient Recovery Rate",
-      value: "92%",
-      icon: Activity,
+      title: "This Week's Notes",
+      value: medicalNotes?.filter(n => {
+        const noteDate = new Date(n.createdAt);
+        const weekAgo = new Date();
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        return noteDate >= weekAgo;
+      }).length || 0,
+      icon: TrendingUp,
       trend: "+3%",
-      description: "from last quarter"
+      description: "from last week",
+      color: "text-emerald-500"
     }
   ];
 
@@ -63,17 +110,17 @@ export default function Dashboard() {
         <p className="text-muted-foreground mt-1">Here's what's happening with your practice today.</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {stats.map((stat, i) => (
-          <Card key={i}>
+          <Card key={i} className="hover:shadow-md transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-              <stat.icon className="h-4 w-4 text-muted-foreground" />
+              <stat.icon className={`h-5 w-5 ${stat.color}`} />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stat.value}</div>
               <p className="text-xs text-muted-foreground">
-                <span className={stat.trend.startsWith("+") ? "text-green-500" : "text-muted-foreground"}>
+                <span className={stat.trend.startsWith("+") ? "text-green-500" : stat.trend.includes("pending") ? "text-orange-500" : "text-muted-foreground"}>
                   {stat.trend}
                 </span>
                 {" "}{stat.description}

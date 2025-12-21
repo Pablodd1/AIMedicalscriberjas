@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Plus, Trash, Send } from "lucide-react";
+import { Loader2, Plus, Trash, Send, Copy, ExternalLink, Eye, CheckCircle, Clock, XCircle, Link2, QrCode, Mail, RefreshCw } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -133,13 +133,32 @@ export default function PatientIntakeFormPage() {
     },
   });
 
+  // State for preview
+  const [previewLink, setPreviewLink] = useState<string | null>(null);
+  const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [currentLink, setCurrentLink] = useState<string>("");
+  const [currentFormName, setCurrentFormName] = useState<string>("");
+
   // Function to copy the intake form link to clipboard
   const copyToClipboard = (link: string) => {
-    navigator.clipboard.writeText(`${window.location.origin}/patient-join/${link}`);
+    const fullLink = `${window.location.origin}/patient-join/${link}`;
+    navigator.clipboard.writeText(fullLink);
     toast({
-      title: "Link copied",
+      title: "Link copied!",
       description: "The intake form link has been copied to clipboard",
     });
+  };
+
+  // Function to show link dialog
+  const showLink = (link: string, name: string) => {
+    setCurrentLink(`${window.location.origin}/patient-join/${link}`);
+    setCurrentFormName(name);
+    setShowLinkDialog(true);
+  };
+
+  // Function to open preview in new tab
+  const openPreview = (link: string) => {
+    window.open(`/patient-join/${link}`, '_blank');
   };
 
   const handleSubmit = form.handleSubmit((data) => {
@@ -158,29 +177,121 @@ export default function PatientIntakeFormPage() {
     }
   };
 
-  // Function to get status badge color
-  const getStatusColor = (status: string) => {
+  // Function to get status badge with icon
+  const getStatusBadge = (status: string) => {
     switch (status) {
       case "pending":
-        return "bg-yellow-100 text-yellow-800";
+        return {
+          color: "bg-yellow-100 text-yellow-800 border-yellow-300",
+          icon: Clock,
+          label: "Pending"
+        };
       case "completed":
-        return "bg-green-100 text-green-800";
+        return {
+          color: "bg-green-100 text-green-800 border-green-300",
+          icon: CheckCircle,
+          label: "Completed"
+        };
       case "expired":
-        return "bg-red-100 text-red-800";
+        return {
+          color: "bg-red-100 text-red-800 border-red-300",
+          icon: XCircle,
+          label: "Expired"
+        };
       default:
-        return "bg-gray-100 text-gray-800";
+        return {
+          color: "bg-gray-100 text-gray-800 border-gray-300",
+          icon: Clock,
+          label: status
+        };
     }
   };
 
+  // Calculate stats
+  const totalForms = intakeForms?.length || 0;
+  const completedForms = intakeForms?.filter(f => f.status === 'completed').length || 0;
+  const pendingForms = intakeForms?.filter(f => f.status === 'pending').length || 0;
+
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-6">
+    <div className="container mx-auto p-4 space-y-6">
+      {/* Link Dialog */}
+      <Dialog open={showLinkDialog} onOpenChange={setShowLinkDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Link2 className="h-5 w-5" />
+              Intake Form Link
+            </DialogTitle>
+            <DialogDescription>
+              Share this link with {currentFormName} to complete their intake form
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+              <Input 
+                value={currentLink} 
+                readOnly 
+                className="bg-white text-sm"
+              />
+              <Button 
+                variant="outline" 
+                size="icon"
+                onClick={() => {
+                  navigator.clipboard.writeText(currentLink);
+                  toast({ title: "Copied!", description: "Link copied to clipboard" });
+                }}
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => window.open(currentLink, '_blank')}
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Open Preview
+              </Button>
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => {
+                  window.open(`mailto:?subject=Patient Intake Form&body=Please complete your intake form at: ${currentLink}`, '_blank');
+                }}
+              >
+                <Mail className="h-4 w-4 mr-2" />
+                Send via Email
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Header with Stats */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold">Patient Intake Forms</h1>
           <p className="text-muted-foreground mt-1">
             Create, manage, and track patient intake forms
           </p>
         </div>
+        <div className="flex items-center gap-4">
+          {/* Stats badges */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+              <span className="font-semibold">{totalForms}</span>
+              <span>Total</span>
+            </div>
+            <div className="flex items-center gap-1 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
+              <CheckCircle className="h-3 w-3" />
+              <span className="font-semibold">{completedForms}</span>
+            </div>
+            <div className="flex items-center gap-1 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm">
+              <Clock className="h-3 w-3" />
+              <span className="font-semibold">{pendingForms}</span>
+            </div>
+          </div>
         <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button>
@@ -310,9 +421,16 @@ export default function PatientIntakeFormPage() {
                     <TableCell className="font-medium">{form.name}</TableCell>
                     <TableCell>{form.email}</TableCell>
                     <TableCell>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(form.status)}`}>
-                        {form.status}
-                      </span>
+                      {(() => {
+                        const badge = getStatusBadge(form.status);
+                        const StatusIcon = badge.icon;
+                        return (
+                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${badge.color}`}>
+                            <StatusIcon className="h-3 w-3" />
+                            {badge.label}
+                          </span>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>
                       {format(new Date(form.createdAt), "MMM d, yyyy")}
@@ -323,26 +441,47 @@ export default function PatientIntakeFormPage() {
                         : "N/A"}
                     </TableCell>
                     <TableCell>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => copyToClipboard(form.uniqueLink)}
-                      >
-                        Copy Link
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => copyToClipboard(form.uniqueLink)}
+                          className="gap-1"
+                        >
+                          <Copy className="h-3 w-3" />
+                          Copy
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => showLink(form.uniqueLink, form.name)}
+                          title="View full link"
+                        >
+                          <Link2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                     <TableCell>
-                      <Button 
-                        variant="outline" 
-                        size="icon" 
-                        className="ml-2"
-                        // This would be implemented later for viewing form responses
-                        onClick={() => {
-                          window.location.href = `/patient-intake/${form.id}`;
-                        }}
-                      >
-                        <Send className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => openPreview(form.uniqueLink)}
+                          title="Preview form"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => {
+                            window.open(`mailto:${form.email}?subject=Please Complete Your Intake Form&body=Dear ${form.name},%0D%0A%0D%0APlease complete your patient intake form at:%0D%0A${window.location.origin}/patient-join/${form.uniqueLink}%0D%0A%0D%0AThank you.`, '_blank');
+                          }}
+                          title="Send to patient"
+                        >
+                          <Send className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
