@@ -6,12 +6,59 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Loader2, Mic, MicOff, Send, Check } from "lucide-react";
+import { Loader2, Mic, MicOff, Send, Check, Radio, Volume2, VolumeX, Activity, AlertCircle } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useParams, useLocation } from "wouter";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { recordingService } from "@/lib/recording-service";
+
+// Helper function to format recording duration
+const formatDuration = (seconds: number): string => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+};
+
+// Simple audio waveform visualization component
+const AudioWaveform: React.FC<{ level: number }> = ({ level }) => {
+  const bars = 20;
+  const activeCount = Math.floor((level / 100) * bars);
+  
+  return (
+    <div className="flex items-center justify-center gap-1 h-12">
+      {Array.from({ length: bars }).map((_, i) => {
+        const isActive = i < activeCount;
+        const height = isActive ? Math.random() * 60 + 40 : 20;
+        return (
+          <div
+            key={i}
+            className={`w-1 rounded-full transition-all duration-100 ${
+              isActive ? 'bg-red-500' : 'bg-gray-300'
+            }`}
+            style={{ height: `${height}%` }}
+          />
+        );
+      })}
+    </div>
+  );
+};
+
+// Recording troubleshooting component
+const RecordingTroubleshoot: React.FC = () => (
+  <Alert className="mt-3 border-amber-300 bg-amber-50">
+    <AlertCircle className="h-4 w-4 text-amber-600" />
+    <AlertTitle className="text-amber-800">Recording Issue</AlertTitle>
+    <AlertDescription className="text-amber-700 text-sm">
+      <ul className="list-disc list-inside space-y-1 mt-2">
+        <li>Check that your microphone is connected and not muted</li>
+        <li>Grant microphone permissions when prompted by your browser</li>
+        <li>Try refreshing the page if the issue persists</li>
+        <li>As an alternative, you can type your answer instead</li>
+      </ul>
+    </AlertDescription>
+  </Alert>
+);
 
 // Array of standard intake questions
 const DEFAULT_QUESTIONS = [
@@ -103,6 +150,13 @@ export default function PatientJoinPage() {
   const [formComplete, setFormComplete] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   
+  // Recording state variables
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [audioLevel, setAudioLevel] = useState(0);
+  const [hasAudioInput, setHasAudioInput] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState("");
+  const [recordingError, setRecordingError] = useState<string | null>(null);
+  
   // Define intake form interface
   interface IntakeForm {
     id: number;
@@ -184,14 +238,70 @@ export default function PatientJoinPage() {
     setAllQuestionsAnswered(allMandatoryAnswered);
   }, [questionResponses]);
 
+  // Recording duration timer
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    if (isRecording) {
+      setRecordingDuration(0);
+      interval = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+    }
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isRecording]);
+
+  // Simulate audio level (in a real implementation, you'd use Web Audio API)
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    if (isRecording) {
+      interval = setInterval(() => {
+        // Simulate audio level between 0-100
+        const level = Math.random() * 100;
+        setAudioLevel(level);
+        setHasAudioInput(level > 5); // Consider input if level > 5%
+      }, 100);
+    } else {
+      setAudioLevel(0);
+      setHasAudioInput(false);
+    }
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isRecording]);
+
   // Start audio recording
   const handleStartRecording = async () => {
     try {
+      setRecordingError(null);
+      setLiveTranscript("");
       setIsRecording(true);
       await recordingService.startRecording();
+      
+      // Try to start live transcription if available
+      try {
+        await recordingService.startLiveTranscription(
+          (transcript) => {
+            setLiveTranscript(transcript);
+          },
+          (error) => {
+            console.log("Live transcription error:", error);
+            // Don't show error to user, will transcribe after recording
+          }
+        );
+      } catch (liveError) {
+        // Live transcription not supported, will use post-recording transcription
+        console.log("Live transcription not available, will transcribe after recording");
+      }
     } catch (error) {
       console.error("Error starting recording:", error);
       setIsRecording(false);
+      setRecordingError(error instanceof Error ? error.message : "Unknown error");
       toast({
         title: "Recording failed",
         description: "Could not start recording. Please check your microphone permissions.",
@@ -203,6 +313,11 @@ export default function PatientJoinPage() {
   // Stop audio recording
   const handleStopRecording = async () => {
     setIsRecording(false);
+    
+    // Stop live transcription if it was running
+    if (recordingService.isLiveTranscribing) {
+      recordingService.stopLiveTranscription();
+    }
   };
 
   // Save the current question's answer
