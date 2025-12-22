@@ -30,10 +30,11 @@ interface RecordingServiceInterface {
   processAudioFile: (file: File) => Promise<string>;
   isRecording: boolean;
   // Live transcription methods
-  startLiveTranscription: (onTranscript: (text: string) => void, onError?: (error: string) => void) => Promise<void>;
+  startLiveTranscription: (onTranscript: (text: string) => void, onError?: (error: string) => void, language?: string) => Promise<void>;
   stopLiveTranscription: () => void;
   isLiveTranscribing: boolean;
   getLiveTranscript: () => string;
+  getAudioUrl: () => string;
 }
 
 class BrowserRecordingService implements RecordingServiceInterface {
@@ -47,6 +48,7 @@ class BrowserRecordingService implements RecordingServiceInterface {
   private liveTranscriptText: string = "";
   private onTranscriptCallback: ((text: string) => void) | null = null;
   private onErrorCallback: ((error: string) => void) | null = null;
+  private audioUrl: string = "";
   
   constructor() {}
   
@@ -60,6 +62,10 @@ class BrowserRecordingService implements RecordingServiceInterface {
   
   getLiveTranscript(): string {
     return this.liveTranscriptText;
+  }
+  
+  getAudioUrl(): string {
+    return this.audioUrl;
   }
   
   async startRecording(): Promise<void> {
@@ -86,7 +92,7 @@ class BrowserRecordingService implements RecordingServiceInterface {
     }
   }
   
-  async startLiveTranscription(onTranscript: (text: string) => void, onError?: (error: string) => void): Promise<void> {
+  async startLiveTranscription(onTranscript: (text: string) => void, onError?: (error: string) => void, language: string = 'en-US'): Promise<void> {
     try {
       // Check for speech recognition support
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -106,7 +112,7 @@ class BrowserRecordingService implements RecordingServiceInterface {
       this.speechRecognition = new SpeechRecognition();
       this.speechRecognition.continuous = true;
       this.speechRecognition.interimResults = true;
-      this.speechRecognition.lang = 'en-US';
+      this.speechRecognition.lang = language; // Support multi-language
       
       // Handle results
       this.speechRecognition.onresult = (event: any) => {
@@ -227,6 +233,9 @@ class BrowserRecordingService implements RecordingServiceInterface {
         try {
           // Convert audio chunks to a single blob
           const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
+          
+          // Create audio URL for playback/storage
+          this.audioUrl = URL.createObjectURL(audioBlob);
           
           // Transcribe the audio
           this.transcriptText = await this.transcribeAudio(audioBlob);

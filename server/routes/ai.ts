@@ -893,3 +893,188 @@ Keep it concise - the physician should be able to review in 30 seconds.`;
     throw handleOpenAIError(error);
   }
 }));
+
+// Route to extract intake answers from continuous recording transcript
+aiRouter.post('/extract-intake-answers', asyncHandler(async (req, res) => {
+  const { transcript, language } = req.body;
+
+  if (!transcript || typeof transcript !== 'string') {
+    throw new AppError('Transcript is required', 400, 'MISSING_TRANSCRIPT');
+  }
+
+  // For public intake forms, use environment API key
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new AppError('No OpenAI API key configured', 503, 'NO_API_KEY');
+  }
+
+  const openai = new OpenAI({ apiKey });
+
+  try {
+    const systemPrompt = `You are a medical intake assistant. Extract patient information from a transcript of them speaking about their health.
+
+CRITICAL RULES:
+1. Extract ONLY information that is explicitly stated in the transcript
+2. For missing information, use "Not provided"
+3. NEVER make assumptions or fill in details not mentioned
+4. Organize information into standard intake form fields
+5. Be culturally sensitive - the patient may be speaking English, Spanish, Haitian Creole, or Russian
+
+Extract the following fields (if mentioned):
+- full_name: Patient's full name
+- date_of_birth: Date of birth (format: MM/DD/YYYY if possible)
+- gender: Gender identity
+- email: Email address
+- phone: Phone number
+- emergency_contact: Emergency contact phone
+- address: Full address
+- insurance_provider: Insurance company name
+- insurance_policy_number: Policy number
+- policy_holder_name: Name of policy holder
+- group_number: Insurance group number
+- primary_care_physician: PCP name
+- current_medications: List of current medications
+- allergies: Medication/food allergies
+- chronic_conditions: Chronic medical conditions
+- past_surgeries: Previous surgeries
+- family_medical_history: Family health history
+- reason_for_visit: Chief complaint/reason for visit
+- symptom_description: Detailed symptom description
+- symptom_duration: How long symptoms have lasted
+- symptom_severity: Severity rating (if mentioned)
+- symptoms_before: Whether symptoms occurred before
+- symptom_triggers: What makes symptoms better/worse
+- occupation: Current job
+- lifestyle_habits: Smoking, alcohol, drug use
+- exercise_diet: Exercise frequency and diet
+- living_arrangement: Living situation
+- weight_fever_fatigue: Recent weight loss, fever, or fatigue
+- chest_pain_history: Cardiac symptom history
+- respiratory_symptoms: Cough, shortness of breath, wheezing
+- gastrointestinal_symptoms: GI symptoms
+- musculoskeletal_symptoms: Joint/muscle pain
+- neurological_symptoms: Headaches, dizziness, numbness
+
+Return ONLY a JSON object with two fields:
+1. "answers": object with field names as keys and extracted values as values
+2. "summary": a brief 2-3 sentence clinical summary for the healthcare provider
+
+Example:
+{
+  "answers": {
+    "full_name": "John Doe",
+    "reason_for_visit": "Persistent cough for 2 weeks",
+    "symptom_description": "Dry cough, worse at night",
+    "allergies": "Penicillin"
+  },
+  "summary": "Patient presents with a 2-week history of dry cough that worsens at night. Reports allergy to Penicillin. No other significant symptoms mentioned."
+}`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `Language: ${language}\n\nTranscript:\n${transcript}` }
+      ],
+      temperature: 0.1,
+      max_tokens: 2000,
+      response_format: { type: "json_object" }
+    });
+
+    const result = response.choices[0]?.message?.content?.trim() || '{}';
+    const parsed = JSON.parse(result);
+    
+    sendSuccessResponse(res, {
+      answers: parsed.answers || {},
+      summary: parsed.summary || '',
+      language,
+      processedAt: new Date().toISOString()
+    }, 'Intake answers extracted successfully');
+  } catch (error) {
+    console.error('Error extracting intake answers:', error);
+    throw handleOpenAIError(error);
+  }
+}));
+
+// Extract structured answers from patient intake transcript (PUBLIC - No auth required)
+aiRouter.post('/extract-intake-answers', asyncHandler(async (req, res) => {
+  const { transcript, language, questions } = req.body;
+
+  if (!transcript) {
+    throw new AppError('Transcript is required', 400, 'MISSING_TRANSCRIPT');
+  }
+
+  // Use global OpenAI API key for public intake forms
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new AppError('OpenAI API not configured', 503, 'NO_API_KEY');
+  }
+
+  const openai = new OpenAI({ apiKey });
+
+  try {
+    const languageNames: Record<string, string> = {
+      en: 'English',
+      es: 'Spanish (Español)',
+      ht: 'Haitian Creole (Kreyòl)',
+      ru: 'Russian (Русский)'
+    };
+
+    const systemPrompt = `You are a medical intake assistant. Extract structured information from patient recordings.
+
+CRITICAL INSTRUCTIONS:
+1. The patient spoke in ${languageNames[language] || 'English'}
+2. Extract ONLY information explicitly mentioned by the patient
+3. If something is not mentioned, use "[Not mentioned]"
+4. Return answers in English regardless of input language
+5. Be precise and concise
+6. Format dates as MM/DD/YYYY
+7. For phone numbers, use format: (XXX) XXX-XXXX if US
+8. Extract medication names, allergies, and conditions accurately
+
+Return ONLY a JSON object with the extracted answers. Do not include any markdown, explanations, or additional text.
+
+Example format:
+{
+  "full_name": "John Smith",
+  "date_of_birth": "01/15/1980",
+  "phone": "(555) 123-4567",
+  "current_medications": "Lisinopril 10mg daily, Metformin 500mg twice daily",
+  "allergies": "Penicillin - causes rash",
+  "reason_for_visit": "Persistent cough for 2 weeks",
+  ...
+}`;
+
+    const userPrompt = `Patient transcript:\n\n${transcript}\n\nExtract answers for these fields:\n${JSON.stringify(questions, null, 2)}`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.1,
+      max_tokens: 2000,
+      response_format: { type: "json_object" }
+    });
+
+    const content = response.choices[0]?.message?.content?.trim() || '{}';
+    
+    let answers = {};
+    try {
+      answers = JSON.parse(content);
+    } catch (parseError) {
+      console.error('Failed to parse AI response:', parseError);
+      answers = {};
+    }
+    
+    sendSuccessResponse(res, {
+      answers,
+      language,
+      extractedAt: new Date().toISOString()
+    }, 'Answers extracted successfully');
+  } catch (error) {
+    console.error('Error extracting intake answers:', error);
+    throw handleOpenAIError(error);
+  }
+}));

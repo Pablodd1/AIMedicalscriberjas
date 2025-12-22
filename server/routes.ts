@@ -2348,6 +2348,94 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Complete an intake form
+  app.post("/api/public/intake-form/:formId/submit-continuous", async (req, res) => {
+    try {
+      const formId = parseInt(req.params.formId);
+      
+      if (isNaN(formId)) {
+        return res.status(400).json({ message: "Invalid form ID" });
+      }
+      
+      const { answers, summary, transcript, language, consentGiven, signature, audioUrl } = req.body;
+      
+      // Make sure the form exists
+      const form = await storage.getIntakeForm(formId);
+      if (!form) {
+        return res.status(404).json({ message: "Intake form not found" });
+      }
+      
+      // Save all extracted answers as individual responses
+      if (answers && typeof answers === 'object') {
+        let questionId = 1;
+        for (const [key, value] of Object.entries(answers)) {
+          if (value && typeof value === 'string' && value !== 'Not provided') {
+            await storage.createIntakeFormResponse({
+              formId,
+              questionId: key,
+              question: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+              answer: value,
+              answerType: 'voice_extracted',
+              audioUrl: null
+            });
+          }
+          questionId++;
+        }
+      }
+      
+      // Save the summary as a special response
+      if (summary) {
+        await storage.createIntakeFormResponse({
+          formId,
+          questionId: 'ai_summary',
+          question: 'AI Clinical Summary',
+          answer: summary,
+          answerType: 'ai_summary',
+          audioUrl: null
+        });
+      }
+      
+      // Save the full transcript
+      if (transcript) {
+        await storage.createIntakeFormResponse({
+          formId,
+          questionId: 'full_transcript',
+          question: 'Full Voice Transcript',
+          answer: transcript,
+          answerType: 'transcript',
+          audioUrl: audioUrl || null
+        });
+      }
+      
+      // Save consent and signature info
+      if (consentGiven) {
+        await storage.createIntakeFormResponse({
+          formId,
+          questionId: 'consent',
+          question: 'Patient Consent',
+          answer: `Consent given on ${new Date().toISOString()} for language: ${language}`,
+          answerType: 'consent',
+          audioUrl: null
+        });
+      }
+      
+      if (signature) {
+        await storage.createIntakeFormResponse({
+          formId,
+          questionId: 'signature',
+          question: 'Patient Signature',
+          answer: 'Signature provided (image data stored)',
+          answerType: 'signature',
+          audioUrl: signature // Store signature data URL
+        });
+      }
+      
+      res.json({ success: true, message: "Intake form data saved successfully" });
+    } catch (error: any) {
+      console.error("Error saving continuous intake form:", error);
+      res.status(500).json({ message: "Failed to save intake form data" });
+    }
+  });
+
   app.post("/api/public/intake-form/:formId/complete", async (req, res) => {
     try {
       const formId = parseInt(req.params.formId);

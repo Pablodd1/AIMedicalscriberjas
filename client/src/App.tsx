@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
 import HomePage from "@/pages/home-page";
 import PatientJoin from "@/pages/patient-join";
+import PatientJoinV2 from "@/pages/patient-join-v2";
 import MainLayout from "@/components/layout/main-layout";
 import Assistant from "@/pages/assistant";
 import { AuthProvider } from "@/hooks/use-auth";
@@ -151,6 +152,7 @@ function Router() {
       <Route path="/login" component={AuthPage} />
       <Route path="/register" component={AuthPage} />
       <Route path="/patient-join/:uniqueLink" component={PatientJoin} />
+      <Route path="/patient-join-v2/:uniqueLink" component={PatientJoinV2} />
       
       {/* Public routes for telemedicine patient access */}
       <Route path="/join-consultation/:roomId" component={JoinConsultation} />
