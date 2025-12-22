@@ -93,10 +93,21 @@ export function serveStatic(app: Express) {
   }
 
   log(`Serving static files from: ${distPath}`);
+  
+  // Serve static files, but don't intercept API routes
   app.use(express.static(distPath));
 
-  // fall through to index.html if the file doesn't exist
-  app.use("*", (_req, res) => {
+  // IMPORTANT: Only catch non-API routes for the SPA fallback
+  // This allows API routes to work properly
+  app.use((req, res, next) => {
+    // Don't intercept API routes, WebSocket routes, or actual files
+    if (req.path.startsWith('/api') || 
+        req.path.startsWith('/ws') || 
+        req.path.includes('.')) {
+      return next();
+    }
+    
+    // For all other routes, serve index.html (SPA fallback)
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }
