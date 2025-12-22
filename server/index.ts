@@ -58,9 +58,8 @@ app.use((req, res, next) => {
   server.keepAliveTimeout = 610000;
   server.headersTimeout = 620000;
 
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client
-  const port = 5000;
+  // Use Railway's PORT environment variable in production, fallback to 5000 for local development
+  const port = process.env.PORT ? parseInt(process.env.PORT) : 5000;
   server.listen({
     port,
     host: "0.0.0.0",

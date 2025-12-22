@@ -9,3 +9,6 @@ test_openai.js
 .env
 .env.local
 .env.*.local
+core
+uploads/*
+!uploads/.gitkeep
