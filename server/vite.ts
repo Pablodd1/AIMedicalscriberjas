@@ -71,7 +71,20 @@ export async function setupVite(app: Express, server: Server) {
 }
 
 export function serveStatic(app: Express) {
-  const distPath = path.resolve(__dirname, "public");
+  // In production, the build outputs to dist/client (from vite.config.ts)
+  // But when bundled with esbuild, __dirname is dist/
+  // So we need to look for either dist/client or ../dist/client
+  let distPath = path.resolve(__dirname, "client");
+  
+  // If running from bundled code (dist/index.js), look for client in same dir
+  if (!fs.existsSync(distPath)) {
+    distPath = path.resolve(__dirname, "../dist/client");
+  }
+  
+  // Fallback to checking if it's in the root dist/client
+  if (!fs.existsSync(distPath)) {
+    distPath = path.resolve(process.cwd(), "dist/client");
+  }
 
   if (!fs.existsSync(distPath)) {
     throw new Error(
@@ -79,6 +92,7 @@ export function serveStatic(app: Express) {
     );
   }
 
+  log(`Serving static files from: ${distPath}`);
   app.use(express.static(distPath));
 
   // fall through to index.html if the file doesn't exist
