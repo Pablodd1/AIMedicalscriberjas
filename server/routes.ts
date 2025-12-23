@@ -1081,24 +1081,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json(userPrompt);
       }
       
-      // If no user prompt, get global prompt from database
-      try {
-        const globalResult = await pool.query(`
-          SELECT id, note_type as "noteType", name, description, 
-                 system_prompt as "systemPrompt", template_content as "templateContent",
-                 is_global as "isGlobal", is_active as "isActive", version
-          FROM custom_note_prompts 
-          WHERE note_type = $1 AND is_global = true AND is_active = true
-          LIMIT 1
-        `, [noteType]);
-        
-        if (globalResult.rows.length > 0) {
-          return res.json(globalResult.rows[0]);
-        }
-      } catch (dbError) {
-        console.log("Could not fetch global prompt:", dbError);
-      }
-      
+      // If no user prompt, return null (no global prompts in current schema)
       res.json(null);
     } catch (error) {
       console.error("Error fetching custom note prompt:", error);
