@@ -511,21 +511,21 @@ export default function PatientJoinPage() {
   }
 
   return (
-    <div className="container mx-auto p-4">
-      <Card className="max-w-3xl mx-auto">
-        <CardHeader>
-          <CardTitle>Patient Intake Form</CardTitle>
-          <CardDescription>
+    <div className="container mx-auto p-2 sm:p-4 md:p-6">
+      <Card className="max-w-3xl mx-auto shadow-lg">
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="text-lg sm:text-xl md:text-2xl">Patient Intake Form</CardTitle>
+          <CardDescription className="text-sm sm:text-base">
             Welcome to {formData.name}'s online intake form. Please answer each question either by typing or using voice input.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 sm:p-6">
           <div className="mb-4">
-            <div className="flex justify-between items-center mb-2">
-              <h3 className="text-lg font-medium">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2 gap-2">
+              <h3 className="text-base sm:text-lg font-medium">
                 Question {currentQuestion + 1} of {DEFAULT_QUESTIONS.length}
               </h3>
-              <div className="text-sm text-muted-foreground">
+              <div className="text-xs sm:text-sm text-muted-foreground">
                 {Object.keys(questionResponses).length} of {DEFAULT_QUESTIONS.length} completed
               </div>
             </div>
@@ -538,40 +538,41 @@ export default function PatientJoinPage() {
           </div>
 
           <div className="mb-6">
-            <Label className="text-lg mb-2 block">
+            <Label className="text-base sm:text-lg mb-2 block break-words">
               {DEFAULT_QUESTIONS[currentQuestion].text}
               {DEFAULT_QUESTIONS[currentQuestion].mandatory && (
                 <span className="text-red-500 ml-1">*</span>
               )}
             </Label>
             {DEFAULT_QUESTIONS[currentQuestion].mandatory && (
-              <p className="text-sm text-muted-foreground mb-2">This field is required</p>
+              <p className="text-xs sm:text-sm text-muted-foreground mb-2">This field is required</p>
             )}
-            <div className="flex items-start gap-4">
-              <div className="flex-1">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-start gap-3 sm:gap-4">
+              <div className="flex-1 min-w-0">
                 <Textarea 
                   ref={textareaRef}
                   placeholder="Type your answer here or click the microphone to record..."
-                  className="h-32"
+                  className="h-32 sm:h-40 text-sm sm:text-base"
                   onChange={handleTextareaChange}
                   defaultValue={questionResponses[DEFAULT_QUESTIONS[currentQuestion].id]?.answer || ""}
                   data-testid="intake-answer-textarea"
                 />
               </div>
-              <div>
+              <div className="flex justify-center sm:block">
                 {isRecording ? (
                   <Button
                     type="button"
                     variant="destructive"
                     size="icon"
                     onClick={handleStopRecording}
-                    className="h-14 w-14 relative shadow-lg shadow-red-500/30"
+                    className="h-12 w-12 sm:h-14 sm:w-14 relative shadow-lg shadow-red-500/30 touch-manipulation flex-shrink-0"
                     data-testid="button-stop-recording"
+                    aria-label="Stop recording"
                   >
                     {/* Pulsing animation */}
                     <span className="absolute inset-0 rounded-md border-2 border-red-500 animate-ping opacity-30" />
                     <span className="absolute inset-1 rounded-md bg-red-500/20 animate-pulse" />
-                    <MicOff className="h-6 w-6 relative z-10" />
+                    <MicOff className="h-5 w-5 sm:h-6 sm:w-6 relative z-10" />
                   </Button>
                 ) : (
                   <Button
@@ -579,10 +580,11 @@ export default function PatientJoinPage() {
                     variant="outline"
                     size="icon"
                     onClick={handleStartRecording}
-                    className="h-14 w-14 hover:bg-primary/10 hover:border-primary transition-all"
+                    className="h-12 w-12 sm:h-14 sm:w-14 hover:bg-primary/10 hover:border-primary transition-all touch-manipulation flex-shrink-0"
                     data-testid="button-start-recording"
+                    aria-label="Start recording"
                   >
-                    <Mic className="h-6 w-6" />
+                    <Mic className="h-5 w-5 sm:h-6 sm:w-6" />
                   </Button>
                 )}
               </div>
@@ -668,13 +670,14 @@ export default function PatientJoinPage() {
             )}
           </div>
 
-          <div className="flex justify-between">
+          <div className="flex flex-col sm:flex-row justify-between gap-3">
             <Button
               type="button"
               variant="outline"
               onClick={handlePrevQuestion}
               disabled={currentQuestion === 0}
               data-testid="button-previous-question"
+              className="w-full sm:w-auto touch-manipulation min-h-[44px] text-sm sm:text-base"
             >
               Previous
             </Button>
@@ -683,6 +686,7 @@ export default function PatientJoinPage() {
                 type="button"
                 onClick={handleNextQuestion}
                 data-testid="button-next-question"
+                className="w-full sm:w-auto touch-manipulation min-h-[44px] text-sm sm:text-base"
               >
                 Next
               </Button>
@@ -692,16 +696,17 @@ export default function PatientJoinPage() {
                 disabled={!allQuestionsAnswered || isSubmitting}
                 onClick={handleCompleteForm}
                 data-testid="button-complete-form"
+                className="w-full sm:w-auto touch-manipulation min-h-[44px] text-sm sm:text-base"
               >
                 {isSubmitting ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Submitting...
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin flex-shrink-0" />
+                    <span>Submitting...</span>
                   </>
                 ) : (
                   <>
-                    <Send className="mr-2 h-4 w-4" />
-                    Complete Form
+                    <Send className="mr-2 h-4 w-4 flex-shrink-0" />
+                    <span>Complete Form</span>
                   </>
                 )}
               </Button>
