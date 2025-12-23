@@ -2016,7 +2016,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     let participantId: string | null = null;
     let roomId: string | null = null;
     
-    socket.on('message', (message: any) => {
+    socket.on('message', async (message: any) => {
       try {
         const data = JSON.parse(message.toString());
         
