@@ -42,6 +42,7 @@ import {
   Activity,
   HelpCircle,
   ChevronRight,
+  Save,
 } from "lucide-react";
 import { SignaturePad, SignatureDisplay, SignatureData } from "@/components/signature-pad";
 import { cn } from "@/lib/utils";
@@ -775,9 +776,18 @@ export function ConsultationModal({
         <div className="mt-4 flex flex-col space-y-4">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="live-recording">Live Recording</TabsTrigger>
-              <TabsTrigger value="upload-recording">Upload Audio</TabsTrigger>
-              <TabsTrigger value="text-paste">Text Input</TabsTrigger>
+              <TabsTrigger value="live-recording">
+                <Mic className="h-4 w-4 mr-2" />
+                Live Recording
+              </TabsTrigger>
+              <TabsTrigger value="upload-recording">
+                <Upload className="h-4 w-4 mr-2" />
+                Upload Audio
+              </TabsTrigger>
+              <TabsTrigger value="text-paste">
+                <ClipboardCopy className="h-4 w-4 mr-2" />
+                Paste Text
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="live-recording" className="space-y-4 mt-4">
@@ -855,16 +865,46 @@ export function ConsultationModal({
 
               {transcript && recordingState.status === 'idle' && (
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
                     <h3 className="text-lg font-medium">Final Transcript</h3>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={saveTranscriptToDatabase}
-                      disabled={isSaving || !patientInfo}
-                    >
-                      {isSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</> : "Save Transcript"}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          navigator.clipboard.writeText(transcript);
+                          toast({ title: "Copied", description: "Transcript copied to clipboard" });
+                        }}
+                      >
+                        <ClipboardCopy className="h-4 w-4 mr-2" />
+                        Copy
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          const blob = new Blob([transcript], { type: 'text/plain' });
+                          const url = URL.createObjectURL(blob);
+                          const link = document.createElement('a');
+                          link.href = url;
+                          link.download = `transcript-${new Date().toISOString().split('T')[0]}.txt`;
+                          link.click();
+                          URL.revokeObjectURL(url);
+                          toast({ title: "Downloaded", description: "Transcript downloaded" });
+                        }}
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Download
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={saveTranscriptToDatabase}
+                        disabled={isSaving || !patientInfo}
+                      >
+                        {isSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</> : <><Save className="h-4 w-4 mr-2" />Save</>}
+                      </Button>
+                    </div>
                   </div>
                   <div className="p-4 border rounded-md bg-blue-50 dark:bg-blue-950/20 max-h-[150px] overflow-y-auto border-blue-200 dark:border-blue-800">
                     <p className="whitespace-pre-wrap">{transcript}</p>
@@ -874,10 +914,19 @@ export function ConsultationModal({
             </TabsContent>
 
             <TabsContent value="upload-recording" className="space-y-4 mt-4">
-              <div className="flex flex-col items-center justify-center p-6 border rounded-lg bg-muted/20">
+              <Alert className="bg-purple-50 dark:bg-purple-950/20 border-purple-200">
+                <Upload className="h-4 w-4 text-purple-600" />
+                <AlertTitle className="text-purple-900 dark:text-purple-100">Upload Audio File</AlertTitle>
+                <AlertDescription className="text-purple-700 dark:text-purple-300 text-sm">
+                  Upload any audio format (MP3, WAV, M4A, AAC, FLAC, OGG, etc.). 
+                  Maximum file size: 50MB. The audio will be transcribed automatically.
+                </AlertDescription>
+              </Alert>
+              
+              <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg bg-muted/20 hover:bg-muted/30 transition-colors">
                 <input
                   type="file"
-                  accept="audio/*"
+                  accept="audio/*,video/*,.mp3,.wav,.m4a,.aac,.flac,.ogg,.webm,.mp4,.mov"
                   ref={fileInputRef}
                   onChange={handleFileUpload}
                   className="hidden"
@@ -885,16 +934,21 @@ export function ConsultationModal({
                 <Button
                   variant="outline"
                   size="lg"
-                  className="w-36 h-36 rounded-full flex flex-col gap-2"
+                  className="w-36 h-36 rounded-full flex flex-col gap-2 hover:bg-primary/10 hover:border-primary"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isProcessing}
                 >
                   {isProcessing ? <Loader2 className="h-10 w-10 animate-spin" /> : <Upload className="h-10 w-10" />}
-                  <span className="text-sm">{isProcessing ? "Processing..." : "Upload Audio"}</span>
+                  <span className="text-sm font-medium">{isProcessing ? "Processing..." : "Upload Audio"}</span>
                 </Button>
-                <p className="text-sm text-muted-foreground mt-4">
-                  Upload an audio file of a consultation to transcribe and generate documentation
-                </p>
+                <div className="text-center mt-4 space-y-1">
+                  <p className="text-sm text-muted-foreground">
+                    Click to upload or drag and drop
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Supports: MP3, WAV, M4A, AAC, FLAC, OGG, WebM, MP4
+                  </p>
+                </div>
               </div>
 
               {transcript && (
@@ -913,32 +967,54 @@ export function ConsultationModal({
             </TabsContent>
 
             <TabsContent value="text-paste" className="space-y-4 mt-4">
+              <Alert className="bg-blue-50 dark:bg-blue-950/20 border-blue-200">
+                <ClipboardCopy className="h-4 w-4 text-blue-600" />
+                <AlertTitle className="text-blue-900 dark:text-blue-100">Paste or Type Transcription</AlertTitle>
+                <AlertDescription className="text-blue-700 dark:text-blue-300 text-sm">
+                  Already have a transcription? Paste it here! Or type consultation notes directly.
+                  The AI will generate professional SOAP notes from your text.
+                </AlertDescription>
+              </Alert>
+              
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-medium">Paste Consultation Text</h3>
+                  <Label className="text-base font-medium">Consultation Text</Label>
                   {transcript.trim() && (
                     <Button variant="outline" size="sm" onClick={saveTranscriptToDatabase} disabled={isSaving || !patientInfo}>
-                      {isSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</> : "Save Transcript"}
+                      {isSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</> : <><Save className="h-4 w-4 mr-2" />Save</>}
                     </Button>
                   )}
                 </div>
                 <Textarea
-                  placeholder="Paste or type the consultation text here. Include as much detail as possible for accurate documentation..."
-                  className="min-h-[200px]"
+                  placeholder="Paste or type consultation text here. For example:&#10;&#10;Patient reports chest pain for 3 days. Pain is sharp, rated 7/10. Occurs with exertion. No radiation. Patient has history of hypertension. Taking Lisinopril 10mg daily. Vital signs: BP 145/92, HR 88, RR 16, Temp 98.6F..."
+                  className="min-h-[250px] font-mono text-sm"
                   onChange={handleTextInput}
                   value={transcript}
                 />
-                <Button
-                  onClick={() => generateNotes(transcript, 'text')}
-                  disabled={!transcript.trim() || isProcessing}
-                  className="w-full"
-                >
-                  {isProcessing ? (
-                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Generating Documentation...</>
-                  ) : (
-                    <><FileText className="h-4 w-4 mr-2" />Generate Medical Documentation</>
-                  )}
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setTranscript("");
+                      toast({ title: "Cleared", description: "Text cleared" });
+                    }}
+                    disabled={!transcript.trim()}
+                    className="flex-1"
+                  >
+                    Clear Text
+                  </Button>
+                  <Button
+                    onClick={() => generateNotes(transcript, 'text')}
+                    disabled={!transcript.trim() || isProcessing}
+                    className="flex-1"
+                  >
+                    {isProcessing ? (
+                      <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Generating...</>
+                    ) : (
+                      <><FileText className="h-4 w-4 mr-2" />Generate SOAP Notes</>
+                    )}
+                  </Button>
+                </div>
               </div>
             </TabsContent>
           </Tabs>
