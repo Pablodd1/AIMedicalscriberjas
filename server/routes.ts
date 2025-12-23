@@ -14,6 +14,8 @@ import { labInterpreterRouter } from "./routes/lab-interpreter";
 import { patientDocumentsRouter } from "./routes/patient-documents-updated";
 import { adminRouter } from "./routes/admin";
 import { createPublicRouter } from "./routes/public";
+import { notificationSettingsRouter } from "./routes/notification-settings";
+import { initializeScheduler } from "./notification-scheduler";
 import { 
   globalErrorHandler, 
   requireAuth, 
@@ -151,6 +153,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Register Admin routes
   app.use('/api/admin', adminRouter);
+
+  // Register Notification Settings routes
+  app.use('/api/notifications', notificationSettingsRouter);
+
+  // Initialize automated notification scheduler (7AM daily patient list + appointment reminders)
+  initializeScheduler();
+  console.log('✅ Automated notification system initialized');
 
   // Test error handling endpoint for validation
   app.get('/api/test-error', asyncHandler(async (req, res) => {
