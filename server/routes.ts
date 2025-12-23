@@ -48,6 +48,7 @@ import {
   type RecordingSession
 } from "@shared/schema";
 import { startLiveTranscription, sendAudioToDeepgram, stopLiveTranscription, getSessionTranscript } from './live-transcription';
+import { runMigrations } from './migrations/run-migrations';
 
 // Define the interface for telemedicine rooms
 interface VideoChatRoom {
@@ -64,6 +65,13 @@ interface VideoChatRoom {
 const activeRooms = new Map<string, VideoChatRoom>();
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Run database migrations on startup (safe to run multiple times)
+  try {
+    await runMigrations();
+  } catch (error) {
+    console.error('Warning: Migration runner error (app will continue):', error);
+  }
+  
   setupAuth(app);
   
   // Setup/Seed endpoint - creates default users if they don't exist

@@ -38,11 +38,35 @@ export async function hashPassword(password: string) {
   return `${buf.toString("hex")}.${salt}`;
 }
 
-async function comparePasswords(supplied: string, stored: string) {
-  const [hashed, salt] = stored.split(".");
-  const hashedBuf = Buffer.from(hashed, "hex");
-  const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
-  return timingSafeEqual(hashedBuf, suppliedBuf);
+async function comparePasswords(supplied: string, stored: string): Promise<boolean> {
+  try {
+    // Ensure we have a properly formatted stored password
+    if (!stored || !stored.includes('.')) {
+      console.error('Invalid stored password format - missing salt separator');
+      return false;
+    }
+    
+    const [hashed, salt] = stored.split(".");
+    
+    if (!hashed || !salt) {
+      console.error('Invalid stored password format - empty hash or salt');
+      return false;
+    }
+    
+    const hashedBuf = Buffer.from(hashed, "hex");
+    const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
+    
+    // Ensure buffers are same length before comparison
+    if (hashedBuf.length !== suppliedBuf.length) {
+      console.error('Password hash length mismatch:', { expected: hashedBuf.length, got: suppliedBuf.length });
+      return false;
+    }
+    
+    return timingSafeEqual(hashedBuf, suppliedBuf);
+  } catch (error) {
+    console.error('Error comparing passwords:', error);
+    return false;
+  }
 }
 
 export function setupAuth(app: Express) {
@@ -101,8 +125,9 @@ export function setupAuth(app: Express) {
         });
         
         if (!passwordMatch) {
-          console.log('Password mismatch for user:', username);
-          return done(null, false, { message: 'Invalid username or password' });
+          console.log('Password mismatch for user:', username, '- This may indicate the password was not properly hashed during registration or password reset');
+          // Provide more detailed error for debugging but generic for security
+          return done(null, false, { message: 'Invalid username or password. If you recently reset your password, please try again or contact support.' });
         }
         
         // Debug output for user status - checking both potential property names

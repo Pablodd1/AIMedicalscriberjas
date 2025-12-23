@@ -3,10 +3,70 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { globalErrorHandler } from "./error-handler";
+import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
+
+// ==========================================
+// CRITICAL: Global error handlers to prevent container crashes
+// ==========================================
+process.on('uncaughtException', (error) => {
+  console.error('UNCAUGHT EXCEPTION - Application will continue:', error);
+  // Log but don't exit - allow the app to continue
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('UNHANDLED REJECTION at:', promise, 'reason:', reason);
+  // Log but don't exit - allow the app to continue
+});
+
+// Graceful shutdown handlers
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully');
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully');
+  process.exit(0);
+});
 
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+
+// ==========================================
+// SECURITY: Helmet for security headers
+// ==========================================
+app.use(helmet({
+  contentSecurityPolicy: false, // Disable CSP for development compatibility
+  crossOriginEmbedderPolicy: false, // Allow embedding
+}));
+
+// ==========================================
+// SECURITY: Rate limiting to prevent abuse
+// ==========================================
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 500, // Limit each IP to 500 requests per windowMs
+  message: { error: 'Too many requests, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // Limit login attempts to 20 per 15 minutes
+  message: { error: 'Too many login attempts, please try again after 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true, // Don't count successful logins
+});
+
+// Apply rate limiters
+app.use('/api/login', authLimiter);
+app.use('/api/register', authLimiter);
+app.use('/api/', generalLimiter);
+
+app.use(express.json({ limit: '50mb' })); // Increase JSON limit for base64 audio/images
+app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -27,8 +87,9 @@ app.use((req, res, next) => {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
 
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
+      // Truncate very long log lines for readability (this is just for LOGS, not actual responses)
+      if (logLine.length > 200) {
+        logLine = logLine.slice(0, 199) + "…";
       }
 
       log(logLine);
