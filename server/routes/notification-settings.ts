@@ -2,6 +2,7 @@ import { Router } from "express";
 import { storage } from "../storage";
 import { requireAuth, sendSuccessResponse, sendErrorResponse, asyncHandler, AppError } from "../error-handler";
 import { z } from "zod";
+import { settingsCache } from "../settings-cache";
 
 export const notificationSettingsRouter = Router();
 
@@ -106,6 +107,9 @@ notificationSettingsRouter.post("/sms", requireAuth, asyncHandler(async (req, re
     storage.saveSetting('twilio_auth_token', twilio_auth_token),
     storage.saveSetting('twilio_phone_number', twilio_phone_number)
   ]);
+
+  // 🚀 PERFORMANCE: Invalidate settings cache when updated
+  settingsCache.invalidate(['twilio_account_sid', 'twilio_auth_token', 'twilio_phone_number']);
 
   sendSuccessResponse(res, { success: true }, 'SMS settings saved successfully');
 }));

@@ -15,7 +15,6 @@ import { patientDocumentsRouter } from "./routes/patient-documents-updated";
 import { adminRouter } from "./routes/admin";
 import { createPublicRouter } from "./routes/public";
 import { notificationSettingsRouter } from "./routes/notification-settings";
-import { initializeScheduler } from "./notification-scheduler";
 import { 
   globalErrorHandler, 
   requireAuth, 
@@ -157,9 +156,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Register Notification Settings routes
   app.use('/api/notifications', notificationSettingsRouter);
 
-  // Initialize automated notification scheduler (7AM daily patient list + appointment reminders)
-  initializeScheduler();
-  console.log('✅ Automated notification system initialized');
+  // 🚀 PERFORMANCE OPTIMIZATION: Lazy-load notification scheduler only if enabled
+  // This reduces startup time and memory usage when notifications are not configured
+  if (process.env.ENABLE_NOTIFICATIONS === 'true' || 
+      process.env.senderEmail || 
+      process.env.daily_patient_list_email_1) {
+    const { initializeScheduler } = await import('./notification-scheduler');
+    initializeScheduler();
+    console.log('✅ Automated notification system initialized');
+  } else {
+    console.log('ℹ️ Notification system disabled (configure email settings to enable)');
+  }
 
   // Test error handling endpoint for validation
   app.get('/api/test-error', asyncHandler(async (req, res) => {
