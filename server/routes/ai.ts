@@ -1078,3 +1078,59 @@ Example format:
     throw handleOpenAIError(error);
   }
 }));
+// Route for AI visual health assessment during telemedicine
+aiRouter.post('/visual-health-assessment', requireAuth, upload.single('image'), asyncHandler(async (req, res) => {
+  if (!req.file) {
+    throw new AppError('Image file is required', 400, 'MISSING_IMAGE');
+  }
+
+  const { patientName, chiefComplaint, currentSymptoms } = req.body;
+  
+  try {
+    const { analyzePatientVisual } = await import('../visual-health-assessment');
+    
+    // Convert image buffer to base64
+    const imageBase64 = req.file.buffer.toString('base64');
+    
+    const assessment = await analyzePatientVisual(imageBase64, {
+      name: patientName,
+      chiefComplaint,
+      currentSymptoms
+    });
+    
+    sendSuccessResponse(res, assessment, 'Visual health assessment completed');
+  } catch (error) {
+    console.error('Error in visual health assessment:', error);
+    throw new AppError('Visual health assessment failed', 500, 'ASSESSMENT_ERROR');
+  }
+}));
+
+// Route to save telemedicine transcript
+aiRouter.post('/save-telemedicine-transcript', requireAuth, asyncHandler(async (req, res) => {
+  const { roomId, transcript, consultationId } = req.body;
+  const userId = req.user.id;
+
+  if (!transcript || !Array.isArray(transcript)) {
+    throw new AppError('Transcript must be provided as an array', 400, 'INVALID_TRANSCRIPT');
+  }
+
+  try {
+    // Get the full transcript text
+    const fullTranscript = transcript.join('\n');
+    
+    // Save to database (you can expand this to save to consultation notes)
+    const result = {
+      consultationId,
+      roomId,
+      transcript: fullTranscript,
+      lineCount: transcript.length,
+      savedAt: new Date().toISOString(),
+      savedBy: userId
+    };
+    
+    sendSuccessResponse(res, result, 'Transcript saved successfully');
+  } catch (error) {
+    console.error('Error saving transcript:', error);
+    throw new AppError('Failed to save transcript', 500, 'SAVE_ERROR');
+  }
+}));

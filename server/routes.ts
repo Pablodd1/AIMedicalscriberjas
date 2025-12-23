@@ -46,6 +46,7 @@ import {
   insertMedicalNoteTemplateSchema,
   type RecordingSession
 } from "@shared/schema";
+import { startLiveTranscription, sendAudioToDeepgram, stopLiveTranscription, getSessionTranscript } from './live-transcription';
 
 // Define the interface for telemedicine rooms
 interface VideoChatRoom {
@@ -2050,6 +2051,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             break;
             
+          case 'start-transcription':
+            // Doctor initiates live transcription
+            if (data.isDoctor && data.roomId) {
+              try {
+                await startLiveTranscription(data.roomId, socket);
+                console.log(`📝 Live transcription started for room: ${data.roomId}`);
+              } catch (error) {
+                console.error('Error starting transcription:', error);
+                socket.send(JSON.stringify({
+                  type: 'transcription-error',
+                  message: 'Failed to start live transcription'
+                }));
+              }
+            }
+            break;
+            
+          case 'audio-data':
+            // Stream audio data to Deepgram for live transcription
+            if (data.roomId && data.audioData) {
+              try {
+                const audioBuffer = Buffer.from(data.audioData, 'base64');
+                sendAudioToDeepgram(data.roomId, audioBuffer);
+              } catch (error) {
+                console.error('Error processing audio data:', error);
+              }
+            }
+            break;
+            
+          case 'stop-transcription':
+            // Stop live transcription and get full transcript
+            if (data.roomId) {
+              try {
+                const fullTranscript = await stopLiveTranscription(data.roomId);
+                socket.send(JSON.stringify({
+                  type: 'transcription-complete',
+                  roomId: data.roomId,
+                  transcript: fullTranscript
+                }));
+              } catch (error) {
+                console.error('Error stopping transcription:', error);
+              }
+            }
+            break;
+            
+          case 'visual-frame':
+            // AI visual health assessment of patient video frame
+            // Only doctors can request visual assessment
+            if (data.isDoctor && data.imageData && data.roomId) {
+              try {
+                const { analyzePatientVisual } = await import('./visual-health-assessment');
+                
+                // Extract base64 image data (remove data:image/jpeg;base64, prefix if present)
+                const base64Image = data.imageData.replace(/^data:image\/\w+;base64,/, '');
+                
+                const assessment = await analyzePatientVisual(base64Image, {
+                  name: data.patientName,
+                  chiefComplaint: data.chiefComplaint,
+                  currentSymptoms: data.currentSymptoms
+                });
+                
+                // Send assessment back to doctor only
+                socket.send(JSON.stringify({
+                  type: 'visual-assessment',
+                  roomId: data.roomId,
+                  assessment
+                }));
+                
+                console.log(`🔍 Visual health assessment completed for room: ${data.roomId}`);
+              } catch (error) {
+                console.error('Error in visual assessment:', error);
+                socket.send(JSON.stringify({
+                  type: 'visual-assessment-error',
+                  message: 'Failed to analyze visual frame'
+                }));
+              }
+            }
+            break;
+          
           case 'offer':
           case 'answer':
           case 'ice-candidate':
