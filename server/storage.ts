@@ -1463,20 +1463,6 @@ export class DatabaseStorage implements IStorage {
       return false;
     }
   }
-  
-  async updatePatientDocument(id: number, updates: Partial<PatientDocument>): Promise<PatientDocument | undefined> {
-    try {
-      const [updatedDocument] = await db
-        .update(patientDocuments)
-        .set(updates)
-        .where(eq(patientDocuments.id, id))
-        .returning();
-      return updatedDocument;
-    } catch (error) {
-      console.error("Error updating patient document:", error);
-      return undefined;
-    }
-  }
 
   // Medical Alerts methods
   async getMedicalAlertsByPatient(patientId: number): Promise<MedicalAlert[]> {

@@ -104,7 +104,7 @@ Provide a structured JSON response:
 - Current Symptoms: ${patientContext.currentSymptoms || 'Not provided'}
 
 Please analyze this patient's video frame and provide visual health observations.`
-      : 'Please analyze this patient's video frame and provide visual health observations.';
+      : "Please analyze this patient's video frame and provide visual health observations.";
 
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',
