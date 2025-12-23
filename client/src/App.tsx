@@ -6,6 +6,7 @@ import NotFound from "@/pages/not-found";
 import HomePage from "@/pages/home-page";
 import PatientJoin from "@/pages/patient-join";
 import PatientJoinV2 from "@/pages/patient-join-v2";
+import PatientIntakeVoice from "@/pages/patient-intake-voice";
 import MainLayout from "@/components/layout/main-layout";
 import Assistant from "@/pages/assistant";
 import { AuthProvider } from "@/hooks/use-auth";
@@ -153,6 +154,7 @@ function Router() {
       <Route path="/register" component={AuthPage} />
       <Route path="/patient-join/:uniqueLink" component={PatientJoin} />
       <Route path="/patient-join-v2/:uniqueLink" component={PatientJoinV2} />
+      <Route path="/patient-intake-voice/:uniqueLink" component={PatientIntakeVoice} />
       
       {/* Public routes for telemedicine patient access */}
       <Route path="/join-consultation/:roomId" component={JoinConsultation} />

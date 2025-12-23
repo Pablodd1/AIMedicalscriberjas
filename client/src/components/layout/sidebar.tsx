@@ -52,7 +52,7 @@ const navigation = [
   
   // AI & Tools
   { name: "Lab Interpreter", href: "/lab-interpreter", icon: Stethoscope, category: "tools" },
-  { name: "AI Assistant", href: "/assistant", icon: Bot, category: "tools" },
+  { name: "Doctor Helper Smart", href: "/assistant", icon: Bot, category: "tools" },
   
   // Business
   { name: "Billing", href: "/billing", icon: CreditCard, category: "business" },

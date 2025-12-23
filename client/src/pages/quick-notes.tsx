@@ -1152,7 +1152,7 @@ Plan:
         {/* AI Suggestions Panel */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg md:text-xl">AI Assistant</CardTitle>
+            <CardTitle className="text-lg md:text-xl">Doctor Helper Smart</CardTitle>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="templates">
@@ -1455,7 +1455,7 @@ Post-procedure:
                         <div className="bg-primary/10 rounded-lg p-3 max-w-[85%]">
                           <div className="flex items-center gap-2 mb-1">
                             <Stethoscope className="h-4 w-4 text-primary" />
-                            <span className="font-medium text-sm">AI Assistant</span>
+                            <span className="font-medium text-sm">Doctor Helper Smart</span>
                           </div>
                           <p className="text-sm">
                             Hello! I'm your AI medical assistant. 
@@ -1474,7 +1474,7 @@ Post-procedure:
                             <div className="flex items-center gap-2 mb-1">
                               {message.role === 'assistant' && <Stethoscope className="h-4 w-4 text-primary" />}
                               <span className="font-medium text-sm">
-                                {message.role === 'user' ? 'You' : 'AI Assistant'}
+                                {message.role === 'user' ? 'You' : 'Doctor Helper Smart'}
                               </span>
                               {message.role === 'user' && <UserPlus className="h-4 w-4" />}
                             </div>
@@ -1487,7 +1487,7 @@ Post-procedure:
                           <div className="bg-primary/10 rounded-lg p-3 max-w-[85%]">
                             <div className="flex items-center gap-2 mb-1">
                               <Stethoscope className="h-4 w-4 text-primary" />
-                              <span className="font-medium text-sm">AI Assistant</span>
+                              <span className="font-medium text-sm">Doctor Helper Smart</span>
                             </div>
                             <p className="text-sm flex items-center">
                               <Loader2 className="h-4 w-4 mr-2 animate-spin" />

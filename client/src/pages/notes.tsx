@@ -796,13 +796,13 @@ export default function Notes() {
           </Card>
         </div>
 
-        {/* AI Assistant Sidebar */}
+        {/* Doctor Helper Smart Sidebar */}
         <div className="space-y-4">
           <Card className="h-full">
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
                 <Stethoscope className="h-4 w-4" />
-                AI Assistant
+                Doctor Helper Smart
               </CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col h-[calc(100%-60px)]">

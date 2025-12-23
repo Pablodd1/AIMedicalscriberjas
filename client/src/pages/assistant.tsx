@@ -218,7 +218,7 @@ export default function Assistant() {
                       ? <UserIcon className="h-4 w-4" /> 
                       : <BotIcon className="h-4 w-4" />}
                     <span className="font-medium">
-                      {message.role === 'user' ? 'You' : 'AI Assistant'}
+                      {message.role === 'user' ? 'You' : 'Doctor Helper Smart'}
                     </span>
                   </div>
                   <div className="whitespace-pre-wrap">
