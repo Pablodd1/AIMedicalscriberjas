@@ -381,9 +381,28 @@ adminRouter.put('/users/:userId/api-key-setting', async (req: Request, res: Resp
 // GLOBAL PROMPTS MANAGEMENT
 // ==========================================
 
+// Helper function to check if global prompts feature is enabled (schema has required columns)
+async function isGlobalPromptsEnabled(): Promise<boolean> {
+  try {
+    const columnCheck = await pool.query(`
+      SELECT column_name FROM information_schema.columns 
+      WHERE table_name = 'custom_note_prompts' AND column_name = 'is_global'
+    `);
+    return columnCheck.rows.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 // Get all global prompts
 adminRouter.get('/global-prompts', async (req: Request, res: Response) => {
   try {
+    // Check if the feature is enabled (schema has required columns)
+    const isEnabled = await isGlobalPromptsEnabled();
+    if (!isEnabled) {
+      return res.json([]); // Return empty array if feature not enabled
+    }
+    
     const result = await pool.query(`
       SELECT id, user_id, note_type, name, description, system_prompt, 
              template_content, is_global, is_active, version,
@@ -395,13 +414,19 @@ adminRouter.get('/global-prompts', async (req: Request, res: Response) => {
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching global prompts:', error);
-    res.status(500).json({ error: 'Failed to fetch global prompts' });
+    res.json([]); // Return empty array on error to allow app to function
   }
 });
 
 // Get a single global prompt
 adminRouter.get('/global-prompts/:id', async (req: Request, res: Response) => {
   try {
+    // Check if the feature is enabled
+    const isEnabled = await isGlobalPromptsEnabled();
+    if (!isEnabled) {
+      return res.status(404).json({ error: 'Global prompts feature not enabled' });
+    }
+    
     const promptId = parseInt(req.params.id);
     if (isNaN(promptId)) {
       return res.status(400).json({ error: 'Invalid prompt ID' });
@@ -429,6 +454,12 @@ adminRouter.get('/global-prompts/:id', async (req: Request, res: Response) => {
 // Create a new global prompt
 adminRouter.post('/global-prompts', async (req: Request, res: Response) => {
   try {
+    // Check if the feature is enabled
+    const isEnabled = await isGlobalPromptsEnabled();
+    if (!isEnabled) {
+      return res.status(400).json({ error: 'Global prompts feature not enabled. Database schema migration required.' });
+    }
+    
     const { name, description, note_type, system_prompt, template_content, is_active } = req.body;
     
     if (!name || !note_type || !system_prompt) {
@@ -454,6 +485,12 @@ adminRouter.post('/global-prompts', async (req: Request, res: Response) => {
 // Update a global prompt
 adminRouter.put('/global-prompts/:id', async (req: Request, res: Response) => {
   try {
+    // Check if the feature is enabled
+    const isEnabled = await isGlobalPromptsEnabled();
+    if (!isEnabled) {
+      return res.status(400).json({ error: 'Global prompts feature not enabled. Database schema migration required.' });
+    }
+    
     const promptId = parseInt(req.params.id);
     if (isNaN(promptId)) {
       return res.status(400).json({ error: 'Invalid prompt ID' });
@@ -502,6 +539,12 @@ adminRouter.put('/global-prompts/:id', async (req: Request, res: Response) => {
 // Toggle prompt active status
 adminRouter.patch('/global-prompts/:id/toggle', async (req: Request, res: Response) => {
   try {
+    // Check if the feature is enabled
+    const isEnabled = await isGlobalPromptsEnabled();
+    if (!isEnabled) {
+      return res.status(400).json({ error: 'Global prompts feature not enabled. Database schema migration required.' });
+    }
+    
     const promptId = parseInt(req.params.id);
     if (isNaN(promptId)) {
       return res.status(400).json({ error: 'Invalid prompt ID' });
@@ -534,6 +577,12 @@ adminRouter.patch('/global-prompts/:id/toggle', async (req: Request, res: Respon
 // Delete a global prompt
 adminRouter.delete('/global-prompts/:id', async (req: Request, res: Response) => {
   try {
+    // Check if the feature is enabled
+    const isEnabled = await isGlobalPromptsEnabled();
+    if (!isEnabled) {
+      return res.status(400).json({ error: 'Global prompts feature not enabled. Database schema migration required.' });
+    }
+    
     const promptId = parseInt(req.params.id);
     if (isNaN(promptId)) {
       return res.status(400).json({ error: 'Invalid prompt ID' });

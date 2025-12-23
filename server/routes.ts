@@ -1048,8 +1048,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get all active global prompts (for dropdown menus)
+  // Note: This feature requires the extended custom_note_prompts schema with is_global column
+  // If the column doesn't exist, returns an empty array gracefully
   app.get("/api/global-prompts", async (req, res) => {
     try {
+      // Check if the is_global column exists first
+      const columnCheck = await pool.query(`
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_name = 'custom_note_prompts' AND column_name = 'is_global'
+      `);
+      
+      if (columnCheck.rows.length === 0) {
+        // Column doesn't exist, return empty array (feature not enabled)
+        return res.json([]);
+      }
+      
       const result = await pool.query(`
         SELECT id, note_type as "noteType", name, description, 
                system_prompt as "systemPrompt", template_content as "templateContent",
@@ -1061,7 +1074,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(result.rows);
     } catch (error) {
       console.error("Error fetching global prompts:", error);
-      res.status(500).json({ message: "Failed to fetch global prompts" });
+      // Return empty array instead of error to allow the app to function
+      res.json([]);
     }
   });
 
