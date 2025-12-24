@@ -1,4 +1,8 @@
 /**
+// Demo mode - suppress logging
+const DEMO_MODE = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo';
+const log = (...args: any[]) => !DEMO_MODE && console.log(...args);
+const logError = (...args: any[]) => !DEMO_MODE && console.error(...args);
  * Notification Scheduler Service
  * Handles automated daily patient list emails, appointment confirmations, and SMS coordination
  */
@@ -32,17 +36,17 @@ async function initTwilio(): Promise<any> {
     ]);
 
     if (!settings.twilio_account_sid || !settings.twilio_auth_token || !settings.twilio_phone_number) {
-      console.log('⚠️ Twilio not configured - SMS notifications disabled');
+      log('⚠️ Twilio not configured - SMS notifications disabled');
       return null;
     }
 
     const twilio = await import('twilio');
     twilioClient = twilio.default(settings.twilio_account_sid, settings.twilio_auth_token);
     
-    console.log('✅ Twilio initialized successfully');
+    log('✅ Twilio initialized successfully');
     return twilioClient;
   } catch (error) {
-    console.error('❌ Error initializing Twilio:', error);
+    logError('❌ Error initializing Twilio:', error);
     return null;
   }
 }
@@ -57,7 +61,7 @@ export async function sendSMS(
   try {
     const client = await initTwilio();
     if (!client) {
-      console.log('⚠️ SMS not sent - Twilio not configured');
+      log('⚠️ SMS not sent - Twilio not configured');
       return false;
     }
 
@@ -65,7 +69,7 @@ export async function sendSMS(
     const fromNumber = settings.twilio_phone_number;
 
     if (!fromNumber) {
-      console.error('❌ Twilio phone number not configured');
+      logError('❌ Twilio phone number not configured');
       return false;
     }
 
@@ -76,10 +80,10 @@ export async function sendSMS(
       to: toPhoneNumber
     });
 
-    console.log(`✅ SMS sent to ${toPhoneNumber}: ${result.sid}`);
+    log(`✅ SMS sent to ${toPhoneNumber}: ${result.sid}`);
     return true;
   } catch (error) {
-    console.error('❌ Error sending SMS:', error);
+    logError('❌ Error sending SMS:', error);
     return false;
   }
 }
@@ -93,13 +97,13 @@ export async function sendAppointmentConfirmation(
   try {
     const appointment = await storage.getAppointment(appointmentId);
     if (!appointment) {
-      console.error('❌ Appointment not found:', appointmentId);
+      logError('❌ Appointment not found:', appointmentId);
       return { emailSent: false, smsSent: false };
     }
 
     const patient = await storage.getPatient(appointment.patientId);
     if (!patient) {
-      console.error('❌ Patient not found:', appointment.patientId);
+      logError('❌ Patient not found:', appointment.patientId);
       return { emailSent: false, smsSent: false };
     }
 
@@ -142,7 +146,7 @@ export async function sendAppointmentConfirmation(
 
     return { emailSent, smsSent };
   } catch (error) {
-    console.error('❌ Error sending appointment confirmation:', error);
+    logError('❌ Error sending appointment confirmation:', error);
     return { emailSent: false, smsSent: false };
   }
 }
@@ -199,7 +203,7 @@ export async function sendAppointmentReminder(
 
     return { emailSent, smsSent };
   } catch (error) {
-    console.error('❌ Error sending appointment reminder:', error);
+    logError('❌ Error sending appointment reminder:', error);
     return { emailSent: false, smsSent: false };
   }
 }
@@ -237,7 +241,7 @@ async function getAppointmentsForDate(date: Date): Promise<any[]> {
 
     return allAppointments;
   } catch (error) {
-    console.error('❌ Error getting appointments for date:', error);
+    logError('❌ Error getting appointments for date:', error);
     return [];
   }
 }
@@ -248,7 +252,7 @@ async function getAppointmentsForDate(date: Date): Promise<any[]> {
  */
 async function sendDailyPatientList(): Promise<void> {
   try {
-    console.log('📧 Starting daily patient list email send...');
+    log('📧 Starting daily patient list email send...');
 
     // 🚀 PERFORMANCE: Use cached settings (reduces DB queries by ~80%)
     const settings = await settingsCache.get(
@@ -271,12 +275,12 @@ async function sendDailyPatientList(): Promise<void> {
     ].filter(email => email && email.trim() !== '');
 
     if (recipientEmails.length === 0) {
-      console.log('⏭️ Skipping daily patient list - no recipients configured');
+      log('⏭️ Skipping daily patient list - no recipients configured');
       return;
     }
 
     if (!settings.senderEmail || !settings.appPassword) {
-      console.log('⏭️ Skipping daily patient list - email not configured');
+      log('⏭️ Skipping daily patient list - email not configured');
       return;
     }
 
@@ -293,7 +297,7 @@ async function sendDailyPatientList(): Promise<void> {
     const todayAppointments = await getAppointmentsForDate(today);
 
     if (todayAppointments.length === 0) {
-      console.log(`ℹ️ No appointments scheduled for today (${todayFormatted})`);
+      log(`ℹ️ No appointments scheduled for today (${todayFormatted})`);
       // Still send email to notify that there are no appointments
     }
 
@@ -463,15 +467,15 @@ async function sendDailyPatientList(): Promise<void> {
           html: emailHtml
         });
 
-        console.log(`✅ Daily patient list sent to: ${recipientEmail}`);
+        log(`✅ Daily patient list sent to: ${recipientEmail}`);
       } catch (error) {
-        console.error(`❌ Failed to send to ${recipientEmail}:`, error);
+        logError(`❌ Failed to send to ${recipientEmail}:`, error);
       }
     }
 
-    console.log(`✅ Daily patient list sent successfully to ${recipientEmails.length} recipient(s)`);
+    log(`✅ Daily patient list sent successfully to ${recipientEmails.length} recipient(s)`);
   } catch (error) {
-    console.error('❌ Error sending daily patient list:', error);
+    logError('❌ Error sending daily patient list:', error);
   }
 }
 
@@ -481,7 +485,7 @@ async function sendDailyPatientList(): Promise<void> {
  */
 async function sendTomorrowReminders(): Promise<void> {
   try {
-    console.log('🔔 Checking for tomorrow\'s appointments to send reminders...');
+    log('🔔 Checking for tomorrow\'s appointments to send reminders...');
 
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -489,24 +493,24 @@ async function sendTomorrowReminders(): Promise<void> {
 
     const tomorrowAppointments = await getAppointmentsForDate(tomorrow);
 
-    console.log(`📊 Found ${tomorrowAppointments.length} appointments for tomorrow`);
+    log(`📊 Found ${tomorrowAppointments.length} appointments for tomorrow`);
 
     for (const appointment of tomorrowAppointments) {
       const { emailSent, smsSent } = await sendAppointmentReminder(appointment.id);
       
       if (emailSent || smsSent) {
-        console.log(`✅ Reminder sent for appointment #${appointment.id} (Email: ${emailSent}, SMS: ${smsSent})`);
+        log(`✅ Reminder sent for appointment #${appointment.id} (Email: ${emailSent}, SMS: ${smsSent})`);
       } else {
-        console.log(`⚠️ No reminder sent for appointment #${appointment.id}`);
+        log(`⚠️ No reminder sent for appointment #${appointment.id}`);
       }
 
       // Wait 1 second between sends to avoid rate limiting
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
-    console.log(`✅ Finished sending reminders for ${tomorrowAppointments.length} appointments`);
+    log(`✅ Finished sending reminders for ${tomorrowAppointments.length} appointments`);
   } catch (error) {
-    console.error('❌ Error sending tomorrow reminders:', error);
+    logError('❌ Error sending tomorrow reminders:', error);
   }
 }
 
@@ -514,11 +518,11 @@ async function sendTomorrowReminders(): Promise<void> {
  * Initialize all scheduled tasks
  */
 export function initializeScheduler(): void {
-  console.log('🚀 Initializing notification scheduler...');
+  log('🚀 Initializing notification scheduler...');
 
   // Schedule daily patient list email at 7:00 AM every day
   cron.schedule('0 7 * * *', async () => {
-    console.log('⏰ [7:00 AM] Running daily patient list email send...');
+    log('⏰ [7:00 AM] Running daily patient list email send...');
     await sendDailyPatientList();
   }, {
     timezone: 'America/New_York' // Adjust to your timezone
@@ -526,15 +530,15 @@ export function initializeScheduler(): void {
 
   // Schedule appointment reminders at 9:00 AM every day
   cron.schedule('0 9 * * *', async () => {
-    console.log('⏰ [9:00 AM] Running appointment reminders for tomorrow...');
+    log('⏰ [9:00 AM] Running appointment reminders for tomorrow...');
     await sendTomorrowReminders();
   }, {
     timezone: 'America/New_York' // Adjust to your timezone
   });
 
-  console.log('✅ Notification scheduler initialized');
-  console.log('📧 Daily patient list: 7:00 AM');
-  console.log('🔔 Appointment reminders: 9:00 AM');
+  log('✅ Notification scheduler initialized');
+  log('📧 Daily patient list: 7:00 AM');
+  log('🔔 Appointment reminders: 9:00 AM');
 }
 
 // Export for manual testing

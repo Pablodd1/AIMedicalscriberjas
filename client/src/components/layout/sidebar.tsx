@@ -150,7 +150,7 @@ export default function Sidebar() {
         ))}
         
         {/* Admin-only navigation items */}
-        {user?.role === 'admin' && (
+        {user && ['admin', 'administrator'].includes(user.role) && (
           <>
             <div className={cn("my-2 border-t border-muted", { "mx-2": !isCollapsed })} />
             {adminNavigation.map((item) => (

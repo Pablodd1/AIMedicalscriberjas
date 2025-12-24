@@ -12,6 +12,11 @@ import {
   handleDatabaseOperation
 } from '../error-handler';
 
+// Demo mode - suppress logging for cleaner output
+const DEMO_MODE = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo';
+const log = (...args: any[]) => !DEMO_MODE && console.log(...args);
+const logError = (...args: any[]) => !DEMO_MODE && console.error(...args);
+
 export const aiRouter = Router();
 
 // Helper function to get OpenAI client for a user
@@ -50,7 +55,7 @@ async function getOpenAIClient(userId: number): Promise<OpenAI | null> {
     
     return null;
   } catch (error) {
-    console.error('Error getting OpenAI client:', error);
+    logError('Error getting OpenAI client:', error);
     return null;
   }
 }
@@ -108,7 +113,7 @@ aiRouter.post('/chat', requireAuth, asyncHandler(async (req, res) => {
       role: 'assistant'
     }, 'Chat completion successful');
   } catch (error) {
-    console.error('OpenAI API error:', error);
+    logError('OpenAI API error:', error);
     throw handleOpenAIError(error);
   }
 }));
@@ -158,7 +163,7 @@ aiRouter.post('/generate-title', async (req, res) => {
     
     return res.json({ title });
   } catch (error) {
-    console.error('OpenAI API error:', error);
+    logError('OpenAI API error:', error);
     return res.status(500).json({ error: 'Failed to generate title' });
   }
 });
@@ -227,10 +232,10 @@ aiRouter.post('/generate-soap', async (req, res) => {
           const customPrompt = await dbStorage.getCustomNotePrompt(userId, noteType);
           if (customPrompt && customPrompt.systemPrompt) {
             customSystemPrompt = customPrompt.systemPrompt;
-            console.log(`Using custom prompt for note type: ${noteType}`);
+            log(`Using custom prompt for note type: ${noteType}`);
           }
         } catch (error) {
-          console.error('Error fetching custom prompt:', error);
+          logError('Error fetching custom prompt:', error);
           // Continue with default prompt
         }
       }
@@ -524,7 +529,7 @@ Return the complete JSON object with ehr_payload and human_note fields.`
       const responseContent = response.choices[0]?.message?.content?.trim() || '';
       
       if (!responseContent) {
-        console.error('OpenAI returned empty response');
+        logError('OpenAI returned empty response');
         return res.json({ 
           success: false,
           soap: 'Could not generate SOAP notes from the provided transcript. Please try with more detailed text.'
@@ -545,7 +550,7 @@ Return the complete JSON object with ehr_payload and human_note fields.`
           structuredData: aimsResponse.ehr_payload
         });
       } catch (parseError) {
-        console.error('Failed to parse AIMS AI response:', parseError);
+        logError('Failed to parse AIMS AI response:', parseError);
         // Fallback: return the raw response if JSON parsing fails
         return res.json({ 
           success: true,
@@ -554,7 +559,7 @@ Return the complete JSON object with ehr_payload and human_note fields.`
       }
       
     } catch (openaiError) {
-      console.error('OpenAI API error:', openaiError);
+      logError('OpenAI API error:', openaiError);
       
       // Return a valid JSON response even when OpenAI fails
       return res.json({ 
@@ -563,7 +568,7 @@ Return the complete JSON object with ehr_payload and human_note fields.`
       });
     }
   } catch (error) {
-    console.error('Server error generating SOAP notes:', error);
+    logError('Server error generating SOAP notes:', error);
     // Return a valid JSON response even in case of errors
     return res.json({ 
       success: false,
@@ -606,7 +611,7 @@ aiRouter.post('/transcribe', upload.single('audio'), async (req, res) => {
               provider: 'openai-whisper'
             });
           } catch (whisperError) {
-            console.error('OpenAI Whisper error:', whisperError);
+            logError('OpenAI Whisper error:', whisperError);
             // Continue to browser speech recognition fallback message
           }
         }
@@ -639,7 +644,7 @@ aiRouter.post('/transcribe', upload.single('audio'), async (req, res) => {
     );
 
     if (error) {
-      console.error('Deepgram transcription error:', error);
+      logError('Deepgram transcription error:', error);
       return res.status(500).json({ error: 'Transcription failed: ' + error.message });
     }
 
@@ -661,7 +666,7 @@ aiRouter.post('/transcribe', upload.single('audio'), async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Transcription API error:', error);
+    logError('Transcription API error:', error);
     return res.status(500).json({ error: 'Failed to transcribe audio: ' + (error instanceof Error ? error.message : 'Unknown error') });
   }
 });
@@ -724,7 +729,7 @@ Format as a clear, professional intake summary for physician review.`;
       generatedAt: new Date().toISOString()
     }, 'Intake summary generated successfully');
   } catch (error) {
-    console.error('Error generating intake summary:', error);
+    logError('Error generating intake summary:', error);
     throw handleOpenAIError(error);
   }
 }));
@@ -831,7 +836,7 @@ aiRouter.get('/patient-context/:patientId', requireAuth, asyncHandler(async (req
 
     sendSuccessResponse(res, context, 'Patient context retrieved successfully');
   } catch (error) {
-    console.error('Error fetching patient context:', error);
+    logError('Error fetching patient context:', error);
     if (error instanceof AppError) throw error;
     throw new AppError('Failed to fetch patient context', 500, 'CONTEXT_FETCH_ERROR');
   }
@@ -889,7 +894,7 @@ Keep it concise - the physician should be able to review in 30 seconds.`;
       generatedAt: new Date().toISOString()
     }, 'Pre-consultation summary generated successfully');
   } catch (error) {
-    console.error('Error generating pre-consultation summary:', error);
+    logError('Error generating pre-consultation summary:', error);
     throw handleOpenAIError(error);
   }
 }));
@@ -991,7 +996,7 @@ Example:
       processedAt: new Date().toISOString()
     }, 'Intake answers extracted successfully');
   } catch (error) {
-    console.error('Error extracting intake answers:', error);
+    logError('Error extracting intake answers:', error);
     throw handleOpenAIError(error);
   }
 }));
@@ -1064,7 +1069,7 @@ Example format:
     try {
       answers = JSON.parse(content);
     } catch (parseError) {
-      console.error('Failed to parse AI response:', parseError);
+      logError('Failed to parse AI response:', parseError);
       answers = {};
     }
     
@@ -1074,7 +1079,7 @@ Example format:
       extractedAt: new Date().toISOString()
     }, 'Answers extracted successfully');
   } catch (error) {
-    console.error('Error extracting intake answers:', error);
+    logError('Error extracting intake answers:', error);
     throw handleOpenAIError(error);
   }
 }));
@@ -1100,7 +1105,7 @@ aiRouter.post('/visual-health-assessment', requireAuth, upload.single('image'), 
     
     sendSuccessResponse(res, assessment, 'Visual health assessment completed');
   } catch (error) {
-    console.error('Error in visual health assessment:', error);
+    logError('Error in visual health assessment:', error);
     throw new AppError('Visual health assessment failed', 500, 'ASSESSMENT_ERROR');
   }
 }));
@@ -1130,7 +1135,7 @@ aiRouter.post('/save-telemedicine-transcript', requireAuth, asyncHandler(async (
     
     sendSuccessResponse(res, result, 'Transcript saved successfully');
   } catch (error) {
-    console.error('Error saving transcript:', error);
+    logError('Error saving transcript:', error);
     throw new AppError('Failed to save transcript', 500, 'SAVE_ERROR');
   }
 }));

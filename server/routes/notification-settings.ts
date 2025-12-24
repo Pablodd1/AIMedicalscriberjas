@@ -1,4 +1,8 @@
 import { Router } from "express";
+// Demo mode - suppress logging
+const DEMO_MODE = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo';
+const log = (...args: any[]) => !DEMO_MODE && console.log(...args);
+const logError = (...args: any[]) => !DEMO_MODE && console.error(...args);
 import { storage } from "../storage";
 import { requireAuth, sendSuccessResponse, sendErrorResponse, asyncHandler, AppError } from "../error-handler";
 import { z } from "zod";
@@ -148,9 +152,9 @@ notificationSettingsRouter.post("/send-daily-list-now", requireAuth, asyncHandle
   
   // Run in background
   sendDailyPatientList().then(() => {
-    console.log('✅ Manual daily patient list sent successfully');
+    log('✅ Manual daily patient list sent successfully');
   }).catch((error) => {
-    console.error('❌ Error sending manual daily patient list:', error);
+    logError('❌ Error sending manual daily patient list:', error);
   });
 
   sendSuccessResponse(res, { success: true }, 'Daily patient list email queued for sending');

@@ -1,4 +1,8 @@
 /**
+// Demo mode - suppress logging
+const DEMO_MODE = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo';
+const log = (...args: any[]) => !DEMO_MODE && console.log(...args);
+const logError = (...args: any[]) => !DEMO_MODE && console.error(...args);
  * Google Gemini API Integration
  * Hybrid approach: Use Gemini for visual/video, Keep OpenAI for SOAP notes
  */
@@ -20,7 +24,7 @@ export function initGemini(): GoogleGenerativeAI | null {
 
   if (!genAI) {
     genAI = new GoogleGenerativeAI(apiKey);
-    console.log('✅ Gemini AI initialized');
+    log('✅ Gemini AI initialized');
   }
 
   return genAI;
@@ -144,7 +148,7 @@ Please analyze this patient's image and provide visual health observations.`
       requiresAttention: assessment.requiresAttention || false
     };
   } catch (error) {
-    console.error('Error in Gemini visual assessment:', error);
+    logError('Error in Gemini visual assessment:', error);
     throw error;
   }
 }
@@ -245,7 +249,7 @@ ${analysisPrompts[analysisType]}
       recommendations: analysis.recommendations || []
     };
   } catch (error) {
-    console.error('Error in Gemini video analysis:', error);
+    logError('Error in Gemini video analysis:', error);
     throw error;
   }
 }
@@ -312,7 +316,7 @@ Return ONLY valid JSON, no markdown.`;
       extractedAt: new Date().toISOString()
     };
   } catch (error) {
-    console.error('Error extracting intake answers with Gemini:', error);
+    logError('Error extracting intake answers with Gemini:', error);
     throw error;
   }
 }
@@ -360,7 +364,7 @@ export async function chatWithGemini(
     
     return result.response.text();
   } catch (error) {
-    console.error('Error in Gemini chat:', error);
+    logError('Error in Gemini chat:', error);
     throw error;
   }
 }
@@ -402,7 +406,7 @@ Create a structured clinical summary with these sections:
     const result = await model.generateContent([systemPrompt, userPrompt]);
     return result.response.text();
   } catch (error) {
-    console.error('Error generating intake summary with Gemini:', error);
+    logError('Error generating intake summary with Gemini:', error);
     throw error;
   }
 }

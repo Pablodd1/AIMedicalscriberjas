@@ -58,8 +58,9 @@ type RegisterFormData = z.infer<typeof registerSchema>;
 
 export default function AuthPage() {
   const [activeTab, setActiveTab] = useState("login");
-  const { user, loginMutation, registerMutation } = useAuth();
+  const { user, loginMutation, registerMutation, bypassLoginMutation, demoLoginMutation } = useAuth();
   const [showDeactivationAlert, setShowDeactivationAlert] = useState(false);
+  const allowBypassLogin = import.meta.env.VITE_ENABLE_LOGIN_BYPASS === 'true';
   const [deactivationMessage, setDeactivationMessage] = useState("");
   
   // Login form
@@ -181,6 +182,88 @@ export default function AuthPage() {
                       >
                         {loginMutation.isPending ? "Logging in..." : "Login"}
                       </Button>
+
+                      {allowBypassLogin && (
+                        <div className="space-y-4">
+                          <div className="relative">
+                            <div className="absolute inset-0 flex items-center">
+                              <span className="w-full border-t" />
+                            </div>
+                            <div className="relative flex justify-center text-xs uppercase">
+                              <span className="bg-background px-2 text-muted-foreground">
+                                Demo Access - Test Different Roles
+                              </span>
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="border-purple-300 hover:bg-purple-50 hover:border-purple-400"
+                              disabled={demoLoginMutation.isPending}
+                              onClick={() => demoLoginMutation.mutate({ role: 'administrator' })}
+                            >
+                              {demoLoginMutation.isPending ? "..." : "👑 Administrator"}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="border-blue-300 hover:bg-blue-50 hover:border-blue-400"
+                              disabled={demoLoginMutation.isPending}
+                              onClick={() => demoLoginMutation.mutate({ role: 'admin' })}
+                            >
+                              {demoLoginMutation.isPending ? "..." : "⚙️ Admin"}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="border-green-300 hover:bg-green-50 hover:border-green-400"
+                              disabled={demoLoginMutation.isPending}
+                              onClick={() => demoLoginMutation.mutate({ role: 'doctor' })}
+                            >
+                              {demoLoginMutation.isPending ? "..." : "🩺 Doctor"}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="border-yellow-300 hover:bg-yellow-50 hover:border-yellow-400"
+                              disabled={demoLoginMutation.isPending}
+                              onClick={() => demoLoginMutation.mutate({ role: 'assistant' })}
+                            >
+                              {demoLoginMutation.isPending ? "..." : "📋 Assistant"}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="col-span-2 border-teal-300 hover:bg-teal-50 hover:border-teal-400"
+                              disabled={demoLoginMutation.isPending}
+                              onClick={() => demoLoginMutation.mutate({ role: 'patient' })}
+                            >
+                              {demoLoginMutation.isPending ? "..." : "🏥 Patient"}
+                            </Button>
+                          </div>
+                          
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="w-full text-xs"
+                            disabled={bypassLoginMutation.isPending}
+                            onClick={() => bypassLoginMutation.mutate()}
+                          >
+                            {bypassLoginMutation.isPending ? "Connecting..." : "Quick Skip (default role)"}
+                          </Button>
+                          
+                          <p className="text-xs text-muted-foreground text-center">
+                            Demo mode for testing access controls. Disable in production.
+                          </p>
+                        </div>
+                      )}
                     </form>
                   </Form>
                 </TabsContent>

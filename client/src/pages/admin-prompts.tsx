@@ -122,7 +122,7 @@ export default function AdminPrompts() {
   const [expandedPromptId, setExpandedPromptId] = useState<number | null>(null);
 
   // Check if user is admin
-  if (user?.role !== 'admin') {
+  if (!user || !['admin', 'administrator'].includes(user.role)) {
     return (
       <div className="container mx-auto py-8">
         <Alert variant="destructive">

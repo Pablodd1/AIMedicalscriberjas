@@ -15,13 +15,24 @@ type AuthContextType = {
   loginMutation: UseMutationResult<SelectUser, Error, LoginData>;
   logoutMutation: UseMutationResult<void, Error, void>;
   registerMutation: UseMutationResult<SelectUser, Error, InsertUser>;
+  bypassLoginMutation: UseMutationResult<SelectUser, Error, BypassOptions | undefined>;
+  demoLoginMutation: UseMutationResult<SelectUser, Error, DemoLoginOptions>;
 };
 
 type LoginData = Pick<InsertUser, "username" | "password">;
+type BypassOptions = {
+  username?: string;
+  role?: string;
+};
+type DemoLoginOptions = {
+  role: 'administrator' | 'admin' | 'doctor' | 'assistant' | 'patient';
+};
 
 // Extended user type with token
 interface UserWithToken extends SelectUser {
   token?: string;
+  bypass?: boolean;
+  demo?: boolean;
 }
 
 export const AuthContext = createContext<AuthContextType | null>(null);
@@ -36,8 +47,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   } = useQuery<SelectUser | null, Error>({
     queryKey: ["/api/user"],
     queryFn: getQueryFn({ on401: "returnNull" }),
-    // Only fetch if we have a token
-    enabled: !!getAuthToken(),
   });
 
   const loginMutation = useMutation({
@@ -74,6 +83,82 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     onError: (error: Error) => {
       toast({
         title: "Login failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const bypassLoginMutation = useMutation({
+    mutationFn: async (options?: BypassOptions) => {
+      const res = await fetch("/api/login/bypass", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(options ?? {}),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to bypass login');
+      }
+
+      return data as UserWithToken;
+    },
+    onSuccess: (userData: UserWithToken) => {
+      if (userData.token) {
+        setAuthToken(userData.token);
+      }
+
+      const { token, bypass, ...userWithoutToken } = userData;
+      queryClient.setQueryData(["/api/user"], userWithoutToken);
+
+      toast({
+        title: "Quick access enabled",
+        description: `Signed in as ${userWithoutToken.name}.`
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Bypass failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const demoLoginMutation = useMutation({
+    mutationFn: async (options: DemoLoginOptions) => {
+      const res = await fetch("/api/login/demo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(options),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to demo login');
+      }
+
+      return data as UserWithToken;
+    },
+    onSuccess: (userData: UserWithToken) => {
+      if (userData.token) {
+        setAuthToken(userData.token);
+      }
+
+      const { token, demo, ...userWithoutToken } = userData;
+      queryClient.setQueryData(["/api/user"], userWithoutToken);
+
+      toast({
+        title: "Demo Login",
+        description: `Signed in as ${userWithoutToken.role}: ${userWithoutToken.name}`
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Demo login failed",
         description: error.message,
         variant: "destructive",
       });
@@ -154,6 +239,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loginMutation,
         logoutMutation,
         registerMutation,
+        bypassLoginMutation,
+        demoLoginMutation,
       }}
     >
       {children}

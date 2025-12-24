@@ -1,4 +1,8 @@
 /**
+// Demo mode - suppress logging
+const DEMO_MODE = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo';
+const log = (...args: any[]) => !DEMO_MODE && console.log(...args);
+const logError = (...args: any[]) => !DEMO_MODE && console.error(...args);
  * Python Service Integration Layer
  * Provides seamless integration between Node.js backend and Python analytics service
  */
@@ -48,11 +52,11 @@ class PythonServiceManager {
   async startPythonService(): Promise<boolean> {
     try {
       if (this.isServiceRunning) {
-        console.log('Python service already running');
+        log('Python service already running');
         return true;
       }
 
-      console.log('Starting Python analytics service...');
+      log('Starting Python analytics service...');
       
       const pythonServicePath = path.join(process.cwd(), 'python_services', 'main.py');
       
@@ -64,15 +68,15 @@ class PythonServiceManager {
 
       // Handle Python service output
       this.pythonProcess.stdout?.on('data', (data) => {
-        console.log(`Python service: ${data.toString()}`);
+        log(`Python service: ${data.toString()}`);
       });
 
       this.pythonProcess.stderr?.on('data', (data) => {
-        console.error(`Python service error: ${data.toString()}`);
+        logError(`Python service error: ${data.toString()}`);
       });
 
       this.pythonProcess.on('close', (code) => {
-        console.log(`Python service exited with code ${code}`);
+        log(`Python service exited with code ${code}`);
         this.isServiceRunning = false;
         this.pythonProcess = null;
       });
@@ -80,11 +84,11 @@ class PythonServiceManager {
       // Wait for service to start
       await this.waitForService();
       this.isServiceRunning = true;
-      console.log(`Python analytics service started on port ${this.config.port}`);
+      log(`Python analytics service started on port ${this.config.port}`);
       
       return true;
     } catch (error) {
-      console.error('Failed to start Python service:', error);
+      logError('Failed to start Python service:', error);
       return false;
     }
   }
@@ -94,7 +98,7 @@ class PythonServiceManager {
    */
   stopPythonService(): void {
     if (this.pythonProcess) {
-      console.log('Stopping Python analytics service...');
+      log('Stopping Python analytics service...');
       this.pythonProcess.kill();
       this.pythonProcess = null;
       this.isServiceRunning = false;
@@ -151,7 +155,7 @@ class PythonServiceManager {
 
       return response.data;
     } catch (error) {
-      console.error('Lab analysis failed:', error);
+      logError('Lab analysis failed:', error);
       throw new Error(`Python service analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -173,7 +177,7 @@ class PythonServiceManager {
 
       return response.data;
     } catch (error) {
-      console.error('Outlier detection failed:', error);
+      logError('Outlier detection failed:', error);
       throw new Error(`Python service outlier detection failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -195,7 +199,7 @@ class PythonServiceManager {
 
       return response.data;
     } catch (error) {
-      console.error('Risk assessment failed:', error);
+      logError('Risk assessment failed:', error);
       throw new Error(`Python service risk assessment failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -217,7 +221,7 @@ class PythonServiceManager {
 
       return response.data;
     } catch (error) {
-      console.error('Insight generation failed:', error);
+      logError('Insight generation failed:', error);
       throw new Error(`Python service insight generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -243,7 +247,7 @@ class PythonServiceManager {
 
       return response.data;
     } catch (error) {
-      console.error('Trend analysis failed:', error);
+      logError('Trend analysis failed:', error);
       throw new Error(`Python service trend analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -328,7 +332,7 @@ function categorizeLabTest(testName: string): string {
 
 // Initialize Python service on module load
 pythonService.startPythonService().catch(error => {
-  console.error('Failed to initialize Python service:', error);
+  logError('Failed to initialize Python service:', error);
 });
 
 // Graceful shutdown

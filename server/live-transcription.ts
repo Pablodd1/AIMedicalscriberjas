@@ -1,4 +1,8 @@
 import { WebSocket } from 'ws';
+// Demo mode - suppress logging
+const DEMO_MODE = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo';
+const log = (...args: any[]) => !DEMO_MODE && console.log(...args);
+const logError = (...args: any[]) => !DEMO_MODE && console.error(...args);
 import { createClient, LiveTranscriptionEvents } from '@deepgram/sdk';
 
 interface TranscriptionSession {
@@ -44,7 +48,7 @@ export async function startLiveTranscription(roomId: string, audioWebSocket: Web
 
     // Handle Deepgram events
     deepgramLive.on(LiveTranscriptionEvents.Open, () => {
-      console.log(`✅ Deepgram live transcription started for room: ${roomId}`);
+      log(`✅ Deepgram live transcription started for room: ${roomId}`);
       
       // Notify participants that transcription is active
       audioWebSocket.send(JSON.stringify({
@@ -81,7 +85,7 @@ export async function startLiveTranscription(roomId: string, audioWebSocket: Web
     });
 
     deepgramLive.on(LiveTranscriptionEvents.Error, (error: any) => {
-      console.error('Deepgram error:', error);
+      logError('Deepgram error:', error);
       audioWebSocket.send(JSON.stringify({
         type: 'transcription-error',
         roomId,
@@ -90,12 +94,12 @@ export async function startLiveTranscription(roomId: string, audioWebSocket: Web
     });
 
     deepgramLive.on(LiveTranscriptionEvents.Close, () => {
-      console.log(`🛑 Deepgram connection closed for room: ${roomId}`);
+      log(`🛑 Deepgram connection closed for room: ${roomId}`);
       session.isActive = false;
     });
 
   } catch (error) {
-    console.error('Error starting live transcription:', error);
+    logError('Error starting live transcription:', error);
     throw error;
   }
 }
@@ -113,7 +117,7 @@ export function sendAudioToDeepgram(roomId: string, audioData: Buffer): void {
       session.deepgramLive.send(audioData);
     }
   } catch (error) {
-    console.error('Error sending audio to Deepgram:', error);
+    logError('Error sending audio to Deepgram:', error);
   }
 }
 
@@ -134,7 +138,7 @@ export async function stopLiveTranscription(roomId: string): Promise<string[]> {
     
     return fullTranscript;
   } catch (error) {
-    console.error('Error stopping live transcription:', error);
+    logError('Error stopping live transcription:', error);
     return session.transcript;
   }
 }

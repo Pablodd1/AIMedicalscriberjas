@@ -1,4 +1,8 @@
 import { Router } from "express";
+// Demo mode - suppress logging
+const DEMO_MODE = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo';
+const log = (...args: any[]) => !DEMO_MODE && console.log(...args);
+const logError = (...args: any[]) => !DEMO_MODE && console.error(...args);
 import { IStorage } from "../storage";
 import { z } from "zod";
 
@@ -52,7 +56,7 @@ export function createPublicRouter(storage: IStorage) {
         }
       });
     } catch (error: any) {
-      console.error('Confirm appointment error:', error);
+      logError('Confirm appointment error:', error);
       res.status(400).json({
         success: false,
         message: error.message || "Failed to confirm appointment"
@@ -107,7 +111,7 @@ export function createPublicRouter(storage: IStorage) {
         }
       });
     } catch (error: any) {
-      console.error('Decline appointment error:', error);
+      logError('Decline appointment error:', error);
       res.status(400).json({
         success: false,
         message: error.message || "Failed to decline appointment"

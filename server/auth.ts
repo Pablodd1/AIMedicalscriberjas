@@ -9,14 +9,12 @@ import { User } from "@shared/schema";
 
 declare global {
   namespace Express {
-    // Define the User interface for passport by using import from schema.ts
-    // but with some adjustments to property types to match database return types
     interface User {
       id: number;
       username: string;
       password: string;
       name: string;
-      role: "doctor" | "admin" | "assistant" | "patient";
+      role: "doctor" | "admin" | "assistant" | "patient" | "administrator";
       email: string;
       phone: string | null;
       specialty: string | null;
@@ -40,37 +38,30 @@ export async function hashPassword(password: string) {
 
 async function comparePasswords(supplied: string, stored: string): Promise<boolean> {
   try {
-    // Ensure we have a properly formatted stored password
     if (!stored || !stored.includes('.')) {
-      console.error('Invalid stored password format - missing salt separator');
       return false;
     }
     
     const [hashed, salt] = stored.split(".");
     
     if (!hashed || !salt) {
-      console.error('Invalid stored password format - empty hash or salt');
       return false;
     }
     
     const hashedBuf = Buffer.from(hashed, "hex");
     const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
     
-    // Ensure buffers are same length before comparison
     if (hashedBuf.length !== suppliedBuf.length) {
-      console.error('Password hash length mismatch:', { expected: hashedBuf.length, got: suppliedBuf.length });
       return false;
     }
     
     return timingSafeEqual(hashedBuf, suppliedBuf);
   } catch (error) {
-    console.error('Error comparing passwords:', error);
     return false;
   }
 }
 
 export function setupAuth(app: Express) {
-  // Session secret - in production this should be an environment variable
   const SESSION_SECRET = process.env.SESSION_SECRET || "medical-platform-secret-key";
   
   const sessionSettings: session.SessionOptions = {
@@ -94,66 +85,31 @@ export function setupAuth(app: Express) {
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
-        console.log('Login attempt for username:', username);
-        
-        // Try to find user with exact case first, then try case-insensitive
         let user = await storage.getUserByUsername(username);
         if (!user) {
-          // Try case-insensitive search
           const users = await storage.getUsers();
           user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
         }
         
         if (!user) {
-          console.log('User not found:', username);
           return done(null, false, { message: 'Invalid username or password' });
         }
         
-        console.log('User found, checking password:', {
-          username: user.username,
-          userId: user.id,
-          providedPasswordLength: password.length,
-          storedPasswordHash: user.password.substring(0, 20) + '...',
-          storedPasswordLength: user.password.length
-        });
-        
-        // Check if password is correct
         const passwordMatch = await comparePasswords(password, user.password);
-        console.log('Password comparison result:', {
-          username: user.username,
-          passwordMatch: passwordMatch
-        });
         
         if (!passwordMatch) {
-          console.log('Password mismatch for user:', username, '- This may indicate the password was not properly hashed during registration or password reset');
-          // Provide more detailed error for debugging but generic for security
-          return done(null, false, { message: 'Invalid username or password. If you recently reset your password, please try again or contact support.' });
+          return done(null, false, { message: 'Invalid username or password' });
         }
         
-        // Debug output for user status - checking both potential property names
-        console.log('User login attempt - account status check:', {
-          username: user.username, 
-          isActive: user.isActive,
-
-          userObj: JSON.stringify(user)
-        });
-        
-        // Check if user is inactive by trying both property names
         if (user.isActive === false) {
-          console.log('User account is inactive:', username);
           return done(null, false, { 
-            message: 'Your account has been deactivated. Please contact AIMS admin to regain access: 786-643-2099 or email jasmelacosta@gmail.com' 
+            message: 'Your account has been deactivated. Please contact admin.' 
           });
-        } else {
-          // Update last login time
-          console.log('Login successful, updating last login time for user:', username);
-          await storage.updateUser(user.id, { lastLogin: new Date() });
-          
-          // Type cast the user to Express.User interface
-          return done(null, user as Express.User);
         }
+        
+        await storage.updateUser(user.id, { lastLogin: new Date() });
+        return done(null, user as Express.User);
       } catch (error) {
-        console.error('Login error:', error);
         return done(error);
       }
     }),
@@ -164,7 +120,6 @@ export function setupAuth(app: Express) {
     try {
       const user = await storage.getUser(id);
       if (user) {
-        // Type cast to meet passport's requirements
         done(null, user as Express.User);
       } else {
         done(new Error("User not found"));
@@ -192,25 +147,22 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ message: "Email already in use" });
       }
 
-      // Set isActive to false by default for new users
       const user = await storage.createUser({
         username,
         password: await hashPassword(password),
         email,
         name,
         role,
-        isActive: false // New users are inactive by default until approved by admin
+        isActive: false
       });
 
       req.login(user as Express.User, (err) => {
         if (err) return res.status(500).json({ message: "Login error after registration" });
         
-        // Remove password from response
         const { password, ...userWithoutPassword } = user;
         res.status(201).json(userWithoutPassword);
       });
     } catch (error: any) {
-      console.error("Registration error:", error);
       res.status(500).json({ message: "Failed to register user" });
     }
   });
@@ -221,18 +173,102 @@ export function setupAuth(app: Express) {
         return next(err);
       }
       if (!user) {
-        // Return the specific error message from authentication failure
         return res.status(401).json({ message: info?.message || "Invalid username or password" });
       }
       req.login(user, (err: Error | null) => {
         if (err) {
           return next(err);
         }
-        // Remove password from response
         const { password, ...userWithoutPassword } = user;
         return res.status(200).json(userWithoutPassword);
       });
     })(req, res, next);
+  });
+
+  // Demo login - allows quick access with specific roles for testing
+  app.post("/api/login/demo", async (req, res) => {
+    try {
+      const { role } = req.body;
+      const validRoles = ['administrator', 'admin', 'doctor', 'assistant', 'patient'];
+      
+      if (!role || !validRoles.includes(role)) {
+        return res.status(400).json({ message: "Invalid role. Must be one of: " + validRoles.join(', ') });
+      }
+
+      const users = await storage.getUsers();
+      let targetUser = users.find((user) => user.role === role && user.isActive !== false);
+      
+      if (!targetUser) {
+        // Fallback: find any active user if specific role not found
+        targetUser = users.find((user) => user.isActive !== false);
+      }
+
+      if (!targetUser) {
+        return res.status(404).json({ message: `No active ${role} user found` });
+      }
+
+      await storage.updateUser(targetUser.id, { lastLogin: new Date() });
+
+      req.login(targetUser as Express.User, (err: Error | null) => {
+        if (err) {
+          return res.status(500).json({ message: "Failed to establish demo session" });
+        }
+
+        const { password, ...userWithoutPassword } = targetUser as User;
+        return res.status(200).json({
+          ...userWithoutPassword,
+          demo: true,
+        });
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Unable to complete demo login" });
+    }
+  });
+
+  // Legacy bypass endpoint - now uses demo endpoint logic
+  app.post("/api/login/bypass", async (req, res) => {
+    try {
+      const { username, role } = req.body ?? {};
+      let targetUser: User | undefined;
+
+      if (typeof username === "string" && username.trim().length > 0) {
+        targetUser = await storage.getUserByUsername(username.trim());
+      }
+
+      if (!targetUser && typeof role === "string") {
+        const users = await storage.getUsers();
+        targetUser = users.find((user) => user.role === role && user.isActive !== false);
+      }
+
+      if (!targetUser) {
+        const users = await storage.getUsers();
+        targetUser =
+          users.find((user) => user.role === "doctor" && user.isActive !== false) ??
+          users.find((user) => ["administrator", "admin"].includes(user.role) && user.isActive !== false) ??
+          users.find((user) => user.isActive !== false) ??
+          users[0];
+      }
+
+      if (!targetUser) {
+        return res.status(404).json({ message: "No eligible users available" });
+      }
+
+      await storage.updateUser(targetUser.id, { lastLogin: new Date() });
+
+      req.login(targetUser as Express.User, (err: Error | null) => {
+        if (err) {
+          return res.status(500).json({ message: "Failed to establish session" });
+        }
+
+        const { password, ...userWithoutPassword } = targetUser as User;
+        return res.status(200).json({
+          ...userWithoutPassword,
+          bypass: true,
+        });
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Unable to complete bypass login" });
+    }
   });
 
   app.get("/api/logout", (req, res, next) => {
@@ -251,12 +287,10 @@ export function setupAuth(app: Express) {
       return res.status(401).json({ message: "Not authenticated" });
     }
     
-    // Remove password from response
     const { password, ...userWithoutPassword } = req.user as User;
     res.json(userWithoutPassword);
   });
   
-  // Middleware to check if user is authenticated
   app.use([
     "/api/patients", 
     "/api/appointments", 

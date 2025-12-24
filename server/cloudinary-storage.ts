@@ -1,4 +1,8 @@
 import { v2 as cloudinary } from 'cloudinary';
+// Demo mode - suppress logging
+const DEMO_MODE = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo';
+const log = (...args: any[]) => !DEMO_MODE && console.log(...args);
+const logError = (...args: any[]) => !DEMO_MODE && console.error(...args);
 
 // Configure Cloudinary with environment variables
 cloudinary.config({
@@ -41,10 +45,10 @@ export class CloudinaryStorage {
         },
         (error, result) => {
           if (error) {
-            console.error('Cloudinary upload error:', error);
+            logError('Cloudinary upload error:', error);
             reject(error);
           } else if (result) {
-            console.log(`Uploaded to Cloudinary: ${result.secure_url}`);
+            log(`Uploaded to Cloudinary: ${result.secure_url}`);
             resolve(result.secure_url);
           } else {
             reject(new Error('Upload failed: no result returned'));
@@ -69,9 +73,9 @@ export class CloudinaryStorage {
       const publicId = `${folder}/${recordingId}_${mediaType}`;
       
       await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
-      console.log(`Deleted from Cloudinary: ${publicId}`);
+      log(`Deleted from Cloudinary: ${publicId}`);
     } catch (error) {
-      console.error('Error deleting from Cloudinary:', error);
+      logError('Error deleting from Cloudinary:', error);
       // Don't throw - deletion failures shouldn't break the app
     }
   }

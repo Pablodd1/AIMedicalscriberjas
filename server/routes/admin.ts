@@ -4,23 +4,31 @@ import { eq } from 'drizzle-orm';
 import { users } from '@shared/schema';
 import { pool } from '../db';
 import { hashPassword } from '../auth';
+import { z } from 'zod';
 
 export const adminRouter = Router();
 
+const ROLE_VALUES = ['administrator', 'admin', 'doctor', 'assistant', 'patient'] as const;
+const createUserSchema = z.object({
+  username: z.string().min(3, 'Username must be at least 3 characters'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  name: z.string().min(1, 'Name is required'),
+  email: z.string().email('A valid email is required'),
+  role: z.enum(ROLE_VALUES).default('doctor'),
+  phone: z.string().optional(),
+  specialty: z.string().optional(),
+  licenseNumber: z.string().optional(),
+  isActive: z.boolean().optional(),
+});
+
 // Middleware to check if user has admin access
 const checkAdminAccess = (req: Request, res: Response, next: Function) => {
-  // Special case for direct password access through frontend
-  const adminPassword = req.headers['x-admin-password'];
-  if (adminPassword === 'admin@@@') {
-    return next();
-  }
-  
   // For API endpoints, we check if the user is authenticated and has admin role
   if (!req.isAuthenticated()) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   
-  if (req.user.role !== 'admin') {
+  if (!req.user || !['admin', 'administrator'].includes(req.user.role)) {
     return res.status(403).json({ error: 'Access denied. Admin privileges required.' });
   }
   
@@ -33,47 +41,62 @@ adminRouter.use(checkAdminAccess);
 // Get all users
 adminRouter.get('/users', async (req: Request, res: Response) => {
   try {
-    const includePasswords = req.query.includePasswords === 'true';
-    
-    if (includePasswords) {
-      // These are the actual login passwords for user accounts
-      const plainPasswords = {
-        'doctor': 'doctor123',
-        'admin': 'admin123',
-        'assistant': 'assistant123',
-        'ali': 'password123',
-        'ali819': 'password123',
-        'patient1': 'patient123',
-        'patient2': 'patient123',
-        'test': 'password123'
-      };
-      
-      // Use direct database query to include passwords
-      const result = await pool.query(`
-        SELECT id, username, password, name, email, role, 
-               phone, specialty, license_number, avatar, bio, 
-               is_active as "isActive", 
-               created_at as "createdAt", 
-               last_login as "lastLogin"
-        FROM users
-        ORDER BY id
-      `);
-      
-      // Add plain text passwords for each user
-      const usersWithPlainPasswords = result.rows.map(user => ({
-        ...user,
-        plain_password: plainPasswords[user.username] || 'default123' // Default if username not in our mapping
-      }));
-      
-      return res.json(usersWithPlainPasswords);
-    } else {
-      // Use storage method which excludes passwords
-      const users = await storage.getUsers();
-      res.json(users);
-    }
+    // Use storage method which excludes passwords (secure approach)
+    const users = await storage.getUsers();
+    res.json(users);
   } catch (error) {
-    console.error('Error getting users:', error);
     res.status(500).json({ error: 'Failed to get users' });
+  }
+});
+
+// Create a new user account
+adminRouter.post('/users', async (req: Request, res: Response) => {
+  try {
+    const parsed = createUserSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid user payload', details: parsed.error.format() });
+    }
+
+    const data = parsed.data;
+
+    // Prevent non-global admins from creating global administrators
+    if (data.role === 'administrator' && req.user && req.user.role !== 'administrator') {
+      return res.status(403).json({ error: 'Only global administrators can create another global administrator' });
+    }
+
+    const existingByUsername = await storage.getUserByUsername(data.username);
+    if (existingByUsername) {
+      return res.status(409).json({ error: 'Username already exists' });
+    }
+
+    const existingByEmail = await storage.getUserByEmail(data.email);
+    if (existingByEmail) {
+      return res.status(409).json({ error: 'Email already in use' });
+    }
+
+    const hashedPassword = await hashPassword(data.password);
+    const newUser = await storage.createUser({
+      username: data.username,
+      password: hashedPassword,
+      name: data.name,
+      email: data.email,
+      role: data.role,
+      phone: data.phone ?? null,
+      specialty: data.specialty ?? null,
+      licenseNumber: data.licenseNumber ?? null,
+      avatar: null,
+      bio: null,
+      isActive: data.isActive ?? true,
+    });
+
+    if (!newUser) {
+      return res.status(500).json({ error: 'Failed to create user' });
+    }
+
+    const { password, ...userWithoutPassword } = newUser;
+    res.status(201).json(userWithoutPassword);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create user' });
   }
 });
 
@@ -104,7 +127,6 @@ adminRouter.patch('/users/:userId/status', async (req: Request, res: Response) =
     
     res.json(updatedUser);
   } catch (error) {
-    console.error('Error updating user status:', error);
     res.status(500).json({ error: 'Failed to update user status' });
   }
 });
@@ -134,20 +156,8 @@ adminRouter.post('/users/:userId/reset-password', async (req: Request, res: Resp
       return res.status(404).json({ error: 'User not found' });
     }
     
-    console.log('Password reset requested for user:', {
-      userId: user.id,
-      username: user.username,
-      newPasswordLength: newPassword.length
-    });
-    
     // Use our hashPassword function defined at the top of the file
     const hashedPassword = await hashPassword(newPassword);
-    
-    console.log('Generated hash for new password:', {
-      originalPassword: newPassword,
-      hashedPassword: hashedPassword.substring(0, 20) + '...',
-      hashLength: hashedPassword.length
-    });
     
     // Update the user with the new password
     const updatedUser = await storage.updateUser(userId, { 
@@ -159,19 +169,10 @@ adminRouter.post('/users/:userId/reset-password', async (req: Request, res: Resp
       return res.status(500).json({ error: 'Failed to update user password' });
     }
     
-    console.log('Password reset successful for user:', {
-      userId: updatedUser.id,
-      username: updatedUser.username,
-      passwordUpdated: true
-    });
-    
     // Clear any existing sessions for this user to force fresh login
-    // This ensures the user starts with a clean session after password reset
     try {
       await pool.query('DELETE FROM session WHERE sess->>\'passport\' LIKE $1', [`%"user":${userId}%`]);
-      console.log('Cleared existing sessions for user after password reset');
     } catch (sessionError) {
-      console.warn('Could not clear existing sessions:', sessionError);
       // Don't fail the password reset if session clearing fails
     }
     
@@ -182,7 +183,6 @@ adminRouter.post('/users/:userId/reset-password', async (req: Request, res: Resp
       message: 'Password reset successfully. Please login with your new credentials.' 
     });
   } catch (error) {
-    console.error('Error resetting user password:', error);
     res.status(500).json({ error: 'Failed to reset user password' });
   }
 });
@@ -197,8 +197,12 @@ adminRouter.patch('/users/:userId/role', async (req: Request, res: Response) => 
       return res.status(400).json({ error: 'Invalid user ID' });
     }
     
-    if (!['doctor', 'admin', 'assistant', 'patient'].includes(role)) {
+    if (!['doctor', 'admin', 'assistant', 'patient', 'administrator'].includes(role)) {
       return res.status(400).json({ error: 'Invalid role' });
+    }
+
+    if (role === 'administrator' && (!req.user || req.user.role !== 'administrator')) {
+      return res.status(403).json({ error: 'Only global administrators can assign the global administrator role' });
     }
     
     // Don't allow changing role of the main admin (ID 1)
@@ -214,7 +218,6 @@ adminRouter.patch('/users/:userId/role', async (req: Request, res: Response) => 
     
     res.json(updatedUser);
   } catch (error) {
-    console.error('Error updating user role:', error);
     res.status(500).json({ error: 'Failed to update user role' });
   }
 });
@@ -233,20 +236,15 @@ adminRouter.delete('/users/:userId', async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Cannot delete the primary admin account' });
     }
     
-    console.log('Admin delete request for user ID:', userId);
-    
     const deleted = await storage.deleteUser(userId);
     
     if (!deleted) {
-      console.log('User deletion failed for ID:', userId);
       return res.status(404).json({ error: 'User not found or could not be deleted' });
     }
     
-    console.log('User deletion successful for ID:', userId);
     res.json({ success: true, message: 'User deleted successfully' });
   } catch (error) {
-    console.error('Error deleting user:', error);
-    res.status(500).json({ error: 'Failed to delete user: ' + (error instanceof Error ? error.message : 'Unknown error') });
+    res.status(500).json({ error: 'Failed to delete user' });
   }
 });
 
@@ -268,7 +266,6 @@ adminRouter.get('/update-schema', async (req: Request, res: Response) => {
     
     return res.json({ message: 'Schema already up to date' });
   } catch (error) {
-    console.error('Error updating schema:', error);
     res.status(500).json({ error: 'Failed to update schema' });
   }
 });
@@ -284,6 +281,7 @@ adminRouter.get('/dashboard', async (req: Request, res: Response) => {
       activeUsers: users.filter(u => u.isActive).length,
       inactiveUsers: users.filter(u => !u.isActive).length,
       usersByRole: {
+        administrator: users.filter(u => u.role === 'administrator').length,
         admin: users.filter(u => u.role === 'admin').length,
         doctor: users.filter(u => u.role === 'doctor').length,
         assistant: users.filter(u => u.role === 'assistant').length,
@@ -294,7 +292,6 @@ adminRouter.get('/dashboard', async (req: Request, res: Response) => {
     
     res.json(stats);
   } catch (error) {
-    console.error('Error getting dashboard data:', error);
     res.status(500).json({ error: 'Failed to get dashboard data' });
   }
 });
@@ -307,7 +304,6 @@ adminRouter.get('/global-api-key', async (req: Request, res: Response) => {
     const maskedKey = globalApiKey ? `${globalApiKey.substring(0, 6)}...` : null;
     res.json({ hasApiKey: !!globalApiKey, maskedKey });
   } catch (error) {
-    console.error('Error fetching global API key:', error);
     res.status(500).json({ error: 'Failed to fetch global API key' });
   }
 });
@@ -331,10 +327,7 @@ adminRouter.post('/global-api-key', async (req: Request, res: Response) => {
     await storage.setSystemSetting('global_openai_api_key', apiKey, 'Global OpenAI API key used for accounts not using their own API key', userId);
     res.json({ success: true, message: 'Global API key updated successfully' });
   } catch (error) {
-    console.error('Error updating global API key:', error);
-    console.error('Error details:', error.message);
-    console.error('Error stack:', error.stack);
-    res.status(500).json({ error: 'Failed to update global API key', details: error.message });
+    res.status(500).json({ error: 'Failed to update global API key' });
   }
 });
 
@@ -345,7 +338,6 @@ adminRouter.delete('/global-api-key', async (req: Request, res: Response) => {
     await storage.setSystemSetting('global_openai_api_key', null, 'Global OpenAI API key used for accounts not using their own API key', userId);
     res.json({ success: true, message: 'Global API key removed successfully' });
   } catch (error) {
-    console.error('Error removing global API key:', error);
     res.status(500).json({ error: 'Failed to remove global API key' });
   }
 });
@@ -372,7 +364,6 @@ adminRouter.put('/users/:userId/api-key-setting', async (req: Request, res: Resp
     
     res.json({ success: true, message: 'User API key setting updated successfully', user: updatedUser });
   } catch (error) {
-    console.error('Error updating user API key setting:', error);
     res.status(500).json({ error: 'Failed to update user API key setting' });
   }
 });
@@ -413,7 +404,6 @@ adminRouter.get('/global-prompts', async (req: Request, res: Response) => {
     `);
     res.json(result.rows);
   } catch (error) {
-    console.error('Error fetching global prompts:', error);
     res.json([]); // Return empty array on error to allow app to function
   }
 });
@@ -446,7 +436,6 @@ adminRouter.get('/global-prompts/:id', async (req: Request, res: Response) => {
     
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Error fetching global prompt:', error);
     res.status(500).json({ error: 'Failed to fetch global prompt' });
   }
 });
@@ -477,7 +466,6 @@ adminRouter.post('/global-prompts', async (req: Request, res: Response) => {
     
     res.status(201).json(result.rows[0]);
   } catch (error) {
-    console.error('Error creating global prompt:', error);
     res.status(500).json({ error: 'Failed to create global prompt' });
   }
 });
@@ -531,7 +519,6 @@ adminRouter.put('/global-prompts/:id', async (req: Request, res: Response) => {
     
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Error updating global prompt:', error);
     res.status(500).json({ error: 'Failed to update global prompt' });
   }
 });
@@ -569,7 +556,6 @@ adminRouter.patch('/global-prompts/:id/toggle', async (req: Request, res: Respon
     
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Error toggling prompt status:', error);
     res.status(500).json({ error: 'Failed to toggle prompt status' });
   }
 });
@@ -600,7 +586,6 @@ adminRouter.delete('/global-prompts/:id', async (req: Request, res: Response) =>
     
     res.json({ success: true, message: 'Prompt deleted successfully' });
   } catch (error) {
-    console.error('Error deleting global prompt:', error);
     res.status(500).json({ error: 'Failed to delete global prompt' });
   }
 });

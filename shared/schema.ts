@@ -16,7 +16,7 @@ import { z } from "zod";
 import { relations } from "drizzle-orm";
 
 // Define user roles enum
-export const userRoleEnum = pgEnum('user_role', ['doctor', 'admin', 'assistant', 'patient']);
+export const userRoleEnum = pgEnum('user_role', ['doctor', 'admin', 'assistant', 'patient', 'administrator']);
 
 // User table with enhanced fields for multi-user support
 export const users = pgTable("users", {

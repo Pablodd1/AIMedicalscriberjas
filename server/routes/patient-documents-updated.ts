@@ -1,4 +1,8 @@
 import { Router, Request, Response } from 'express';
+// Demo mode - suppress logging
+const DEMO_MODE = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo';
+const log = (...args: any[]) => !DEMO_MODE && console.log(...args);
+const logError = (...args: any[]) => !DEMO_MODE && console.error(...args);
 import { storage } from '../storage';
 import multer from 'multer';
 import path from 'path';
@@ -79,7 +83,7 @@ patientDocumentsRouter.get('/:patientId', async (req, res) => {
     
     return res.json(documents);
   } catch (error) {
-    console.error('Error getting patient documents:', error);
+    logError('Error getting patient documents:', error);
     return res.status(500).json({ error: 'Failed to get patient documents' });
   }
 });
@@ -141,7 +145,7 @@ patientDocumentsRouter.post('/:patientId/upload', upload.single('document'), asy
     
     return res.status(201).json(document);
   } catch (error) {
-    console.error('Error uploading patient document:', error);
+    logError('Error uploading patient document:', error);
     return res.status(500).json({ error: 'Failed to upload document' });
   }
 });
@@ -181,7 +185,7 @@ patientDocumentsRouter.get('/:patientId/download/:documentId', async (req, res) 
     // Send file to client
     res.download(filePath, document.originalFilename);
   } catch (error) {
-    console.error('Error downloading patient document:', error);
+    logError('Error downloading patient document:', error);
     return res.status(500).json({ error: 'Failed to download document' });
   }
 });
@@ -217,7 +221,7 @@ patientDocumentsRouter.delete('/:patientId/documents/:documentId', async (req, r
         fs.unlinkSync(filePath);
       }
     } catch (deleteError) {
-      console.error('Error deleting file from disk:', deleteError);
+      logError('Error deleting file from disk:', deleteError);
       // Continue with database deletion even if file delete fails
     }
     
@@ -230,7 +234,7 @@ patientDocumentsRouter.delete('/:patientId/documents/:documentId', async (req, r
       return res.status(500).json({ error: 'Failed to delete document from database' });
     }
   } catch (error) {
-    console.error('Error deleting patient document:', error);
+    logError('Error deleting patient document:', error);
     return res.status(500).json({ error: 'Failed to delete document' });
   }
 });
@@ -290,7 +294,7 @@ patientDocumentsRouter.patch('/:patientId/documents/:documentId', async (req, re
       return res.status(500).json({ error: 'Failed to update document' });
     }
   } catch (error) {
-    console.error('Error updating patient document:', error);
+    logError('Error updating patient document:', error);
     return res.status(500).json({ error: 'Failed to update document' });
   }
 });

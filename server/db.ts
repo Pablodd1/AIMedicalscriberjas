@@ -1,4 +1,8 @@
 import { Pool } from 'pg';
+// Demo mode - suppress logging
+const DEMO_MODE = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo';
+const log = (...args: any[]) => !DEMO_MODE && console.log(...args);
+const logError = (...args: any[]) => !DEMO_MODE && console.error(...args);
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from "@shared/schema";
 
@@ -19,7 +23,7 @@ export const pool = new Pool({
 
 // Add pool error handling
 pool.on('error', (err) => {
-  console.error('Pool error:', err);
+  logError('Pool error:', err);
 });
 
 export const db = drizzle(pool, { schema });

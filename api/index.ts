@@ -305,7 +305,7 @@ app.post('/api/setup', async (req: Request, res: Response) => {
     }
 
     const defaultUsers = [
-      { username: 'admin', password: 'admin123', name: 'System Administrator', role: 'admin', email: 'admin@aims.medical', specialty: 'Administration', isActive: true },
+      { username: 'admin', password: 'admin123', name: 'System Administrator', role: 'administrator', email: 'admin@aims.medical', specialty: 'Administration', isActive: true },
       { username: 'provider', password: 'provider123', name: 'Dr. John Smith', role: 'doctor', email: 'provider@aims.medical', specialty: 'Internal Medicine', licenseNumber: 'MD-12345', isActive: true },
       { username: 'doctor', password: 'doctor123', name: 'Dr. Sarah Johnson', role: 'doctor', email: 'doctor@aims.medical', specialty: 'Family Medicine', licenseNumber: 'MD-67890', isActive: true },
     ];
@@ -330,6 +330,7 @@ app.post('/api/setup', async (req: Request, res: Response) => {
       success: true,
       users: results,
       credentials: {
+        administrator: { username: 'admin', password: 'admin123' },
         admin: { username: 'admin', password: 'admin123' },
         provider: { username: 'provider', password: 'provider123' },
         doctor: { username: 'doctor', password: 'doctor123' }

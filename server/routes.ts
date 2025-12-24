@@ -28,6 +28,11 @@ import {
 import multer from "multer";
 import * as XLSX from 'xlsx';
 
+// Demo mode - suppress logging for cleaner output
+const DEMO_MODE = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo';
+const log = (...args: any[]) => !DEMO_MODE && console.log(...args);
+const logError = (...args: any[]) => !DEMO_MODE && console.error(...args);
+
 // Extend the global namespace to include our media storage
 declare global {
   var mediaStorage: Map<string, {
@@ -69,7 +74,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   try {
     await runMigrations();
   } catch (error) {
-    console.error('Warning: Migration runner error (app will continue):', error);
+    logError('Warning: Migration runner error (app will continue):', error);
   }
   
   setupAuth(app);
@@ -83,7 +88,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         username: 'admin',
         password: 'admin123',
         name: 'System Administrator',
-        role: 'admin' as const,
+        role: 'administrator' as const,
         email: 'admin@aims.medical',
         specialty: 'Administration',
         isActive: true,
@@ -133,6 +138,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       message: 'Setup complete',
       users: results,
       credentials: {
+        administrator: { username: 'admin', password: 'admin123' },
         admin: { username: 'admin', password: 'admin123' },
         provider: { username: 'provider', password: 'provider123' },
         doctor: { username: 'doctor', password: 'doctor123' },
@@ -171,9 +177,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       process.env.daily_patient_list_email_1) {
     const { initializeScheduler } = await import('./notification-scheduler');
     initializeScheduler();
-    console.log('✅ Automated notification system initialized');
+    log('✅ Automated notification system initialized');
   } else {
-    console.log('ℹ️ Notification system disabled (configure email settings to enable)');
+    log('ℹ️ Notification system disabled (configure email settings to enable)');
   }
 
   // Test error handling endpoint for validation
@@ -354,7 +360,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }, `Successfully imported ${successfulImports.length} of ${rawData.length} patients`, 200);
       
     } catch (error) {
-      console.error('Error processing Excel file:', error);
+      logError('Error processing Excel file:', error);
       throw new AppError(
         error instanceof Error ? error.message : 'Failed to process Excel file',
         400,
@@ -426,7 +432,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
       }
     } catch (emailError) {
-      console.error('Failed to send confirmation email:', emailError);
+      logError('Failed to send confirmation email:', emailError);
       // Don't fail the request if email fails
     }
     
@@ -500,7 +506,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
       }
     } catch (emailError) {
-      console.error('Failed to send rescheduled email:', emailError);
+      logError('Failed to send rescheduled email:', emailError);
       // Don't fail the request if email fails
     }
     
@@ -551,7 +557,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
       }
     } catch (emailError) {
-      console.error('Failed to send cancellation email:', emailError);
+      logError('Failed to send cancellation email:', emailError);
       // Don't fail the request if email fails
     }
     
@@ -756,7 +762,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.send(docxBuffer);
       
     } catch (error) {
-      console.error('Error generating medical note document:', error);
+      logError('Error generating medical note document:', error);
       throw new AppError('Failed to generate document', 500, 'DOCUMENT_GENERATION_FAILED');
     }
   }));
@@ -799,7 +805,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const notes = await storage.getQuickNotes(doctorId);
       res.json(notes);
     } catch (error) {
-      console.error("Error fetching quick notes:", error);
+      logError("Error fetching quick notes:", error);
       res.status(500).json({ message: "Failed to fetch quick notes" });
     }
   });
@@ -821,7 +827,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const note = await storage.createQuickNote(quickNoteData);
       res.status(201).json(note);
     } catch (error: any) {
-      console.error("Error creating quick note:", error);
+      logError("Error creating quick note:", error);
       res.status(400).json({ message: "Failed to create quick note", error: error.message });
     }
   });
@@ -924,7 +930,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.status(201).json(medicalNote);
     } catch (error: any) {
-      console.error("Error creating medical note from consultation:", error);
+      logError("Error creating medical note from consultation:", error);
       res.status(500).json({ message: "Failed to create medical note from consultation" });
     }
   });
@@ -939,7 +945,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const templates = await storage.getMedicalNoteTemplates();
       res.json(templates);
     } catch (error) {
-      console.error("Error fetching medical note templates:", error);
+      logError("Error fetching medical note templates:", error);
       res.status(500).json({ message: "Failed to fetch medical note templates" });
     }
   });
@@ -954,7 +960,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const templates = await storage.getMedicalNoteTemplatesByType(type);
       res.json(templates);
     } catch (error) {
-      console.error("Error fetching medical note templates by type:", error);
+      logError("Error fetching medical note templates by type:", error);
       res.status(500).json({ message: "Failed to fetch medical note templates" });
     }
   });
@@ -974,7 +980,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(template);
     } catch (error) {
-      console.error("Error fetching medical note template:", error);
+      logError("Error fetching medical note template:", error);
       res.status(500).json({ message: "Failed to fetch medical note template" });
     }
   });
@@ -993,7 +999,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const template = await storage.createMedicalNoteTemplate(validation.data);
       res.status(201).json(template);
     } catch (error) {
-      console.error("Error creating medical note template:", error);
+      logError("Error creating medical note template:", error);
       res.status(500).json({ message: "Failed to create medical note template" });
     }
   });
@@ -1014,7 +1020,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updatedTemplate = await storage.updateMedicalNoteTemplate(id, req.body);
       res.json(updatedTemplate);
     } catch (error) {
-      console.error("Error updating medical note template:", error);
+      logError("Error updating medical note template:", error);
       res.status(500).json({ message: "Failed to update medical note template" });
     }
   });
@@ -1034,7 +1040,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.sendStatus(204);
     } catch (error) {
-      console.error("Error deleting medical note template:", error);
+      logError("Error deleting medical note template:", error);
       res.status(500).json({ message: "Failed to delete medical note template" });
     }
   });
@@ -1050,7 +1056,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const prompts = await storage.getCustomNotePrompts(userId);
       res.json(prompts);
     } catch (error) {
-      console.error("Error fetching custom note prompts:", error);
+      logError("Error fetching custom note prompts:", error);
       res.status(500).json({ message: "Failed to fetch custom note prompts" });
     }
   });
@@ -1081,7 +1087,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `);
       res.json(result.rows);
     } catch (error) {
-      console.error("Error fetching global prompts:", error);
+      logError("Error fetching global prompts:", error);
       // Return empty array instead of error to allow the app to function
       res.json([]);
     }
@@ -1106,7 +1112,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // If no user prompt, return null (no global prompts in current schema)
       res.json(null);
     } catch (error) {
-      console.error("Error fetching custom note prompt:", error);
+      logError("Error fetching custom note prompt:", error);
       res.status(500).json({ message: "Failed to fetch custom note prompt" });
     }
   });
@@ -1129,7 +1135,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(prompt);
     } catch (error) {
-      console.error("Error saving custom note prompt:", error);
+      logError("Error saving custom note prompt:", error);
       res.status(500).json({ message: "Failed to save custom note prompt" });
     }
   });
@@ -1145,7 +1151,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.deleteCustomNotePrompt(userId, noteType);
       res.json({ success: true });
     } catch (error) {
-      console.error("Error deleting custom note prompt:", error);
+      logError("Error deleting custom note prompt:", error);
       res.status(500).json({ message: "Failed to delete custom note prompt" });
     }
   });
@@ -1184,7 +1190,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         maskedKey 
       });
     } catch (error) {
-      console.error("Error fetching user API key:", error);
+      logError("Error fetching user API key:", error);
       res.status(500).json({ message: "Failed to fetch API key" });
     }
   });
@@ -1222,7 +1228,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateUserApiKey(userId, apiKey);
       res.json({ success: true, message: "API key updated successfully" });
     } catch (error) {
-      console.error("Error updating user API key:", error);
+      logError("Error updating user API key:", error);
       res.status(500).json({ message: "Failed to update API key" });
     }
   });
@@ -1251,7 +1257,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateUserApiKey(userId, null);
       res.json({ success: true, message: "API key removed successfully" });
     } catch (error) {
-      console.error("Error removing user API key:", error);
+      logError("Error removing user API key:", error);
       res.status(500).json({ message: "Failed to remove API key" });
     }
   });
@@ -1279,7 +1285,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateUserApiKey(userId, null);
       res.json({ success: true, message: "API key removed successfully" });
     } catch (error) {
-      console.error("Error removing user API key:", error);
+      logError("Error removing user API key:", error);
       res.status(500).json({ message: "Failed to remove API key" });
     }
   });
@@ -1297,7 +1303,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const invoices = await storage.getInvoices(doctorId);
       res.json(invoices);
     } catch (error) {
-      console.error("Error fetching invoices:", error);
+      logError("Error fetching invoices:", error);
       res.status(500).json({ message: "Failed to fetch invoices" });
     }
   });
@@ -1312,7 +1318,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const invoices = await storage.getInvoicesByPatient(patientId);
       res.json(invoices);
     } catch (error) {
-      console.error("Error fetching patient invoices:", error);
+      logError("Error fetching patient invoices:", error);
       res.status(500).json({ message: "Failed to fetch patient invoices" });
     }
   });
@@ -1332,7 +1338,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(invoice);
     } catch (error) {
-      console.error("Error fetching invoice:", error);
+      logError("Error fetching invoice:", error);
       res.status(500).json({ message: "Failed to fetch invoice" });
     }
   });
@@ -1368,7 +1374,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           dueDate = new Date(req.body.dueDate);
         }
       } catch (e) {
-        console.error("Error parsing date:", e);
+        logError("Error parsing date:", e);
         dueDate = new Date(); // Fallback to current date
       }
       
@@ -1387,7 +1393,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const invoice = await storage.createInvoice(validation.data);
       res.status(201).json(invoice);
     } catch (error) {
-      console.error("Error creating invoice:", error);
+      logError("Error creating invoice:", error);
       res.status(500).json({ message: "Failed to create invoice" });
     }
   });
@@ -1405,7 +1411,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(invoice);
     } catch (error) {
-      console.error("Error updating invoice status:", error);
+      logError("Error updating invoice status:", error);
       res.status(500).json({ message: "Failed to update invoice status" });
     }
   });
@@ -1423,7 +1429,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(invoice);
     } catch (error) {
-      console.error("Error updating invoice payment:", error);
+      logError("Error updating invoice payment:", error);
       res.status(500).json({ message: "Failed to update invoice payment" });
     }
   });
@@ -1470,7 +1476,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(recordingsWithPatients);
     } catch (error) {
-      console.error('Error fetching recording sessions:', error);
+      logError('Error fetching recording sessions:', error);
       res.status(500).json({ message: 'Failed to fetch recording sessions' });
     }
   });
@@ -1485,7 +1491,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const doctorId = req.user!.id;
       const { roomId, patientId, startTime, endTime, duration, status, recordingType, mediaFormat } = req.body;
       
-      console.log('Creating recording session:', { roomId, patientId, duration, recordingType, mediaFormat });
+      log('Creating recording session:', { roomId, patientId, duration, recordingType, mediaFormat });
       
       if (!roomId || !patientId) {
         return res.status(400).json({ message: 'Missing required fields: roomId and patientId' });
@@ -1505,11 +1511,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         notes: null
       });
       
-      console.log('Recording session created:', recording.id);
+      log('Recording session created:', recording.id);
       
       res.status(200).json(recording);
     } catch (error) {
-      console.error('Error creating recording session:', error);
+      logError('Error creating recording session:', error);
       res.status(500).json({ message: 'Failed to create recording session' });
     }
   });
@@ -1538,7 +1544,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         patient: patient || { name: 'Unknown Patient' }
       });
     } catch (error) {
-      console.error('Error fetching recording session:', error);
+      logError('Error fetching recording session:', error);
       res.status(500).json({ message: 'Failed to fetch recording session' });
     }
   });
@@ -1575,18 +1581,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await FileStorage.deleteRecording(id, 'audio');
           // Update database to remove audioUrl since file is deleted
           const finalRecording = await storage.updateRecordingSession(id, { audioUrl: null });
-          console.log(`Deleted audio recording for session ${id} after transcription`);
+          log(`Deleted audio recording for session ${id} after transcription`);
           // Return the updated recording with audioUrl set to null
           return res.json(finalRecording);
         } catch (error) {
-          console.error(`Failed to delete audio recording for session ${id}:`, error);
+          logError(`Failed to delete audio recording for session ${id}:`, error);
           // Don't fail the request if cleanup fails
         }
       }
       
       res.json(updatedRecording);
     } catch (error) {
-      console.error('Error updating recording session:', error);
+      logError('Error updating recording session:', error);
       res.status(500).json({ message: 'Failed to update recording session' });
     }
   });
@@ -1639,7 +1645,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
         
         if (error) {
-          console.error('Deepgram transcription error:', error);
+          logError('Deepgram transcription error:', error);
           return res.status(500).json({ message: 'Failed to transcribe video: ' + error.message });
         }
         
@@ -1660,13 +1666,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           message: 'Transcript generated successfully'
         });
       } catch (deepgramError: any) {
-        console.error('Deepgram API error:', deepgramError);
+        logError('Deepgram API error:', deepgramError);
         return res.status(500).json({ 
           message: 'Transcription failed: ' + (deepgramError.message || 'Unknown error') 
         });
       }
     } catch (error) {
-      console.error('Error generating transcript:', error);
+      logError('Error generating transcript:', error);
       res.status(500).json({ message: 'Failed to generate transcript' });
     }
   });
@@ -1705,7 +1711,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.status(200).json({ message: 'Recording deleted successfully' });
     } catch (error) {
-      console.error('Error deleting recording:', error);
+      logError('Error deleting recording:', error);
       res.status(500).json({ message: 'Failed to delete recording' });
     }
   });
@@ -1724,46 +1730,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.setTimeout(1800000); // 30 minutes
     
     try {
-      console.log(`=== MEDIA UPLOAD START ===`);
-      console.log(`Received media upload request for recording ${req.params.id}`);
-      console.log(`Request authenticated: ${req.isAuthenticated()}`);
+      log(`=== MEDIA UPLOAD START ===`);
+      log(`Received media upload request for recording ${req.params.id}`);
+      log(`Request authenticated: ${req.isAuthenticated()}`);
       
       if (!req.isAuthenticated()) {
-        console.log('Upload rejected: not authenticated');
+        log('Upload rejected: not authenticated');
         return res.status(401).json({ message: "Unauthorized" });
       }
       
       const doctorId = req.user!.id;
       const recordingId = parseInt(req.params.id);
-      console.log(`Doctor ID: ${doctorId}, Recording ID: ${recordingId}`);
+      log(`Doctor ID: ${doctorId}, Recording ID: ${recordingId}`);
       
       if (isNaN(recordingId)) {
-        console.log('Upload rejected: invalid recording ID');
+        log('Upload rejected: invalid recording ID');
         return res.status(400).json({ message: 'Invalid recording ID format' });
       }
       
       if (!req.file) {
-        console.log('Upload rejected: no file uploaded');
-        console.log('Request body:', req.body);
+        log('Upload rejected: no file uploaded');
+        log('Request body:', req.body);
         return res.status(400).json({ message: 'No file uploaded' });
       }
       
-      console.log(`File received: ${req.file.originalname}, size: ${req.file.size} bytes (${(req.file.size / 1024 / 1024).toFixed(2)} MB)`);
-      console.log(`File mimetype: ${req.file.mimetype}`);
+      log(`File received: ${req.file.originalname}, size: ${req.file.size} bytes (${(req.file.size / 1024 / 1024).toFixed(2)} MB)`);
+      log(`File mimetype: ${req.file.mimetype}`);
       
       // Get the recording session
       const recording = await storage.getRecordingSession(recordingId);
       
       if (!recording) {
-        console.log(`Upload rejected: recording ${recordingId} not found in database`);
+        log(`Upload rejected: recording ${recordingId} not found in database`);
         return res.status(404).json({ message: 'Recording not found' });
       }
       
-      console.log(`Recording found - Doctor ID: ${recording.doctorId}, Status: ${recording.status}`);
+      log(`Recording found - Doctor ID: ${recording.doctorId}, Status: ${recording.status}`);
       
       // Security check: Only allow the doctor who owns the recording to upload to it
       if (recording.doctorId !== doctorId) {
-        console.log(`Upload rejected: doctor ${doctorId} does not own recording ${recordingId} (owner: ${recording.doctorId})`);
+        log(`Upload rejected: doctor ${doctorId} does not own recording ${recordingId} (owner: ${recording.doctorId})`);
         return res.status(403).json({ message: 'You do not have permission to modify this recording' });
       }
       
@@ -1771,8 +1777,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const fileBuffer = req.file.buffer;
       const extension = req.file.originalname.split('.').pop() || 'webm';
       
-      console.log(`Starting Cloudinary upload - Type: ${mediaType}, Extension: ${extension}`);
-      console.log(`Buffer size: ${fileBuffer.length} bytes`);
+      log(`Starting Cloudinary upload - Type: ${mediaType}, Extension: ${extension}`);
+      log(`Buffer size: ${fileBuffer.length} bytes`);
       
       // Upload the file to Cloudinary
       const cloudinaryUrl = await CloudinaryStorage.uploadRecording(
@@ -1782,7 +1788,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         extension
       );
       
-      console.log(`✓ Successfully uploaded to Cloudinary: ${cloudinaryUrl}`);
+      log(`✓ Successfully uploaded to Cloudinary: ${cloudinaryUrl}`);
       
       // Update the recording session with the Cloudinary URL
       const updateData: any = {};
@@ -1792,13 +1798,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updateData.videoUrl = cloudinaryUrl;
       }
       
-      console.log(`Updating database with ${mediaType}Url...`);
+      log(`Updating database with ${mediaType}Url...`);
       
       // Update the database record
       await storage.updateRecordingSession(recordingId, updateData);
       
-      console.log(`✓ Database updated successfully`);
-      console.log(`=== MEDIA UPLOAD COMPLETE ===`);
+      log(`✓ Database updated successfully`);
+      log(`=== MEDIA UPLOAD COMPLETE ===`);
       
       res.status(200).json({ 
         message: `${mediaType} recording uploaded successfully`,
@@ -1806,8 +1812,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         url: cloudinaryUrl
       });
     } catch (error) {
-      console.error(`❌ Error uploading recording:`, error);
-      console.error(`Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
+      logError(`❌ Error uploading recording:`, error);
+      logError(`Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
       res.status(500).json({ 
         message: 'Failed to upload recording', 
         error: error instanceof Error ? error.message : String(error)
@@ -1864,7 +1870,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       return res.send(audioBuffer);
     } catch (error) {
-      console.error('Error retrieving audio recording:', error);
+      logError('Error retrieving audio recording:', error);
       res.status(500).json({ message: 'Failed to retrieve audio recording' });
     }
   });
@@ -1918,7 +1924,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       return res.send(videoBuffer);
     } catch (error) {
-      console.error('Error retrieving video recording:', error);
+      logError('Error retrieving video recording:', error);
       res.status(500).json({ message: 'Failed to retrieve video recording' });
     }
   });
@@ -1962,7 +1968,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.status(200).json(updatedRecording);
     } catch (error) {
-      console.error('Error storing video recording:', error);
+      logError('Error storing video recording:', error);
       res.status(500).json({ message: 'Failed to store video recording' });
     }
   });
@@ -2001,7 +2007,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.status(201).json({ roomId, recordingSessionId: recordingSession.id });
     } catch (error) {
-      console.error('Error creating telemedicine room:', error);
+      logError('Error creating telemedicine room:', error);
       res.status(500).json({ message: 'Failed to create telemedicine room' });
     }
   });
@@ -2015,7 +2021,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   wss.on('connection', (socket: any) => {
-    console.log('New WebSocket connection established');
+    log('New WebSocket connection established');
     
     // Initialize participant data
     let participantId: string | null = null;
@@ -2077,9 +2083,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (data.isDoctor && data.roomId) {
               try {
                 await startLiveTranscription(data.roomId, socket);
-                console.log(`📝 Live transcription started for room: ${data.roomId}`);
+                log(`📝 Live transcription started for room: ${data.roomId}`);
               } catch (error) {
-                console.error('Error starting transcription:', error);
+                logError('Error starting transcription:', error);
                 socket.send(JSON.stringify({
                   type: 'transcription-error',
                   message: 'Failed to start live transcription'
@@ -2095,7 +2101,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 const audioBuffer = Buffer.from(data.audioData, 'base64');
                 sendAudioToDeepgram(data.roomId, audioBuffer);
               } catch (error) {
-                console.error('Error processing audio data:', error);
+                logError('Error processing audio data:', error);
               }
             }
             break;
@@ -2111,7 +2117,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   transcript: fullTranscript
                 }));
               } catch (error) {
-                console.error('Error stopping transcription:', error);
+                logError('Error stopping transcription:', error);
               }
             }
             break;
@@ -2139,9 +2145,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   assessment
                 }));
                 
-                console.log(`🔍 Visual health assessment completed for room: ${data.roomId}`);
+                log(`🔍 Visual health assessment completed for room: ${data.roomId}`);
               } catch (error) {
-                console.error('Error in visual assessment:', error);
+                logError('Error in visual assessment:', error);
                 socket.send(JSON.stringify({
                   type: 'visual-assessment-error',
                   message: 'Failed to analyze visual frame'
@@ -2159,7 +2165,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Make sure roomId is taken from message if not already set in socket connection
             const messageRoomId = data.roomId || roomId;
             if (!messageRoomId) {
-              console.error('No room ID found in message or socket state:', data);
+              logError('No room ID found in message or socket state:', data);
               socket.send(JSON.stringify({
                 type: 'error',
                 message: 'No room ID provided. Please join a room first.'
@@ -2169,7 +2175,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             const targetRoom = activeRooms.get(messageRoomId);
             if (!targetRoom) {
-              console.error('Room not found with ID:', messageRoomId);
+              logError('Room not found with ID:', messageRoomId);
               socket.send(JSON.stringify({
                 type: 'error',
                 message: 'Room not found with ID: ' + messageRoomId
@@ -2179,7 +2185,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             // For chat messages, broadcast to all participants in the room
             if (data.type === 'chat-message') {
-              console.log('Broadcasting chat message in room:', messageRoomId);
+              log('Broadcasting chat message in room:', messageRoomId);
               targetRoom.participants.forEach(participant => {
                 if (participant.id !== data.sender) {
                   participant.socket.send(JSON.stringify({
@@ -2200,7 +2206,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Forward the WebRTC signaling message with proper formatting
               // Always pass the roomId to ensure proper room tracking
               if (data.type === 'offer') {
-                console.log('Server forwarding offer with room ID:', messageRoomId);
+                log('Server forwarding offer with room ID:', messageRoomId);
                 targetParticipant.socket.send(JSON.stringify({
                   type: 'offer',
                   from: data.sender,
@@ -2208,7 +2214,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   offer: data.data
                 }));
               } else if (data.type === 'answer') {
-                console.log('Server forwarding answer with room ID:', messageRoomId);
+                log('Server forwarding answer with room ID:', messageRoomId);
                 targetParticipant.socket.send(JSON.stringify({
                   type: 'answer',
                   from: data.sender,
@@ -2216,7 +2222,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   answer: data.data
                 }));
               } else if (data.type === 'ice-candidate') {
-                console.log('Server forwarding ICE candidate with room ID:', messageRoomId);
+                log('Server forwarding ICE candidate with room ID:', messageRoomId);
                 targetParticipant.socket.send(JSON.stringify({
                   type: 'ice-candidate',
                   from: data.sender,
@@ -2225,20 +2231,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 }));
               }
             } else {
-              console.log('Target participant not found:', data.target);
+              log('Target participant not found:', data.target);
             }
             break;
             
           default:
-            console.log('Unknown message type:', data.type);
+            log('Unknown message type:', data.type);
         }
       } catch (error) {
-        console.error('Error processing WebSocket message:', error);
+        logError('Error processing WebSocket message:', error);
       }
     });
     
     socket.on('close', async () => {
-      console.log('WebSocket connection closed');
+      log('WebSocket connection closed');
       
       // Remove participant from room when they disconnect
       if (roomId && participantId) {
@@ -2274,7 +2280,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 });
               }
             } catch (error) {
-              console.error('Error updating recording session on room close:', error);
+              logError('Error updating recording session on room close:', error);
             }
           }
         }
@@ -2293,7 +2299,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const forms = await storage.getIntakeForms(doctorId);
       res.json(forms);
     } catch (error: any) {
-      console.error("Error fetching intake forms:", error);
+      logError("Error fetching intake forms:", error);
       res.status(500).json({ message: "Failed to fetch intake forms" });
     }
   });
@@ -2322,7 +2328,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         responses
       });
     } catch (error: any) {
-      console.error("Error fetching intake form:", error);
+      logError("Error fetching intake form:", error);
       res.status(500).json({ message: "Failed to fetch intake form" });
     }
   });
@@ -2334,7 +2340,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const doctorId = req.user.id;
       
-      console.log("Creating intake form with data:", req.body);
+      log("Creating intake form with data:", req.body);
 
       // Set the authenticated doctor ID
       req.body.doctorId = doctorId;
@@ -2357,7 +2363,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const validation = insertIntakeFormSchema.safeParse(req.body);
       if (!validation.success) {
-        console.error("Validation error:", validation.error.format());
+        logError("Validation error:", validation.error.format());
         return res.status(400).json({
           message: "Invalid form data",
           issues: validation.error.format()
@@ -2368,7 +2374,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.status(201).json(intakeForm);
     } catch (error: any) {
-      console.error("Error creating intake form:", error);
+      logError("Error creating intake form:", error);
       res.status(500).json({ message: "Failed to create intake form: " + (error.message || "Unknown error") });
     }
   });
@@ -2401,7 +2407,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         responses
       });
     } catch (error: any) {
-      console.error("Error fetching public intake form:", error);
+      logError("Error fetching public intake form:", error);
       res.status(500).json({ message: "Failed to fetch intake form" });
     }
   });
@@ -2442,7 +2448,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.status(201).json(response);
     } catch (error: any) {
-      console.error("Error saving intake form response:", error);
+      logError("Error saving intake form response:", error);
       res.status(500).json({ message: "Failed to save response" });
     }
   });
@@ -2531,7 +2537,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({ success: true, message: "Intake form data saved successfully" });
     } catch (error: any) {
-      console.error("Error saving continuous intake form:", error);
+      logError("Error saving continuous intake form:", error);
       res.status(500).json({ message: "Failed to save intake form data" });
     }
   });
@@ -2555,7 +2561,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(updatedForm);
     } catch (error: any) {
-      console.error("Error completing intake form:", error);
+      logError("Error completing intake form:", error);
       res.status(500).json({ message: "Failed to complete intake form" });
     }
   });

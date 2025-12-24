@@ -84,6 +84,11 @@ import connectPg from "connect-pg-simple";
 import { db, pool } from "./db";
 import { eq, and, desc, asc } from "drizzle-orm";
 
+// Demo mode - suppress logging for cleaner output
+const DEMO_MODE = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo';
+const log = (...args: any[]) => !DEMO_MODE && console.log(...args);
+const logError = (...args: any[]) => !DEMO_MODE && console.error(...args);
+
 // Use connect-pg-simple for session storage with PostgreSQL
 const PostgresSessionStore = connectPg(session);
 
@@ -245,13 +250,13 @@ export class DatabaseStorage implements IStorage {
         errorLog: console.error.bind(console)
       });
     } catch (error) {
-      console.error('Error initializing session store:', error);
+      logError('Error initializing session store:', error);
       // Use memory store as fallback
       const MemoryStore = require('memorystore')(session);
       this.sessionStore = new MemoryStore({
         checkPeriod: 86400000 // prune expired entries every 24h
       });
-      console.log('Using memory store as fallback for sessions');
+      log('Using memory store as fallback for sessions');
     }
   }
 
@@ -278,8 +283,17 @@ export class DatabaseStorage implements IStorage {
     const [user] = await db
       .insert(users)
       .values({
-        ...insertUser,
-        isActive: true,
+        username: insertUser.username,
+        password: insertUser.password,
+        name: insertUser.name,
+        email: insertUser.email,
+        role: insertUser.role,
+        phone: insertUser.phone ?? null,
+        specialty: insertUser.specialty ?? null,
+        licenseNumber: insertUser.licenseNumber ?? null,
+        avatar: insertUser.avatar ?? null,
+        bio: insertUser.bio ?? null,
+        isActive: insertUser.isActive ?? true,
         createdAt: new Date(),
       })
       .returning();
@@ -363,11 +377,11 @@ export class DatabaseStorage implements IStorage {
       // First, check if user exists
       const user = await this.getUser(id);
       if (!user) {
-        console.log('User not found for deletion:', id);
+        log('User not found for deletion:', id);
         return false;
       }
       
-      console.log('Attempting to delete user:', { id, username: user.username });
+      log('Attempting to delete user:', { id, username: user.username });
       
       // Delete related records first to handle foreign key constraints
       // Delete patient documents if the user is a patient
@@ -406,11 +420,11 @@ export class DatabaseStorage implements IStorage {
         .returning({ id: users.id });
       
       const success = result.length > 0;
-      console.log('User deletion result:', { id, success });
+      log('User deletion result:', { id, success });
       
       return success;
     } catch (error) {
-      console.error('Error deleting user:', error);
+      logError('Error deleting user:', error);
       return false;
     }
   }
@@ -492,7 +506,7 @@ export class DatabaseStorage implements IStorage {
       const result = await db.delete(appointments).where(eq(appointments.id, id)).returning();
       return result.length > 0;
     } catch (error) {
-      console.error('Error deleting appointment:', error);
+      logError('Error deleting appointment:', error);
       return false;
     }
   }
@@ -1114,7 +1128,7 @@ export class DatabaseStorage implements IStorage {
         return await db.select().from(labKnowledgeBase).orderBy(labKnowledgeBase.test_name);
       }
     } catch (error) {
-      console.error("Error fetching lab knowledge base:", error);
+      logError("Error fetching lab knowledge base:", error);
       return [];
     }
   }
@@ -1130,7 +1144,7 @@ export class DatabaseStorage implements IStorage {
       const [item] = await query;
       return item;
     } catch (error) {
-      console.error("Error fetching lab knowledge base item:", error);
+      logError("Error fetching lab knowledge base item:", error);
       return undefined;
     }
   }
@@ -1140,7 +1154,7 @@ export class DatabaseStorage implements IStorage {
       const [newItem] = await db.insert(labKnowledgeBase).values(item).returning();
       return newItem;
     } catch (error) {
-      console.error("Error creating lab knowledge base item:", error);
+      logError("Error creating lab knowledge base item:", error);
       throw error;
     }
   }
@@ -1161,7 +1175,7 @@ export class DatabaseStorage implements IStorage {
       const [updated] = await query.returning();
       return updated;
     } catch (error) {
-      console.error("Error updating lab knowledge base item:", error);
+      logError("Error updating lab knowledge base item:", error);
       return undefined;
     }
   }
@@ -1177,7 +1191,7 @@ export class DatabaseStorage implements IStorage {
       const result = await query;
       return result.rowCount > 0;
     } catch (error) {
-      console.error("Error deleting lab knowledge base item:", error);
+      logError("Error deleting lab knowledge base item:", error);
       return false;
     }
   }
@@ -1193,7 +1207,7 @@ export class DatabaseStorage implements IStorage {
       const result = await db.insert(labKnowledgeBase).values(itemsWithUserId).returning();
       return result.length;
     } catch (error) {
-      console.error("Error importing lab knowledge base:", error);
+      logError("Error importing lab knowledge base:", error);
       throw error;
     }
   }
@@ -1203,7 +1217,7 @@ export class DatabaseStorage implements IStorage {
       const result = await db.delete(labKnowledgeBase).where(eq(labKnowledgeBase.userId, userId));
       return result.rowCount || 0;
     } catch (error) {
-      console.error("Error clearing user lab knowledge base:", error);
+      logError("Error clearing user lab knowledge base:", error);
       throw error;
     }
   }
@@ -1214,7 +1228,7 @@ export class DatabaseStorage implements IStorage {
       const [settings] = await db.select().from(labInterpreterSettings).limit(1);
       return settings;
     } catch (error) {
-      console.error("Error fetching lab interpreter settings:", error);
+      logError("Error fetching lab interpreter settings:", error);
       return undefined;
     }
   }
@@ -1241,7 +1255,7 @@ export class DatabaseStorage implements IStorage {
         return newSettings;
       }
     } catch (error) {
-      console.error("Error saving lab interpreter settings:", error);
+      logError("Error saving lab interpreter settings:", error);
       throw error;
     }
   }
@@ -1255,7 +1269,7 @@ export class DatabaseStorage implements IStorage {
         .where(eq(labReports.doctorId, doctorId))
         .orderBy(desc(labReports.createdAt));
     } catch (error) {
-      console.error("Error fetching lab reports:", error);
+      logError("Error fetching lab reports:", error);
       return [];
     }
   }
@@ -1268,7 +1282,7 @@ export class DatabaseStorage implements IStorage {
         .from(medicalNoteTemplates)
         .orderBy(asc(medicalNoteTemplates.type));
     } catch (error) {
-      console.error("Error fetching medical note templates:", error);
+      logError("Error fetching medical note templates:", error);
       return [];
     }
   }
@@ -1281,7 +1295,7 @@ export class DatabaseStorage implements IStorage {
         .where(eq(medicalNoteTemplates.type, type))
         .orderBy(asc(medicalNoteTemplates.createdAt));
     } catch (error) {
-      console.error("Error fetching medical note templates by type:", error);
+      logError("Error fetching medical note templates by type:", error);
       return [];
     }
   }
@@ -1294,7 +1308,7 @@ export class DatabaseStorage implements IStorage {
         .where(eq(medicalNoteTemplates.id, id));
       return template;
     } catch (error) {
-      console.error("Error fetching medical note template:", error);
+      logError("Error fetching medical note template:", error);
       return undefined;
     }
   }
@@ -1307,7 +1321,7 @@ export class DatabaseStorage implements IStorage {
         .returning();
       return newTemplate;
     } catch (error) {
-      console.error("Error creating medical note template:", error);
+      logError("Error creating medical note template:", error);
       throw error;
     }
   }
@@ -1324,7 +1338,7 @@ export class DatabaseStorage implements IStorage {
         .returning();
       return updated;
     } catch (error) {
-      console.error("Error updating medical note template:", error);
+      logError("Error updating medical note template:", error);
       return undefined;
     }
   }
@@ -1336,7 +1350,7 @@ export class DatabaseStorage implements IStorage {
         .where(eq(medicalNoteTemplates.id, id));
       return result.rowCount > 0;
     } catch (error) {
-      console.error("Error deleting medical note template:", error);
+      logError("Error deleting medical note template:", error);
       return false;
     }
   }
@@ -1349,7 +1363,7 @@ export class DatabaseStorage implements IStorage {
         .where(eq(labReports.patientId, patientId))
         .orderBy(desc(labReports.createdAt));
     } catch (error) {
-      console.error("Error fetching lab reports by patient:", error);
+      logError("Error fetching lab reports by patient:", error);
       return [];
     }
   }
@@ -1359,7 +1373,7 @@ export class DatabaseStorage implements IStorage {
       const [report] = await db.select().from(labReports).where(eq(labReports.id, id));
       return report;
     } catch (error) {
-      console.error("Error fetching lab report:", error);
+      logError("Error fetching lab report:", error);
       return undefined;
     }
   }
@@ -1369,7 +1383,7 @@ export class DatabaseStorage implements IStorage {
       const [newReport] = await db.insert(labReports).values(report).returning();
       return newReport;
     } catch (error) {
-      console.error("Error creating lab report:", error);
+      logError("Error creating lab report:", error);
       throw error;
     }
   }
@@ -1383,7 +1397,7 @@ export class DatabaseStorage implements IStorage {
         .returning();
       return updated;
     } catch (error) {
-      console.error("Error updating lab report:", error);
+      logError("Error updating lab report:", error);
       return undefined;
     }
   }
@@ -1393,7 +1407,7 @@ export class DatabaseStorage implements IStorage {
       const result = await db.delete(labReports).where(eq(labReports.id, id));
       return result.rowCount > 0;
     } catch (error) {
-      console.error("Error deleting lab report:", error);
+      logError("Error deleting lab report:", error);
       return false;
     }
   }
@@ -1407,7 +1421,7 @@ export class DatabaseStorage implements IStorage {
         .where(eq(patientDocuments.patientId, patientId))
         .orderBy(desc(patientDocuments.uploadedAt));
     } catch (error) {
-      console.error("Error fetching patient documents:", error);
+      logError("Error fetching patient documents:", error);
       return [];
     }
   }
@@ -1420,7 +1434,7 @@ export class DatabaseStorage implements IStorage {
         .where(eq(patientDocuments.id, id));
       return document;
     } catch (error) {
-      console.error("Error fetching patient document:", error);
+      logError("Error fetching patient document:", error);
       return undefined;
     }
   }
@@ -1433,7 +1447,7 @@ export class DatabaseStorage implements IStorage {
         .returning();
       return newDocument;
     } catch (error) {
-      console.error("Error creating patient document:", error);
+      logError("Error creating patient document:", error);
       throw error;
     }
   }
@@ -1447,7 +1461,7 @@ export class DatabaseStorage implements IStorage {
         .returning();
       return updated;
     } catch (error) {
-      console.error("Error updating patient document:", error);
+      logError("Error updating patient document:", error);
       return undefined;
     }
   }
@@ -1459,7 +1473,7 @@ export class DatabaseStorage implements IStorage {
         .where(eq(patientDocuments.id, id));
       return result.rowCount > 0;
     } catch (error) {
-      console.error("Error deleting patient document:", error);
+      logError("Error deleting patient document:", error);
       return false;
     }
   }

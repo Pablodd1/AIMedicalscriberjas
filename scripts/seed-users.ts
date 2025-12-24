@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import { db } from '../server/db';
 import { users } from '../shared/schema';
+import { eq } from 'drizzle-orm';
+import { hashPassword } from '../server/auth';
 
 async function seedUsers() {
   console.log('Seeding default users...');
@@ -10,7 +12,7 @@ async function seedUsers() {
       username: 'admin',
       password: 'admin123',
       name: 'System Administrator',
-      role: 'admin' as const,
+      role: 'administrator' as const,
       email: 'admin@aims.medical',
       phone: '555-000-0001',
       specialty: 'Administration',
@@ -46,14 +48,19 @@ async function seedUsers() {
   for (const user of defaultUsers) {
     try {
       // Check if user already exists
-      const existing = await db.select().from(users).where(
-        users.username.equals ? 
-          users.username.equals(user.username) : 
-          undefined
-      ).limit(1);
+      const existing = await db
+        .select()
+        .from(users)
+        .where(eq(users.username, user.username))
+        .limit(1);
 
       if (existing.length === 0) {
-        await db.insert(users).values(user);
+        const hashedPassword = await hashPassword(user.password);
+        await db.insert(users).values({
+          ...user,
+          password: hashedPassword,
+          createdAt: new Date(),
+        });
         console.log(`✓ Created user: ${user.username} (${user.role})`);
       } else {
         console.log(`- User already exists: ${user.username}`);

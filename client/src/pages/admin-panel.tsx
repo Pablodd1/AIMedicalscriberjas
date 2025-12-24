@@ -17,7 +17,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   Form,
@@ -31,7 +30,6 @@ import {
 import {
   Table,
   TableBody,
-  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
@@ -46,7 +44,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -69,7 +66,7 @@ interface User {
   username: string;
   name: string;
   email: string;
-  role: 'doctor' | 'admin' | 'assistant' | 'patient';
+  role: 'doctor' | 'admin' | 'assistant' | 'patient' | 'administrator';
   isActive: boolean;
   useOwnApiKey: boolean;
   createdAt: string;
@@ -81,6 +78,7 @@ interface AdminStats {
   activeUsers: number;
   inactiveUsers: number;
   usersByRole: {
+    administrator: number;
     admin: number;
     doctor: number;
     assistant: number;
@@ -93,15 +91,90 @@ const AdminLoginSchema = z.object({
   password: z.string().min(1, { message: 'Password is required' }),
 });
 
+const ROLE_VALUES = ['administrator', 'admin', 'doctor', 'assistant', 'patient'] as const;
+type RoleValue = typeof ROLE_VALUES[number];
+
+const ROLE_LABELS: Record<RoleValue, string> = {
+  administrator: 'Global Administrator',
+  admin: 'Admin',
+  doctor: 'Doctor / Provider',
+  assistant: 'Assistant',
+  patient: 'Patient',
+};
+
+const ROLE_BADGE_VARIANTS: Record<RoleValue, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+  administrator: 'destructive',
+  admin: 'destructive',
+  doctor: 'default',
+  assistant: 'secondary',
+  patient: 'outline',
+};
+
+const ROLE_OPTIONS: Array<{
+  value: RoleValue;
+  label: string;
+  description: string;
+  requiresGlobalAdmin?: boolean;
+}> = [
+  {
+    value: 'administrator',
+    label: ROLE_LABELS.administrator,
+    description: 'Full platform ownership. Manage admins, billing, and system-wide settings.',
+    requiresGlobalAdmin: true,
+  },
+  {
+    value: 'admin',
+    label: ROLE_LABELS.admin,
+    description: 'Clinic administrator with access to user management, billing, and settings.',
+  },
+  {
+    value: 'doctor',
+    label: ROLE_LABELS.doctor,
+    description: 'Primary provider access for patient care, telemedicine, and documentation.',
+  },
+  {
+    value: 'assistant',
+    label: ROLE_LABELS.assistant,
+    description: 'Support staff access for scheduling, documentation support, and communications.',
+  },
+  {
+    value: 'patient',
+    label: ROLE_LABELS.patient,
+    description: 'Patient portal access.',
+  },
+];
+
+const CreateUserSchema = z
+  .object({
+    name: z.string().min(1, { message: 'Name is required' }),
+    email: z.string().email({ message: 'Valid email is required' }),
+    username: z.string().min(3, { message: 'Username must be at least 3 characters' }),
+    password: z.string().min(8, { message: 'Password must be at least 8 characters' }),
+    confirmPassword: z.string().min(1, { message: 'Please confirm the password' }),
+    role: z.enum(ROLE_VALUES).default('doctor'),
+    phone: z.string().optional(),
+    specialty: z.string().optional(),
+    licenseNumber: z.string().optional(),
+    isActive: z.boolean().default(true),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    path: ['confirmPassword'],
+    message: 'Passwords must match',
+  });
+
+type CreateUserFormValues = z.infer<typeof CreateUserSchema>;
+type CreateUserPayload = Omit<CreateUserFormValues, 'confirmPassword'>;
+
 const AdminPanel = () => {
   const queryClient = useQueryClient();
   const { user: currentUser } = useAuth();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [showCreateUserDialog, setShowCreateUserDialog] = useState(false);
 
   // Auto-authenticate if user is admin
   useEffect(() => {
-    if (currentUser?.role === 'admin') {
+    if (currentUser && ['admin', 'administrator'].includes(currentUser.role)) {
       setIsAuthenticated(true);
     }
   }, [currentUser]);
@@ -119,6 +192,88 @@ const AdminPanel = () => {
     defaultValues: {
       password: '',
     },
+  });
+
+  const createUserForm = useForm<CreateUserFormValues>({
+    resolver: zodResolver(CreateUserSchema),
+    defaultValues: {
+      name: '',
+      email: '',
+      username: '',
+      password: '',
+      confirmPassword: '',
+      role: 'doctor',
+      phone: '',
+      specialty: '',
+      licenseNumber: '',
+      isActive: true,
+    },
+  });
+
+  const createUserMutation = useMutation({
+    mutationFn: async (payload: CreateUserPayload) => {
+      const response = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Password': 'admin@@@',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || data?.message || 'Failed to create user');
+      }
+
+      return data as UserWithPlainPassword;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/dashboard'] });
+      setShowCreateUserDialog(false);
+      createUserForm.reset({
+        name: '',
+        email: '',
+        username: '',
+        password: '',
+        confirmPassword: '',
+        role: 'doctor',
+        phone: '',
+        specialty: '',
+        licenseNumber: '',
+        isActive: true,
+      });
+      toast({
+        title: 'User created',
+        description: `Account for ${data.name} created successfully.${data.plain_password ? ` Temporary password: ${data.plain_password}` : ''}`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Failed to create user',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const handleCreateUserSubmit = createUserForm.handleSubmit((values) => {
+    const { confirmPassword, ...rest } = values;
+    const payload: CreateUserPayload = {
+      ...rest,
+      name: rest.name.trim(),
+      email: rest.email.trim(),
+      username: rest.username.trim(),
+      password: rest.password,
+      phone: rest.phone?.trim() ? rest.phone.trim() : undefined,
+      specialty: rest.specialty?.trim() ? rest.specialty.trim() : undefined,
+      licenseNumber: rest.licenseNumber?.trim() ? rest.licenseNumber.trim() : undefined,
+      isActive: rest.isActive ?? true,
+    };
+
+    createUserMutation.mutate(payload);
   });
 
   interface UserWithPlainPassword extends User {
@@ -428,7 +583,7 @@ const AdminPanel = () => {
       const userResponse = await fetch('/api/user');
       if (userResponse.ok) {
         const userData = await userResponse.json();
-        if (userData.role === 'admin') {
+        if (['admin', 'administrator'].includes(userData.role)) {
           setIsAuthenticated(true);
           toast({
             title: 'Authentication successful',
@@ -560,7 +715,7 @@ const AdminPanel = () => {
   };
 
   // Show access denied for non-admin users
-  if (currentUser && currentUser.role !== 'admin' && !isAuthenticated) {
+  if (currentUser && !['admin', 'administrator'].includes(currentUser.role) && !isAuthenticated) {
     return (
       <div className="container mx-auto py-8">
         <Card className="max-w-md mx-auto">
@@ -575,7 +730,7 @@ const AdminPanel = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Only users with the <Badge variant="destructive">admin</Badge> role can access this page.
+              Only users with the <Badge variant="destructive">admin</Badge> or <Badge variant="destructive">administrator</Badge> roles can access this page.
             </p>
             <p className="text-sm text-muted-foreground">
               Your current role: <Badge variant="secondary">{currentUser.role}</Badge>
@@ -642,6 +797,14 @@ const AdminPanel = () => {
           <p className="text-muted-foreground mt-1">Manage users, API keys, and system settings</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            onClick={() => setShowCreateUserDialog(true)}
+            disabled={createUserMutation.isPending}
+          >
+            <UserPlus className="h-4 w-4 mr-2" />
+            Add User
+          </Button>
           <Link href="/admin/prompts">
             <Button variant="outline" size="sm">
               <FileText className="h-4 w-4 mr-2" />
@@ -655,7 +818,7 @@ const AdminPanel = () => {
           >
             Refresh Data
           </Button>
-          {currentUser?.role !== 'admin' && (
+          {(!currentUser || !['admin', 'administrator'].includes(currentUser.role)) && (
             <Button 
               variant="outline"
               size="sm"
@@ -719,7 +882,7 @@ const AdminPanel = () => {
                     <CardContent>
                       <div className="text-2xl font-bold">{stats.usersByRole.doctor}</div>
                       <div className="text-sm text-muted-foreground mt-1">
-                        {Math.round((stats.usersByRole.doctor / stats.totalUsers) * 100)}% of users
+                        {stats.totalUsers ? Math.round((stats.usersByRole.doctor / stats.totalUsers) * 100) : 0}% of users
                       </div>
                     </CardContent>
                   </Card>
@@ -731,25 +894,31 @@ const AdminPanel = () => {
                     <CardContent>
                       <div className="text-2xl font-bold">{stats.usersByRole.patient}</div>
                       <div className="text-sm text-muted-foreground mt-1">
-                        {Math.round((stats.usersByRole.patient / stats.totalUsers) * 100)}% of users
+                        {stats.totalUsers ? Math.round((stats.usersByRole.patient / stats.totalUsers) * 100) : 0}% of users
                       </div>
                     </CardContent>
                   </Card>
                   
                   <Card>
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-base font-medium">Staff</CardTitle>
+                      <CardTitle className="text-base font-medium">Admin &amp; Support</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="text-2xl font-bold">
-                        {stats.usersByRole.admin + stats.usersByRole.assistant}
+                        {stats.usersByRole.administrator + stats.usersByRole.admin + stats.usersByRole.assistant}
                       </div>
-                      <div className="flex items-center mt-1 text-sm text-muted-foreground">
-                        <div className="flex-1">
-                          <span className="font-medium">{stats.usersByRole.admin}</span> admins
+                      <div className="space-y-1 mt-2 text-sm text-muted-foreground">
+                        <div className="flex items-center justify-between">
+                          <span>Global administrators</span>
+                          <span className="font-medium">{stats.usersByRole.administrator}</span>
                         </div>
-                        <div>
-                          <span className="font-medium">{stats.usersByRole.assistant}</span> assistants
+                        <div className="flex items-center justify-between">
+                          <span>Admins</span>
+                          <span className="font-medium">{stats.usersByRole.admin}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>Assistants</span>
+                          <span className="font-medium">{stats.usersByRole.assistant}</span>
                         </div>
                       </div>
                     </CardContent>
@@ -800,24 +969,22 @@ const AdminPanel = () => {
                           <TableCell>{user.email}</TableCell>
                           <TableCell>
                             <div className="font-mono text-sm truncate max-w-[200px]">
-                              {user.plain_password || "default123"}
+                              {user.plain_password ?? '—'}
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge variant={
-                              user.role === 'admin' ? 'destructive' : 
-                              user.role === 'doctor' ? 'default' : 
-                              user.role === 'assistant' ? 'secondary' : 
-                              'outline'
-                            }>
-                              {user.role}
+                            <Badge variant={ROLE_BADGE_VARIANTS[user.role]}>
+                              {ROLE_LABELS[user.role]}
                             </Badge>
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center space-x-2">
                               <Switch
                                 checked={user.isActive}
-                                disabled={user.id === 1} // Cannot change status of main admin
+                                disabled={
+                                  user.id === 1 ||
+                                  (user.role === 'administrator' && currentUser?.role !== 'administrator')
+                                }
                                 onCheckedChange={() => handleUserStatusToggle(user.id, user.isActive)}
                               />
                               <span className={user.isActive ? 'text-green-600' : 'text-red-600'}>
@@ -831,7 +998,7 @@ const AdminPanel = () => {
                                 variant="outline" 
                                 size="sm" 
                                 onClick={() => openEditDialog(user)}
-                                disabled={user.id === 1} // Cannot edit main admin
+                                disabled={user.id === 1 || (user.role === 'administrator' && currentUser?.role !== 'administrator')}
                               >
                                 <UserCog className="h-4 w-4 mr-1" />
                                 Edit
@@ -840,7 +1007,7 @@ const AdminPanel = () => {
                                 variant="destructive" 
                                 size="sm" 
                                 onClick={() => openDeleteDialog(user)}
-                                disabled={user.id === 1} // Cannot delete main admin
+                                disabled={user.id === 1 || (user.role === 'administrator' && currentUser?.role !== 'administrator')}
                                 className="mr-1"
                               >
                                 <Trash2 className="h-4 w-4 mr-1" />
@@ -850,7 +1017,7 @@ const AdminPanel = () => {
                                 variant="outline" 
                                 size="sm" 
                                 onClick={() => openResetPasswordDialog(user)}
-                                disabled={user.id === 1} // Cannot reset main admin password
+                                disabled={user.id === 1 || (user.role === 'administrator' && currentUser?.role !== 'administrator')}
                               >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 mr-1"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
                                 Reset
@@ -996,8 +1163,8 @@ const AdminPanel = () => {
                               </div>
                             </TableCell>
                             <TableCell>
-                              <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
-                                {user.role}
+                              <Badge variant={ROLE_BADGE_VARIANTS[user.role]}>
+                                {ROLE_LABELS[user.role]}
                               </Badge>
                             </TableCell>
                             <TableCell>{user.email}</TableCell>
@@ -1031,6 +1198,244 @@ const AdminPanel = () => {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Create User Dialog */}
+      <Dialog
+        open={showCreateUserDialog}
+        onOpenChange={(open) => {
+          setShowCreateUserDialog(open);
+          if (!open && !createUserMutation.isPending) {
+            createUserForm.reset({
+              name: '',
+              email: '',
+              username: '',
+              password: '',
+              confirmPassword: '',
+              role: 'doctor',
+              phone: '',
+              specialty: '',
+              licenseNumber: '',
+              isActive: true,
+            });
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Create New Account</DialogTitle>
+            <DialogDescription>
+              Provision a new provider, administrator, or staff account. Temporary credentials will be shown once created.
+            </DialogDescription>
+          </DialogHeader>
+
+          <Form {...createUserForm}>
+            <form onSubmit={handleCreateUserSubmit} className="grid gap-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField
+                  control={createUserForm.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Full name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Dr. Alicia Gomez" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={createUserForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input type="email" placeholder="provider@example.com" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={createUserForm.control}
+                  name="username"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Username</FormLabel>
+                      <FormControl>
+                        <Input placeholder="provider" {...field} />
+                      </FormControl>
+                      <FormDescription>This is used for login. Minimum 3 characters.</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={createUserForm.control}
+                  name="role"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Role</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a role" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {ROLE_OPTIONS.map((option) => (
+                            <SelectItem
+                              key={option.value}
+                              value={option.value}
+                              disabled={option.requiresGlobalAdmin && currentUser?.role !== 'administrator'}
+                            >
+                              <div className="flex flex-col">
+                                <span>{option.label}</span>
+                                <span className="text-xs text-muted-foreground">{option.description}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField
+                  control={createUserForm.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Temporary password</FormLabel>
+                      <FormControl>
+                        <Input type="password" placeholder="At least 8 characters" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={createUserForm.control}
+                  name="confirmPassword"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Confirm password</FormLabel>
+                      <FormControl>
+                        <Input type="password" placeholder="Re-enter password" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <FormField
+                  control={createUserForm.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Phone (optional)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="(555) 555-5555" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={createUserForm.control}
+                  name="specialty"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Specialty (optional)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Internal Medicine" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={createUserForm.control}
+                  name="licenseNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>License number (optional)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="MD-12345" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={createUserForm.control}
+                name="isActive"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-1">
+                      <FormLabel>Activate immediately</FormLabel>
+                      <FormDescription>Active users can log in right away. Toggle off to require approval first.</FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <DialogFooter className="gap-2 sm:gap-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setShowCreateUserDialog(false);
+                    if (!createUserMutation.isPending) {
+                      createUserForm.reset({
+                        name: '',
+                        email: '',
+                        username: '',
+                        password: '',
+                        confirmPassword: '',
+                        role: 'doctor',
+                        phone: '',
+                        specialty: '',
+                        licenseNumber: '',
+                        isActive: true,
+                      });
+                    }
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={createUserMutation.isPending}>
+                  {createUserMutation.isPending ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Creating...
+                    </span>
+                  ) : (
+                    'Create user'
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
 
       {/* API Key Setting Dialog */}
       <Dialog open={showApiKeyDialog} onOpenChange={setShowApiKeyDialog}>
@@ -1189,8 +1594,9 @@ const AdminPanel = () => {
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="administrator">Global Administrator</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
                     <SelectItem value="doctor">Doctor</SelectItem>
-                    <SelectItem value="admin">Administrator</SelectItem>
                     <SelectItem value="assistant">Assistant</SelectItem>
                     <SelectItem value="patient">Patient</SelectItem>
                   </SelectContent>

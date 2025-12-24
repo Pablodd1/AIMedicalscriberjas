@@ -1,5 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 
+// Demo mode - suppress logging for cleaner output
+const DEMO_MODE = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo';
+
 // Standard error response interface
 export interface ErrorResponse {
   success: false;
@@ -58,7 +61,10 @@ export function sendErrorResponse(
     timestamp: new Date().toISOString()
   };
 
-  console.error(`[${statusCode}] ${error}`, details ? { details } : '');
+  // Suppress error logging in demo mode
+  if (!DEMO_MODE) {
+    console.error(`[${statusCode}] ${error}`, details ? { details } : '');
+  }
   res.status(statusCode).json(errorResponse);
 }
 
@@ -105,7 +111,7 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
     );
   }
   
-  if (req.user.role !== 'admin') {
+  if (!['admin', 'administrator'].includes(req.user.role)) {
     return sendErrorResponse(
       res,
       'Admin privileges required',
@@ -130,7 +136,7 @@ export function requireDoctor(req: Request, res: Response, next: NextFunction): 
     );
   }
   
-  if (req.user.role !== 'doctor' && req.user.role !== 'admin') {
+  if (!['doctor', 'admin', 'administrator'].includes(req.user.role)) {
     return sendErrorResponse(
       res,
       'Doctor privileges required',
@@ -209,8 +215,10 @@ export function globalErrorHandler(
     );
   }
 
-  // Log unexpected errors
-  console.error('Unexpected error:', err);
+  // Log unexpected errors (unless in demo mode)
+  if (!DEMO_MODE) {
+    console.error('Unexpected error:', err);
+  }
 
   // Handle unexpected errors
   sendErrorResponse(
@@ -255,7 +263,9 @@ export async function handleDatabaseOperation<T>(
   try {
     return await operation();
   } catch (error) {
-    console.error(`Database error: ${errorMessage}`, error);
+    if (!DEMO_MODE) {
+      console.error(`Database error: ${errorMessage}`, error);
+    }
     throw new AppError(
       errorMessage,
       500,

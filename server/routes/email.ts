@@ -1,4 +1,8 @@
 import { Router } from "express";
+// Demo mode - suppress logging
+const DEMO_MODE = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo';
+const log = (...args: any[]) => !DEMO_MODE && console.log(...args);
+const logError = (...args: any[]) => !DEMO_MODE && console.error(...args);
 import { db } from "../db";
 import { storage } from "../storage";
 import { settings, emailTemplates, appointments as appointmentsTable } from "@shared/schema";
@@ -67,7 +71,7 @@ emailRouter.get("/email", async (req, res) => {
     
     res.json(emailSettings);
   } catch (error) {
-    console.error("Error retrieving email settings:", error);
+    logError("Error retrieving email settings:", error);
     res.status(500).json({ message: "Failed to retrieve email settings" });
   }
 });
@@ -96,7 +100,7 @@ emailRouter.post("/email", async (req, res) => {
     
     res.json({ success: true });
   } catch (error) {
-    console.error("Error saving email settings:", error);
+    logError("Error saving email settings:", error);
     res.status(500).json({ message: "Failed to save email settings" });
   }
 });
@@ -119,7 +123,7 @@ emailRouter.get("/email-templates", async (req, res) => {
     
     res.json(templates);
   } catch (error) {
-    console.error("Error retrieving email templates:", error);
+    logError("Error retrieving email templates:", error);
     res.status(500).json({ message: "Failed to retrieve email templates" });
   }
 });
@@ -143,7 +147,7 @@ emailRouter.post("/email-templates", async (req, res) => {
     
     res.json({ success: true });
   } catch (error) {
-    console.error("Error saving email templates:", error);
+    logError("Error saving email templates:", error);
     res.status(500).json({ message: "Failed to save email templates" });
   }
 });
@@ -176,7 +180,7 @@ emailRouter.post("/test-email", async (req, res) => {
     
     res.json({ success: true });
   } catch (error: any) {
-    console.error("Error sending test email:", error);
+    logError("Error sending test email:", error);
     res.status(500).json({ message: "Failed to send test email: " + (error.message || 'Unknown error') });
   }
 });
@@ -346,7 +350,7 @@ emailRouter.post("/send-patient-list", async (req: any, res) => {
       appointmentCount: appointmentsWithPatients.length
     });
   } catch (error: any) {
-    console.error("Error sending patient list email:", error);
+    logError("Error sending patient list email:", error);
     res.status(500).json({ message: "Failed to send patient list: " + (error.message || 'Unknown error') });
   }
 });
@@ -403,7 +407,7 @@ export const sendPatientEmail = async (
     
     return true;
   } catch (error) {
-    console.error(`Error sending ${templateType} email:`, error);
+    logError(`Error sending ${templateType} email:`, error);
     return false;
   }
 };

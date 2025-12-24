@@ -1,4 +1,8 @@
 import 'dotenv/config';
+// Demo mode - suppress logging
+const DEMO_MODE = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo';
+const log = (...args: any[]) => !DEMO_MODE && console.log(...args);
+const logError = (...args: any[]) => !DEMO_MODE && console.error(...args);
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
@@ -10,23 +14,23 @@ import helmet from 'helmet';
 // CRITICAL: Global error handlers to prevent container crashes
 // ==========================================
 process.on('uncaughtException', (error) => {
-  console.error('UNCAUGHT EXCEPTION - Application will continue:', error);
+  logError('UNCAUGHT EXCEPTION - Application will continue:', error);
   // Log but don't exit - allow the app to continue
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('UNHANDLED REJECTION at:', promise, 'reason:', reason);
+  logError('UNHANDLED REJECTION at:', promise, 'reason:', reason);
   // Log but don't exit - allow the app to continue
 });
 
 // Graceful shutdown handlers
 process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully');
+  log('SIGTERM received, shutting down gracefully');
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully');
+  log('SIGINT received, shutting down gracefully');
   process.exit(0);
 });
 

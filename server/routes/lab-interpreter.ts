@@ -1,4 +1,8 @@
 import { Router } from 'express';
+// Demo mode - suppress logging
+const DEMO_MODE = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo';
+const log = (...args: any[]) => !DEMO_MODE && console.log(...args);
+const logError = (...args: any[]) => !DEMO_MODE && console.error(...args);
 import { storage } from '../storage';
 import multer from 'multer';
 import path from 'path';
@@ -42,7 +46,7 @@ async function convertPdfToImages(pdfPath: string): Promise<string[]> {
       throw new Error('PDF file is empty');
     }
     
-    console.log(`Converting PDF: ${path.basename(pdfPath)} (${Math.round(pdfStats.size / 1024)}KB)`);
+    log(`Converting PDF: ${path.basename(pdfPath)} (${Math.round(pdfStats.size / 1024)}KB)`);
     
     // Create temporary directory for converted images
     if (!fs.existsSync(tempDir)) {
@@ -61,7 +65,7 @@ async function convertPdfToImages(pdfPath: string): Promise<string[]> {
     const outputPattern = path.join(tempDir, 'page-%d.jpg');
     const command = `convert -limit memory 128MB -limit map 256MB -density 150 -quality 70 -colorspace Gray "${pdfPath}" "${outputPattern}"`;
     
-    console.log('Converting PDF to images with optimized command:', command);
+    log('Converting PDF to images with optimized command:', command);
     
     // Reduced timeout for faster processing
     const timeoutMs = 3 * 60 * 1000; // 3 minutes timeout
@@ -73,7 +77,7 @@ async function convertPdfToImages(pdfPath: string): Promise<string[]> {
     try {
       await conversionPromise;
     } catch (execError: any) {
-      console.error('ImageMagick conversion error:', execError);
+      logError('ImageMagick conversion error:', execError);
       
       if (execError.killed && execError.signal === 'SIGTERM') {
         throw new Error('PDF conversion timed out - file too large or corrupted');
@@ -124,11 +128,11 @@ async function convertPdfToImages(pdfPath: string): Promise<string[]> {
       throw new Error('No valid images were generated from the PDF');
     }
     
-    console.log(`PDF successfully converted to ${validFiles.length} valid images`);
+    log(`PDF successfully converted to ${validFiles.length} valid images`);
     return validFiles;
     
   } catch (error: any) {
-    console.error('Error converting PDF to images:', error);
+    logError('Error converting PDF to images:', error);
     
     // Clean up partial conversion on error
     try {
@@ -141,7 +145,7 @@ async function convertPdfToImages(pdfPath: string): Promise<string[]> {
         });
       }
     } catch (cleanupError) {
-      console.error('Error cleaning up after PDF conversion failure:', cleanupError);
+      logError('Error cleaning up after PDF conversion failure:', cleanupError);
     }
     
     // Provide specific error messages
@@ -173,7 +177,7 @@ function cleanupTempImages(imagePaths: string[]) {
         fs.unlinkSync(imagePath);
       }
     } catch (error) {
-      console.error('Error cleaning up temp image:', imagePath, error);
+      logError('Error cleaning up temp image:', imagePath, error);
     }
   });
   
@@ -188,14 +192,14 @@ function cleanupTempImages(imagePaths: string[]) {
         }
       }
     } catch (error) {
-      console.error('Error cleaning up temp directory:', tempDir, error);
+      logError('Error cleaning up temp directory:', tempDir, error);
     }
   }
 }
 
 // ULTRA-FAST PARALLEL PDF PROCESSING
 async function processPdfSequentially(pdfPath: string, openai: OpenAI): Promise<string> {
-  console.log('=== Starting Ultra-Fast Parallel PDF Processing ===');
+  log('=== Starting Ultra-Fast Parallel PDF Processing ===');
   
   // Step 1: Convert PDF to images with ultra-fast settings
   const tempDir = path.join(path.dirname(pdfPath), 'temp_images');
@@ -205,26 +209,26 @@ async function processPdfSequentially(pdfPath: string, openai: OpenAI): Promise<
     throw new AppError('No pages could be converted from the PDF', 400, 'PDF_CONVERSION_FAILED');
   }
   
-  console.log(`Successfully converted PDF to ${convertedImages.length} images`);
+  log(`Successfully converted PDF to ${convertedImages.length} images`);
   
   // Step 2: Process ALL pages in parallel (no delays)
-  console.log('Processing ALL pages in parallel...');
+  log('Processing ALL pages in parallel...');
   const processingPromises = convertedImages.map(async (imagePath, index) => {
     const pageNumber = index + 1;
     
     try {
-      console.log(`Starting parallel processing of page ${pageNumber}/${convertedImages.length}`);
+      log(`Starting parallel processing of page ${pageNumber}/${convertedImages.length}`);
       const pageText = await processImageFileFast(imagePath, openai, pageNumber, convertedImages.length);
       
       if (pageText && pageText.trim()) {
-        console.log(`✓ Page ${pageNumber} completed (${pageText.length} chars)`);
+        log(`✓ Page ${pageNumber} completed (${pageText.length} chars)`);
         return pageText;
       } else {
-        console.log(`⚠ Page ${pageNumber} appears blank`);
+        log(`⚠ Page ${pageNumber} appears blank`);
         return '';
       }
     } catch (error: any) {
-      console.error(`✗ Page ${pageNumber} failed:`, error.message);
+      logError(`✗ Page ${pageNumber} failed:`, error.message);
       return `=== Page ${pageNumber} ===\n[Error: ${error.message}]`;
     }
   });
@@ -239,9 +243,9 @@ async function processPdfSequentially(pdfPath: string, openai: OpenAI): Promise<
   const validTexts = allExtractedTexts.filter(text => text.trim().length > 0);
   const finalText = validTexts.join('\n\n');
   
-  console.log(`=== Ultra-Fast PDF Processing Complete ===`);
-  console.log(`Successfully processed ${validTexts.length}/${convertedImages.length} pages in parallel`);
-  console.log(`Total extracted text: ${finalText.length} characters`);
+  log(`=== Ultra-Fast PDF Processing Complete ===`);
+  log(`Successfully processed ${validTexts.length}/${convertedImages.length} pages in parallel`);
+  log(`Total extracted text: ${finalText.length} characters`);
   
   if (!finalText.trim()) {
     throw new AppError('No text could be extracted from any page of the PDF. Please ensure the PDF contains readable content.', 400, 'NO_TEXT_EXTRACTED');
@@ -267,7 +271,7 @@ async function processImageFileFast(imagePath: string, openai: OpenAI, pageNumbe
   const imageBuffer = fs.readFileSync(imagePath);
   const base64Image = imageBuffer.toString('base64');
   
-  console.log(`  → [PARALLEL] Processing page ${pageNumber} (${Math.round(imageStats.size / 1024)}KB)`);
+  log(`  → [PARALLEL] Processing page ${pageNumber} (${Math.round(imageStats.size / 1024)}KB)`);
   
   // Enhanced Vision API extraction with comprehensive medical lab data prompt
   const response = await openai.chat.completions.create({
@@ -325,7 +329,7 @@ This is page ${pageNumber} of ${totalPages}. Extract ALL content systematically 
   const extractedText = response.choices[0].message.content || '';
   
   // Debug: Log what we extracted to see if the Vision API is working
-  console.log(`[DEBUG] Page ${pageNumber} Vision API Response:`, extractedText.substring(0, 200) + '...');
+  log(`[DEBUG] Page ${pageNumber} Vision API Response:`, extractedText.substring(0, 200) + '...');
   
   // Check for Vision API failure responses
   if (extractedText.includes("I'm unable to extract text") || 
@@ -338,7 +342,7 @@ This is page ${pageNumber} of ${totalPages}. Extract ALL content systematically 
   }
   
   if (extractedText.includes('BLANK PAGE') && extractedText.length < 50) {
-    console.log(`Page ${pageNumber} identified as blank or mostly empty`);
+    log(`Page ${pageNumber} identified as blank or mostly empty`);
     return '';
   }
   
@@ -346,7 +350,7 @@ This is page ${pageNumber} of ${totalPages}. Extract ALL content systematically 
     console.warn(`⚠ Page ${pageNumber} extracted very little text (${extractedText.length} chars). May need quality check.`);
   }
   
-  console.log(`✓ Page ${pageNumber} completed (${extractedText.length} chars)`);
+  log(`✓ Page ${pageNumber} completed (${extractedText.length} chars)`);
   
   return `=== Page ${pageNumber} ===\n${extractedText}`;
 }
@@ -369,13 +373,13 @@ async function convertPdfToImagesFast(pdfPath: string, tempDir: string): Promise
     
     // Check PDF file
     const pdfStats = fs.statSync(pdfPath);
-    console.log(`Converting PDF: ${path.basename(pdfPath)} (${Math.round(pdfStats.size / 1024)}KB)`);
+    log(`Converting PDF: ${path.basename(pdfPath)} (${Math.round(pdfStats.size / 1024)}KB)`);
     
     // Enhanced ImageMagick command for superior text extraction
     const outputPattern = path.join(tempDir, 'page-%d.png');
     const command = `convert -limit memory 1024MB -limit map 2048MB -density 300 -quality 100 -background white -alpha remove -colorspace RGB -normalize "${pdfPath}" "${outputPattern}"`;
     
-    console.log('Running enhanced high-quality conversion for text extraction...');
+    log('Running enhanced high-quality conversion for text extraction...');
     
     // Execute with extended timeout for high-quality processing
     const { stdout, stderr } = await execAsync(command, {
@@ -407,11 +411,11 @@ async function convertPdfToImagesFast(pdfPath: string, tempDir: string): Promise
       }
     });
     
-    console.log(`✓ Generated ${validImages.length} high-quality images for text extraction`);
+    log(`✓ Generated ${validImages.length} high-quality images for text extraction`);
     return validImages;
     
   } catch (error: any) {
-    console.error('Fast PDF conversion error:', error);
+    logError('Fast PDF conversion error:', error);
     
     if (error.code === 'ETIMEDOUT') {
       throw new AppError('PDF conversion timed out. Large or complex PDFs may take longer. Please try a smaller file or contact support.', 500, 'PDF_TIMEOUT');
@@ -457,7 +461,7 @@ async function getOpenAIClient(userId: number): Promise<OpenAI | null> {
     
     return null;
   } catch (error) {
-    console.error('Error getting OpenAI client:', error);
+    logError('Error getting OpenAI client:', error);
     return null;
   }
 }
@@ -528,7 +532,7 @@ function parseExcelFile(filePath: string) {
     const worksheet = workbook.Sheets[sheetName];
     const data = xlsx.utils.sheet_to_json(worksheet);
     
-    console.log("Excel Data headers:", Object.keys(data[0] || {}));
+    log("Excel Data headers:", Object.keys(data[0] || {}));
     
     // Detect file format
     const isDiseasesFormat = detectDiseasesReferenceFormat(data);
@@ -540,7 +544,7 @@ function parseExcelFile(filePath: string) {
       return parseStandardLabFormat(data);
     }
   } catch (error) {
-    console.error('Error parsing Excel file:', error);
+    logError('Error parsing Excel file:', error);
     throw new Error('Failed to parse Excel file');
   }
 }
@@ -559,7 +563,7 @@ function detectDiseasesReferenceFormat(data: any[]) {
   // This allows for various Excel file structures
   const productColumnCount = keys.filter(k => /product|supplement|peptide|formula|support|take|dosage/i.test(k)).length;
   
-  console.log('Format detection:', {
+  log('Format detection:', {
     hasOrganSystem,
     hasDiseaseState,
     hasProductColumns,
@@ -574,13 +578,13 @@ function detectDiseasesReferenceFormat(data: any[]) {
 
 // Parse the Disease-Product reference format
 function parseDiseaseProductReference(data: any[]) {
-  console.log("Processing disease-product reference format - ENHANCED AI CAPTURE");
+  log("Processing disease-product reference format - ENHANCED AI CAPTURE");
   
   // Enhanced analysis of file structure
   if (data.length > 0) {
     const allKeys = Object.keys(data[0]);
-    console.log("Total columns detected:", allKeys.length);
-    console.log("All column headers:", allKeys);
+    log("Total columns detected:", allKeys.length);
+    log("All column headers:", allKeys);
     
     // Advanced pattern detection for your Excel structure
     const peptideColumns = allKeys.filter(k => /peptide/i.test(k));
@@ -589,7 +593,7 @@ function parseDiseaseProductReference(data: any[]) {
     const systemColumns = allKeys.filter(k => /organ|system/i.test(k));
     const diseaseColumns = allKeys.filter(k => /disease|state|condition/i.test(k));
     
-    console.log("Enhanced column analysis:", {
+    log("Enhanced column analysis:", {
       systemColumns,
       diseaseColumns,
       peptideColumns,
@@ -606,7 +610,7 @@ function parseDiseaseProductReference(data: any[]) {
   }).map((row: any) => {
     // Get ALL column keys from the row
     const allKeys = Object.keys(row);
-    console.log(`Processing row with ${allKeys.length} columns`);
+    log(`Processing row with ${allKeys.length} columns`);
     
     // Smart detection of organ system and disease columns
     let organSystemKey = '';
@@ -635,7 +639,7 @@ function parseDiseaseProductReference(data: any[]) {
     const organSystem = organSystemKey ? String(row[organSystemKey] || '').trim() : 'General';
     const diseaseState = diseaseStateKey ? String(row[diseaseStateKey] || '').trim() : '';
     
-    console.log(`Organ: ${organSystem}, Disease: ${diseaseState}`);
+    log(`Organ: ${organSystem}, Disease: ${diseaseState}`);
     
     // ENHANCED: Capture EVERY single column with intelligent categorization
     const categoryData: { [category: string]: { [key: string]: string } } = {
@@ -658,22 +662,22 @@ function parseDiseaseProductReference(data: any[]) {
       const keyLower = key.toLowerCase();
       const cleanKeyName = key.replace(/([A-Z])/g, ' $1').trim();
       
-      console.log(`Processing column ${index + 1}: "${key}" = "${value}"`);
+      log(`Processing column ${index + 1}: "${key}" = "${value}"`);
       
       // Smart categorization with comprehensive pattern matching
       if (/peptide/i.test(key)) {
         categoryData.peptides[cleanKeyName] = value;
-        console.log(`  → Categorized as PEPTIDE: ${cleanKeyName}`);
+        log(`  → Categorized as PEPTIDE: ${cleanKeyName}`);
       } else if (/formula|supplement|product|support.*formula|guard.*formula|guard$|cleanse|wash/i.test(key)) {
         categoryData.formulas[cleanKeyName] = value;
-        console.log(`  → Categorized as FORMULA: ${cleanKeyName}`);
+        log(`  → Categorized as FORMULA: ${cleanKeyName}`);
       } else if (/take|dosage|dose|instruction|how.*to|daily|units|mg|ml|tsp|cap|admin/i.test(key) || /take|daily|units|mg|ml/i.test(value)) {
         categoryData.dosages[cleanKeyName] = value;
-        console.log(`  → Categorized as DOSAGE: ${cleanKeyName}`);
+        log(`  → Categorized as DOSAGE: ${cleanKeyName}`);
       } else {
         // Capture EVERYTHING else - no data left behind
         categoryData.additional[cleanKeyName] = value;
-        console.log(`  → Categorized as ADDITIONAL: ${cleanKeyName}`);
+        log(`  → Categorized as ADDITIONAL: ${cleanKeyName}`);
       }
     });
     
@@ -728,7 +732,7 @@ function parseDiseaseProductReference(data: any[]) {
       });
     }
     
-    console.log(`Final recommendations length: ${fullRecommendations.length} characters`);
+    log(`Final recommendations length: ${fullRecommendations.length} characters`);
     
     return {
       test_name: organSystem || 'Organ System',
@@ -1094,18 +1098,18 @@ labInterpreterRouter.post('/knowledge-base/import', requireAuth, upload.single('
       
       try {
         // Read the text file with better error handling
-        console.log("Reading text file:", req.file.path);
+        log("Reading text file:", req.file.path);
         const textContent = fs.readFileSync(req.file.path, 'utf-8');
-        console.log("Text file content sample:", textContent.substring(0, 100));
+        log("Text file content sample:", textContent.substring(0, 100));
         
         // Parse the text content
         data = parseTextFormat(textContent);
-        console.log(`Parsed ${data.length} entries from text file`);
+        log(`Parsed ${data.length} entries from text file`);
         
         // Clean up uploaded file when done
         fs.unlinkSync(req.file.path);
       } catch (fileError) {
-        console.error('Error processing text file:', fileError);
+        logError('Error processing text file:', fileError);
         return res.status(400).json({ 
           error: 'Failed to process text file', 
           details: fileError.message 
@@ -1175,7 +1179,7 @@ labInterpreterRouter.get('/settings', async (req, res) => {
     
     return res.json(response);
   } catch (error) {
-    console.error('Error fetching lab interpreter settings:', error);
+    logError('Error fetching lab interpreter settings:', error);
     return res.status(500).json({ error: 'Failed to fetch lab interpreter settings' });
   }
 });
@@ -1207,7 +1211,7 @@ labInterpreterRouter.post('/settings', async (req, res) => {
     
     return res.json(response);
   } catch (error) {
-    console.error('Error saving lab interpreter settings:', error);
+    logError('Error saving lab interpreter settings:', error);
     return res.status(500).json({ error: 'Failed to save lab interpreter settings' });
   }
 });
@@ -1254,9 +1258,9 @@ labInterpreterRouter.post('/analyze', requireAuth, asyncHandler(async (req, res)
     systemPrompt += `\n\nFORMAT INSTRUCTIONS: ${settings.report_format_instructions}`;
   }
   
-  console.log('Using prompts for analysis:');
-  console.log('System Prompt:', systemPrompt.substring(0, 100) + '...');
-  console.log('User Prompt:', userPrompt.substring(0, 100) + '...');
+  log('Using prompts for analysis:');
+  log('System Prompt:', systemPrompt.substring(0, 100) + '...');
+  log('User Prompt:', userPrompt.substring(0, 100) + '...');
   
   let patient = null;
   if (withPatient && patientId) {
@@ -1271,7 +1275,7 @@ labInterpreterRouter.post('/analyze', requireAuth, asyncHandler(async (req, res)
       userPrompt = userPrompt
         .replace('${patientName}', `${patient.firstName} ${patient.lastName}`)
         .replace('${patientId}', patient.id.toString());
-      console.log('Using patient-specific prompt for:', `${patient.firstName} ${patient.lastName}`);
+      log('Using patient-specific prompt for:', `${patient.firstName} ${patient.lastName}`);
     }
   }
     
@@ -1310,9 +1314,9 @@ ${recommendations}
 ---`;
   }).join('\n\n');
   
-  console.log(`Using ${knowledgeBase.length} knowledge base entries for analysis`);
+  log(`Using ${knowledgeBase.length} knowledge base entries for analysis`);
   if (knowledgeBase.length > 0) {
-    console.log('Sample KB entry:', knowledgeBase[0].test_name, '-', knowledgeBase[0].marker);
+    log('Sample KB entry:', knowledgeBase[0].test_name, '-', knowledgeBase[0].marker);
   }
   
   // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
@@ -1376,14 +1380,14 @@ Please provide your analysis following the format and structure specified in the
   }
   
   // LOG DETAILED ANALYSIS INFO FOR DEBUGGING
-  console.log('=== TEXT ANALYSIS COMPLETED ===');
-  console.log('Report Text Length:', reportText.length);
-  console.log('Knowledge Base Items Used:', knowledgeBase.length);
-  console.log('Analysis Response Length:', analysis.length);
-  console.log('Analysis Preview:', analysis.substring(0, 200) + '...');
+  log('=== TEXT ANALYSIS COMPLETED ===');
+  log('Report Text Length:', reportText.length);
+  log('Knowledge Base Items Used:', knowledgeBase.length);
+  log('Analysis Response Length:', analysis.length);
+  log('Analysis Preview:', analysis.substring(0, 200) + '...');
   
   // Analysis is now in natural language format based on system prompts
-  console.log('Analysis returned in natural language format');
+  log('Analysis returned in natural language format');
   
   sendSuccessResponse(res, { 
     analysis,
@@ -1436,9 +1440,9 @@ labInterpreterRouter.post('/test/simple-analysis', requireAuth, asyncHandler(asy
     'Failed to get knowledge base'
   );
   
-  console.log('=== SIMPLE TEST ANALYSIS ===');
-  console.log('Test Data:', testData);
-  console.log('Knowledge Base Items:', knowledgeBase.length);
+  log('=== SIMPLE TEST ANALYSIS ===');
+  log('Test Data:', testData);
+  log('Knowledge Base Items:', knowledgeBase.length);
   
   // Create a simple prompt for testing
   const testPrompt = `You are analyzing lab data. Based on the knowledge base provided, give recommendations ONLY from the available products.
@@ -1464,7 +1468,7 @@ Respond with JSON: {"summary": "brief analysis", "recommendations": [{"product":
     
     const testAnalysis = response.choices[0].message.content || '';
     
-    console.log('Test Analysis Result:', testAnalysis);
+    log('Test Analysis Result:', testAnalysis);
     
     sendSuccessResponse(res, { 
       testAnalysis,
@@ -1503,23 +1507,23 @@ labInterpreterRouter.post('/extract-text', requireAuth, upload.single('file'), a
     throw new AppError(errorMessage, 503, 'NO_API_KEY');
   }
 
-  console.log(`Extracting text from: ${req.file.originalname} (${Math.round(req.file.size / 1024)}KB)`);
+  log(`Extracting text from: ${req.file.originalname} (${Math.round(req.file.size / 1024)}KB)`);
   
   let extractedText = '';
   
   try {
     // Process file based on type
     if (req.file.mimetype === 'application/pdf') {
-      console.log('Extracting text from PDF...');
+      log('Extracting text from PDF...');
       extractedText = await processPdfSequentially(req.file.path, openai);
     } else if (req.file.mimetype.startsWith('image/')) {
-      console.log('Extracting text from image...');
+      log('Extracting text from image...');
       extractedText = await processImageFileFast(req.file.path, openai, 1, 1);
     } else {
       throw new AppError('Unsupported file type. Please upload a PDF or image file.', 400, 'UNSUPPORTED_FILE_TYPE');
     }
     
-    console.log(`Text extraction completed. Length: ${extractedText.length} characters`);
+    log(`Text extraction completed. Length: ${extractedText.length} characters`);
     
     if (!extractedText.trim()) {
       throw new AppError('No text could be extracted from the uploaded file. Please ensure the file contains readable content.', 400, 'NO_TEXT_EXTRACTED');
@@ -1538,7 +1542,7 @@ labInterpreterRouter.post('/extract-text', requireAuth, upload.single('file'), a
       try {
         fs.unlinkSync(req.file.path);
       } catch (cleanupError) {
-        console.error('Failed to clean up uploaded file:', cleanupError);
+        logError('Failed to clean up uploaded file:', cleanupError);
       }
     }
   }
@@ -1565,7 +1569,7 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
       'Failed to fetch user data'
     );
     
-    console.log('OpenAI client creation failed for user:', req.user.id, 'useOwnApiKey:', user?.useOwnApiKey);
+    log('OpenAI client creation failed for user:', req.user.id, 'useOwnApiKey:', user?.useOwnApiKey);
     
     const errorMessage = user?.useOwnApiKey 
       ? 'No personal OpenAI API key found. Please add your OpenAI API key in Settings to use AI features.'
@@ -1574,27 +1578,27 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
     throw new AppError(errorMessage, 503, 'NO_API_KEY');
   }
   
-  console.log('OpenAI client created successfully for user:', req.user.id);
+  log('OpenAI client created successfully for user:', req.user.id);
 
   let extractedText = '';
   let analysis = '';
   let convertedImages: string[] = [];
 
   try {
-    console.log(`Processing uploaded file: ${req.file.originalname} (${Math.round(req.file.size / 1024)}KB)`);
+    log(`Processing uploaded file: ${req.file.originalname} (${Math.round(req.file.size / 1024)}KB)`);
     
     // ULTRA-FAST PROCESSING: Process PDF and images with speed optimization
     if (req.file.mimetype === 'application/pdf') {
-      console.log('Starting ULTRA-FAST PDF processing...');
+      log('Starting ULTRA-FAST PDF processing...');
       extractedText = await processPdfSequentially(req.file.path, openai);
     } else if (req.file.mimetype.startsWith('image/')) {
-      console.log('Processing single image with fast mode...');
+      log('Processing single image with fast mode...');
       extractedText = await processImageFileFast(req.file.path, openai, 1, 1);
     } else {
       throw new AppError('Unsupported file type. Please upload a PDF or image file.', 400, 'UNSUPPORTED_FILE_TYPE');
     }
     
-    console.log(`Text extraction completed. Total length: ${extractedText.length} characters`);
+    log(`Text extraction completed. Total length: ${extractedText.length} characters`);
     
     if (!extractedText.trim()) {
       throw new AppError('No text could be extracted from the uploaded file. Please ensure the file contains readable lab report data.', 400, 'NO_TEXT_EXTRACTED');
@@ -1614,9 +1618,9 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
     const systemPrompt = settings?.system_prompt || 'You are a medical lab report interpreter. Your task is to analyze lab test results and provide insights based on medical knowledge and the provided reference ranges. Be factual and evidence-based in your analysis.';
     let userPrompt = settings?.without_patient_prompt || 'Analyze this lab report. Provide a detailed interpretation of abnormal values, possible implications, and recommendations.';
     
-    console.log('Using prompts for upload analysis:');
-    console.log('System Prompt:', systemPrompt.substring(0, 100) + '...');
-    console.log('User Prompt:', userPrompt.substring(0, 100) + '...');
+    log('Using prompts for upload analysis:');
+    log('System Prompt:', systemPrompt.substring(0, 100) + '...');
+    log('User Prompt:', userPrompt.substring(0, 100) + '...');
     
     let patient = null;
     if (withPatient === 'true' && patientId) {
@@ -1631,7 +1635,7 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
         userPrompt = userPrompt
           .replace('${patientName}', `${patient.firstName} ${patient.lastName}`)
           .replace('${patientId}', patient.id.toString());
-        console.log('Using patient-specific prompt for upload analysis:', `${patient.firstName} ${patient.lastName}`);
+        log('Using patient-specific prompt for upload analysis:', `${patient.firstName} ${patient.lastName}`);
       }
     }
     
@@ -1670,9 +1674,9 @@ ${recommendations}
 ---`;
     }).join('\n\n');
     
-    console.log(`Using ${knowledgeBase.length} knowledge base entries for upload analysis`);
+    log(`Using ${knowledgeBase.length} knowledge base entries for upload analysis`);
     if (knowledgeBase.length > 0) {
-      console.log('Sample KB entry:', knowledgeBase[0].test_name, '-', knowledgeBase[0].marker);
+      log('Sample KB entry:', knowledgeBase[0].test_name, '-', knowledgeBase[0].marker);
     }
     
     // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
@@ -1761,20 +1765,20 @@ Please provide your analysis as a JSON object with this structure:
     // Note: Temporary images are cleaned up automatically in processPdfSequentially
     
     // LOG DETAILED ANALYSIS INFO FOR DEBUGGING
-    console.log('=== ANALYSIS COMPLETED ===');
-    console.log('Extracted Text Length:', extractedText.length);
-    console.log('Knowledge Base Items Used:', knowledgeBase.length);
-    console.log('Analysis Response Length:', analysis.length);
-    console.log('Analysis Preview:', analysis.substring(0, 200) + '...');
+    log('=== ANALYSIS COMPLETED ===');
+    log('Extracted Text Length:', extractedText.length);
+    log('Knowledge Base Items Used:', knowledgeBase.length);
+    log('Analysis Response Length:', analysis.length);
+    log('Analysis Preview:', analysis.substring(0, 200) + '...');
     
     // Try to parse the analysis to ensure it's valid JSON
     let parsedAnalysis = null;
     try {
       parsedAnalysis = JSON.parse(analysis);
-      console.log('Analysis successfully parsed as JSON');
-      console.log('Analysis structure:', Object.keys(parsedAnalysis));
+      log('Analysis successfully parsed as JSON');
+      log('Analysis structure:', Object.keys(parsedAnalysis));
     } catch (parseError) {
-      console.error('Analysis is not valid JSON:', parseError);
+      logError('Analysis is not valid JSON:', parseError);
     }
 
     sendSuccessResponse(res, { 
@@ -1809,7 +1813,7 @@ labInterpreterRouter.get('/reports', async (req, res) => {
     const reports = await storage.getLabReports(doctorId);
     return res.json(reports);
   } catch (error) {
-    console.error('Error fetching lab reports:', error);
+    logError('Error fetching lab reports:', error);
     return res.status(500).json({ error: 'Failed to fetch lab reports' });
   }
 });
@@ -1825,7 +1829,7 @@ labInterpreterRouter.get('/reports/patient/:patientId', async (req, res) => {
     const reports = await storage.getLabReportsByPatient(patientId);
     return res.json(reports);
   } catch (error) {
-    console.error('Error fetching lab reports for patient:', error);
+    logError('Error fetching lab reports for patient:', error);
     return res.status(500).json({ error: 'Failed to fetch lab reports for patient' });
   }
 });
@@ -1845,7 +1849,7 @@ labInterpreterRouter.get('/reports/:id', async (req, res) => {
     
     return res.json(report);
   } catch (error) {
-    console.error('Error fetching lab report:', error);
+    logError('Error fetching lab report:', error);
     return res.status(500).json({ error: 'Failed to fetch lab report' });
   }
 });
@@ -1877,7 +1881,7 @@ labInterpreterRouter.delete('/reports/:id', async (req, res) => {
     
     return res.status(204).end();
   } catch (error) {
-    console.error('Error deleting lab report:', error);
+    logError('Error deleting lab report:', error);
     return res.status(500).json({ error: 'Failed to delete lab report' });
   }
 });
@@ -1981,14 +1985,14 @@ labInterpreterRouter.post('/follow-up', async (req, res) => {
           });
         }
       } catch (saveError) {
-        console.error('Error saving follow-up to patient record:', saveError);
+        logError('Error saving follow-up to patient record:', saveError);
         // Continue even if saving fails
       }
     }
     
     return res.json({ answer });
   } catch (error) {
-    console.error('Error processing follow-up question:', error);
+    logError('Error processing follow-up question:', error);
     return res.status(500).json({ error: 'Failed to process follow-up question' });
   }
 });
@@ -2024,7 +2028,7 @@ labInterpreterRouter.post('/save-transcript', async (req, res) => {
     
     return res.json({ success: true, noteId: note.id });
   } catch (error) {
-    console.error('Error saving transcript:', error);
+    logError('Error saving transcript:', error);
     return res.status(500).json({ error: 'Failed to save transcript' });
   }
 });
@@ -2716,7 +2720,7 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
         }
         
       } catch (e) {
-        console.error('Error parsing content for PDF:', e);
+        logError('Error parsing content for PDF:', e);
         // Fallback: display as formatted text
         const contentLines = doc.splitTextToSize(content.replace(/[{}",]/g, ' ').replace(/\s+/g, ' '), maxWidth);
         contentLines.forEach((line: string) => {
@@ -3065,7 +3069,7 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
         }
         
       } catch (e) {
-        console.error('Error parsing content for DOCX:', e);
+        logError('Error parsing content for DOCX:', e);
         // Fallback: add content as plain text
         docSections.push(
           new Paragraph({
@@ -3115,7 +3119,7 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
     }
     
   } catch (error) {
-    console.error('Error generating styled document:', error);
+    logError('Error generating styled document:', error);
     throw new AppError('Failed to generate styled document', 500, 'DOCUMENT_GENERATION_ERROR');
   }
 }));
