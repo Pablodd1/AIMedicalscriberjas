@@ -1,7 +1,7 @@
-import { 
-  users, 
-  patients, 
-  appointments, 
+import {
+  users,
+  patients,
+  appointments,
   medicalNotes,
   consultationNotes,
   settings,
@@ -26,11 +26,11 @@ import {
   prescriptions,
   medicalHistoryEntries,
   customNotePrompts,
-  type User, 
-  type InsertUser, 
-  type Patient, 
-  type InsertPatient, 
-  type Appointment, 
+  type User,
+  type InsertUser,
+  type Patient,
+  type InsertPatient,
+  type Appointment,
   type InsertAppointment,
   type MedicalNote,
   type InsertMedicalNote,
@@ -83,6 +83,7 @@ import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { db, pool } from "./db";
 import { eq, and, desc, asc } from "drizzle-orm";
+import { MockStorage } from "./mock-storage";
 
 // Demo mode - suppress logging for cleaner output
 const DEMO_MODE = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo';
@@ -186,11 +187,11 @@ export interface IStorage {
   updateLabKnowledgeBaseItem(id: number, updates: Partial<LabKnowledgeBase>): Promise<LabKnowledgeBase | undefined>;
   deleteLabKnowledgeBaseItem(id: number): Promise<boolean>;
   importLabKnowledgeBase(items: InsertLabKnowledgeBase[]): Promise<number>;
-  
+
   // Lab Interpreter Settings methods
   getLabInterpreterSettings(): Promise<LabInterpreterSettings | undefined>;
   saveLabInterpreterSettings(settings: InsertLabInterpreterSettings): Promise<LabInterpreterSettings>;
-  
+
   // Lab Reports methods
   getLabReports(doctorId: number): Promise<LabReport[]>;
   getLabReportsByPatient(patientId: number): Promise<LabReport[]>;
@@ -198,7 +199,7 @@ export interface IStorage {
   createLabReport(report: InsertLabReport): Promise<LabReport>;
   updateLabReport(id: number, updates: Partial<LabReport>): Promise<LabReport | undefined>;
   deleteLabReport(id: number): Promise<boolean>;
-  
+
   // Patient Document methods
   getPatientDocuments(patientId: number): Promise<PatientDocument[]>;
   getPatientDocument(id: number): Promise<PatientDocument | undefined>;
@@ -244,8 +245,8 @@ export class DatabaseStorage implements IStorage {
 
   constructor() {
     try {
-      this.sessionStore = new PostgresSessionStore({ 
-        pool, 
+      this.sessionStore = new PostgresSessionStore({
+        pool,
         createTableIfMissing: true,
         errorLog: console.error.bind(console)
       });
@@ -269,12 +270,12 @@ export class DatabaseStorage implements IStorage {
     const [user] = await db.select().from(users).where(eq(users.username, username));
     return user;
   }
-  
+
   async getUserByEmail(email: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.email, email));
     return user;
   }
-  
+
   async getUsers(): Promise<User[]> {
     return db.select().from(users).orderBy(users.createdAt);
   }
@@ -299,7 +300,7 @@ export class DatabaseStorage implements IStorage {
       .returning();
     return user;
   }
-  
+
   async updateUser(id: number, updates: Partial<User>): Promise<User | undefined> {
     const [updatedUser] = await db
       .update(users)
@@ -308,7 +309,7 @@ export class DatabaseStorage implements IStorage {
       .returning();
     return updatedUser;
   }
-  
+
   async updateUserLastLogin(id: number): Promise<void> {
     await db
       .update(users)
@@ -371,7 +372,7 @@ export class DatabaseStorage implements IStorage {
   async getAllSystemSettings(): Promise<SystemSetting[]> {
     return await db.select().from(systemSettings).orderBy(systemSettings.settingKey);
   }
-  
+
   async deleteUser(id: number): Promise<boolean> {
     try {
       // First, check if user exists
@@ -380,48 +381,48 @@ export class DatabaseStorage implements IStorage {
         log('User not found for deletion:', id);
         return false;
       }
-      
+
       log('Attempting to delete user:', { id, username: user.username });
-      
+
       // Delete related records first to handle foreign key constraints
       // Delete patient documents if the user is a patient
       await db.delete(patientDocuments).where(eq(patientDocuments.patientId, id));
-      
+
       // Delete medical notes where user is the doctor
       await db.delete(medicalNotes).where(eq(medicalNotes.doctorId, id));
-      
+
       // Delete consultation notes where user is the doctor
       await db.delete(consultationNotes).where(eq(consultationNotes.doctorId, id));
-      
+
       // Delete appointments where user is patient or doctor
       await db.delete(appointments).where(eq(appointments.patientId, id));
       await db.delete(appointments).where(eq(appointments.doctorId, id));
-      
+
       // Delete intake forms where user is patient or doctor
       await db.delete(intakeForms).where(eq(intakeForms.patientId, id));
       await db.delete(intakeForms).where(eq(intakeForms.doctorId, id));
-      
+
       // Delete invoices where user is patient or doctor
       await db.delete(invoices).where(eq(invoices.patientId, id));
       await db.delete(invoices).where(eq(invoices.doctorId, id));
-      
+
       // Delete monitoring devices and readings
       await db.delete(devices).where(eq(devices.patientId, id));
       await db.delete(bpReadings).where(eq(bpReadings.patientId, id));
       await db.delete(glucoseReadings).where(eq(glucoseReadings.patientId, id));
-      
+
       // Delete recording sessions
       await db.delete(recordingSessions).where(eq(recordingSessions.doctorId, id));
-      
+
       // Now delete the user
       const result = await db
         .delete(users)
         .where(eq(users.id, id))
         .returning({ id: users.id });
-      
+
       const success = result.length > 0;
       log('User deletion result:', { id, success });
-      
+
       return success;
     } catch (error) {
       logError('Error deleting user:', error);
@@ -527,15 +528,15 @@ export class DatabaseStorage implements IStorage {
   async createMedicalNote(note: InsertMedicalNote): Promise<MedicalNote> {
     const [newNote] = await db
       .insert(medicalNotes)
-      .values({ 
-        ...note, 
+      .values({
+        ...note,
         consultationId: null,
         isQuickNote: false
       })
       .returning();
     return newNote;
   }
-  
+
   async getQuickNotes(doctorId: number): Promise<MedicalNote[]> {
     return db.select()
       .from(medicalNotes)
@@ -544,12 +545,12 @@ export class DatabaseStorage implements IStorage {
         eq(medicalNotes.isQuickNote, true)
       ));
   }
-  
+
   async createQuickNote(note: Omit<InsertMedicalNote, 'patientId'> & { signature?: string }): Promise<MedicalNote> {
     const [newNote] = await db
       .insert(medicalNotes)
-      .values({ 
-        ...note, 
+      .values({
+        ...note,
         patientId: null,
         consultationId: null,
         isQuickNote: true
@@ -585,20 +586,20 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(consultationNotes)
       .where(eq(consultationNotes.id, consultationId));
-    
+
     if (!consultation) {
       throw new Error("Consultation not found");
     }
-    
+
     // Create medical note linked to consultation
     const [newNote] = await db
       .insert(medicalNotes)
-      .values({ 
-        ...note, 
-        consultationId 
+      .values({
+        ...note,
+        consultationId
       })
       .returning();
-    
+
     return newNote;
   }
 
@@ -608,7 +609,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(settings)
       .where(eq(settings.key, key));
-    
+
     return setting ? setting.value : null;
   }
 
@@ -624,10 +625,10 @@ export class DatabaseStorage implements IStorage {
       }
       return result;
     }
-    
+
     // Otherwise fetch all settings
     const settingsList = await db.select().from(settings);
-    
+
     return settingsList.reduce<Record<string, string>>((acc, setting) => {
       acc[setting.key] = setting.value;
       return acc;
@@ -640,7 +641,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(settings)
       .where(eq(settings.key, key));
-    
+
     if (existingSetting) {
       // Update existing setting
       const [updatedSetting] = await db
@@ -648,7 +649,7 @@ export class DatabaseStorage implements IStorage {
         .set({ value, updatedAt: new Date() })
         .where(eq(settings.id, existingSetting.id))
         .returning();
-      
+
       return updatedSetting;
     } else {
       // Create new setting
@@ -656,7 +657,7 @@ export class DatabaseStorage implements IStorage {
         .insert(settings)
         .values({ key, value })
         .returning();
-      
+
       return newSetting;
     }
   }
@@ -667,7 +668,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(emailTemplates)
       .where(eq(emailTemplates.type, type));
-    
+
     return template;
   }
 
@@ -681,7 +682,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(emailTemplates)
       .where(eq(emailTemplates.type, type));
-    
+
     if (existingTemplate) {
       // Update existing template
       const [updatedTemplate] = await db
@@ -689,7 +690,7 @@ export class DatabaseStorage implements IStorage {
         .set({ content, updatedAt: new Date() })
         .where(eq(emailTemplates.id, existingTemplate.id))
         .returning();
-      
+
       return updatedTemplate;
     } else {
       // Create new template
@@ -697,11 +698,11 @@ export class DatabaseStorage implements IStorage {
         .insert(emailTemplates)
         .values({ type, content })
         .returning();
-      
+
       return newTemplate;
     }
   }
-  
+
   // Patient intake form methods
   async getIntakeForms(doctorId: number): Promise<IntakeForm[]> {
     return db.select().from(intakeForms).where(eq(intakeForms.doctorId, doctorId));
@@ -717,7 +718,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(intakeForms)
       .where(eq(intakeForms.uniqueLink, uniqueLink));
-    
+
     return form;
   }
 
@@ -726,20 +727,20 @@ export class DatabaseStorage implements IStorage {
       .insert(intakeForms)
       .values(form)
       .returning();
-    
+
     return newForm;
   }
 
   async updateIntakeFormStatus(id: number, status: string): Promise<IntakeForm | undefined> {
     const [updatedForm] = await db
       .update(intakeForms)
-      .set({ 
-        status, 
-        completedAt: status === 'completed' ? new Date() : null 
+      .set({
+        status,
+        completedAt: status === 'completed' ? new Date() : null
       })
       .where(eq(intakeForms.id, id))
       .returning();
-    
+
     return updatedForm;
   }
 
@@ -755,7 +756,7 @@ export class DatabaseStorage implements IStorage {
       .insert(intakeFormResponses)
       .values(response)
       .returning();
-    
+
     return newResponse;
   }
 
@@ -778,7 +779,7 @@ export class DatabaseStorage implements IStorage {
       .insert(invoices)
       .values(invoice)
       .returning();
-    
+
     return newInvoice;
   }
 
@@ -788,21 +789,21 @@ export class DatabaseStorage implements IStorage {
       .set({ status, updatedAt: new Date() })
       .where(eq(invoices.id, id))
       .returning();
-    
+
     return updatedInvoice;
   }
 
   async updateInvoicePayment(id: number, amountPaid: number): Promise<Invoice | undefined> {
     const [invoice] = await db.select().from(invoices).where(eq(invoices.id, id));
-    
+
     if (!invoice) {
       return undefined;
     }
-    
+
     // Update payment and status if needed
     const newAmountPaid = amountPaid;
     let status: 'paid' | 'partial' | 'unpaid' | 'overdue' = invoice.status;
-    
+
     // Determine new status based on payment
     if (newAmountPaid === 0) {
       status = 'unpaid';
@@ -811,18 +812,18 @@ export class DatabaseStorage implements IStorage {
     } else {
       status = 'partial';
     }
-    
+
     // Update invoice
     const [updatedInvoice] = await db
       .update(invoices)
-      .set({ 
-        amountPaid: newAmountPaid, 
-        status, 
-        updatedAt: new Date() 
+      .set({
+        amountPaid: newAmountPaid,
+        status,
+        updatedAt: new Date()
       })
       .where(eq(invoices.id, id))
       .returning();
-    
+
     return updatedInvoice;
   }
 
@@ -846,7 +847,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(recordingSessions)
       .where(eq(recordingSessions.id, id));
-    
+
     return session;
   }
 
@@ -855,7 +856,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(recordingSessions)
       .where(eq(recordingSessions.roomId, roomId));
-    
+
     return session;
   }
 
@@ -864,7 +865,7 @@ export class DatabaseStorage implements IStorage {
       .insert(recordingSessions)
       .values(session)
       .returning();
-    
+
     return newSession;
   }
 
@@ -874,10 +875,10 @@ export class DatabaseStorage implements IStorage {
       .set(updates)
       .where(eq(recordingSessions.id, id))
       .returning();
-    
+
     return updatedSession;
   }
-  
+
   async deleteRecordingSession(id: number): Promise<boolean> {
     const result = await db
       .delete(recordingSessions)
@@ -909,7 +910,7 @@ export class DatabaseStorage implements IStorage {
       .insert(consultationParticipants)
       .values(participant)
       .returning();
-    
+
     return newParticipant;
   }
 
@@ -924,16 +925,16 @@ export class DatabaseStorage implements IStorage {
   async markParticipantLeft(id: number): Promise<ConsultationParticipant | undefined> {
     const [updatedParticipant] = await db
       .update(consultationParticipants)
-      .set({ 
+      .set({
         leftAt: new Date(),
-        isActive: false 
+        isActive: false
       })
       .where(eq(consultationParticipants.id, id))
       .returning();
-    
+
     return updatedParticipant;
   }
-  
+
   // Device monitoring methods
   async getDevices(patientId: number): Promise<Device[]> {
     return db.select()
@@ -988,11 +989,11 @@ export class DatabaseStorage implements IStorage {
       .from(bpReadings)
       .where(eq(bpReadings.patientId, patientId))
       .orderBy(desc(bpReadings.timestamp));
-    
+
     if (limit) {
       query = query.limit(limit);
     }
-    
+
     return query;
   }
 
@@ -1001,11 +1002,11 @@ export class DatabaseStorage implements IStorage {
       .from(bpReadings)
       .where(eq(bpReadings.deviceId, deviceId))
       .orderBy(desc(bpReadings.timestamp));
-    
+
     if (limit) {
       query = query.limit(limit);
     }
-    
+
     return query;
   }
 
@@ -1026,11 +1027,11 @@ export class DatabaseStorage implements IStorage {
       .from(glucoseReadings)
       .where(eq(glucoseReadings.patientId, patientId))
       .orderBy(desc(glucoseReadings.timestamp));
-    
+
     if (limit) {
       query = query.limit(limit);
     }
-    
+
     return query;
   }
 
@@ -1039,11 +1040,11 @@ export class DatabaseStorage implements IStorage {
       .from(glucoseReadings)
       .where(eq(glucoseReadings.deviceId, deviceId))
       .orderBy(desc(glucoseReadings.timestamp));
-    
+
     if (limit) {
       query = query.limit(limit);
     }
-    
+
     return query;
   }
 
@@ -1075,10 +1076,10 @@ export class DatabaseStorage implements IStorage {
   async saveAlertSettings(settingsData: InsertAlertSetting): Promise<AlertSetting> {
     // Check if settings already exist for this patient and device type
     const existing = await this.getAlertSettings(
-      settingsData.patientId, 
+      settingsData.patientId,
       settingsData.deviceType as string
     );
-    
+
     if (existing) {
       // Update existing settings
       const [updated] = await db
@@ -1136,11 +1137,11 @@ export class DatabaseStorage implements IStorage {
   async getLabKnowledgeBaseItem(id: number, userId?: number): Promise<LabKnowledgeBase | undefined> {
     try {
       let query = db.select().from(labKnowledgeBase).where(eq(labKnowledgeBase.id, id));
-      
+
       if (userId) {
         query = query.where(eq(labKnowledgeBase.userId, userId));
       }
-      
+
       const [item] = await query;
       return item;
     } catch (error) {
@@ -1167,11 +1168,11 @@ export class DatabaseStorage implements IStorage {
           ...updates
         })
         .where(eq(labKnowledgeBase.id, id));
-      
+
       if (userId) {
         query = query.where(eq(labKnowledgeBase.userId, userId));
       }
-      
+
       const [updated] = await query.returning();
       return updated;
     } catch (error) {
@@ -1183,11 +1184,11 @@ export class DatabaseStorage implements IStorage {
   async deleteLabKnowledgeBaseItem(id: number, userId?: number): Promise<boolean> {
     try {
       let query = db.delete(labKnowledgeBase).where(eq(labKnowledgeBase.id, id));
-      
+
       if (userId) {
         query = query.where(eq(labKnowledgeBase.userId, userId));
       }
-      
+
       const result = await query;
       return result.rowCount > 0;
     } catch (error) {
@@ -1203,7 +1204,7 @@ export class DatabaseStorage implements IStorage {
         ...item,
         userId
       }));
-      
+
       const result = await db.insert(labKnowledgeBase).values(itemsWithUserId).returning();
       return result.length;
     } catch (error) {
@@ -1237,7 +1238,7 @@ export class DatabaseStorage implements IStorage {
     try {
       // Check if settings already exist
       const existingSettings = await this.getLabInterpreterSettings();
-      
+
       if (existingSettings) {
         // Update existing settings
         const [updated] = await db
@@ -1425,7 +1426,7 @@ export class DatabaseStorage implements IStorage {
       return [];
     }
   }
-  
+
   async getPatientDocument(id: number): Promise<PatientDocument | undefined> {
     try {
       const [document] = await db
@@ -1438,7 +1439,7 @@ export class DatabaseStorage implements IStorage {
       return undefined;
     }
   }
-  
+
   async createPatientDocument(document: InsertPatientDocument): Promise<PatientDocument> {
     try {
       const [newDocument] = await db
@@ -1451,7 +1452,7 @@ export class DatabaseStorage implements IStorage {
       throw error;
     }
   }
-  
+
   async updatePatientDocument(id: number, updates: Partial<PatientDocument>): Promise<PatientDocument | undefined> {
     try {
       const [updated] = await db
@@ -1465,7 +1466,7 @@ export class DatabaseStorage implements IStorage {
       return undefined;
     }
   }
-  
+
   async deletePatientDocument(id: number): Promise<boolean> {
     try {
       const result = await db
@@ -1603,7 +1604,7 @@ export class DatabaseStorage implements IStorage {
   async saveCustomNotePrompt(prompt: InsertCustomNotePrompt): Promise<CustomNotePrompt> {
     // Check if a prompt already exists for this user and note type
     const existing = await this.getCustomNotePrompt(prompt.userId, prompt.noteType);
-    
+
     if (existing) {
       // Update existing prompt
       const [updated] = await db
@@ -1639,5 +1640,7 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-// Export instance of database storage
-export const storage = new DatabaseStorage();
+// Export instance of storage - use MockStorage if DATABASE_URL is missing
+export const storage = process.env.DATABASE_URL
+  ? new DatabaseStorage()
+  : new MockStorage();

@@ -1,11 +1,11 @@
 [phases.setup]
-nixPkgs = ["nodejs_20", "python311Full"]
+nixPkgs = ["nodejs_20", "python3"]
 
 [phases.install]
-cmds = ["npm ci", "python3 -m pip install -r python_services/requirements.txt"]
+cmds = ["npm install"]
 
 [phases.build]
-cmds = ["npm run build"]
+cmds = ["npm run build", "(python3 -m pip install -r python_services/requirements.txt || python3 -m ensurepip && python3 -m pip install -r python_services/requirements.txt) || echo 'Python dependencies failed'"]
 
 [start]
 cmd = "node dist/index.js"
