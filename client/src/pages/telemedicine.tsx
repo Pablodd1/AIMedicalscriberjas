@@ -2,14 +2,14 @@ import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { 
-  Video, 
-  Phone, 
-  Calendar, 
-  Users, 
-  MessageSquare, 
-  Mic, 
-  MicOff, 
+import {
+  Video,
+  Phone,
+  Calendar,
+  Users,
+  MessageSquare,
+  Mic,
+  MicOff,
   VideoOff,
   X,
   MessageCircle,
@@ -28,13 +28,13 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { 
-  Dialog, 
+import {
+  Dialog,
   DialogClose,
-  DialogContent, 
+  DialogContent,
   DialogDescription,
   DialogFooter,
-  DialogHeader, 
+  DialogHeader,
   DialogTitle,
   DialogTrigger
 } from "@/components/ui/dialog";
@@ -80,7 +80,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [videoEnabled, setVideoEnabled] = useState(true);
   const [liveTranscriptionOpen, setLiveTranscriptionOpen] = useState(false);
-  const [liveTranscriptions, setLiveTranscriptions] = useState<Array<{speaker: string, text: string, timestamp: Date}>>([]);
+  const [liveTranscriptions, setLiveTranscriptions] = useState<Array<{ speaker: string, text: string, timestamp: Date }>>([]);
   const [currentSpeaker, setCurrentSpeaker] = useState<'Doctor' | 'Patient'>('Doctor');
   const [isRecording, setIsRecording] = useState(false);
   const [recordedTime, setRecordedTime] = useState(0);
@@ -123,7 +123,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
     // Allow recording with just local stream if no remote stream
     const hasRemoteStream = remoteVideoRef.current && remoteVideoRef.current.srcObject;
     const hasLocalStream = localStreamRef.current;
-    
+
     if (!hasLocalStream) {
       toast({
         title: "Recording Error",
@@ -139,58 +139,58 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
       setRecordedTime(0);
 
       // ---- Create a composite stream with both video and audio ----
-      
+
       // 1. Get the streams - remote stream is optional
       const remoteStream = hasRemoteStream ? remoteVideoRef.current!.srcObject as MediaStream : null;
       const localStream = localStreamRef.current;
-      
+
       if (!localStream) {
         throw new Error("Local video stream is not available");
       }
-      
+
       // 2. Create canvas for picture-in-picture effect
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
-      
+
       // Set canvas to full HD resolution
       canvas.width = 1920;
       canvas.height = 1080;
-      
+
       if (!ctx) {
         throw new Error("Failed to get canvas context");
       }
-      
+
       // Get video elements for drawing
       const remoteVideo = remoteVideoRef.current;
       const localVideo = localVideoRef.current;
-      
+
       if (!localVideo) {
         throw new Error("Local video element not found");
       }
-      
+
       // 3. Create audio context for high-quality audio mixing
       const audioContext = new AudioContext({
         sampleRate: 48000,
         latencyHint: 'interactive'
       });
-      
+
       // Create destination for mixed audio
       const audioDestination = audioContext.createMediaStreamDestination();
-      
+
       // Add dynamics compression for better audio quality
       const compressor = audioContext.createDynamicsCompressor();
       compressor.threshold.value = -24;
       compressor.ratio.value = 12;
       compressor.attack.value = 0.003;
       compressor.release.value = 0.25;
-      
+
       // Get audio from local stream (always available)
       const localAudio = audioContext.createMediaStreamSource(localStream);
       const localGain = audioContext.createGain();
       localGain.gain.value = 1.0;
       localAudio.connect(localGain);
       localGain.connect(compressor);
-      
+
       // Get audio from remote stream if available
       if (remoteStream) {
         const remoteAudio = audioContext.createMediaStreamSource(remoteStream);
@@ -199,39 +199,39 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
         remoteAudio.connect(remoteGain);
         remoteGain.connect(compressor);
       }
-      
+
       compressor.connect(audioDestination);
-      
+
       // 4. Create composite media stream with canvas video and mixed audio
       const canvasStream = canvas.captureStream(30); // 30fps
-      
+
       // Combine canvas video with mixed audio
       const compositeTracks = [
         ...canvasStream.getVideoTracks(),
         ...audioDestination.stream.getAudioTracks()
       ];
-      
+
       const compositeStream = new MediaStream(compositeTracks);
-      
+
       // 5. Set up the recorder with high quality optimized for conversation capture
       let options: MediaRecorderOptions = {};
-      
+
       // Try different video/audio formats in order of preference
       // Using codecs that prioritize speech clarity and reliability
       const mimeTypes = [
         'video/webm;codecs=vp9,opus', // Best quality, opus is excellent for speech
-        'video/webm;codecs=vp8,opus', 
+        'video/webm;codecs=vp8,opus',
         'audio/webm;codecs=opus',     // Audio-only fallback with opus codec
         'video/webm',                 // Generic fallbacks
         'audio/webm',
         'video/mp4'
       ];
-      
+
       for (const mimeType of mimeTypes) {
         if (MediaRecorder.isTypeSupported(mimeType)) {
           // Set base options with mime type
           options.mimeType = mimeType;
-          
+
           // Add quality settings based on format type
           if (mimeType.startsWith('video/')) {
             // For video formats, set both video and audio quality
@@ -241,53 +241,53 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             // For audio-only formats, use higher audio quality
             options.audioBitsPerSecond = 192000;  // 192 kbps for audio-only
           }
-          
+
           console.log(`Using recording format: ${mimeType}`);
           break;
         }
       }
-      
+
       const mediaRecorder = new MediaRecorder(compositeStream, options);
       mediaRecorderRef.current = mediaRecorder;
-      
+
       // 6. Set up continuous drawing of video frames (picture-in-picture or local only)
       const drawVideoFrame = () => {
         if (!ctx) return;
-        
+
         // Clear canvas
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
+
         if (remoteVideo && remoteStream) {
           // Draw main (remote) video filling the canvas
           ctx.drawImage(remoteVideo, 0, 0, canvas.width, canvas.height);
-          
+
           // Calculate picture-in-picture size (1/4 width, positioned in top-right)
           const pipWidth = canvas.width / 4;
           const pipHeight = canvas.height / 4;
           const pipMargin = 20;
-          
+
           // Draw local video (picture-in-picture)
           ctx.drawImage(
-            localVideo, 
-            canvas.width - pipWidth - pipMargin, 
-            pipMargin, 
-            pipWidth, 
+            localVideo,
+            canvas.width - pipWidth - pipMargin,
+            pipMargin,
+            pipWidth,
             pipHeight
           );
-          
+
           // Add border to picture-in-picture
           ctx.strokeStyle = '#FFFFFF';
           ctx.lineWidth = 2;
           ctx.strokeRect(
-            canvas.width - pipWidth - pipMargin, 
-            pipMargin, 
-            pipWidth, 
+            canvas.width - pipWidth - pipMargin,
+            pipMargin,
+            pipWidth,
             pipHeight
           );
         } else {
           // No remote stream - just show local video full screen
           ctx.drawImage(localVideo, 0, 0, canvas.width, canvas.height);
-          
+
           // Add "Recording" indicator
           ctx.fillStyle = 'rgba(255, 0, 0, 0.7)';
           ctx.fillRect(20, 20, 120, 40);
@@ -295,19 +295,19 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           ctx.font = 'bold 20px Arial';
           ctx.fillText('● REC', 35, 48);
         }
-        
+
         // Request next animation frame
         window.requestAnimationFrame(drawVideoFrame);
       };
-      
+
       // Start the drawing loop
       window.requestAnimationFrame(drawVideoFrame);
-      
+
       // 7. Handle recording events
       mediaRecorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
           recordedChunksRef.current.push(event.data);
-          
+
           // Log data collection at intervals for monitoring
           if (recordedChunksRef.current.length % 10 === 0) {
             console.log(`Recording in progress: ${recordedChunksRef.current.length} chunks collected`);
@@ -316,7 +316,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           console.warn("Received empty data chunk during recording");
         }
       };
-      
+
       // Add error handler to detect and recover from recording issues
       mediaRecorder.onerror = (event) => {
         console.error("MediaRecorder error:", event);
@@ -326,25 +326,25 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
           variant: "destructive",
         });
       };
-      
+
       // Start recording
       mediaRecorder.start(500); // Collect data every 500ms for more reliable speech capture
       setIsRecording(true);
-      
+
       // Update recorded time every second
       recordingIntervalRef.current = window.setInterval(() => {
         setRecordedTime(prevTime => {
           const newTime = prevTime + 1;
-          
+
           // Request more data every 5 seconds to ensure continuous recording
           if (mediaRecorderRef.current && newTime % 5 === 0) {
             mediaRecorderRef.current.requestData();
           }
-          
+
           return newTime;
         });
       }, 1000);
-      
+
       toast({
         title: "Recording Started",
         description: "Full consultation recording has started with both audio and video.",
@@ -384,11 +384,11 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
 
         mediaRecorderRef.current.onstop = async () => {
           setIsRecording(false);
-          
+
           // Determine the best MIME type based on what we recorded
           const mimeType = mediaRecorderRef.current?.mimeType || 'video/webm';
           const isVideoRecording = mimeType.includes('video');
-          
+
           // Generate the recording blob with appropriate type
           const recordingBlob = new Blob(recordedChunksRef.current, { type: mimeType });
 
@@ -412,7 +412,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
             // Create a download link
             const downloadLink = document.createElement('a');
             downloadLink.href = recordingUrl;
-            
+
             // Set appropriate filename and extension
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
             const fileExt = isVideoRecording ? 'webm' : 'ogg';
@@ -421,7 +421,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
 
             // Determine recording type based on the media format
             const recordingType = isVideoRecording ? 'both' : 'audio';
-            
+
             // Log recording information
             console.log(`Saving ${recordingType} recording: ${fileExt} format, ${recordingBlob.size} bytes`);
 
@@ -436,7 +436,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
               recordingType: recordingType,
               mediaFormat: fileExt
             };
-            
+
             // Submit recording session to server to create the record
             const recordingResponse = await fetch('/api/telemedicine/recordings', {
               method: 'POST',
@@ -445,26 +445,26 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
               },
               body: JSON.stringify(recordingSessionData),
             });
-            
+
             if (!recordingResponse.ok) {
               console.warn('Failed to save recording session:', await recordingResponse.text());
               throw new Error('Failed to save recording session data');
             }
-            
+
             // Get the recording ID from the response
             const recordingData = await recordingResponse.json();
             console.log('Recording data received:', { id: recordingData.id, status: recordingData.status });
-            
+
             if (!recordingData.id) {
               throw new Error('No recording ID returned from server');
             }
-            
+
             // Extract audio track for transcription (if we have video)
             let audioBlob = recordingBlob;
-            
+
             console.log(`Preparing to upload ${isVideoRecording ? 'video' : 'audio'} recording, blob size: ${recordingBlob.size} bytes`);
             console.log('About to enqueue upload to background manager...');
-            
+
             // Enqueue the upload to the background manager
             // This allows the upload to continue even if the meeting is closed
             enqueueUpload({
@@ -474,7 +474,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
               filename: `${isVideoRecording ? 'video' : 'audio'}_${recordingData.id}.${fileExt}`,
               type: isVideoRecording ? 'video' : 'audio'
             });
-            
+
             console.log(`Upload queued for background processing. You can now close the meeting safely.`);
 
             // Send the audio to the backend for transcription
@@ -553,16 +553,16 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
 
         // Request more data before stopping to ensure we capture the final part of conversation
         mediaRecorderRef.current.requestData();
-        
+
         // Add a small buffer of silence at the end to prevent cutting off final words
         console.log("Finalizing recording, ensuring all conversation is captured...");
-        
+
         // Use a longer delay (2 seconds) before stopping the recorder
         // This helps capture trailing conversation and prevent audio cutoff
         setTimeout(() => {
           console.log("Collecting final audio data...");
           mediaRecorderRef.current?.requestData(); // Request data one more time
-          
+
           // Wait a bit more before actually stopping the recorder
           setTimeout(() => {
             if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
@@ -757,8 +757,16 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
     // Get user media and initialize local video
     initializeMedia();
 
+    // WebSocket Heartbeat system
+    const heartbeatInterval = setInterval(() => {
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'ping' }));
+      }
+    }, 30000);
+
     // Cleanup function
     return () => {
+      clearInterval(heartbeatInterval);
       // Stop recording if it's in progress
       if (isRecording) {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
@@ -791,13 +799,13 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
   const initializeMedia = async () => {
     try {
       // Request high-quality video and audio with specific constraints
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
           width: { ideal: 1280, min: 640 },
           height: { ideal: 720, min: 480 },
           frameRate: { ideal: 30, min: 24 },
           facingMode: "user"
-        }, 
+        },
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
@@ -1037,10 +1045,10 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
   // Live transcription functions
   const addLiveTranscription = (speaker: string, text: string) => {
     setLiveTranscriptions(prev => [
-      ...prev, 
+      ...prev,
       {
-        speaker, 
-        text, 
+        speaker,
+        text,
         timestamp: new Date()
       }
     ]);
@@ -1048,47 +1056,47 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
 
   // Reference for speech recognition
   const speechRecognitionRef = useRef<any>(null);
-  
+
   // Function to toggle live transcription
   const toggleLiveTranscription = () => {
     setLiveTranscriptionOpen(!liveTranscriptionOpen);
-    
+
     if (!liveTranscriptionOpen) {
       // Start with an empty list when enabling
       setLiveTranscriptions([]);
-      
+
       // Add a greeting to demonstrate functionality
       addLiveTranscription('System', 'Live transcription started. Speak clearly for best results.');
-      
+
       // Start speech recognition if browser supports it
       try {
         // Check for browser support using type assertions to avoid TypeScript errors
         const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-        
+
         if (SpeechRecognition) {
           const recognition = new SpeechRecognition();
           speechRecognitionRef.current = recognition;
-          
+
           recognition.continuous = true;
           recognition.interimResults = true;
           recognition.lang = 'en-US';
-          
+
           // Handle recognition results
           recognition.onresult = (event: any) => {
             const last = event.results.length - 1;
             const transcript = event.results[last][0].transcript;
             const isFinal = event.results[last].isFinal;
-            
+
             if (isFinal && transcript.trim()) {
               addLiveTranscription(currentSpeaker, transcript);
             }
           };
-          
+
           recognition.onerror = (event: any) => {
             console.error('Speech recognition error:', event.error);
             addLiveTranscription('System', `Error: ${event.error}. Please try again.`);
           };
-          
+
           recognition.onend = () => {
             // Restart recognition if transcription is still open
             if (liveTranscriptionOpen && speechRecognitionRef.current) {
@@ -1099,7 +1107,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
               }
             }
           };
-          
+
           // Start recognition
           recognition.start();
         } else {
@@ -1232,7 +1240,7 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
               </div>
             </DialogContent>
           </Dialog>
-          
+
 
           <Button variant="destructive" size="icon" onClick={handleEndCall} data-testid="button-end-meeting">
             <X className="h-4 w-4" />
@@ -1240,10 +1248,10 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
         </div>
       </div>
 
-      <div className="grid flex-1 overflow-hidden" style={{ 
-        gridTemplateColumns: liveTranscriptionOpen ? '1fr minmax(250px, 350px)' : '1fr',
+      <div className="flex-1 flex flex-col md:grid overflow-hidden" style={{
+        gridTemplateColumns: (liveTranscriptionOpen) ? '1fr minmax(250px, 350px)' : '1fr',
         gridTemplateRows: '1fr auto'
-       }}>
+      }}>
         <div className="flex flex-col">
           <div className="relative flex-1 bg-muted">
             {/* Main remote video */}
@@ -1412,10 +1420,10 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
 
 
 
-        {/* Live Transcription Panel */}
+        {/* Live Transcription Panel - Responsive handling */}
         {liveTranscriptionOpen && (
-          <div className="border-l flex flex-col h-full">
-            <div className="p-2 sm:p-3 border-b">
+          <div className="border-t md:border-t-0 md:border-l flex flex-col h-[200px] md:h-full w-full md:w-auto overflow-hidden">
+            <div className="p-2 sm:p-3 border-b bg-background">
               <div className="flex justify-between items-center">
                 <h3 className="font-medium">Live Transcription</h3>
                 <Badge variant="outline" className="bg-primary/10">
@@ -1430,13 +1438,13 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                 <div className="flex items-center space-x-1 text-xs">
                   <span className="text-muted-foreground mr-1">Speaker:</span>
                   <div className="bg-muted rounded-md p-1 flex">
-                    <button 
+                    <button
                       className={`px-2 py-1 rounded transition-colors ${currentSpeaker === 'Doctor' ? 'bg-blue-500 text-white' : 'hover:bg-muted-foreground/10'}`}
                       onClick={() => setCurrentSpeaker('Doctor')}
                     >
                       Doctor
                     </button>
-                    <button 
+                    <button
                       className={`px-2 py-1 rounded transition-colors ${currentSpeaker === 'Patient' ? 'bg-orange-500 text-white' : 'hover:bg-muted-foreground/10'}`}
                       onClick={() => setCurrentSpeaker('Patient')}
                     >
@@ -1452,22 +1460,20 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                 {liveTranscriptions.map((item, i) => (
                   <div key={i} className="flex flex-col">
                     <div className="flex items-center gap-2">
-                      <p className={`text-xs font-medium ${
-                          item.speaker === 'Doctor' ? 'text-blue-500' : 
-                          item.speaker === 'Patient' ? 'text-orange-500' : 
-                          'text-muted-foreground'
+                      <p className={`text-xs font-medium ${item.speaker === 'Doctor' ? 'text-blue-500' :
+                          item.speaker === 'Patient' ? 'text-orange-500' :
+                            'text-muted-foreground'
                         }`}>{item.speaker}</p>
                       <p className="text-xs text-muted-foreground">
-                        {item.timestamp.toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit', hour12: true})}
+                        {item.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
                       </p>
                     </div>
-                    <div className={`rounded-lg p-2 sm:p-3 mt-1 inline-block max-w-[85%] ${
-                      item.speaker === 'System' 
-                        ? 'bg-secondary/20 italic' 
-                        : item.speaker === 'Patient' 
-                          ? 'bg-orange-500/10 border border-orange-500/20' 
+                    <div className={`rounded-lg p-2 sm:p-3 mt-1 inline-block max-w-[85%] ${item.speaker === 'System'
+                        ? 'bg-secondary/20 italic'
+                        : item.speaker === 'Patient'
+                          ? 'bg-orange-500/10 border border-orange-500/20'
                           : 'bg-blue-500/10 border border-blue-500/20'
-                    }`}>
+                      }`}>
                       <p className="text-sm">{item.text}</p>
                     </div>
                   </div>
@@ -1509,7 +1515,7 @@ function StartConsultationDialog({ isOpen, onClose, onStartConsultation }: Start
     queryKey: ["/api/patients"],
   });
 
-  const filteredPatients = patients?.filter(patient => 
+  const filteredPatients = patients?.filter(patient =>
     `${patient.firstName} ${patient.lastName || ''}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
     patient.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -1540,7 +1546,7 @@ function StartConsultationDialog({ isOpen, onClose, onStartConsultation }: Start
                 <p className="text-center py-4 text-muted-foreground">No patients found</p>
               ) : (
                 filteredPatients?.map(patient => (
-                  <div 
+                  <div
                     key={patient.id}
                     className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-accent"
                     onClick={() => onStartConsultation(patient)}
@@ -1656,26 +1662,26 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
   // Load audio recording
   const loadRecording = async () => {
     if (!recording || !recording.id) return;
-    
+
     setIsLoading(true);
     try {
       // Determine which type of recording to fetch based on recording type
       const isVideo = recording.recordingType === 'video' || recording.recordingType === 'both';
-      const endpoint = isVideo 
+      const endpoint = isVideo
         ? `/api/telemedicine/recordings/${recording.id}/video`
         : `/api/telemedicine/recordings/${recording.id}/audio`;
-      
+
       console.log(`Loading ${isVideo ? 'video' : 'audio'} recording from ${endpoint}`);
-      
+
       // Fetch the recording from the server
       const response = await fetch(endpoint);
-      
+
       if (!response.ok) {
         // Create a sample recording if server doesn't have one
         createSampleRecording();
         return;
       }
-      
+
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       setMediaUrl(url);
@@ -1692,7 +1698,7 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
       setIsLoading(false);
     }
   };
-  
+
   // Create a sample recording as fallback when actual recording is not available
   const createSampleRecording = () => {
     // For demo purposes, we'll create a sample media blob
@@ -1700,7 +1706,7 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
     try {
       const isVideo = recording?.recordingType === 'video' || recording?.recordingType === 'both';
       const samplePath = isVideo ? '/video/sample-consultation.webm' : '/audio/sample-consultation.mp3';
-      
+
       // Try to fetch a sample file
       fetch(samplePath)
         .then(response => {
@@ -1726,15 +1732,15 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
       console.error('Error creating sample recording:', error);
     }
   };
-  
+
   // Toggle play/pause media (audio or video)
   const togglePlayback = () => {
     // Determine which media element to control based on recording type
     const isVideo = recording?.recordingType === 'video' || recording?.recordingType === 'both';
     const mediaElement = isVideo ? videoRef.current : audioRef.current;
-    
+
     if (!mediaElement) return;
-    
+
     if (isPlaying) {
       mediaElement.pause();
     } else {
@@ -1742,13 +1748,13 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
     }
     setIsPlaying(!isPlaying);
   };
-  
+
   // Cleanup media URL on dialog close
   useEffect(() => {
     if (isOpen && recording) {
       loadRecording();
     }
-    
+
     return () => {
       if (mediaUrl) {
         URL.revokeObjectURL(mediaUrl);
@@ -1757,41 +1763,41 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
       setIsPlaying(false);
     };
   }, [isOpen, recording?.id]);
-  
+
   // Handle media events and progress updates (for both audio and video)
   useEffect(() => {
     const handleMediaEnded = () => {
       setIsPlaying(false);
     };
-    
+
     const handleTimeUpdate = () => {
       const progressBar = document.getElementById('audio-progress-bar');
-      
+
       // Determine which media element to use based on recording type
       const isVideo = recording?.recordingType === 'video' || recording?.recordingType === 'both';
       const mediaElement = isVideo ? videoRef.current : audioRef.current;
-      
+
       if (progressBar && mediaElement) {
         const percent = (mediaElement.currentTime / mediaElement.duration) * 100;
         progressBar.style.width = `${percent}%`;
       }
     };
-    
+
     // Add event listeners to the appropriate media element (audio or video)
     const isVideo = recording?.recordingType === 'video' || recording?.recordingType === 'both';
     const mediaElement = isVideo ? videoRef.current : audioRef.current;
-    
+
     if (mediaElement) {
       mediaElement.addEventListener('ended', handleMediaEnded);
       mediaElement.addEventListener('timeupdate', handleTimeUpdate);
-      
+
       return () => {
         mediaElement.removeEventListener('ended', handleMediaEnded);
         mediaElement.removeEventListener('timeupdate', handleTimeUpdate);
       };
     }
   }, [recording?.recordingType]);
-  
+
   if (!recording) return null;
 
   return (
@@ -1828,12 +1834,12 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
               )}
             </div>
           </div>
-          
+
           {/* Media Player Section - For both audio and video */}
           <div className="border rounded-lg p-4 bg-muted/20">
             <div className="flex items-center justify-between mb-4">
               <h4 className="text-sm font-medium">Consultation Recording</h4>
-              
+
               {!isLoading && (recording.recordingType === 'both' || recording.recordingType === 'video') && (
                 <Badge variant="outline" className="text-xs">
                   <Video className="h-3 w-3 mr-1" />
@@ -1841,7 +1847,7 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
                 </Badge>
               )}
             </div>
-            
+
             {isLoading ? (
               <div className="flex items-center justify-center h-16">
                 <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full"></div>
@@ -1850,14 +1856,14 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
               // Video Player
               <div className="flex flex-col gap-4">
                 <div className="aspect-video bg-black rounded-md overflow-hidden relative">
-                  <video 
+                  <video
                     ref={videoRef}
-                    src={mediaUrl || undefined} 
+                    src={mediaUrl || undefined}
                     className="w-full h-full object-contain"
                     controls
                     poster="/images/video-placeholder.jpg"
                   />
-                  
+
                   {!mediaUrl && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
                       <FileText className="h-12 w-12 mb-2 opacity-50" />
@@ -1865,10 +1871,10 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
                     </div>
                   )}
                 </div>
-                
+
                 <div className="flex justify-between">
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     size="sm"
                     onClick={togglePlayback}
                     disabled={!mediaUrl}
@@ -1885,7 +1891,7 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
                       </>
                     )}
                   </Button>
-                  
+
                   <Button
                     variant="outline"
                     size="sm"
@@ -1909,9 +1915,9 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
               <div className="flex flex-col gap-2">
                 <audio ref={audioRef} src={mediaUrl} className="hidden" />
                 <div className="flex items-center justify-between">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    variant="outline"
+                    size="sm"
                     className="w-12 h-12 rounded-full"
                     onClick={togglePlayback}
                   >
@@ -1921,20 +1927,20 @@ function RecordingDetailsDialog({ recording, isOpen, onClose }: RecordingDetails
                       <Play className="h-6 w-6" />
                     )}
                   </Button>
-                  
+
                   <div className="flex-1 mx-4">
                     <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                      <div 
+                      <div
                         className="h-full bg-primary transition-all"
-                        style={{ 
-                          width: audioRef.current ? 
-                            `${(audioRef.current.currentTime / audioRef.current.duration * 100) || 0}%` : '0%' 
+                        style={{
+                          width: audioRef.current ?
+                            `${(audioRef.current.currentTime / audioRef.current.duration * 100) || 0}%` : '0%'
                         }}
                         id="audio-progress-bar"
                       ></div>
                     </div>
                   </div>
-                  
+
                   <Button
                     variant="ghost"
                     size="sm"
@@ -2063,7 +2069,7 @@ export default function Telemedicine() {
   const { data: recordings, isLoading: loadingRecordings, refetch: refetchRecordings } = useQuery<RecordingSession[]>({
     queryKey: ["/api/telemedicine/recordings"],
   });
-  
+
   // Delete recording mutation
   const deleteRecordingMutation = useMutation({
     mutationFn: async (recordingId: number) => {
@@ -2086,7 +2092,7 @@ export default function Telemedicine() {
       });
     },
   });
-  
+
   // Handler for deleting a recording
   const handleDeleteRecording = (recordingId: number) => {
     if (window.confirm("Are you sure you want to delete this recording? This action cannot be undone.")) {
@@ -2146,7 +2152,7 @@ export default function Telemedicine() {
     <>
       {activeConsultation ? (
         <div className="h-[calc(100vh-theme(spacing.16))]">
-          <VideoConsultation 
+          <VideoConsultation
             roomId={activeConsultation.roomId}
             patient={activeConsultation.patient}
             onClose={handleEndConsultation}
@@ -2173,9 +2179,9 @@ export default function Telemedicine() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{
-                  appointments?.filter(a => 
-                    a.type === 'telemedicine' && 
-                    new Date(a.date) > new Date() && 
+                  appointments?.filter(a =>
+                    a.type === 'telemedicine' &&
+                    new Date(a.date) > new Date() &&
                     a.status !== 'cancelled'
                   ).length || 0
                 }</div>
@@ -2225,8 +2231,8 @@ export default function Telemedicine() {
               {appointments && patients ? (
                 <div className="space-y-4">
                   {appointments
-                    .filter(appointment => 
-                      appointment.type === 'telemedicine' && 
+                    .filter(appointment =>
+                      appointment.type === 'telemedicine' &&
                       new Date(appointment.date) > new Date() &&
                       appointment.status !== 'cancelled'
                     )
@@ -2259,7 +2265,7 @@ export default function Telemedicine() {
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <Button 
+                            <Button
                               size="icon"
                               onClick={() => handleStartConsultation(patient)}
                             >
@@ -2309,15 +2315,15 @@ export default function Telemedicine() {
                         <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
                           <Avatar className="h-8 w-8 md:h-10 md:w-10 flex-shrink-0">
                             <AvatarFallback>
-                              {recording.patient ? 
-                                `${recording.patient.firstName?.charAt(0) || ''}${recording.patient.lastName?.charAt(0) || ''}` : 
+                              {recording.patient ?
+                                `${recording.patient.firstName?.charAt(0) || ''}${recording.patient.lastName?.charAt(0) || ''}` :
                                 'P'}
                             </AvatarFallback>
                           </Avatar>
                           <div className="min-w-0 flex-1">
                             <p className="font-medium text-sm md:text-base truncate">
-                              {recording.patient ? 
-                                `${recording.patient.firstName} ${recording.patient.lastName || ''}` : 
+                              {recording.patient ?
+                                `${recording.patient.firstName} ${recording.patient.lastName || ''}` :
                                 'Unknown Patient'}
                             </p>
                             <p className="text-xs md:text-sm text-muted-foreground truncate">
@@ -2326,15 +2332,15 @@ export default function Telemedicine() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             size="sm"
                             onClick={() => handleDeleteRecording(recording.id)}
                             className="text-red-500 hover:text-red-700"
                           >
                             <X className="h-4 w-4" />
                           </Button>
-                          <Badge 
+                          <Badge
                             variant={recording.status === 'completed' ? 'success' : 'default'}
                             className="capitalize"
                           >
@@ -2360,8 +2366,8 @@ export default function Telemedicine() {
                       )}
 
                       <div className="flex gap-2 mt-3">
-                        <Button 
-                          variant="outline" 
+                        <Button
+                          variant="outline"
                           size="sm"
                           onClick={() => {
                             setSelectedRecording(recording);
@@ -2384,7 +2390,7 @@ export default function Telemedicine() {
             </CardContent>
           </Card>
 
-          <StartConsultationDialog 
+          <StartConsultationDialog
             isOpen={showStartDialog}
             onClose={() => setShowStartDialog(false)}
             onStartConsultation={handleStartConsultation}

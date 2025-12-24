@@ -7,13 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { 
-  Mic, 
-  Loader2, 
-  FileText, 
-  Save, 
-  Users, 
-  Check, 
+import {
+  Mic,
+  Loader2,
+  FileText,
+  Save,
+  Users,
+  Check,
   UserPlus,
   Stethoscope,
   ClipboardList,
@@ -38,12 +38,12 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
 } from "@/components/ui/select";
 import {
   Command,
@@ -159,33 +159,31 @@ export default function Notes() {
     }
   });
 
-  // Load custom prompt when note type changes
+  // Fetch custom prompt
+  const { data: customPrompt, isLoading: isLoadingPrompt } = useQuery<any>({
+    queryKey: ["/api/custom-note-prompts", selectedNoteType],
+    enabled: !!selectedNoteType && !!user?.id,
+    queryFn: async () => {
+      const res = await fetch(`/api/custom-note-prompts/${selectedNoteType}`);
+      if (!res.ok) return null;
+      return res.json();
+    }
+  });
+
+  // Update prompt states when customPrompt is loaded
   useEffect(() => {
-    let isActive = true;
-    (async () => {
-      if (!selectedNoteType || !user?.id) return;
-      try {
-        const res = await fetch(`/api/custom-note-prompts/${selectedNoteType}`);
-        if (!res.ok) throw new Error('Failed to fetch custom prompt');
-        const prompt = await res.json();
-        if (!isActive) return;
-        if (prompt && prompt.id) {
-          setSystemPrompt(prompt.systemPrompt || '');
-          setTemplateContent(prompt.templateContent || '');
-        }
-      } catch (error) {
-        console.error('Error loading custom prompt:', error);
-      }
-    })();
-    return () => { isActive = false; };
-  }, [selectedNoteType, user?.id]);
+    if (customPrompt && customPrompt.id) {
+      setSystemPrompt(customPrompt.systemPrompt || '');
+      setTemplateContent(customPrompt.templateContent || '');
+    }
+  }, [customPrompt]);
 
   // Generate AI suggestion for note type based on patient history
   useEffect(() => {
     if (selectedPatient && patientMedicalNotes && workflowStep === 2) {
       const hasNotes = patientMedicalNotes.length > 0;
       const lastNote = hasNotes ? patientMedicalNotes[0] : null;
-      
+
       if (!hasNotes) {
         setAiSuggestion("This is a new patient with no previous notes. Recommend: Initial Consultation");
         setSelectedNoteType("initial");
@@ -227,7 +225,7 @@ export default function Notes() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/custom-note-prompts'] });
+      queryClient.invalidateQueries({ queryKey: ["/api/custom-note-prompts", selectedNoteType] });
       toast({ title: "Success", description: "Custom prompt saved successfully" });
       setIsSettingsOpen(false);
     },
@@ -368,7 +366,7 @@ export default function Notes() {
             className={cn(
               "w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium transition-all",
               workflowStep === step ? "bg-primary text-primary-foreground" :
-              workflowStep > step ? "bg-green-500 text-white" : "bg-muted text-muted-foreground"
+                workflowStep > step ? "bg-green-500 text-white" : "bg-muted text-muted-foreground"
             )}
           >
             {workflowStep > step ? <Check className="h-5 w-5" /> : step}
@@ -476,9 +474,9 @@ export default function Notes() {
       </Card>
 
       <div className="flex justify-end">
-        <Button 
-          size="lg" 
-          onClick={() => setWorkflowStep(2)} 
+        <Button
+          size="lg"
+          onClick={() => setWorkflowStep(2)}
           disabled={!selectedPatientId}
           className="px-8"
         >
@@ -651,8 +649,8 @@ export default function Notes() {
                 onClick={() => setSelectedNoteType(type.id)}
                 className={cn(
                   "p-4 rounded-lg border-2 text-left transition-all hover:shadow-md",
-                  selectedNoteType === type.id 
-                    ? "border-primary bg-primary/5" 
+                  selectedNoteType === type.id
+                    ? "border-primary bg-primary/5"
                     : "border-muted hover:border-primary/50"
                 )}
               >
@@ -733,7 +731,7 @@ export default function Notes() {
             <CardContent className="space-y-4">
               {/* Action Buttons */}
               <div className="grid grid-cols-3 gap-3">
-                <Button 
+                <Button
                   onClick={() => setShowConsultationModal(true)}
                   className="h-24 flex flex-col gap-2"
                   variant="outline"
@@ -741,7 +739,7 @@ export default function Notes() {
                   <Mic className="h-8 w-8" />
                   <span>Voice Record</span>
                 </Button>
-                <Button 
+                <Button
                   onClick={() => {
                     setNoteText("");
                     setNoteTitle(`${selectedPatient?.firstName} ${selectedPatient?.lastName || ''} - ${NOTE_TYPES.find(t => t.id === selectedNoteType)?.name}`);
@@ -752,7 +750,7 @@ export default function Notes() {
                   <FileText className="h-8 w-8" />
                   <span>Type Notes</span>
                 </Button>
-                <Button 
+                <Button
                   onClick={() => setShowConsultationModal(true)}
                   className="h-24 flex flex-col gap-2"
                   variant="outline"
@@ -767,8 +765,8 @@ export default function Notes() {
               {/* Note Editor */}
               <div>
                 <Label>Note Title</Label>
-                <Input 
-                  value={noteTitle} 
+                <Input
+                  value={noteTitle}
                   onChange={(e) => setNoteTitle(e.target.value)}
                   placeholder="Enter note title..."
                   className="mb-3"
@@ -776,7 +774,7 @@ export default function Notes() {
               </div>
               <div>
                 <Label>Note Content</Label>
-                <Textarea 
+                <Textarea
                   value={noteText}
                   onChange={(e) => setNoteText(e.target.value)}
                   placeholder="Enter or paste your consultation notes here..."
@@ -825,7 +823,7 @@ export default function Notes() {
                 </div>
               </ScrollArea>
               <div className="flex gap-2">
-                <Input 
+                <Input
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSendChatMessage()}

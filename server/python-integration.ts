@@ -1,8 +1,9 @@
-/**
 // Demo mode - suppress logging
 const DEMO_MODE = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo';
 const log = (...args: any[]) => !DEMO_MODE && console.log(...args);
 const logError = (...args: any[]) => !DEMO_MODE && console.error(...args);
+
+/**
  * Python Service Integration Layer
  * Provides seamless integration between Node.js backend and Python analytics service
  */
@@ -57,11 +58,13 @@ class PythonServiceManager {
       }
 
       log('Starting Python analytics service...');
-      
+
       const pythonServicePath = path.join(process.cwd(), 'python_services', 'main.py');
-      
-      // Start Python FastAPI service
-      this.pythonProcess = spawn('python', [pythonServicePath], {
+
+      // Start Python FastAPI service - use python3 in production/linux, python in local/windows
+      const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
+
+      this.pythonProcess = spawn(pythonCommand, [pythonServicePath], {
         env: { ...process.env, PORT: this.config.port.toString() },
         stdio: ['pipe', 'pipe', 'pipe']
       });
@@ -85,7 +88,7 @@ class PythonServiceManager {
       await this.waitForService();
       this.isServiceRunning = true;
       log(`Python analytics service started on port ${this.config.port}`);
-      
+
       return true;
     } catch (error) {
       logError('Failed to start Python service:', error);
@@ -259,7 +262,7 @@ export const pythonService = new PythonServiceManager();
 // Helper function to parse lab report text into structured data
 export function parseLabReportToValues(reportText: string): LabValue[] {
   const labValues: LabValue[] = [];
-  
+
   // Basic parsing patterns for common lab formats
   const patterns = [
     // Pattern: "TEST_NAME: VALUE (RANGE) UNIT"
@@ -272,10 +275,10 @@ export function parseLabReportToValues(reportText: string): LabValue[] {
     let match;
     while ((match = pattern.exec(reportText)) !== null) {
       const [, name, value, rangeOrUnit, unitOrRange] = match;
-      
+
       let unit = '';
       let referenceRange = '';
-      
+
       // Determine which is unit and which is range
       if (rangeOrUnit && rangeOrUnit.includes('-')) {
         referenceRange = rangeOrUnit;
@@ -284,7 +287,7 @@ export function parseLabReportToValues(reportText: string): LabValue[] {
         unit = rangeOrUnit || '';
         referenceRange = unitOrRange || '';
       }
-      
+
       // Parse reference range
       let refMin, refMax;
       if (referenceRange && referenceRange.includes('-')) {
@@ -292,7 +295,7 @@ export function parseLabReportToValues(reportText: string): LabValue[] {
         refMin = parseFloat(min);
         refMax = parseFloat(max);
       }
-      
+
       labValues.push({
         name: name.trim(),
         value: parseFloat(value),
@@ -303,14 +306,14 @@ export function parseLabReportToValues(reportText: string): LabValue[] {
       });
     }
   }
-  
+
   return labValues;
 }
 
 // Helper function to categorize lab tests
 function categorizeLabTest(testName: string): string {
   const name = testName.toLowerCase();
-  
+
   if (name.includes('cholesterol') || name.includes('ldl') || name.includes('hdl') || name.includes('triglyceride')) {
     return 'lipid';
   } else if (name.includes('glucose') || name.includes('hba1c') || name.includes('insulin')) {
@@ -326,7 +329,7 @@ function categorizeLabTest(testName: string): string {
   } else if (name.includes('crp') || name.includes('esr')) {
     return 'inflammation';
   }
-  
+
   return 'general';
 }
 

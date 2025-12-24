@@ -224,12 +224,12 @@ export const parseGlucoseReading = (
   // Type of reading (before/after meal, etc.)
   const typeFlag = (flags & 0x0F);
   const types = [
-    "Reserved", 
-    "Fasting", 
-    "Random", 
-    "Pre-meal", 
-    "Post-meal", 
-    "Exercise", 
+    "Reserved",
+    "Fasting",
+    "Random",
+    "Pre-meal",
+    "Post-meal",
+    "Exercise",
     "Bedtime",
     "Other"
   ];
@@ -424,80 +424,81 @@ export const readBloodPressureData = async (
             });
           });
         } catch (standardServiceError) {
-        console.warn("Standard BP service not found, trying alternative methods...", standardServiceError);
+          console.warn("Standard BP service not found, trying alternative methods...", standardServiceError);
 
-        // Try to use a service discovery approach
-        if (allServices.length > 0) {
-          console.log("Trying alternative services...");
+          // Try to use a service discovery approach
+          if (allServices.length > 0) {
+            console.log("Trying alternative services...");
 
-          // Look for any service that might contain blood pressure data
-          for (const service of allServices) {
-            try {
-              console.log("Examining service:", service.uuid);
-              const characteristics = await service.getCharacteristics();
+            // Look for any service that might contain blood pressure data
+            for (const service of allServices) {
+              try {
+                console.log("Examining service:", service.uuid);
+                const characteristics = await service.getCharacteristics();
 
-              for (const characteristic of characteristics) {
-                console.log("Found characteristic:", characteristic.uuid);
+                for (const characteristic of characteristics) {
+                  console.log("Found characteristic:", characteristic.uuid);
 
-                // Try to read data from this characteristic
-                if (characteristic.properties.notify) {
-                  console.log("This characteristic supports notifications, trying it...");
+                  // Try to read data from this characteristic
+                  if (characteristic.properties.notify) {
+                    console.log("This characteristic supports notifications, trying it...");
 
-                  try {
-                    await characteristic.startNotifications();
-                    console.log("Notifications started for this characteristic");
+                    try {
+                      await characteristic.startNotifications();
+                      console.log("Notifications started for this characteristic");
 
-                    // Wait for potential reading from this characteristic
-                    const reading = await new Promise<{ systolic: number; diastolic: number; pulse: number } | null>((resolve) => {
-                      const timeout = setTimeout(() => {
-                        console.log("Timeout waiting for this characteristic");
-                        characteristic.stopNotifications().catch(e => console.error("Stop notification error:", e));
-                        resolve(null);
-                      }, 5000);
+                      // Wait for potential reading from this characteristic
+                      const reading = await new Promise<{ systolic: number; diastolic: number; pulse: number } | null>((resolve) => {
+                        const timeout = setTimeout(() => {
+                          console.log("Timeout waiting for this characteristic");
+                          characteristic.stopNotifications().catch(e => console.error("Stop notification error:", e));
+                          resolve(null);
+                        }, 5000);
 
-                      characteristic.addEventListener('characteristicvaluechanged', (event) => {
-                        clearTimeout(timeout);
-                        console.log("Received data from this characteristic!");
-                        characteristic.stopNotifications().catch(e => console.error("Stop notification error:", e));
+                        characteristic.addEventListener('characteristicvaluechanged', (event) => {
+                          clearTimeout(timeout);
+                          console.log("Received data from this characteristic!");
+                          characteristic.stopNotifications().catch(e => console.error("Stop notification error:", e));
 
-                        try {
-                          // @ts-ignore
-                          const value = event?.target?.value as DataView;
-                          if (value && value.byteLength >= 6) {
-                            // Try to parse as blood pressure data
-                            resolve({
-                              systolic: value.getUint16(0, true),
-                              diastolic: value.getUint16(2, true),
-                              pulse: value.getUint16(4, true)
-                            });
-                          } else {
+                          try {
+                            // @ts-ignore
+                            const value = event?.target?.value as DataView;
+                            if (value && value.byteLength >= 6) {
+                              // Try to parse as blood pressure data
+                              resolve({
+                                systolic: value.getUint16(0, true),
+                                diastolic: value.getUint16(2, true),
+                                pulse: value.getUint16(4, true)
+                              });
+                            } else {
+                              resolve(null);
+                            }
+                          } catch (e) {
+                            console.error("Error parsing data from this characteristic:", e);
                             resolve(null);
                           }
-                        } catch (e) {
-                          console.error("Error parsing data from this characteristic:", e);
-                          resolve(null);
-                        }
+                        });
                       });
-                    });
 
-                    if (reading) {
-                      console.log("Successfully got reading from alternative characteristic!", reading);
-                      return reading;
+                      if (reading) {
+                        console.log("Successfully got reading from alternative characteristic!", reading);
+                        return reading;
+                      }
+                    } catch (notifyError) {
+                      console.warn("Could not use this characteristic:", notifyError);
                     }
-                  } catch (notifyError) {
-                    console.warn("Could not use this characteristic:", notifyError);
                   }
                 }
+              } catch (serviceError) {
+                console.warn("Error exploring service:", serviceError);
               }
-            } catch (serviceError) {
-              console.warn("Error exploring service:", serviceError);
             }
           }
-        }
 
-        // If we're here, none of the Bluetooth approaches worked
-        console.log("Falling back to API data collection...");
-        return await collectBloodPressureReading();
+          // If we're here, none of the Bluetooth approaches worked
+          console.log("Falling back to API data collection...");
+          return await collectBloodPressureReading();
+        }
       }
     } catch (error) {
       console.error("Error in GATT process:", error);
@@ -544,8 +545,8 @@ const isCompleteCoverichReading = (buffer: Uint8Array): boolean => {
 
     // Check if values are within reasonable ranges for a BP reading
     if (potentialSystolic >= 80 && potentialSystolic <= 200 &&
-        potentialDiastolic >= 40 && potentialDiastolic <= 130 &&
-        potentialPulse >= 40 && potentialPulse <= 180) {
+      potentialDiastolic >= 40 && potentialDiastolic <= 130 &&
+      potentialPulse >= 40 && potentialPulse <= 180) {
       return true;
     }
   }
@@ -584,8 +585,8 @@ const parseCoverichReading = (buffer: Uint8Array): { systolic: number; diastolic
 
       // Check if values are within reasonable ranges
       if (potentialSystolic >= 80 && potentialSystolic <= 200 &&
-          potentialDiastolic >= 40 && potentialDiastolic <= 130 &&
-          potentialPulse >= 40 && potentialPulse <= 180) {
+        potentialDiastolic >= 40 && potentialDiastolic <= 130 &&
+        potentialPulse >= 40 && potentialPulse <= 180) {
 
         systolic = potentialSystolic;
         diastolic = potentialDiastolic;
@@ -601,8 +602,8 @@ const parseCoverichReading = (buffer: Uint8Array): { systolic: number; diastolic
 
       // Check if values are within reasonable ranges
       if (potentialSystolic >= 80 && potentialSystolic <= 200 &&
-          potentialDiastolic >= 40 && potentialDiastolic <= 130 &&
-          potentialPulse >= 40 && potentialPulse <= 180) {
+        potentialDiastolic >= 40 && potentialDiastolic <= 130 &&
+        potentialPulse >= 40 && potentialPulse <= 180) {
 
         systolic = potentialSystolic;
         diastolic = potentialDiastolic;
@@ -614,9 +615,9 @@ const parseCoverichReading = (buffer: Uint8Array): { systolic: number; diastolic
     // search through the buffer for any sequence that might be BP data
     if (systolic === 120 && diastolic === 80) {
       for (let i = 0; i < buffer.length - 5; i++) {
-        const s = buffer[i] + (buffer[i+1] << 8);
-        const d = buffer[i+2] + (buffer[i+3] << 8);
-        const p = buffer[i+4];
+        const s = buffer[i] + (buffer[i + 1] << 8);
+        const d = buffer[i + 2] + (buffer[i + 3] << 8);
+        const p = buffer[i + 4];
 
         if (s >= 80 && s <= 200 && d >= 40 && d <= 130 && p >= 40 && p <= 180) {
           systolic = s;
@@ -655,7 +656,7 @@ const collectBloodPressureReading = async (): Promise<{ systolic: number; diasto
   // Return the average of several recent readings or realistic values
 
   // Age-based BP simulation (systolic tends to rise with age)
-  const baselineSystolic = 115;  
+  const baselineSystolic = 115;
   const baselineDiastolic = 75;
   const baselinePulse = 72;
 

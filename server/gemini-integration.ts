@@ -1,11 +1,12 @@
 /**
+ * Google Gemini API Integration
+ * Hybrid approach: Use Gemini for visual/video, Keep OpenAI for SOAP notes
+ */
+
 // Demo mode - suppress logging
 const DEMO_MODE = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo';
 const log = (...args: any[]) => !DEMO_MODE && console.log(...args);
 const logError = (...args: any[]) => !DEMO_MODE && console.error(...args);
- * Google Gemini API Integration
- * Hybrid approach: Use Gemini for visual/video, Keep OpenAI for SOAP notes
- */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
@@ -16,7 +17,7 @@ let genAI: GoogleGenerativeAI | null = null;
  */
 export function initGemini(): GoogleGenerativeAI | null {
   const apiKey = process.env.GEMINI_API_KEY;
-  
+
   if (!apiKey) {
     console.warn('⚠️ GEMINI_API_KEY not configured');
     return null;
@@ -119,7 +120,7 @@ Analyze the patient's image and provide CLINICAL OBSERVATIONS that can help the 
 - Current Symptoms: ${patientContext.currentSymptoms || 'Not provided'}
 
 Please analyze this patient's image and provide visual health observations.`
-    : 'Please analyze this patient's image and provide visual health observations.';
+    : `Please analyze this patient's image and provide visual health observations.`;
 
   try {
     const result = await model.generateContent([
@@ -361,7 +362,7 @@ export async function chatWithGemini(
 
     const lastMessage = geminiMessages[geminiMessages.length - 1];
     const result = await chat.sendMessage(lastMessage.parts[0].text);
-    
+
     return result.response.text();
   } catch (error) {
     logError('Error in Gemini chat:', error);

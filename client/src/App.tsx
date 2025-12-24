@@ -34,6 +34,7 @@ import MonitoringSystem from "@/pages/monitoring";
 import LabInterpreter from "@/pages/lab-interpreter";
 import AdminPanel from "@/pages/admin-panel";
 import AdminPrompts from "@/pages/admin-prompts";
+import ErrorBoundary from "@/components/error-boundary";
 
 // Wrapper components for each page with the MainLayout
 const DashboardPage = () => (
@@ -131,7 +132,7 @@ function Router() {
     <Switch>
       {/* Landing page as root */}
       <Route path="/" component={LandingPage} />
-      
+
       {/* Protected Routes - require authentication */}
       <ProtectedRoute path="/dashboard" component={DashboardPage} />
       <ProtectedRoute path="/patients" component={PatientsPage} />
@@ -148,22 +149,22 @@ function Router() {
       <ProtectedRoute path="/lab-interpreter" component={LabInterpreterPage} />
       <ProtectedRoute path="/admin" component={AdminPanelPage} />
       <ProtectedRoute path="/admin/prompts" component={AdminPromptsPage} />
-      
+
       {/* Public Routes - accessible without authentication */}
       <Route path="/login" component={AuthPage} />
       <Route path="/register" component={AuthPage} />
       <Route path="/patient-join/:uniqueLink" component={PatientJoin} />
       <Route path="/patient-join-v2/:uniqueLink" component={PatientJoinV2} />
       <Route path="/patient-intake-voice/:uniqueLink" component={PatientIntakeVoice} />
-      
+
       {/* Public routes for telemedicine patient access */}
       <Route path="/join-consultation/:roomId" component={JoinConsultation} />
       <Route path="/consultation-complete" component={ConsultationComplete} />
-      
+
       {/* Public routes for appointment confirmation */}
       <Route path="/confirm-appointment" component={ConfirmAppointment} />
       <Route path="/decline-appointment" component={DeclineAppointment} />
-      
+
       <Route component={NotFound} />
     </Switch>
   );
@@ -171,14 +172,16 @@ function Router() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <UploadManagerProvider>
-          <Router />
-          <Toaster />
-        </UploadManagerProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <UploadManagerProvider>
+            <Router />
+            <Toaster />
+          </UploadManagerProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

@@ -15,11 +15,11 @@ import { patientDocumentsRouter } from "./routes/patient-documents-updated";
 import { adminRouter } from "./routes/admin";
 import { createPublicRouter } from "./routes/public";
 import { notificationSettingsRouter } from "./routes/notification-settings";
-import { 
-  globalErrorHandler, 
-  requireAuth, 
-  sendErrorResponse, 
-  sendSuccessResponse, 
+import {
+  globalErrorHandler,
+  requireAuth,
+  sendErrorResponse,
+  sendSuccessResponse,
   asyncHandler,
   validateRequestBody,
   handleDatabaseOperation,
@@ -41,9 +41,9 @@ declare global {
     filename: string
   }>;
 }
-import { 
-  insertPatientSchema, 
-  insertAppointmentSchema, 
+import {
+  insertPatientSchema,
+  insertAppointmentSchema,
   insertMedicalNoteSchema,
   insertConsultationNoteSchema,
   insertInvoiceSchema,
@@ -58,7 +58,7 @@ import { runMigrations } from './migrations/run-migrations';
 // Define the interface for telemedicine rooms
 interface VideoChatRoom {
   id: string;
-  participants: { 
+  participants: {
     id: string;
     socket: WebSocket;
     name: string;
@@ -76,13 +76,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   } catch (error) {
     logError('Warning: Migration runner error (app will continue):', error);
   }
-  
+
   setupAuth(app);
-  
+
   // Setup/Seed endpoint - creates default users if they don't exist
   app.post('/api/setup', asyncHandler(async (req, res) => {
     const { hashPassword } = await import('./auth');
-    
+
     const defaultUsers = [
       {
         username: 'admin',
@@ -145,25 +145,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     });
   }));
-  
+
   // Register public routes (no auth required)
   app.use('/api/public', createPublicRouter(storage));
-  
+
   // Register AI routes
   app.use('/api/ai', aiRouter);
-  
+
   // Register Email settings routes
   app.use('/api/settings', emailRouter);
-  
+
   // Register Patient Monitoring routes
   app.use('/api/monitoring', monitoringRouter);
-  
+
   // Register Lab Interpreter routes
   app.use('/api/lab-interpreter', labInterpreterRouter);
-  
+
   // Register Patient Documents routes
   app.use('/api/patient-documents', requireAuth, patientDocumentsRouter);
-  
+
   // Register Admin routes
   app.use('/api/admin', adminRouter);
 
@@ -172,9 +172,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // 🚀 PERFORMANCE OPTIMIZATION: Lazy-load notification scheduler only if enabled
   // This reduces startup time and memory usage when notifications are not configured
-  if (process.env.ENABLE_NOTIFICATIONS === 'true' || 
-      process.env.senderEmail || 
-      process.env.daily_patient_list_email_1) {
+  if (process.env.ENABLE_NOTIFICATIONS === 'true' ||
+    process.env.senderEmail ||
+    process.env.daily_patient_list_email_1) {
     const { initializeScheduler } = await import('./notification-scheduler');
     initializeScheduler();
     log('✅ Automated notification system initialized');
@@ -201,16 +201,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (isNaN(patientId)) {
       throw new AppError('Invalid patient ID', 400, 'INVALID_PATIENT_ID');
     }
-    
+
     const patient = await handleDatabaseOperation(
       () => storage.getPatient(patientId),
       'Failed to fetch patient'
     );
-    
+
     if (!patient) {
       throw new AppError('Patient not found', 404, 'PATIENT_NOT_FOUND');
     }
-    
+
     sendSuccessResponse(res, patient);
   }));
 
@@ -219,7 +219,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!validation.success) {
       throw new AppError(validation.error!, 400, 'VALIDATION_ERROR');
     }
-    
+
     const patient = await handleDatabaseOperation(
       () => storage.createPatient({
         ...validation.data,
@@ -227,7 +227,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }),
       'Failed to create patient'
     );
-    
+
     sendSuccessResponse(res, patient, 'Patient created successfully', 201);
   }));
 
@@ -260,10 +260,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
-      
+
       // Convert to JSON
       const rawData: any[] = XLSX.utils.sheet_to_json(worksheet);
-      
+
       if (!rawData || rawData.length === 0) {
         throw new AppError('Excel file is empty or has no valid data', 400, 'EMPTY_FILE');
       }
@@ -290,7 +290,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Process each row
       for (let i = 0; i < rawData.length; i++) {
         const row = rawData[i];
-        
+
         try {
           // Map Excel columns to patient schema
           // Expected columns: First Name, Last Name, Email, Phone, Date of Birth, Address, Medical History
@@ -358,7 +358,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         successfulImports,
         failedImports,
       }, `Successfully imported ${successfulImports.length} of ${rawData.length} patients`, 200);
-      
+
     } catch (error) {
       logError('Error processing Excel file:', error);
       throw new AppError(
@@ -392,10 +392,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!validation.success) {
       throw new AppError(validation.error!, 400, 'VALIDATION_ERROR');
     }
-    
+
     // Generate unique confirmation token
     const confirmationToken = randomBytes(32).toString('hex');
-    
+
     const appointment = await handleDatabaseOperation(
       () => storage.createAppointment({
         ...validation.data,
@@ -404,19 +404,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }),
       'Failed to create appointment'
     );
-    
+
     // Send confirmation email to patient with confirm/decline buttons
     try {
       const patient = await storage.getPatient(appointment.patientId);
       if (patient && patient.email) {
         const appointmentDate = new Date(appointment.date);
-        
+
         // Get the correct base URL
         // Use custom domain in production, localhost in development
-        const baseUrl = process.env.REPLIT_DEPLOYMENT === '1' 
+        const baseUrl = process.env.REPLIT_DEPLOYMENT === '1'
           ? 'https://aimstalk.live'
           : 'http://localhost:5000';
-        
+
         await sendPatientEmail(
           patient.email,
           `${patient.firstName} ${patient.lastName || ''}`.trim(),
@@ -435,7 +435,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       logError('Failed to send confirmation email:', emailError);
       // Don't fail the request if email fails
     }
-    
+
     sendSuccessResponse(res, appointment, 'Appointment created successfully', 201);
   }));
 
@@ -445,21 +445,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (isNaN(appointmentId)) {
       throw new AppError('Invalid appointment ID', 400, 'INVALID_APPOINTMENT_ID');
     }
-    
+
     const { status } = req.body;
     if (!status) {
       throw new AppError('Status is required', 400, 'STATUS_REQUIRED');
     }
-    
+
     const updatedAppointment = await handleDatabaseOperation(
       () => storage.updateAppointmentStatus(appointmentId, status),
       'Failed to update appointment status'
     );
-    
+
     if (!updatedAppointment) {
       throw new AppError('Appointment not found', 404, 'APPOINTMENT_NOT_FOUND');
     }
-    
+
     sendSuccessResponse(res, updatedAppointment, 'Appointment status updated successfully');
   }));
 
@@ -469,7 +469,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (isNaN(appointmentId)) {
       throw new AppError('Invalid appointment ID', 400, 'INVALID_APPOINTMENT_ID');
     }
-    
+
     // Convert numeric timestamp to Date object for PostgreSQL timestamp
     let updates = req.body;
     if (typeof updates.date === 'number') {
@@ -478,16 +478,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         date: new Date(updates.date)
       };
     }
-    
+
     const updatedAppointment = await handleDatabaseOperation(
       () => storage.updateAppointment(appointmentId, updates),
       'Failed to update appointment'
     );
-    
+
     if (!updatedAppointment) {
       throw new AppError('Appointment not found', 404, 'APPOINTMENT_NOT_FOUND');
     }
-    
+
     // Send rescheduled email to patient
     try {
       const patient = await storage.getPatient(updatedAppointment.patientId);
@@ -509,7 +509,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       logError('Failed to send rescheduled email:', emailError);
       // Don't fail the request if email fails
     }
-    
+
     sendSuccessResponse(res, updatedAppointment, 'Appointment updated successfully');
   }));
 
@@ -519,26 +519,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (isNaN(appointmentId)) {
       throw new AppError('Invalid appointment ID', 400, 'INVALID_APPOINTMENT_ID');
     }
-    
+
     // Get appointment details before deleting (for email notification)
     const appointment = await handleDatabaseOperation(
       () => storage.getAppointment(appointmentId),
       'Failed to fetch appointment'
     );
-    
+
     if (!appointment) {
       throw new AppError('Appointment not found', 404, 'APPOINTMENT_NOT_FOUND');
     }
-    
+
     const deleted = await handleDatabaseOperation(
       () => storage.deleteAppointment(appointmentId),
       'Failed to delete appointment'
     );
-    
+
     if (!deleted) {
       throw new AppError('Appointment not found', 404, 'APPOINTMENT_NOT_FOUND');
     }
-    
+
     // Send cancellation email to patient
     try {
       const patient = await storage.getPatient(appointment.patientId);
@@ -560,7 +560,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       logError('Failed to send cancellation email:', emailError);
       // Don't fail the request if email fails
     }
-    
+
     sendSuccessResponse(res, { id: appointmentId }, 'Appointment deleted successfully');
   }));
 
@@ -578,12 +578,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (isNaN(patientId)) {
       throw new AppError('Invalid patient ID', 400, 'INVALID_PATIENT_ID');
     }
-    
+
     const notes = await handleDatabaseOperation(
       () => storage.getMedicalNotesByPatient(patientId),
       'Failed to fetch medical notes'
     );
-    
+
     sendSuccessResponse(res, notes);
   }));
 
@@ -592,12 +592,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (isNaN(patientId)) {
       throw new AppError('Invalid patient ID', 400, 'INVALID_PATIENT_ID');
     }
-    
+
     const labReports = await handleDatabaseOperation(
       () => storage.getLabReportsByPatient(patientId),
       'Failed to fetch lab reports'
     );
-    
+
     sendSuccessResponse(res, labReports);
   }));
 
@@ -635,9 +635,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Generate DOCX using the docx library
       const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx');
-      
+
       const docSections = [];
-      
+
       // Title
       docSections.push(
         new Paragraph({
@@ -645,7 +645,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           heading: HeadingLevel.TITLE,
         })
       );
-      
+
       // Note type and date info
       docSections.push(
         new Paragraph({
@@ -658,9 +658,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ],
         })
       );
-      
+
       docSections.push(new Paragraph({ text: "" })); // Empty line
-      
+
       // Patient information if available
       if (patient) {
         docSections.push(
@@ -669,7 +669,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             heading: HeadingLevel.HEADING_1,
           })
         );
-        
+
         const patientName = `${patient.firstName || ''} ${patient.lastName || ''}`.trim();
         if (patientName) {
           docSections.push(
@@ -681,7 +681,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             })
           );
         }
-        
+
         if (patient.email) {
           docSections.push(
             new Paragraph({
@@ -692,7 +692,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             })
           );
         }
-        
+
         if (patient.phone) {
           docSections.push(
             new Paragraph({
@@ -703,10 +703,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             })
           );
         }
-        
+
         docSections.push(new Paragraph({ text: "" })); // Empty line
       }
-      
+
       // Note content
       docSections.push(
         new Paragraph({
@@ -714,7 +714,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           heading: HeadingLevel.HEADING_1,
         })
       );
-      
+
       // Split content by lines and create paragraphs
       const contentLines = (note.content || '').split('\n');
       contentLines.forEach(line => {
@@ -729,7 +729,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           })
         );
       });
-      
+
       // Add timestamp
       docSections.push(new Paragraph({ text: "" })); // Empty line
       docSections.push(
@@ -743,7 +743,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ],
         })
       );
-      
+
       // Create the document
       const doc = new Document({
         sections: [{
@@ -751,16 +751,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           children: docSections,
         }],
       });
-      
+
       // Generate the DOCX buffer
       const docxBuffer = await Packer.toBuffer(doc);
-      
+
       // Set headers and send file
       const filename = `medical-note-${note.id}-${new Date().toISOString().split('T')[0]}.docx`;
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       res.send(docxBuffer);
-      
+
     } catch (error) {
       logError('Error generating medical note document:', error);
       throw new AppError('Failed to generate document', 500, 'DOCUMENT_GENERATION_FAILED');
@@ -772,12 +772,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(401).json({ message: "Unauthorized" });
     }
     const doctorId = req.user.id;
-    
+
     const validation = insertMedicalNoteSchema.safeParse(req.body);
     if (!validation.success) {
       return res.status(400).json(validation.error);
     }
-    
+
     // Verify patient exists
     if (validation.data.patientId) {
       const patient = await storage.getPatient(validation.data.patientId);
@@ -785,15 +785,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Patient not found" });
       }
     }
-    
+
     const note = await storage.createMedicalNote({
       ...validation.data,
       doctorId: doctorId,
     });
-    
+
     res.status(201).json(note);
   });
-  
+
   // Quick Notes routes (notes without patient association)
   app.get("/api/quick-notes", async (req, res) => {
     try {
@@ -801,7 +801,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Unauthorized" });
       }
       const doctorId = req.user.id;
-      
+
       const notes = await storage.getQuickNotes(doctorId);
       res.json(notes);
     } catch (error) {
@@ -809,21 +809,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch quick notes" });
     }
   });
-  
+
   app.post("/api/quick-notes", async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: "Unauthorized" });
       }
       const doctorId = req.user.id;
-      
+
       // Create a modified schema for quick notes that doesn't require patientId
       const quickNoteData = {
         ...req.body,
         doctorId: doctorId,
         isQuickNote: true
       };
-      
+
       const note = await storage.createQuickNote(quickNoteData);
       res.status(201).json(note);
     } catch (error: any) {
@@ -838,29 +838,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(401).json({ message: "Unauthorized" });
     }
     const doctorId = req.user.id;
-    
+
     const notes = await storage.getConsultationNotes(doctorId);
     res.json(notes);
   });
-  
+
   app.get("/api/patients/:patientId/consultation-notes", async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Unauthorized" });
     }
-    
+
     const patientId = parseInt(req.params.patientId);
     const patient = await storage.getPatient(patientId);
     if (!patient) return res.sendStatus(404);
-    
+
     const notes = await storage.getConsultationNotesByPatient(patientId);
     res.json(notes);
   });
-  
+
   app.get("/api/consultation-notes/:id", async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Unauthorized" });
     }
-    
+
     const noteId = parseInt(req.params.id);
     if (isNaN(noteId)) {
       return res.status(400).json({ message: "Invalid ID format" });
@@ -869,53 +869,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!note) return res.sendStatus(404);
     res.json(note);
   });
-  
+
   app.post("/api/consultation-notes", async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Unauthorized" });
     }
     const doctorId = req.user.id;
-    
+
     const validation = insertConsultationNoteSchema.safeParse(req.body);
     if (!validation.success) {
       return res.status(400).json(validation.error);
     }
-    
+
     // Verify patient exists
     const patient = await storage.getPatient(validation.data.patientId);
     if (!patient) {
       return res.status(404).json({ message: "Patient not found" });
     }
-    
+
     const note = await storage.createConsultationNote({
       ...validation.data,
       doctorId: doctorId,
     });
-    
+
     res.status(201).json(note);
   });
-  
+
   // Create medical note from consultation
   app.post("/api/medical-notes/from-consultation", async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Unauthorized" });
     }
     const doctorId = req.user.id;
-    
+
     // Extract required fields from request
     const { consultationId, patientId, content, type, title } = req.body;
-    
+
     // Basic validation
     if (!consultationId || !patientId || !content || !title) {
       return res.status(400).json({ message: "Missing required fields" });
     }
-    
+
     try {
       const consultationIdNum = parseInt(consultationId);
       if (isNaN(consultationIdNum)) {
         return res.status(400).json({ message: "Invalid consultation ID format" });
       }
-      
+
       // Create a medical note linked to the consultation
       const medicalNote = await storage.createMedicalNoteFromConsultation(
         {
@@ -927,21 +927,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
         consultationIdNum
       );
-      
+
       res.status(201).json(medicalNote);
     } catch (error: any) {
       logError("Error creating medical note from consultation:", error);
       res.status(500).json({ message: "Failed to create medical note from consultation" });
     }
   });
-  
+
   // Medical Note Templates routes
   app.get("/api/medical-note-templates", async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      
+
       const templates = await storage.getMedicalNoteTemplates();
       res.json(templates);
     } catch (error) {
@@ -949,13 +949,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch medical note templates" });
     }
   });
-  
+
   app.get("/api/medical-note-templates/type/:type", async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      
+
       const type = req.params.type;
       const templates = await storage.getMedicalNoteTemplatesByType(type);
       res.json(templates);
@@ -964,38 +964,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch medical note templates" });
     }
   });
-  
+
   app.get("/api/medical-note-templates/:id", async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      
+
       const id = parseInt(req.params.id);
       const template = await storage.getMedicalNoteTemplate(id);
-      
+
       if (!template) {
         return res.status(404).json({ message: "Template not found" });
       }
-      
+
       res.json(template);
     } catch (error) {
       logError("Error fetching medical note template:", error);
       res.status(500).json({ message: "Failed to fetch medical note template" });
     }
   });
-  
+
   app.post("/api/medical-note-templates", async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      
+
       const validation = insertMedicalNoteTemplateSchema.safeParse(req.body);
       if (!validation.success) {
         return res.status(400).json(validation.error);
       }
-      
+
       const template = await storage.createMedicalNoteTemplate(validation.data);
       res.status(201).json(template);
     } catch (error) {
@@ -1003,20 +1003,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to create medical note template" });
     }
   });
-  
+
   app.put("/api/medical-note-templates/:id", async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      
+
       const id = parseInt(req.params.id);
       const template = await storage.getMedicalNoteTemplate(id);
-      
+
       if (!template) {
         return res.status(404).json({ message: "Template not found" });
       }
-      
+
       const updatedTemplate = await storage.updateMedicalNoteTemplate(id, req.body);
       res.json(updatedTemplate);
     } catch (error) {
@@ -1024,20 +1024,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to update medical note template" });
     }
   });
-  
+
   app.delete("/api/medical-note-templates/:id", async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      
+
       const id = parseInt(req.params.id);
       const result = await storage.deleteMedicalNoteTemplate(id);
-      
+
       if (!result) {
         return res.status(404).json({ message: "Template not found" });
       }
-      
+
       res.sendStatus(204);
     } catch (error) {
       logError("Error deleting medical note template:", error);
@@ -1071,12 +1071,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         SELECT column_name FROM information_schema.columns 
         WHERE table_name = 'custom_note_prompts' AND column_name = 'is_global'
       `);
-      
+
       if (columnCheck.rows.length === 0) {
         // Column doesn't exist, return empty array (feature not enabled)
         return res.json([]);
       }
-      
+
       const result = await pool.query(`
         SELECT id, note_type as "noteType", name, description, 
                system_prompt as "systemPrompt", template_content as "templateContent",
@@ -1101,14 +1101,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const userId = req.user!.id;
       const { noteType } = req.params;
-      
+
       // First, try to get user's custom prompt
       const userPrompt = await storage.getCustomNotePrompt(userId, noteType);
-      
+
       if (userPrompt) {
         return res.json(userPrompt);
       }
-      
+
       // If no user prompt, return null (no global prompts in current schema)
       res.json(null);
     } catch (error) {
@@ -1125,14 +1125,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const userId = req.user!.id;
       const { noteType, systemPrompt, templateContent } = req.body;
-      
+
       const prompt = await storage.saveCustomNotePrompt({
         userId,
         noteType,
         systemPrompt,
         templateContent,
       });
-      
+
       res.json(prompt);
     } catch (error) {
       logError("Error saving custom note prompt:", error);
@@ -1162,32 +1162,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      
+
       const userId = req.user.id;
       const user = await storage.getUser(userId);
-      
+
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
-      
+
       // Only return API key info if user is configured to use their own API key
       if (!user.useOwnApiKey) {
-        return res.json({ 
-          canUseOwnApiKey: false, 
+        return res.json({
+          canUseOwnApiKey: false,
           useOwnApiKey: false,
-          message: "Your account is configured to use the global API key. Contact your administrator to enable personal API key usage." 
+          message: "Your account is configured to use the global API key. Contact your administrator to enable personal API key usage."
         });
       }
-      
+
       const apiKey = await storage.getUserApiKey(userId);
-      
+
       // Return masked key for security (only show first 6 chars)
       const maskedKey = apiKey ? `${apiKey.substring(0, 6)}...` : null;
-      res.json({ 
+      res.json({
         canUseOwnApiKey: true,
         useOwnApiKey: true,
-        hasApiKey: !!apiKey, 
-        maskedKey 
+        hasApiKey: !!apiKey,
+        maskedKey
       });
     } catch (error) {
       logError("Error fetching user API key:", error);
@@ -1200,31 +1200,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      
+
       const { apiKey } = req.body;
       const userId = req.user.id;
       const user = await storage.getUser(userId);
-      
+
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
-      
+
       // Check if user is allowed to use their own API key
       if (!user.useOwnApiKey) {
-        return res.status(403).json({ 
-          message: "Your account is not configured to use personal API keys. Contact your administrator to enable this feature." 
+        return res.status(403).json({
+          message: "Your account is not configured to use personal API keys. Contact your administrator to enable this feature."
         });
       }
-      
+
       if (!apiKey || typeof apiKey !== 'string') {
         return res.status(400).json({ message: "Valid API key is required" });
       }
-      
+
       // Basic validation for OpenAI API key format
       if (!apiKey.startsWith('sk-') || apiKey.length < 40) {
         return res.status(400).json({ message: "Invalid OpenAI API key format" });
       }
-      
+
       await storage.updateUserApiKey(userId, apiKey);
       res.json({ success: true, message: "API key updated successfully" });
     } catch (error) {
@@ -1239,21 +1239,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      
+
       const userId = req.user.id;
       const user = await storage.getUser(userId);
-      
+
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
-      
+
       // Check if user is allowed to use their own API key
       if (!user.useOwnApiKey) {
-        return res.status(403).json({ 
-          message: "Your account is not configured to use personal API keys. Contact your administrator to enable this feature." 
+        return res.status(403).json({
+          message: "Your account is not configured to use personal API keys. Contact your administrator to enable this feature."
         });
       }
-      
+
       await storage.updateUserApiKey(userId, null);
       res.json({ success: true, message: "API key removed successfully" });
     } catch (error) {
@@ -1267,21 +1267,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      
+
       const userId = req.user.id;
       const user = await storage.getUser(userId);
-      
+
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
-      
+
       // Check if user is allowed to manage their own API key
       if (!user.useOwnApiKey) {
-        return res.status(403).json({ 
-          message: "Your account is not configured to use personal API keys. Contact your administrator to enable this feature." 
+        return res.status(403).json({
+          message: "Your account is not configured to use personal API keys. Contact your administrator to enable this feature."
         });
       }
-      
+
       await storage.updateUserApiKey(userId, null);
       res.json({ success: true, message: "API key removed successfully" });
     } catch (error) {
@@ -1291,7 +1291,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Telemedicine routes
-  
+
   // Invoice routes
   app.get("/api/invoices", async (req, res) => {
     try {
@@ -1299,7 +1299,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Unauthorized" });
       }
       const doctorId = req.user.id;
-      
+
       const invoices = await storage.getInvoices(doctorId);
       res.json(invoices);
     } catch (error) {
@@ -1313,7 +1313,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      
+
       const patientId = parseInt(req.params.patientId);
       const invoices = await storage.getInvoicesByPatient(patientId);
       res.json(invoices);
@@ -1328,14 +1328,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      
+
       const invoiceId = parseInt(req.params.id);
       const invoice = await storage.getInvoice(invoiceId);
-      
+
       if (!invoice) {
         return res.status(404).json({ message: "Invoice not found" });
       }
-      
+
       res.json(invoice);
     } catch (error) {
       logError("Error fetching invoice:", error);
@@ -1349,7 +1349,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Unauthorized" });
       }
       const doctorId = req.user.id;
-      
+
       // Create a modified request body to ensure proper types
       let dueDate;
       try {
@@ -1377,19 +1377,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         logError("Error parsing date:", e);
         dueDate = new Date(); // Fallback to current date
       }
-      
+
       const modifiedBody = {
         ...req.body,
         doctorId: doctorId,
         // Set the parsed date
         dueDate: dueDate
       };
-      
+
       const validation = insertInvoiceSchema.safeParse(modifiedBody);
       if (!validation.success) {
         return res.status(400).json(validation.error);
       }
-      
+
       const invoice = await storage.createInvoice(validation.data);
       res.status(201).json(invoice);
     } catch (error) {
@@ -1402,13 +1402,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const invoiceId = parseInt(req.params.id);
       const { status } = req.body;
-      
+
       const invoice = await storage.updateInvoiceStatus(invoiceId, status);
-      
+
       if (!invoice) {
         return res.status(404).json({ message: "Invoice not found" });
       }
-      
+
       res.json(invoice);
     } catch (error) {
       logError("Error updating invoice status:", error);
@@ -1420,13 +1420,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const invoiceId = parseInt(req.params.id);
       const { amountPaid } = req.body;
-      
+
       const invoice = await storage.updateInvoicePayment(invoiceId, amountPaid);
-      
+
       if (!invoice) {
         return res.status(404).json({ message: "Invoice not found" });
       }
-      
+
       res.json(invoice);
     } catch (error) {
       logError("Error updating invoice payment:", error);
@@ -1439,7 +1439,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // This would be required in production: if (!req.isAuthenticated()) {
     //  return res.status(401).json({ message: 'Unauthorized' });
     // }
-    
+
     // Convert activeRooms to array of room objects (without socket objects for serialization)
     const rooms = Array.from(activeRooms.entries()).map(([id, room]) => ({
       id,
@@ -1449,10 +1449,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isDoctor: p.isDoctor
       }))
     }));
-    
+
     res.json(rooms);
   });
-  
+
   // Get recording sessions (history of telemedicine consultations)
   app.get('/api/telemedicine/recordings', async (req, res) => {
     try {
@@ -1460,9 +1460,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Unauthorized" });
       }
       const doctorId = req.user!.id;
-      
+
       const recordings = await storage.getRecordingSessions(doctorId);
-      
+
       // Get patient details for each recording
       const recordingsWithPatients = await Promise.all(
         recordings.map(async (recording) => {
@@ -1473,30 +1473,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
           };
         })
       );
-      
+
       res.json(recordingsWithPatients);
     } catch (error) {
       logError('Error fetching recording sessions:', error);
       res.status(500).json({ message: 'Failed to fetch recording sessions' });
     }
   });
-  
+
   // Create a new recording session
   app.post('/api/telemedicine/recordings', async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      
+
       const doctorId = req.user!.id;
       const { roomId, patientId, startTime, endTime, duration, status, recordingType, mediaFormat } = req.body;
-      
+
       log('Creating recording session:', { roomId, patientId, duration, recordingType, mediaFormat });
-      
+
       if (!roomId || !patientId) {
         return res.status(400).json({ message: 'Missing required fields: roomId and patientId' });
       }
-      
+
       const recording = await storage.createRecordingSession({
         roomId,
         patientId,
@@ -1510,35 +1510,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         transcript: null,
         notes: null
       });
-      
+
       log('Recording session created:', recording.id);
-      
+
       res.status(200).json(recording);
     } catch (error) {
       logError('Error creating recording session:', error);
       res.status(500).json({ message: 'Failed to create recording session' });
     }
   });
-  
+
   // Get a specific recording session
   app.get('/api/telemedicine/recordings/:id', async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      
+
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ message: 'Invalid recording ID format' });
       }
-      
+
       const recording = await storage.getRecordingSession(id);
       if (!recording) {
         return res.status(404).json({ message: 'Recording session not found' });
       }
-      
+
       const patient = await storage.getPatient(recording.patientId);
-      
+
       res.json({
         ...recording,
         patient: patient || { name: 'Unknown Patient' }
@@ -1548,33 +1548,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Failed to fetch recording session' });
     }
   });
-  
+
   // Update transcript or notes for a recording session
   app.patch('/api/telemedicine/recordings/:id', async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      
+
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ message: 'Invalid recording ID format' });
       }
-      
+
       const { transcript, notes } = req.body;
       if (!transcript && !notes) {
         return res.status(400).json({ message: 'Must provide transcript or notes to update' });
       }
-      
+
       const updates: Partial<RecordingSession> = {};
       if (transcript) updates.transcript = transcript;
       if (notes) updates.notes = notes;
-      
+
       const updatedRecording = await storage.updateRecordingSession(id, updates);
       if (!updatedRecording) {
         return res.status(404).json({ message: 'Recording session not found' });
       }
-      
+
       // Automatically delete audio recording after transcription is generated
       if (transcript && updatedRecording.audioUrl) {
         try {
@@ -1589,48 +1589,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Don't fail the request if cleanup fails
         }
       }
-      
+
       res.json(updatedRecording);
     } catch (error) {
       logError('Error updating recording session:', error);
       res.status(500).json({ message: 'Failed to update recording session' });
     }
   });
-  
+
   // Generate transcript from video recording using Deepgram
   app.patch('/api/telemedicine/recordings/:id/generate-transcript', async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      
+
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ message: 'Invalid recording ID format' });
       }
-      
+
       const recording = await storage.getRecordingSession(id);
       if (!recording) {
         return res.status(404).json({ message: 'Recording session not found' });
       }
-      
+
       if (!recording.videoUrl) {
         return res.status(400).json({ message: 'No video recording available for transcription' });
       }
-      
+
       // Check if Deepgram API key is available
       if (!process.env.DEEPGRAM_API_KEY) {
         return res.status(500).json({ message: 'Deepgram API key not configured' });
       }
-      
+
       try {
         // Import Deepgram SDK
         const { createClient } = await import('@deepgram/sdk');
         const deepgram = createClient(process.env.DEEPGRAM_API_KEY);
-        
+
         // Get the video file URL (Cloudinary URL)
         const videoUrl = recording.videoUrl;
-        
+
         // Transcribe using Deepgram's URL source
         const { result, error } = await deepgram.listen.prerecorded.transcribeUrl(
           { url: videoUrl },
@@ -1643,32 +1643,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
             language: 'en'
           }
         );
-        
+
         if (error) {
           logError('Deepgram transcription error:', error);
           return res.status(500).json({ message: 'Failed to transcribe video: ' + error.message });
         }
-        
+
         // Extract transcript from Deepgram response
-        const transcript = result?.results?.channels?.[0]?.alternatives?.[0]?.transcript || 
-                          result?.results?.channels?.[0]?.alternatives?.[0]?.paragraphs?.transcript ||
-                          '';
-        
+        const transcript = result?.results?.channels?.[0]?.alternatives?.[0]?.transcript ||
+          result?.results?.channels?.[0]?.alternatives?.[0]?.paragraphs?.transcript ||
+          '';
+
         if (!transcript) {
           return res.status(500).json({ message: 'No transcript generated from video' });
         }
-        
+
         // Update the recording with the transcript
         const updatedRecording = await storage.updateRecordingSession(id, { transcript });
-        
+
         res.json({
           ...updatedRecording,
           message: 'Transcript generated successfully'
         });
       } catch (deepgramError: any) {
         logError('Deepgram API error:', deepgramError);
-        return res.status(500).json({ 
-          message: 'Transcription failed: ' + (deepgramError.message || 'Unknown error') 
+        return res.status(500).json({
+          message: 'Transcription failed: ' + (deepgramError.message || 'Unknown error')
         });
       }
     } catch (error) {
@@ -1676,110 +1676,110 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Failed to generate transcript' });
     }
   });
-  
+
   // Delete a recording session
   app.delete('/api/telemedicine/recordings/:id', async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      
+
       const doctorId = req.user.id;
       const id = parseInt(req.params.id);
-      
+
       if (isNaN(id)) {
         return res.status(400).json({ message: 'Invalid recording ID format' });
       }
-      
+
       const recording = await storage.getRecordingSession(id);
-      
+
       if (!recording) {
         return res.status(404).json({ message: 'Recording not found' });
       }
-      
+
       // Security check: Only allow the doctor who owns the recording to delete it
       if (recording.doctorId !== doctorId) {
         return res.status(403).json({ message: 'Not authorized to delete this recording' });
       }
-      
+
       // Delete the recording
       const deleted = await storage.deleteRecordingSession(id);
-      
+
       if (!deleted) {
         return res.status(500).json({ message: 'Failed to delete recording' });
       }
-      
+
       res.status(200).json({ message: 'Recording deleted successfully' });
     } catch (error) {
       logError('Error deleting recording:', error);
       res.status(500).json({ message: 'Failed to delete recording' });
     }
   });
-  
+
   // Upload media (audio or video) for a telemedicine recording
-  const uploadMediaMiddleware = multer({ 
+  const uploadMediaMiddleware = multer({
     storage: multer.memoryStorage(),
     limits: {
       fileSize: 500 * 1024 * 1024, // 500MB limit for long video recordings (45+ minutes)
     }
   }).single('media');
-  
+
   app.post('/api/telemedicine/recordings/:id/media', uploadMediaMiddleware, async (req, res) => {
     // Increase timeout for large file uploads (30 minutes for 45+ min recordings)
     req.setTimeout(1800000); // 30 minutes
     res.setTimeout(1800000); // 30 minutes
-    
+
     try {
       log(`=== MEDIA UPLOAD START ===`);
       log(`Received media upload request for recording ${req.params.id}`);
       log(`Request authenticated: ${req.isAuthenticated()}`);
-      
+
       if (!req.isAuthenticated()) {
         log('Upload rejected: not authenticated');
         return res.status(401).json({ message: "Unauthorized" });
       }
-      
+
       const doctorId = req.user!.id;
       const recordingId = parseInt(req.params.id);
       log(`Doctor ID: ${doctorId}, Recording ID: ${recordingId}`);
-      
+
       if (isNaN(recordingId)) {
         log('Upload rejected: invalid recording ID');
         return res.status(400).json({ message: 'Invalid recording ID format' });
       }
-      
+
       if (!req.file) {
         log('Upload rejected: no file uploaded');
         log('Request body:', req.body);
         return res.status(400).json({ message: 'No file uploaded' });
       }
-      
+
       log(`File received: ${req.file.originalname}, size: ${req.file.size} bytes (${(req.file.size / 1024 / 1024).toFixed(2)} MB)`);
       log(`File mimetype: ${req.file.mimetype}`);
-      
+
       // Get the recording session
       const recording = await storage.getRecordingSession(recordingId);
-      
+
       if (!recording) {
         log(`Upload rejected: recording ${recordingId} not found in database`);
         return res.status(404).json({ message: 'Recording not found' });
       }
-      
+
       log(`Recording found - Doctor ID: ${recording.doctorId}, Status: ${recording.status}`);
-      
+
       // Security check: Only allow the doctor who owns the recording to upload to it
       if (recording.doctorId !== doctorId) {
         log(`Upload rejected: doctor ${doctorId} does not own recording ${recordingId} (owner: ${recording.doctorId})`);
         return res.status(403).json({ message: 'You do not have permission to modify this recording' });
       }
-      
+
       const mediaType = (req.body.type || 'audio') as 'audio' | 'video';
       const fileBuffer = req.file.buffer;
       const extension = req.file.originalname.split('.').pop() || 'webm';
-      
+
       log(`Starting Cloudinary upload - Type: ${mediaType}, Extension: ${extension}`);
       log(`Buffer size: ${fileBuffer.length} bytes`);
-      
+
       // Upload the file to Cloudinary
       const cloudinaryUrl = await CloudinaryStorage.uploadRecording(
         recordingId,
@@ -1787,9 +1787,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         mediaType,
         extension
       );
-      
+
       log(`✓ Successfully uploaded to Cloudinary: ${cloudinaryUrl}`);
-      
+
       // Update the recording session with the Cloudinary URL
       const updateData: any = {};
       if (mediaType === 'audio') {
@@ -1797,16 +1797,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         updateData.videoUrl = cloudinaryUrl;
       }
-      
+
       log(`Updating database with ${mediaType}Url...`);
-      
+
       // Update the database record
       await storage.updateRecordingSession(recordingId, updateData);
-      
+
       log(`✓ Database updated successfully`);
       log(`=== MEDIA UPLOAD COMPLETE ===`);
-      
-      res.status(200).json({ 
+
+      res.status(200).json({
         message: `${mediaType} recording uploaded successfully`,
         recordingId,
         url: cloudinaryUrl
@@ -1814,8 +1814,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       logError(`❌ Error uploading recording:`, error);
       logError(`Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
-      res.status(500).json({ 
-        message: 'Failed to upload recording', 
+      res.status(500).json({
+        message: 'Failed to upload recording',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -1827,45 +1827,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      
+
       const doctorId = req.user!.id;
       const recordingId = parseInt(req.params.id);
-      
+
       if (isNaN(recordingId)) {
         return res.status(400).json({ message: 'Invalid recording ID format' });
       }
-      
+
       const recording = await storage.getRecordingSession(recordingId);
-      
+
       if (!recording) {
         return res.status(404).json({ message: 'Recording not found' });
       }
-      
+
       // Security check: Only allow the doctor who owns the recording to access it
       if (recording.doctorId !== doctorId) {
         return res.status(403).json({ message: 'You do not have permission to access this recording' });
       }
-      
+
       // If we have a Cloudinary URL, redirect to it
       if (recording.audioUrl && recording.audioUrl.includes('cloudinary.com')) {
         return res.redirect(recording.audioUrl);
       }
-      
+
       // Fallback: try to retrieve from local file storage
       const audioBuffer = await FileStorage.getRecording(recordingId, 'audio');
-      
+
       if (!audioBuffer) {
         return res.status(404).json({ message: 'Audio recording not found' });
       }
-      
+
       const filepath = await FileStorage.getFilePath(recordingId, 'audio');
       if (!filepath) {
         return res.status(404).json({ message: 'Audio recording filepath not found' });
       }
-      
+
       const contentType = await FileStorage.getContentType(filepath);
       const filename = filepath.split('/').pop() || 'audio.webm';
-      
+
       res.setHeader('Content-Type', contentType);
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       return res.send(audioBuffer);
@@ -1874,52 +1874,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Failed to retrieve audio recording' });
     }
   });
-  
+
   // Retrieve video recording for a telemedicine session
   app.get('/api/telemedicine/recordings/:id/video', async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      
+
       const doctorId = req.user!.id;
       const recordingId = parseInt(req.params.id);
-      
+
       if (isNaN(recordingId)) {
         return res.status(400).json({ message: 'Invalid recording ID format' });
       }
-      
+
       const recording = await storage.getRecordingSession(recordingId);
-      
+
       if (!recording) {
         return res.status(404).json({ message: 'Recording not found' });
       }
-      
+
       // Security check: Only allow the doctor who owns the recording to access it
       if (recording.doctorId !== doctorId) {
         return res.status(403).json({ message: 'You do not have permission to access this recording' });
       }
-      
+
       // If we have a Cloudinary URL, redirect to it
       if (recording.videoUrl && recording.videoUrl.includes('cloudinary.com')) {
         return res.redirect(recording.videoUrl);
       }
-      
+
       // Fallback: try to retrieve from local file storage
       const videoBuffer = await FileStorage.getRecording(recordingId, 'video');
-      
+
       if (!videoBuffer) {
         return res.status(404).json({ message: 'Video recording not found' });
       }
-      
+
       const filepath = await FileStorage.getFilePath(recordingId, 'video');
       if (!filepath) {
         return res.status(404).json({ message: 'Video recording filepath not found' });
       }
-      
+
       const contentType = await FileStorage.getContentType(filepath);
       const filename = filepath.split('/').pop() || 'video.webm';
-      
+
       res.setHeader('Content-Type', contentType);
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       return res.send(videoBuffer);
@@ -1928,73 +1928,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Failed to retrieve video recording' });
     }
   });
-  
+
   // Store video recording for a telemedicine session
   app.post('/api/telemedicine/recordings/:id/video', async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      
+
       const doctorId = req.user.id;
       const recordingId = parseInt(req.params.id);
-      
+
       if (isNaN(recordingId)) {
         return res.status(400).json({ message: 'Invalid recording ID format' });
       }
-      
+
       const recording = await storage.getRecordingSession(recordingId);
-      
+
       if (!recording) {
         return res.status(404).json({ message: 'Recording not found' });
       }
-      
+
       // Security check: Only allow the doctor who owns the recording to modify it
       if (recording.doctorId !== doctorId) {
         return res.status(403).json({ message: 'You do not have permission to modify this recording' });
       }
-      
+
       // In a production environment, we would:
       // 1. Get the video file from the request
       // 2. Store it in blob storage
       // 3. Update the recording record with the URL
-      
+
       // For now, update the recording to indicate it has video
       const updatedRecording = await storage.updateRecordingSession(recordingId, {
         recordingType: req.body.hasVideo ? 'both' : 'audio',
         mediaFormat: req.body.mediaFormat || 'webm',
         videoUrl: req.body.videoUrl || null
       });
-      
+
       res.status(200).json(updatedRecording);
     } catch (error) {
       logError('Error storing video recording:', error);
       res.status(500).json({ message: 'Failed to store video recording' });
     }
   });
-  
+
   app.post('/api/telemedicine/rooms', async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Unauthorized" });
     }
     const doctorId = req.user.id;
-    
+
     const { patientId, patientName } = req.body;
-    
+
     if (!patientId || !patientName) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
-    
+
     // Generate room ID
     const roomId = `room_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    
+
     try {
       // Create new room
       activeRooms.set(roomId, {
         id: roomId,
         participants: []
       });
-      
+
       // Create recording session in database
       const recordingSession = await storage.createRecordingSession({
         roomId,
@@ -2004,40 +2004,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         transcript: null,
         notes: null
       });
-      
+
       res.status(201).json({ roomId, recordingSessionId: recordingSession.id });
     } catch (error) {
       logError('Error creating telemedicine room:', error);
       res.status(500).json({ message: 'Failed to create telemedicine room' });
     }
   });
-  
+
   const httpServer = createServer(app);
-  
+
   // Create WebSocket server on the same HTTP server but with a distinct path
-  const wss = new WebSocketServer({ 
-    server: httpServer, 
+  const wss = new WebSocketServer({
+    server: httpServer,
     path: '/ws/telemedicine'
   });
-  
+
   wss.on('connection', (socket: any) => {
     log('New WebSocket connection established');
-    
+
     // Initialize participant data
     let participantId: string | null = null;
     let roomId: string | null = null;
-    
+
     socket.on('message', async (message: any) => {
       try {
         const data = JSON.parse(message.toString());
-        
+
         switch (data.type) {
           case 'join':
             // User joining a room
             roomId = data.roomId;
             participantId = data.userId;
             const room = activeRooms.get(roomId as string);
-            
+
             if (!room) {
               socket.send(JSON.stringify({
                 type: 'error',
@@ -2045,7 +2045,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }));
               return;
             }
-            
+
             // Add participant to room
             room.participants.push({
               id: data.userId,
@@ -2053,7 +2053,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               name: data.name,
               isDoctor: data.isDoctor
             });
-            
+
             // Notify other participants in the room about the new participant
             room.participants.forEach(participant => {
               if (participant.id !== data.userId) {
@@ -2065,7 +2065,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 }));
               }
             });
-            
+
             // Send the list of existing participants to the new participant
             socket.send(JSON.stringify({
               type: 'room-users',
@@ -2075,9 +2075,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 isDoctor: p.isDoctor
               }))
             }));
-            
+
             break;
-            
+
           case 'start-transcription':
             // Doctor initiates live transcription
             if (data.isDoctor && data.roomId) {
@@ -2093,7 +2093,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             }
             break;
-            
+
           case 'audio-data':
             // Stream audio data to Deepgram for live transcription
             if (data.roomId && data.audioData) {
@@ -2105,7 +2105,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             }
             break;
-            
+
           case 'stop-transcription':
             // Stop live transcription and get full transcript
             if (data.roomId) {
@@ -2121,30 +2121,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             }
             break;
-            
+
           case 'visual-frame':
             // AI visual health assessment of patient video frame
             // Only doctors can request visual assessment
             if (data.isDoctor && data.imageData && data.roomId) {
               try {
                 const { analyzePatientVisual } = await import('./visual-health-assessment');
-                
+
                 // Extract base64 image data (remove data:image/jpeg;base64, prefix if present)
                 const base64Image = data.imageData.replace(/^data:image\/\w+;base64,/, '');
-                
+
                 const assessment = await analyzePatientVisual(base64Image, {
                   name: data.patientName,
                   chiefComplaint: data.chiefComplaint,
                   currentSymptoms: data.currentSymptoms
                 });
-                
+
                 // Send assessment back to doctor only
                 socket.send(JSON.stringify({
                   type: 'visual-assessment',
                   roomId: data.roomId,
                   assessment
                 }));
-                
+
                 log(`🔍 Visual health assessment completed for room: ${data.roomId}`);
               } catch (error) {
                 logError('Error in visual assessment:', error);
@@ -2155,13 +2155,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             }
             break;
-          
+
           case 'offer':
           case 'answer':
           case 'ice-candidate':
           case 'chat-message':
             // Handle WebRTC signaling and chat messages
-            
+
             // Make sure roomId is taken from message if not already set in socket connection
             const messageRoomId = data.roomId || roomId;
             if (!messageRoomId) {
@@ -2172,7 +2172,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }));
               return;
             }
-            
+
             const targetRoom = activeRooms.get(messageRoomId);
             if (!targetRoom) {
               logError('Room not found with ID:', messageRoomId);
@@ -2182,7 +2182,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }));
               return;
             }
-            
+
             // For chat messages, broadcast to all participants in the room
             if (data.type === 'chat-message') {
               log('Broadcasting chat message in room:', messageRoomId);
@@ -2199,7 +2199,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               });
               break;
             }
-            
+
             // For WebRTC signals, find the target participant
             const targetParticipant = targetRoom.participants.find(p => p.id === data.target);
             if (targetParticipant) {
@@ -2234,7 +2234,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
               log('Target participant not found:', data.target);
             }
             break;
-            
+
+          case 'ping':
+            socket.send(JSON.stringify({ type: 'pong' }));
+            break;
+
           default:
             log('Unknown message type:', data.type);
         }
@@ -2242,17 +2246,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         logError('Error processing WebSocket message:', error);
       }
     });
-    
+
     socket.on('close', async () => {
       log('WebSocket connection closed');
-      
+
       // Remove participant from room when they disconnect
       if (roomId && participantId) {
         const room = activeRooms.get(roomId as string);
         if (room) {
           // Remove participant
           room.participants = room.participants.filter(p => p.id !== participantId);
-          
+
           // Notify other participants
           room.participants.forEach(participant => {
             participant.socket.send(JSON.stringify({
@@ -2260,11 +2264,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
               userId: participantId
             }));
           });
-          
+
           // If room is empty, delete it and update recording session
           if (room.participants.length === 0) {
             activeRooms.delete(roomId);
-            
+
             try {
               // Get recording session by room ID
               const session = await storage.getRecordingSessionByRoomId(roomId);
@@ -2272,7 +2276,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 // Update session with end time and status
                 const endTime = new Date();
                 const duration = Math.floor((endTime.getTime() - session.startTime.getTime()) / 1000); // in seconds
-                
+
                 await storage.updateRecordingSession(session.id, {
                   endTime,
                   duration,
@@ -2295,7 +2299,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Unauthorized" });
       }
       const doctorId = req.user.id;
-      
+
       const forms = await storage.getIntakeForms(doctorId);
       res.json(forms);
     } catch (error: any) {
@@ -2303,26 +2307,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch intake forms" });
     }
   });
-  
+
   app.get("/api/intake-forms/:id", async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      
+
       const formId = parseInt(req.params.id);
       if (isNaN(formId)) {
         return res.status(400).json({ message: "Invalid ID format" });
       }
-      
+
       const form = await storage.getIntakeForm(formId);
       if (!form) {
         return res.status(404).json({ message: "Intake form not found" });
       }
-      
+
       // Get responses for this form
       const responses = await storage.getIntakeFormResponses(formId);
-      
+
       res.json({
         ...form,
         responses
@@ -2332,14 +2336,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch intake form" });
     }
   });
-  
+
   app.post("/api/intake-forms", async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: "Unauthorized" });
       }
       const doctorId = req.user.id;
-      
+
       log("Creating intake form with data:", req.body);
 
       // Set the authenticated doctor ID
@@ -2360,7 +2364,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         expiresAt.setDate(expiresAt.getDate() + 7);
         req.body.expiresAt = expiresAt;
       }
-      
+
       const validation = insertIntakeFormSchema.safeParse(req.body);
       if (!validation.success) {
         logError("Validation error:", validation.error.format());
@@ -2369,39 +2373,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
           issues: validation.error.format()
         });
       }
-      
+
       const intakeForm = await storage.createIntakeForm(validation.data);
-      
+
       res.status(201).json(intakeForm);
     } catch (error: any) {
       logError("Error creating intake form:", error);
       res.status(500).json({ message: "Failed to create intake form: " + (error.message || "Unknown error") });
     }
   });
-  
+
   // Public endpoint to access the intake form by its unique link
   app.get("/api/public/intake-form/:uniqueLink", async (req, res) => {
     try {
       const { uniqueLink } = req.params;
-      
+
       const form = await storage.getIntakeFormByLink(uniqueLink);
       if (!form) {
         return res.status(404).json({ message: "Intake form not found" });
       }
-      
+
       // Check if form is expired
       if (form.status === "expired" || (form.expiresAt && new Date(form.expiresAt) < new Date())) {
         return res.status(403).json({ message: "This intake form has expired" });
       }
-      
+
       // Check if form is already completed
       if (form.status === "completed") {
         return res.status(403).json({ message: "This intake form has already been completed" });
       }
-      
+
       // Get existing responses for this form
       const responses = await storage.getIntakeFormResponses(form.id);
-      
+
       res.json({
         ...form,
         responses
@@ -2411,65 +2415,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch intake form" });
     }
   });
-  
+
   // Submit response for a specific intake form
   app.post("/api/public/intake-form/:formId/responses", async (req, res) => {
     try {
       const formId = parseInt(req.params.formId);
-      
+
       if (isNaN(formId)) {
         return res.status(400).json({ message: "Invalid form ID" });
       }
-      
+
       // Make sure the form exists and is valid for submission
       const form = await storage.getIntakeForm(formId);
       if (!form) {
         return res.status(404).json({ message: "Intake form not found" });
       }
-      
+
       // Check if form is expired or completed
       if (form.status === "expired" || form.status === "completed") {
         return res.status(403).json({ message: "This intake form cannot accept responses" });
       }
-      
+
       // Validate the response data
       const responseData = {
         ...req.body,
         formId
       };
-      
+
       const validation = insertIntakeFormResponseSchema.safeParse(responseData);
       if (!validation.success) {
         return res.status(400).json(validation.error);
       }
-      
+
       // Save the response
       const response = await storage.createIntakeFormResponse(validation.data);
-      
+
       res.status(201).json(response);
     } catch (error: any) {
       logError("Error saving intake form response:", error);
       res.status(500).json({ message: "Failed to save response" });
     }
   });
-  
+
   // Complete an intake form
   app.post("/api/public/intake-form/:formId/submit-continuous", async (req, res) => {
     try {
       const formId = parseInt(req.params.formId);
-      
+
       if (isNaN(formId)) {
         return res.status(400).json({ message: "Invalid form ID" });
       }
-      
+
       const { answers, summary, transcript, language, consentGiven, signature, audioUrl } = req.body;
-      
+
       // Make sure the form exists
       const form = await storage.getIntakeForm(formId);
       if (!form) {
         return res.status(404).json({ message: "Intake form not found" });
       }
-      
+
       // Save all extracted answers as individual responses
       if (answers && typeof answers === 'object') {
         let questionId = 1;
@@ -2487,7 +2491,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           questionId++;
         }
       }
-      
+
       // Save the summary as a special response
       if (summary) {
         await storage.createIntakeFormResponse({
@@ -2499,7 +2503,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           audioUrl: null
         });
       }
-      
+
       // Save the full transcript
       if (transcript) {
         await storage.createIntakeFormResponse({
@@ -2511,7 +2515,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           audioUrl: audioUrl || null
         });
       }
-      
+
       // Save consent and signature info
       if (consentGiven) {
         await storage.createIntakeFormResponse({
@@ -2523,7 +2527,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           audioUrl: null
         });
       }
-      
+
       if (signature) {
         await storage.createIntakeFormResponse({
           formId,
@@ -2534,7 +2538,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           audioUrl: signature // Store signature data URL
         });
       }
-      
+
       res.json({ success: true, message: "Intake form data saved successfully" });
     } catch (error: any) {
       logError("Error saving continuous intake form:", error);
@@ -2545,20 +2549,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/public/intake-form/:formId/complete", async (req, res) => {
     try {
       const formId = parseInt(req.params.formId);
-      
+
       if (isNaN(formId)) {
         return res.status(400).json({ message: "Invalid form ID" });
       }
-      
+
       // Make sure the form exists
       const form = await storage.getIntakeForm(formId);
       if (!form) {
         return res.status(404).json({ message: "Intake form not found" });
       }
-      
+
       // Update the form status to completed
       const updatedForm = await storage.updateIntakeFormStatus(formId, "completed");
-      
+
       res.json(updatedForm);
     } catch (error: any) {
       logError("Error completing intake form:", error);
@@ -2569,7 +2573,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Medical Alerts routes
   app.get('/api/patients/:patientId/medical-alerts', requireAuth, asyncHandler(async (req: Request, res: Response) => {
     const patientId = parseInt(req.params.patientId);
-    const alerts = await handleDatabaseOperation(() => 
+    const alerts = await handleDatabaseOperation(() =>
       storage.getMedicalAlertsByPatient(patientId)
     );
     sendSuccessResponse(res, alerts);
@@ -2583,7 +2587,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       patientId,
       createdBy: user.id
     };
-    const alert = await handleDatabaseOperation(() => 
+    const alert = await handleDatabaseOperation(() =>
       storage.createMedicalAlert(alertData)
     );
     sendSuccessResponse(res, alert);
@@ -2591,7 +2595,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put('/api/medical-alerts/:id', requireAuth, asyncHandler(async (req: Request, res: Response) => {
     const id = parseInt(req.params.id);
-    const alert = await handleDatabaseOperation(() => 
+    const alert = await handleDatabaseOperation(() =>
       storage.updateMedicalAlert(id, req.body)
     );
     sendSuccessResponse(res, alert);
@@ -2599,7 +2603,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete('/api/medical-alerts/:id', requireAuth, asyncHandler(async (req: Request, res: Response) => {
     const id = parseInt(req.params.id);
-    await handleDatabaseOperation(() => 
+    await handleDatabaseOperation(() =>
       storage.deleteMedicalAlert(id)
     );
     sendSuccessResponse(res, { success: true });
@@ -2608,7 +2612,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Patient Activity routes
   app.get('/api/patients/:patientId/activity', requireAuth, asyncHandler(async (req: Request, res: Response) => {
     const patientId = parseInt(req.params.patientId);
-    const activities = await handleDatabaseOperation(() => 
+    const activities = await handleDatabaseOperation(() =>
       storage.getPatientActivity(patientId)
     );
     sendSuccessResponse(res, activities);
@@ -2622,7 +2626,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       patientId,
       createdBy: user.id
     };
-    const activity = await handleDatabaseOperation(() => 
+    const activity = await handleDatabaseOperation(() =>
       storage.createPatientActivity(activityData)
     );
     sendSuccessResponse(res, activity);
@@ -2630,7 +2634,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete('/api/patient-activity/:id', requireAuth, asyncHandler(async (req: Request, res: Response) => {
     const id = parseInt(req.params.id);
-    await handleDatabaseOperation(() => 
+    await handleDatabaseOperation(() =>
       storage.deletePatientActivity(id)
     );
     sendSuccessResponse(res, { success: true });
@@ -2639,7 +2643,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Prescriptions routes
   app.get('/api/patients/:patientId/prescriptions', requireAuth, asyncHandler(async (req: Request, res: Response) => {
     const patientId = parseInt(req.params.patientId);
-    const prescriptions = await handleDatabaseOperation(() => 
+    const prescriptions = await handleDatabaseOperation(() =>
       storage.getPrescriptionsByPatient(patientId)
     );
     sendSuccessResponse(res, prescriptions);
@@ -2653,7 +2657,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       patientId,
       prescribedBy: user.id
     };
-    const prescription = await handleDatabaseOperation(() => 
+    const prescription = await handleDatabaseOperation(() =>
       storage.createPrescription(prescriptionData)
     );
     sendSuccessResponse(res, prescription);
@@ -2661,7 +2665,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put('/api/prescriptions/:id', requireAuth, asyncHandler(async (req: Request, res: Response) => {
     const id = parseInt(req.params.id);
-    const prescription = await handleDatabaseOperation(() => 
+    const prescription = await handleDatabaseOperation(() =>
       storage.updatePrescription(id, req.body)
     );
     sendSuccessResponse(res, prescription);
@@ -2669,7 +2673,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete('/api/prescriptions/:id', requireAuth, asyncHandler(async (req: Request, res: Response) => {
     const id = parseInt(req.params.id);
-    await handleDatabaseOperation(() => 
+    await handleDatabaseOperation(() =>
       storage.deletePrescription(id)
     );
     sendSuccessResponse(res, { success: true });
@@ -2678,7 +2682,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Medical History Entries routes
   app.get('/api/patients/:patientId/medical-history', requireAuth, asyncHandler(async (req: Request, res: Response) => {
     const patientId = parseInt(req.params.patientId);
-    const entries = await handleDatabaseOperation(() => 
+    const entries = await handleDatabaseOperation(() =>
       storage.getMedicalHistoryEntriesByPatient(patientId)
     );
     sendSuccessResponse(res, entries);
@@ -2692,7 +2696,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       patientId,
       createdBy: user.id
     };
-    const entry = await handleDatabaseOperation(() => 
+    const entry = await handleDatabaseOperation(() =>
       storage.createMedicalHistoryEntry(entryData)
     );
     sendSuccessResponse(res, entry);
@@ -2700,7 +2704,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put('/api/medical-history/:id', requireAuth, asyncHandler(async (req: Request, res: Response) => {
     const id = parseInt(req.params.id);
-    const entry = await handleDatabaseOperation(() => 
+    const entry = await handleDatabaseOperation(() =>
       storage.updateMedicalHistoryEntry(id, req.body)
     );
     sendSuccessResponse(res, entry);
@@ -2708,7 +2712,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete('/api/medical-history/:id', requireAuth, asyncHandler(async (req: Request, res: Response) => {
     const id = parseInt(req.params.id);
-    await handleDatabaseOperation(() => 
+    await handleDatabaseOperation(() =>
       storage.deleteMedicalHistoryEntry(id)
     );
     sendSuccessResponse(res, { success: true });

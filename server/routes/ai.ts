@@ -2,10 +2,10 @@ import { Router } from 'express';
 import OpenAI from 'openai';
 import multer from 'multer';
 import { storage as dbStorage } from '../storage';
-import { 
-  requireAuth, 
-  sendErrorResponse, 
-  sendSuccessResponse, 
+import {
+  requireAuth,
+  sendErrorResponse,
+  sendSuccessResponse,
   asyncHandler,
   handleOpenAIError,
   AppError,
@@ -44,7 +44,7 @@ async function getOpenAIClient(userId: number): Promise<OpenAI | null> {
           apiKey: globalApiKey,
         });
       }
-      
+
       // Fallback to environment variable for backward compatibility
       if (process.env.OPENAI_API_KEY) {
         return new OpenAI({
@@ -52,7 +52,7 @@ async function getOpenAIClient(userId: number): Promise<OpenAI | null> {
         });
       }
     }
-    
+
     return null;
   } catch (error) {
     logError('Error getting OpenAI client:', error);
@@ -62,7 +62,7 @@ async function getOpenAIClient(userId: number): Promise<OpenAI | null> {
 
 // Configure multer for file uploads
 const multerStorage = multer.memoryStorage();
-const upload = multer({ 
+const upload = multer({
   storage: multerStorage,
   limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
 });
@@ -70,7 +70,7 @@ const upload = multer({
 // Route to handle chat completion
 aiRouter.post('/chat', requireAuth, asyncHandler(async (req, res) => {
   const { messages } = req.body;
-  const userId = req.user.id;
+  const userId = (req.user as any).id;
 
   if (!messages || !Array.isArray(messages)) {
     throw new AppError('Messages must be provided as an array', 400, 'INVALID_MESSAGES');
@@ -86,11 +86,11 @@ aiRouter.post('/chat', requireAuth, asyncHandler(async (req, res) => {
       () => dbStorage.getUser(userId),
       'Failed to fetch user data'
     );
-    
-    const errorMessage = user?.useOwnApiKey 
+
+    const errorMessage = user?.useOwnApiKey
       ? 'No personal OpenAI API key found. Please add your OpenAI API key in Settings to use AI features.'
       : 'No global OpenAI API key configured. Please contact your administrator or add your own API key in Settings.';
-    
+
     throw new AppError(errorMessage, 503, 'NO_API_KEY');
   }
 
@@ -107,7 +107,7 @@ aiRouter.post('/chat', requireAuth, asyncHandler(async (req, res) => {
     if (!assistantMessage?.content) {
       throw new AppError('No response generated from AI service', 500, 'NO_AI_RESPONSE');
     }
-    
+
     sendSuccessResponse(res, {
       content: assistantMessage.content,
       role: 'assistant'
@@ -135,10 +135,10 @@ aiRouter.post('/generate-title', async (req, res) => {
     const openai = await getOpenAIClient(userId);
     if (!openai) {
       const user = await dbStorage.getUser(userId);
-      const errorMessage = user?.useOwnApiKey 
+      const errorMessage = user?.useOwnApiKey
         ? 'No personal OpenAI API key found. Please add your OpenAI API key in Settings to use AI features.'
         : 'No global OpenAI API key configured. Please contact your administrator or add your own API key in Settings.';
-      
+
       return res.status(400).json({ error: errorMessage });
     }
 
@@ -160,7 +160,7 @@ aiRouter.post('/generate-title', async (req, res) => {
     });
 
     const title = response.choices[0].message.content?.trim() || 'New Conversation';
-    
+
     return res.json({ title });
   } catch (error) {
     logError('OpenAI API error:', error);
@@ -179,7 +179,7 @@ aiRouter.post('/generate-soap', async (req, res) => {
     const userId = req.user.id;
 
     if (!transcript) {
-      return res.json({ 
+      return res.json({
         success: false,
         soap: 'No transcript provided. Please provide consultation text to generate SOAP notes.'
       });
@@ -188,10 +188,10 @@ aiRouter.post('/generate-soap', async (req, res) => {
     const openai = await getOpenAIClient(userId);
     if (!openai) {
       const user = await dbStorage.getUser(userId);
-      const errorMessage = user?.useOwnApiKey 
+      const errorMessage = user?.useOwnApiKey
         ? 'No personal OpenAI API key found. Please add your OpenAI API key in Settings to use AI features.'
         : 'No global OpenAI API key configured. Please contact your administrator or add your own API key in Settings.';
-      
+
       return res.json({
         success: false,
         soap: errorMessage
@@ -201,14 +201,14 @@ aiRouter.post('/generate-soap', async (req, res) => {
     try {
       // Sanitize inputs
       const sanitizedTranscript = (transcript || '').toString().slice(0, 4000); // Limit length to avoid token issues
-      
+
       // Extract patient info for the prompt
-      const patientName = patientInfo?.name || 
-                          `${patientInfo?.firstName || ''} ${patientInfo?.lastName || ''}`.trim() || 
-                          'Unknown';
-      
+      const patientName = patientInfo?.name ||
+        `${patientInfo?.firstName || ''} ${patientInfo?.lastName || ''}`.trim() ||
+        'Unknown';
+
       const patientInfoString = `Patient: ${patientName}, ID: ${patientInfo?.id || 'Unknown'}`;
-      
+
       // Prepare visit metadata - use location from patientInfo if provided
       const visitMeta = {
         visitType: patientInfo?.visitType || "General Consultation",
@@ -527,24 +527,24 @@ Return the complete JSON object with ehr_payload and human_note fields.`
       });
 
       const responseContent = response.choices[0]?.message?.content?.trim() || '';
-      
+
       if (!responseContent) {
         logError('OpenAI returned empty response');
-        return res.json({ 
+        return res.json({
           success: false,
           soap: 'Could not generate SOAP notes from the provided transcript. Please try with more detailed text.'
         });
       }
-      
+
       try {
         // Parse the JSON response
         const aimsResponse = JSON.parse(responseContent);
-        
+
         // Extract the human-readable note
         const humanNote = aimsResponse.human_note || '';
-        
+
         // Return successful response with the generated notes and structured data
-        return res.json({ 
+        return res.json({
           success: true,
           soap: humanNote,
           structuredData: aimsResponse.ehr_payload
@@ -552,17 +552,17 @@ Return the complete JSON object with ehr_payload and human_note fields.`
       } catch (parseError) {
         logError('Failed to parse AIMS AI response:', parseError);
         // Fallback: return the raw response if JSON parsing fails
-        return res.json({ 
+        return res.json({
           success: true,
           soap: responseContent
         });
       }
-      
+
     } catch (openaiError) {
       logError('OpenAI API error:', openaiError);
-      
+
       // Return a valid JSON response even when OpenAI fails
-      return res.json({ 
+      return res.json({
         success: false,
         soap: 'There was an error connecting to the AI service. Please try again later.'
       });
@@ -570,7 +570,7 @@ Return the complete JSON object with ehr_payload and human_note fields.`
   } catch (error) {
     logError('Server error generating SOAP notes:', error);
     // Return a valid JSON response even in case of errors
-    return res.json({ 
+    return res.json({
       success: false,
       soap: 'An unexpected error occurred. Please try again later.'
     });
@@ -586,7 +586,7 @@ aiRouter.post('/transcribe', upload.single('audio'), async (req, res) => {
 
     // Check for Deepgram API key
     const deepgramApiKey = process.env.DEEPGRAM_API_KEY;
-    
+
     if (!deepgramApiKey) {
       // Fallback to OpenAI Whisper if Deepgram not configured
       const userId = req.user?.id;
@@ -595,18 +595,18 @@ aiRouter.post('/transcribe', upload.single('audio'), async (req, res) => {
         if (openai) {
           try {
             // Create a File object from the buffer for OpenAI
-            const file = new File([req.file.buffer], req.file.originalname || 'audio.webm', {
+            const file = new File([new Uint8Array(req.file.buffer)], req.file.originalname || 'audio.webm', {
               type: req.file.mimetype || 'audio/webm'
             });
-            
+
             const transcription = await openai.audio.transcriptions.create({
               file: file,
               model: 'whisper-1',
               language: 'en',
               response_format: 'text'
             });
-            
-            return res.json({ 
+
+            return res.json({
               transcript: transcription,
               provider: 'openai-whisper'
             });
@@ -616,8 +616,8 @@ aiRouter.post('/transcribe', upload.single('audio'), async (req, res) => {
           }
         }
       }
-      
-      return res.status(503).json({ 
+
+      return res.status(503).json({
         error: 'Transcription service not configured. Please set DEEPGRAM_API_KEY or use browser speech recognition.',
         fallbackAvailable: true
       });
@@ -650,12 +650,12 @@ aiRouter.post('/transcribe', upload.single('audio'), async (req, res) => {
 
     // Extract transcript from Deepgram response
     const transcript = result?.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
-    
+
     // Also extract word-level timestamps and speaker diarization if available
     const words = result?.results?.channels?.[0]?.alternatives?.[0]?.words || [];
     const paragraphs = result?.results?.channels?.[0]?.alternatives?.[0]?.paragraphs?.paragraphs || [];
-    
-    return res.json({ 
+
+    return res.json({
       transcript,
       provider: 'deepgram-nova-2-medical',
       metadata: {
@@ -674,7 +674,7 @@ aiRouter.post('/transcribe', upload.single('audio'), async (req, res) => {
 // Route to generate AI summary for patient intake forms
 aiRouter.post('/generate-intake-summary', requireAuth, asyncHandler(async (req, res) => {
   const { formId, responses } = req.body;
-  const userId = req.user.id;
+  const userId = (req.user as any).id;
 
   if (!responses || !Array.isArray(responses)) {
     throw new AppError('Responses must be provided as an array', 400, 'INVALID_RESPONSES');
@@ -707,7 +707,7 @@ Create a structured clinical summary with these sections:
 
 Format as a clear, professional intake summary for physician review.`;
 
-    const formattedResponses = responses.map((r: any) => 
+    const formattedResponses = responses.map((r: any) =>
       `Q: ${r.question}\nA: ${r.answer || '[No response]'}`
     ).join('\n\n');
 
@@ -722,7 +722,7 @@ Format as a clear, professional intake summary for physician review.`;
     });
 
     const summary = response.choices[0]?.message?.content?.trim() || '';
-    
+
     sendSuccessResponse(res, {
       summary,
       formId,
@@ -737,7 +737,7 @@ Format as a clear, professional intake summary for physician review.`;
 // Route to get patient consultation context (previous notes, history, etc.)
 aiRouter.get('/patient-context/:patientId', requireAuth, asyncHandler(async (req, res) => {
   const patientId = parseInt(req.params.patientId);
-  const userId = req.user.id;
+  const userId = (req.user as any).id;
 
   if (isNaN(patientId)) {
     throw new AppError('Invalid patient ID', 400, 'INVALID_PATIENT_ID');
@@ -766,7 +766,7 @@ aiRouter.get('/patient-context/:patientId', requireAuth, asyncHandler(async (req
     const historyEntries = await dbStorage.getMedicalHistoryEntriesByPatient(patientId);
 
     // Fetch recent activity
-    const activities = await dbStorage.getPatientActivityByPatient(patientId);
+    const activities = await dbStorage.getPatientActivity(patientId);
     const recentActivities = activities.slice(0, 10);
 
     // Build last visit summary if there are notes
@@ -845,7 +845,7 @@ aiRouter.get('/patient-context/:patientId', requireAuth, asyncHandler(async (req
 // Route to generate AI pre-consultation summary from patient history
 aiRouter.post('/pre-consultation-summary', requireAuth, asyncHandler(async (req, res) => {
   const { patientId, patientContext } = req.body;
-  const userId = req.user.id;
+  const userId = (req.user as any).id;
 
   if (!patientContext) {
     throw new AppError('Patient context is required', 400, 'MISSING_CONTEXT');
@@ -887,7 +887,7 @@ Keep it concise - the physician should be able to review in 30 seconds.`;
     });
 
     const summary = response.choices[0]?.message?.content?.trim() || '';
-    
+
     sendSuccessResponse(res, {
       summary,
       patientId,
@@ -899,113 +899,11 @@ Keep it concise - the physician should be able to review in 30 seconds.`;
   }
 }));
 
-// Route to extract intake answers from continuous recording transcript
-aiRouter.post('/extract-intake-answers', asyncHandler(async (req, res) => {
-  const { transcript, language } = req.body;
-
-  if (!transcript || typeof transcript !== 'string') {
-    throw new AppError('Transcript is required', 400, 'MISSING_TRANSCRIPT');
-  }
-
-  // For public intake forms, use environment API key
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new AppError('No OpenAI API key configured', 503, 'NO_API_KEY');
-  }
-
-  const openai = new OpenAI({ apiKey });
-
-  try {
-    const systemPrompt = `You are a medical intake assistant. Extract patient information from a transcript of them speaking about their health.
-
-CRITICAL RULES:
-1. Extract ONLY information that is explicitly stated in the transcript
-2. For missing information, use "Not provided"
-3. NEVER make assumptions or fill in details not mentioned
-4. Organize information into standard intake form fields
-5. Be culturally sensitive - the patient may be speaking English, Spanish, Haitian Creole, or Russian
-
-Extract the following fields (if mentioned):
-- full_name: Patient's full name
-- date_of_birth: Date of birth (format: MM/DD/YYYY if possible)
-- gender: Gender identity
-- email: Email address
-- phone: Phone number
-- emergency_contact: Emergency contact phone
-- address: Full address
-- insurance_provider: Insurance company name
-- insurance_policy_number: Policy number
-- policy_holder_name: Name of policy holder
-- group_number: Insurance group number
-- primary_care_physician: PCP name
-- current_medications: List of current medications
-- allergies: Medication/food allergies
-- chronic_conditions: Chronic medical conditions
-- past_surgeries: Previous surgeries
-- family_medical_history: Family health history
-- reason_for_visit: Chief complaint/reason for visit
-- symptom_description: Detailed symptom description
-- symptom_duration: How long symptoms have lasted
-- symptom_severity: Severity rating (if mentioned)
-- symptoms_before: Whether symptoms occurred before
-- symptom_triggers: What makes symptoms better/worse
-- occupation: Current job
-- lifestyle_habits: Smoking, alcohol, drug use
-- exercise_diet: Exercise frequency and diet
-- living_arrangement: Living situation
-- weight_fever_fatigue: Recent weight loss, fever, or fatigue
-- chest_pain_history: Cardiac symptom history
-- respiratory_symptoms: Cough, shortness of breath, wheezing
-- gastrointestinal_symptoms: GI symptoms
-- musculoskeletal_symptoms: Joint/muscle pain
-- neurological_symptoms: Headaches, dizziness, numbness
-
-Return ONLY a JSON object with two fields:
-1. "answers": object with field names as keys and extracted values as values
-2. "summary": a brief 2-3 sentence clinical summary for the healthcare provider
-
-Example:
-{
-  "answers": {
-    "full_name": "John Doe",
-    "reason_for_visit": "Persistent cough for 2 weeks",
-    "symptom_description": "Dry cough, worse at night",
-    "allergies": "Penicillin"
-  },
-  "summary": "Patient presents with a 2-week history of dry cough that worsens at night. Reports allergy to Penicillin. No other significant symptoms mentioned."
-}`;
-
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Language: ${language}\n\nTranscript:\n${transcript}` }
-      ],
-      temperature: 0.1,
-      max_tokens: 2000,
-      response_format: { type: "json_object" }
-    });
-
-    const result = response.choices[0]?.message?.content?.trim() || '{}';
-    const parsed = JSON.parse(result);
-    
-    sendSuccessResponse(res, {
-      answers: parsed.answers || {},
-      summary: parsed.summary || '',
-      language,
-      processedAt: new Date().toISOString()
-    }, 'Intake answers extracted successfully');
-  } catch (error) {
-    logError('Error extracting intake answers:', error);
-    throw handleOpenAIError(error);
-  }
-}));
-
-// Extract structured answers from patient intake transcript (PUBLIC - No auth required)
+// Route to extract intake answers from continuous recording transcript (PUBLIC - No auth required)
 aiRouter.post('/extract-intake-answers', asyncHandler(async (req, res) => {
   const { transcript, language, questions } = req.body;
 
-  if (!transcript) {
+  if (!transcript || typeof transcript !== 'string') {
     throw new AppError('Transcript is required', 400, 'MISSING_TRANSCRIPT');
   }
 
@@ -1019,44 +917,50 @@ aiRouter.post('/extract-intake-answers', asyncHandler(async (req, res) => {
 
   try {
     const languageNames: Record<string, string> = {
-      en: 'English',
-      es: 'Spanish (Español)',
-      ht: 'Haitian Creole (Kreyòl)',
-      ru: 'Russian (Русский)'
+      'en-US': 'English',
+      'es-ES': 'Spanish (Español)',
+      'ht-HT': 'Haitian Creole (Kreyòl)',
+      'ru-RU': 'Russian (Русский)'
     };
 
     const systemPrompt = `You are a medical intake assistant. Extract structured information from patient recordings.
-
+    
 CRITICAL INSTRUCTIONS:
-1. The patient spoke in ${languageNames[language] || 'English'}
+1. The patient spoke in ${languageNames[language] || language || 'English'}
 2. Extract ONLY information explicitly mentioned by the patient
-3. If something is not mentioned, use "[Not mentioned]"
+3. If something is not mentioned, use "Not provided" or "[Not mentioned]"
 4. Return answers in English regardless of input language
 5. Be precise and concise
 6. Format dates as MM/DD/YYYY
 7. For phone numbers, use format: (XXX) XXX-XXXX if US
 8. Extract medication names, allergies, and conditions accurately
 
-Return ONLY a JSON object with the extracted answers. Do not include any markdown, explanations, or additional text.
+Return ONLY a JSON object with two fields:
+1. "answers": an object containing the extracted fields
+2. "summary": a brief 3-5 sentence clinical summary for the healthcare provider
 
 Example format:
 {
-  "full_name": "John Smith",
-  "date_of_birth": "01/15/1980",
-  "phone": "(555) 123-4567",
-  "current_medications": "Lisinopril 10mg daily, Metformin 500mg twice daily",
-  "allergies": "Penicillin - causes rash",
-  "reason_for_visit": "Persistent cough for 2 weeks",
-  ...
+  "answers": {
+    "full_name": "John Smith",
+    "reason_for_visit": "Persistent cough",
+    ...
+  },
+  "summary": "Patient reports persistent cough for 2 weeks..."
 }`;
 
-    const userPrompt = `Patient transcript:\n\n${transcript}\n\nExtract answers for these fields:\n${JSON.stringify(questions, null, 2)}`;
+    let extractInstructions = "";
+    if (questions && Array.isArray(questions) && questions.length > 0) {
+      extractInstructions = `Extract answers for these specific fields:\n${JSON.stringify(questions, null, 2)}`;
+    } else {
+      extractInstructions = `Extract standard medical intake fields including: full_name, date_of_birth, gender, medication_list, allergies, medical_history, and chief_complaint.`;
+    }
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
+        { role: 'user', content: `Patient transcript:\n\n${transcript}\n\n${extractInstructions}` }
       ],
       temperature: 0.1,
       max_tokens: 2000,
@@ -1064,20 +968,14 @@ Example format:
     });
 
     const content = response.choices[0]?.message?.content?.trim() || '{}';
-    
-    let answers = {};
-    try {
-      answers = JSON.parse(content);
-    } catch (parseError) {
-      logError('Failed to parse AI response:', parseError);
-      answers = {};
-    }
-    
+    const parsed = JSON.parse(content);
+
     sendSuccessResponse(res, {
-      answers,
+      answers: parsed.answers || (parsed.summary ? parsed : {}), // Fallback in case AI doesn't follow strict structure
+      summary: parsed.summary || '',
       language,
       extractedAt: new Date().toISOString()
-    }, 'Answers extracted successfully');
+    }, 'Intake answers extracted successfully');
   } catch (error) {
     logError('Error extracting intake answers:', error);
     throw handleOpenAIError(error);
@@ -1090,19 +988,19 @@ aiRouter.post('/visual-health-assessment', requireAuth, upload.single('image'), 
   }
 
   const { patientName, chiefComplaint, currentSymptoms } = req.body;
-  
+
   try {
     const { analyzePatientVisual } = await import('../visual-health-assessment');
-    
+
     // Convert image buffer to base64
     const imageBase64 = req.file.buffer.toString('base64');
-    
+
     const assessment = await analyzePatientVisual(imageBase64, {
       name: patientName,
       chiefComplaint,
       currentSymptoms
     });
-    
+
     sendSuccessResponse(res, assessment, 'Visual health assessment completed');
   } catch (error) {
     logError('Error in visual health assessment:', error);
@@ -1113,7 +1011,7 @@ aiRouter.post('/visual-health-assessment', requireAuth, upload.single('image'), 
 // Route to save telemedicine transcript
 aiRouter.post('/save-telemedicine-transcript', requireAuth, asyncHandler(async (req, res) => {
   const { roomId, transcript, consultationId } = req.body;
-  const userId = req.user.id;
+  const userId = (req.user as any).id;
 
   if (!transcript || !Array.isArray(transcript)) {
     throw new AppError('Transcript must be provided as an array', 400, 'INVALID_TRANSCRIPT');
@@ -1122,7 +1020,7 @@ aiRouter.post('/save-telemedicine-transcript', requireAuth, asyncHandler(async (
   try {
     // Get the full transcript text
     const fullTranscript = transcript.join('\n');
-    
+
     // Save to database (you can expand this to save to consultation notes)
     const result = {
       consultationId,
@@ -1132,7 +1030,7 @@ aiRouter.post('/save-telemedicine-transcript', requireAuth, asyncHandler(async (
       savedAt: new Date().toISOString(),
       savedBy: userId
     };
-    
+
     sendSuccessResponse(res, result, 'Transcript saved successfully');
   } catch (error) {
     logError('Error saving transcript:', error);
