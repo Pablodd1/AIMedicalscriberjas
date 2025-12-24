@@ -5,7 +5,7 @@ const log = (...args: any[]) => !DEMO_MODE && console.log(...args);
 const logError = (...args: any[]) => !DEMO_MODE && console.error(...args);
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
+import { setupVite, serveStatic } from "./vite";
 import { globalErrorHandler } from "./error-handler";
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
