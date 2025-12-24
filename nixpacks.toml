@@ -2,7 +2,7 @@
 nixPkgs = ["nodejs_20", "python311"]
 
 [phases.install]
-cmds = ["npm ci", "pip install -r python_services/requirements.txt"]
+cmds = ["npm ci", "python3 -m pip install -r python_services/requirements.txt"]
 
 [phases.build]
 cmds = ["npm run build"]
