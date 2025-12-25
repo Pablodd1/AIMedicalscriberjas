@@ -1,22 +1,22 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardFooter, 
-  CardHeader, 
-  CardTitle 
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { 
-  Mic, 
-  MicOff, 
-  Camera, 
-  CameraOff, 
+import {
+  Mic,
+  MicOff,
+  Camera,
+  CameraOff,
   Phone,
   PhoneOff,
   MessageCircle
@@ -28,7 +28,7 @@ export default function JoinConsultationPage() {
   const { roomId } = useParams();
   const [location, setLocation] = useLocation();
   const { toast } = useToast();
-  
+
   const [name, setName] = useState("");
   const [joined, setJoined] = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(true);
@@ -36,13 +36,13 @@ export default function JoinConsultationPage() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [doctorName, setDoctorName] = useState("");
-  
+
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
-  
+
   // WebRTC configuration
   const configuration = {
     iceServers: [
@@ -54,23 +54,23 @@ export default function JoinConsultationPage() {
   // Initialize local media stream
   useEffect(() => {
     if (!joined) return;
-    
+
     const setupMedia = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: true,
           video: true
         });
-        
+
         localStreamRef.current = stream;
-        
+
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
         }
-        
+
         // Setup websocket connection
         setupWebSocket();
-        
+
       } catch (error) {
         console.error("Error accessing media devices:", error);
         toast({
@@ -80,9 +80,9 @@ export default function JoinConsultationPage() {
         });
       }
     };
-    
+
     setupMedia();
-    
+
     return () => {
       // Cleanup media streams
       if (localStreamRef.current) {
@@ -90,29 +90,29 @@ export default function JoinConsultationPage() {
           track.stop();
         });
       }
-      
+
       // Close WebSocket connection
       if (wsRef.current) {
         wsRef.current.close();
       }
-      
+
       // Close peer connection
       if (peerConnectionRef.current) {
         peerConnectionRef.current.close();
       }
     };
   }, [joined, toast]);
-  
+
   const setupWebSocket = () => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsUrl = `${protocol}//${window.location.host}/ws/telemedicine`;
-    
+
     wsRef.current = new WebSocket(wsUrl);
-    
+
     wsRef.current.onopen = () => {
       console.log('WebSocket connection established');
       console.log('Joining room with ID:', roomId);
-      
+
       // Join the room
       if (wsRef.current && roomId) {
         wsRef.current.send(JSON.stringify({
@@ -131,10 +131,10 @@ export default function JoinConsultationPage() {
         });
       }
     };
-    
+
     wsRef.current.onmessage = async (event) => {
       const message = JSON.parse(event.data);
-      
+
       switch (message.type) {
         case 'room-users':
           // Find the doctor in the room
@@ -143,7 +143,7 @@ export default function JoinConsultationPage() {
             setDoctorName(doctor.name);
           }
           break;
-          
+
         case 'user-joined':
           if (message.isDoctor) {
             setDoctorName(message.name);
@@ -153,15 +153,15 @@ export default function JoinConsultationPage() {
             });
           }
           break;
-          
+
         case 'offer':
           await handleOffer(message);
           break;
-          
+
         case 'ice-candidate':
           await handleICECandidate(message);
           break;
-          
+
         case 'error':
           toast({
             title: "Error",
@@ -171,7 +171,7 @@ export default function JoinConsultationPage() {
           break;
       }
     };
-    
+
     wsRef.current.onerror = (error) => {
       console.error('WebSocket error:', error);
       toast({
@@ -180,12 +180,12 @@ export default function JoinConsultationPage() {
         variant: "destructive"
       });
     };
-    
+
     wsRef.current.onclose = () => {
       console.log('WebSocket connection closed');
     };
   };
-  
+
   const createPeerConnection = async (fromUserId?: string) => {
     try {
       // Check if peer connection already exists
@@ -193,10 +193,10 @@ export default function JoinConsultationPage() {
         console.log('Peer connection already exists, returning existing connection');
         return peerConnectionRef.current;
       }
-      
+
       console.log('Creating new peer connection with doctor ID:', fromUserId);
       const pc = new RTCPeerConnection(configuration);
-      
+
       // Add local tracks to peer connection
       if (localStreamRef.current) {
         console.log('Adding local tracks to peer connection');
@@ -209,7 +209,7 @@ export default function JoinConsultationPage() {
       } else {
         console.warn('No local stream available when creating peer connection');
       }
-      
+
       // Handle ICE candidates
       pc.onicecandidate = (event) => {
         if (event.candidate && wsRef.current && roomId) {
@@ -229,7 +229,7 @@ export default function JoinConsultationPage() {
           console.error('Cannot send ICE candidate: No room ID available');
         }
       };
-      
+
       // Handle connection state changes
       pc.onconnectionstatechange = () => {
         console.log('Connection state changed:', pc.connectionState);
@@ -247,7 +247,7 @@ export default function JoinConsultationPage() {
           });
         }
       };
-      
+
       // Handle ICE connection state changes
       pc.oniceconnectionstatechange = () => {
         console.log('ICE connection state changed:', pc.iceConnectionState);
@@ -259,12 +259,12 @@ export default function JoinConsultationPage() {
           });
         }
       };
-      
+
       // Handle negotiation needed
       pc.onnegotiationneeded = async () => {
         console.log('Negotiation needed event fired');
       };
-      
+
       // Handle incoming tracks (remote stream)
       pc.ontrack = (event) => {
         console.log('Remote track received:', event.track.kind);
@@ -273,7 +273,7 @@ export default function JoinConsultationPage() {
           remoteVideoRef.current.srcObject = event.streams[0];
         }
       };
-      
+
       peerConnectionRef.current = pc;
       return pc;
     } catch (error) {
@@ -286,7 +286,7 @@ export default function JoinConsultationPage() {
       throw error;
     }
   };
-  
+
   const handleOffer = async (message: any) => {
     try {
       console.log('Patient received offer message:', message);
@@ -296,21 +296,21 @@ export default function JoinConsultationPage() {
         console.error('Missing sender ID in offer message:', message);
         return;
       }
-      
+
       const pc = await createPeerConnection(senderId);
-      
+
       // Determine which format the offer is in
       const offerData = message.offer || message.data;
       if (!offerData) {
         console.error('Invalid offer format:', message);
         return;
       }
-      
+
       await pc.setRemoteDescription(new RTCSessionDescription(offerData));
-      
+
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      
+
       if (wsRef.current && roomId) {
         console.log('Patient sending answer with room ID:', roomId);
         wsRef.current.send(JSON.stringify({
@@ -330,7 +330,7 @@ export default function JoinConsultationPage() {
       });
     }
   };
-  
+
   const handleICECandidate = async (message: any) => {
     try {
       if (peerConnectionRef.current) {
@@ -347,7 +347,7 @@ export default function JoinConsultationPage() {
       console.error('Error adding ICE candidate:', error);
     }
   };
-  
+
   const toggleAudio = () => {
     if (localStreamRef.current) {
       const audioTracks = localStreamRef.current.getAudioTracks();
@@ -358,7 +358,7 @@ export default function JoinConsultationPage() {
       }
     }
   };
-  
+
   const toggleVideo = () => {
     if (localStreamRef.current) {
       const videoTracks = localStreamRef.current.getVideoTracks();
@@ -369,7 +369,7 @@ export default function JoinConsultationPage() {
       }
     }
   };
-  
+
   const handleJoinSession = () => {
     if (!name.trim()) {
       toast({
@@ -379,10 +379,10 @@ export default function JoinConsultationPage() {
       });
       return;
     }
-    
+
     setJoined(true);
   };
-  
+
   const handleEndCall = () => {
     // Clean up and exit
     if (localStreamRef.current) {
@@ -390,21 +390,21 @@ export default function JoinConsultationPage() {
         track.stop();
       });
     }
-    
+
     // Close peer connection
     if (peerConnectionRef.current) {
       peerConnectionRef.current.close();
     }
-    
+
     // Close WebSocket connection
     if (wsRef.current) {
       wsRef.current.close();
     }
-    
+
     // Redirect to a thank you page or home
     window.location.href = '/consultation-complete';
   };
-  
+
   if (!roomId) {
     return (
       <div className="container mx-auto p-4">
@@ -422,7 +422,7 @@ export default function JoinConsultationPage() {
       </div>
     );
   }
-  
+
   if (!joined) {
     return (
       <div className="container mx-auto p-4">
@@ -444,10 +444,10 @@ export default function JoinConsultationPage() {
                   onChange={(e) => setName(e.target.value)}
                 />
               </div>
-              
+
               <div className="pt-2">
-                <Button 
-                  className="w-full" 
+                <Button
+                  className="w-full"
                   onClick={handleJoinSession}
                   disabled={!name.trim()}
                 >
@@ -465,7 +465,7 @@ export default function JoinConsultationPage() {
       </div>
     );
   }
-  
+
   return (
     <div className="flex flex-col h-screen bg-background">
       <div className="relative flex-1 overflow-hidden">
@@ -476,7 +476,7 @@ export default function JoinConsultationPage() {
           autoPlay
           playsInline
         ></video>
-        
+
         {/* Local video (patient) - picture-in-picture */}
         <div className="absolute bottom-4 right-4 w-40 h-[90px] md:w-60 md:h-[135px] rounded-lg overflow-hidden shadow-lg">
           <video
@@ -486,16 +486,16 @@ export default function JoinConsultationPage() {
             playsInline
             muted
           ></video>
-          
+
           {!videoEnabled && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/80">
               <Avatar className="h-20 w-20">
-                <AvatarFallback className="text-xl">{name.charAt(0)}</AvatarFallback>
+                <AvatarFallback className="text-xl">{(name || '').charAt(0)}</AvatarFallback>
               </Avatar>
             </div>
           )}
         </div>
-        
+
         {/* Connection status */}
         {!isConnected && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/90">
@@ -506,7 +506,7 @@ export default function JoinConsultationPage() {
             </div>
           </div>
         )}
-        
+
         {/* Controls overlay */}
         <div className="absolute bottom-0 left-0 right-0 flex justify-center p-4 bg-gradient-to-t from-black/70 to-transparent">
           <div className="flex space-x-4">
@@ -518,7 +518,7 @@ export default function JoinConsultationPage() {
             >
               {audioEnabled ? <Mic /> : <MicOff />}
             </Button>
-            
+
             <Button
               variant={videoEnabled ? "outline" : "destructive"}
               size="icon"
@@ -527,7 +527,7 @@ export default function JoinConsultationPage() {
             >
               {videoEnabled ? <Camera /> : <CameraOff />}
             </Button>
-            
+
             <Button
               variant="destructive"
               size="icon"
@@ -538,7 +538,7 @@ export default function JoinConsultationPage() {
             </Button>
           </div>
         </div>
-        
+
         {/* Connected to info */}
         {isConnected && (
           <div className="absolute top-4 left-4 bg-black/30 text-white px-4 py-2 rounded-full">

@@ -42,7 +42,7 @@ const formatDuration = (seconds: number): string => {
 const AudioWaveform: React.FC<{ level: number }> = ({ level }) => {
   const bars = 20;
   const activeCount = Math.floor((level / 100) * bars);
-  
+
   return (
     <div className="flex items-center justify-center gap-1 h-12">
       {Array.from({ length: bars }).map((_, i) => {
@@ -51,9 +51,8 @@ const AudioWaveform: React.FC<{ level: number }> = ({ level }) => {
         return (
           <div
             key={i}
-            className={`w-1 rounded-full transition-all duration-100 ${
-              isActive ? 'bg-red-500' : 'bg-gray-300'
-            }`}
+            className={`w-1 rounded-full transition-all duration-100 ${isActive ? 'bg-red-500' : 'bg-gray-300'
+              }`}
             style={{ height: `${height}%` }}
           />
         );
@@ -65,7 +64,7 @@ const AudioWaveform: React.FC<{ level: number }> = ({ level }) => {
 export default function PatientIntakeVoice() {
   const { uniqueLink } = useParams();
   const { toast } = useToast();
-  
+
   // States
   const [step, setStep] = useState<'intro' | 'consent' | 'recording' | 'review' | 'complete'>('intro');
   const [consentGiven, setConsentGiven] = useState(false);
@@ -79,9 +78,9 @@ export default function PatientIntakeVoice() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [extractedData, setExtractedData] = useState<Record<string, string>>({});
   const [completionProgress, setCompletionProgress] = useState(0);
-  
+
   // Fetch intake form
-  const { data: formData, isLoading } = useQuery({
+  const { data: formData, isLoading } = useQuery<any>({
     queryKey: [`/api/public/intake-form/${uniqueLink}`],
     enabled: !!uniqueLink,
   });
@@ -132,9 +131,9 @@ export default function PatientIntakeVoice() {
       setRecordingError(null);
       setLiveTranscript("");
       setIsRecording(true);
-      
+
       await recordingService.startRecording();
-      
+
       // Start live transcription
       try {
         await recordingService.startLiveTranscription(
@@ -153,15 +152,15 @@ export default function PatientIntakeVoice() {
       } catch (liveError) {
         console.log("Live transcription not available");
       }
-      
+
       // Reset retry count on success
       setRetryAttempt(0);
-      
+
     } catch (error) {
       console.error("Recording error:", error);
       setIsRecording(false);
       setRecordingError(error instanceof Error ? error.message : "Unknown error");
-      
+
       toast({
         title: "Recording Failed",
         description: "Could not start recording. Checking your microphone...",
@@ -174,12 +173,12 @@ export default function PatientIntakeVoice() {
   const handleRetryRecording = async () => {
     setRetryAttempt(prev => prev + 1);
     setRecordingError(null);
-    
+
     toast({
       title: "Retrying...",
       description: `Attempt ${retryAttempt + 1} - Please allow microphone access`,
     });
-    
+
     setTimeout(() => {
       handleStartRecording();
     }, 1000);
@@ -189,39 +188,41 @@ export default function PatientIntakeVoice() {
   const handleStopRecording = async () => {
     setIsRecording(false);
     setIsProcessing(true);
-    
+
     try {
       if (recordingService.isLiveTranscribing) {
         recordingService.stopLiveTranscription();
       }
-      
+
       await recordingService.stopRecording();
-      
+
       let finalTranscript = liveTranscript;
       if (!finalTranscript) {
         finalTranscript = await recordingService.getTranscript();
       }
-      
+
       if (!finalTranscript) {
         throw new Error("No transcript available");
       }
-      
+
       // Extract all fields using AI
       const response = await apiRequest("POST", "/api/ai/extract-intake-answers", {
         transcript: finalTranscript,
         language: 'en-US'
       });
-      
-      if (response.answers) {
-        setExtractedData(response.answers);
+
+      const data = await response.json();
+
+      if (data.answers) {
+        setExtractedData(data.answers);
         setStep('review');
       }
-      
+
       toast({
         title: "Processing Complete!",
         description: "Your information has been organized.",
       });
-      
+
     } catch (error) {
       console.error("Processing error:", error);
       toast({
@@ -237,15 +238,17 @@ export default function PatientIntakeVoice() {
   // Auto-extract fields as transcript grows
   const autoExtractFields = async (transcript: string) => {
     if (transcript.length < 100) return;
-    
+
     try {
       const response = await apiRequest("POST", "/api/ai/extract-intake-answers", {
         transcript,
         language: 'en-US'
       });
-      
-      if (response.answers) {
-        setExtractedData(prev => ({ ...prev, ...response.answers }));
+
+      const data = await response.json();
+
+      if (data.answers) {
+        setExtractedData(prev => ({ ...prev, ...data.answers }));
       }
     } catch (error) {
       console.log("Auto-extract error:", error);
@@ -255,9 +258,9 @@ export default function PatientIntakeVoice() {
   // Submit form
   const handleSubmit = async () => {
     if (!formData) return;
-    
+
     setIsProcessing(true);
-    
+
     try {
       await apiRequest("POST", `/api/public/intake-form/${formData.id}/submit-continuous`, {
         answers: extractedData,
@@ -268,16 +271,16 @@ export default function PatientIntakeVoice() {
         signature: `Voice consent given at ${new Date().toISOString()}`,
         audioUrl: recordingService.getAudioUrl()
       });
-      
+
       await apiRequest("POST", `/api/public/intake-form/${formData.id}/complete`);
-      
+
       setStep('complete');
-      
+
       toast({
         title: "Success!",
         description: "Your intake form has been submitted.",
       });
-      
+
     } catch (error) {
       console.error("Submit error:", error);
       toast({
@@ -366,7 +369,7 @@ export default function PatientIntakeVoice() {
               ⏱️ Takes only 2-3 minutes  •  🔒 Completely secure  •  🌐 Works on any device
             </p>
 
-            <Button 
+            <Button
               onClick={() => setStep('consent')}
               className="w-full h-14 text-lg touch-manipulation"
               size="lg"
@@ -393,15 +396,15 @@ export default function PatientIntakeVoice() {
               <ShieldCheck className="h-4 w-4 text-green-600" />
               <AlertTitle className="text-green-800">Your Privacy is Protected</AlertTitle>
               <AlertDescription className="text-green-700 text-sm">
-                Your voice recording will be securely transcribed and then permanently deleted. 
+                Your voice recording will be securely transcribed and then permanently deleted.
                 Only the text information will be saved to your medical record.
               </AlertDescription>
             </Alert>
 
             <div className="space-y-4 bg-gray-50 p-4 rounded-lg">
               <div className="flex items-start gap-3">
-                <Checkbox 
-                  id="consent" 
+                <Checkbox
+                  id="consent"
                   checked={consentGiven}
                   onCheckedChange={(checked) => setConsentGiven(checked as boolean)}
                   className="mt-1"
@@ -425,14 +428,14 @@ export default function PatientIntakeVoice() {
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3">
-              <Button 
+              <Button
                 variant="outline"
                 onClick={() => setStep('intro')}
                 className="w-full sm:w-auto touch-manipulation"
               >
                 Go Back
               </Button>
-              <Button 
+              <Button
                 onClick={() => setStep('recording')}
                 disabled={!consentGiven}
                 className="w-full sm:flex-1 h-12 touch-manipulation"
@@ -468,7 +471,7 @@ export default function PatientIntakeVoice() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 sm:space-y-6 p-4 sm:p-6">
-            
+
             {/* Recording Controls */}
             <div className="text-center space-y-4">
               {!isRecording && !isProcessing && (
@@ -538,7 +541,7 @@ export default function PatientIntakeVoice() {
                 </div>
 
                 <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                  <div 
+                  <div
                     className="h-full bg-gradient-to-r from-red-400 to-red-500 transition-all"
                     style={{ width: `${Math.max(5, audioLevel)}%` }}
                   />
@@ -568,7 +571,7 @@ export default function PatientIntakeVoice() {
                     <li>Make sure your microphone is not muted</li>
                     <li>Try refreshing the page if problem persists</li>
                   </ul>
-                  <Button 
+                  <Button
                     onClick={handleRetryRecording}
                     variant="outline"
                     className="w-full mt-2"
@@ -589,18 +592,17 @@ export default function PatientIntakeVoice() {
                   <span className="text-xs text-muted-foreground">{Math.round(completionProgress)}%</span>
                 </div>
               </div>
-              
+
               <div className="grid gap-2">
                 {INTAKE_QUESTIONS.map((question) => {
                   const filled = extractedData[question.field];
                   return (
-                    <div 
+                    <div
                       key={question.id}
-                      className={`p-3 rounded-md border transition-all ${
-                        filled 
-                          ? 'bg-green-50 border-green-300' 
-                          : 'bg-gray-50 border-gray-200'
-                      }`}
+                      className={`p-3 rounded-md border transition-all ${filled
+                        ? 'bg-green-50 border-green-300'
+                        : 'bg-gray-50 border-gray-200'
+                        }`}
                     >
                       <div className="flex items-start gap-2">
                         <span className="text-xs font-medium text-gray-500 mt-0.5">
@@ -637,7 +639,7 @@ export default function PatientIntakeVoice() {
                   Review & Submit
                 </Button>
               )}
-              
+
               {!isRecording && !isProcessing && (
                 <Button
                   variant="outline"
@@ -670,7 +672,7 @@ export default function PatientIntakeVoice() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 p-6">
-            
+
             {!canSubmit && (
               <Alert className="border-amber-300 bg-amber-50">
                 <AlertCircle className="h-4 w-4 text-amber-600" />
@@ -685,13 +687,12 @@ export default function PatientIntakeVoice() {
               {INTAKE_QUESTIONS.map((question) => {
                 const value = extractedData[question.field];
                 const isMissing = question.required && !value?.trim();
-                
+
                 return (
-                  <div 
+                  <div
                     key={question.id}
-                    className={`p-3 rounded-md border ${
-                      isMissing ? 'bg-red-50 border-red-300' : 'bg-gray-50 border-gray-200'
-                    }`}
+                    className={`p-3 rounded-md border ${isMissing ? 'bg-red-50 border-red-300' : 'bg-gray-50 border-gray-200'
+                      }`}
                   >
                     <div className="text-sm font-medium mb-1 flex items-center gap-2">
                       {question.label}

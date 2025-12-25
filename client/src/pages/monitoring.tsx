@@ -15,7 +15,11 @@ import { AlertCircle, Activity, Plus, Trash, Bluetooth } from 'lucide-react';
 import { queryClient } from '@/lib/queryClient';
 import BluetoothConnect from '@/components/bluetooth-connect';
 
-const PatientSelector = ({ patients, selectedPatientId, onSelectPatient }) => {
+const PatientSelector = ({ patients, selectedPatientId, onSelectPatient }: {
+  patients: any[],
+  selectedPatientId: number | null,
+  onSelectPatient: (id: number) => void
+}) => {
   if (!patients?.length) {
     return (
       <Alert variant="destructive">
@@ -50,7 +54,11 @@ const PatientSelector = ({ patients, selectedPatientId, onSelectPatient }) => {
   );
 };
 
-const DeviceCard = ({ device, onDelete, onAddReading }) => {
+const DeviceCard = ({ device, onDelete, onAddReading }: {
+  device: any,
+  onDelete: (id: number) => void,
+  onAddReading: (device: any) => void
+}) => {
   const statusColors = {
     connected: 'bg-green-500',
     disconnected: 'bg-red-500',
@@ -65,7 +73,7 @@ const DeviceCard = ({ device, onDelete, onAddReading }) => {
             <CardTitle>{device.name}</CardTitle>
             <CardDescription>{device.model}</CardDescription>
           </div>
-          <Badge className={statusColors[device.status] || 'bg-gray-500'}>
+          <Badge className={statusColors[device.status as keyof typeof statusColors] || 'bg-gray-500'}>
             {device.status}
           </Badge>
         </div>
@@ -90,7 +98,12 @@ const DeviceCard = ({ device, onDelete, onAddReading }) => {
   );
 };
 
-const AddDeviceDialog = ({ patientId, isOpen, onClose, onAdd }) => {
+const AddDeviceDialog = ({ patientId, isOpen, onClose, onAdd }: {
+  patientId: number | null,
+  isOpen: boolean,
+  onClose: () => void,
+  onAdd: (data: any) => void
+}) => {
   const [formData, setFormData] = useState({
     name: '',
     type: 'bp',
@@ -98,11 +111,11 @@ const AddDeviceDialog = ({ patientId, isOpen, onClose, onAdd }) => {
     status: 'disconnected'
   });
 
-  const handleChange = (field, value) => {
+  const handleChange = (field: any, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: any) => {
     e.preventDefault();
     onAdd({ ...formData, patientId });
     onClose();
@@ -188,42 +201,47 @@ const AddDeviceDialog = ({ patientId, isOpen, onClose, onAdd }) => {
   );
 };
 
-const AddReadingDialog = ({ device, isOpen, onClose, onAdd }) => {
+const AddReadingDialog = ({ device, isOpen, onClose, onAdd }: {
+  device: any,
+  isOpen: boolean,
+  onClose: () => void,
+  onAdd: (data: any, type: string) => void
+}) => {
   const [formData, setFormData] = useState(
     device?.type === 'bp'
       ? { systolic: '', diastolic: '', pulse: '', notes: '' }
       : { value: '', type: 'random', notes: '' }
   );
 
-  const handleChange = (field, value) => {
+  const handleChange = (field: any, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: any) => {
     e.preventDefault();
-    
+
     // For BP readings
     if (device?.type === 'bp') {
       onAdd({
         deviceId: device.id,
         patientId: device.patientId,
-        systolic: parseInt(formData.systolic),
-        diastolic: parseInt(formData.diastolic),
-        pulse: parseInt(formData.pulse),
-        notes: formData.notes
+        systolic: parseInt((formData as any).systolic || '0'),
+        diastolic: parseInt((formData as any).diastolic || '0'),
+        pulse: parseInt((formData as any).pulse || '0'),
+        notes: (formData as any).notes
       }, 'bp');
-    } 
+    }
     // For glucose readings
     else {
       onAdd({
         deviceId: device.id,
         patientId: device.patientId,
-        value: parseInt(formData.value),
-        type: formData.type,
-        notes: formData.notes
+        value: parseInt((formData as any).value || '0'),
+        type: (formData as any).type,
+        notes: (formData as any).notes
       }, 'glucose');
     }
-    
+
     onClose();
   };
 
@@ -235,8 +253,8 @@ const AddReadingDialog = ({ device, isOpen, onClose, onAdd }) => {
         <DialogHeader>
           <DialogTitle>Add New Reading</DialogTitle>
           <DialogDescription>
-            {device.type === 'bp' 
-              ? 'Enter blood pressure and pulse information.' 
+            {device.type === 'bp'
+              ? 'Enter blood pressure and pulse information.'
               : 'Enter blood glucose reading details.'}
           </DialogDescription>
         </DialogHeader>
@@ -355,7 +373,10 @@ const AddReadingDialog = ({ device, isOpen, onClose, onAdd }) => {
   );
 };
 
-const ReadingsTab = ({ readings, type }) => {
+const ReadingsTab = ({ readings, type }: {
+  readings: any[],
+  type: string
+}) => {
   if (!readings || readings.length === 0) {
     return (
       <div className="text-center py-8">
@@ -423,15 +444,21 @@ const ReadingsTab = ({ readings, type }) => {
   );
 };
 
-const AlertSettingsDialog = ({ patientId, deviceType, isOpen, onClose, onSave }) => {
+const AlertSettingsDialog = ({ patientId, deviceType, isOpen, onClose, onSave }: {
+  patientId: number | null,
+  deviceType: string,
+  isOpen: boolean,
+  onClose: () => void,
+  onSave: (data: any) => void
+}) => {
   const { toast } = useToast();
-  
+
   // Fetch existing settings if available
   const { data: existingSettings } = useQuery({
     queryKey: ['/api/monitoring/alert-settings', patientId, deviceType],
     queryFn: async () => {
       if (!patientId || !deviceType) return null;
-      
+
       try {
         const response = await fetch(`/api/monitoring/alert-settings/${patientId}/${deviceType}`);
         if (response.ok) {
@@ -445,12 +472,12 @@ const AlertSettingsDialog = ({ patientId, deviceType, isOpen, onClose, onSave })
     },
     enabled: !!patientId && !!deviceType && isOpen
   });
-  
+
   const [formData, setFormData] = useState({
     patientId,
     deviceType,
-    thresholds: deviceType === 'bp' 
-      ? { systolicHigh: 140, systolicLow: 90, diastolicHigh: 90, diastolicLow: 60, pulseHigh: 100, pulseLow: 60 } 
+    thresholds: deviceType === 'bp'
+      ? { systolicHigh: 140, systolicLow: 90, diastolicHigh: 90, diastolicLow: 60, pulseHigh: 100, pulseLow: 60 }
       : { high: 180, low: 70 },
     notifyPatient: true,
     notifyDoctor: true,
@@ -458,15 +485,15 @@ const AlertSettingsDialog = ({ patientId, deviceType, isOpen, onClose, onSave })
     notifyFamily: false,
     enabled: true
   });
-  
+
   // Update form with existing settings when available
   React.useEffect(() => {
     if (existingSettings) {
       setFormData(existingSettings);
     }
   }, [existingSettings]);
-  
-  const handleThresholdChange = (field, value) => {
+
+  const handleThresholdChange = (field: any, value: any) => {
     setFormData(prev => ({
       ...prev,
       thresholds: {
@@ -475,31 +502,31 @@ const AlertSettingsDialog = ({ patientId, deviceType, isOpen, onClose, onSave })
       }
     }));
   };
-  
-  const handleChange = (field, value) => {
+
+  const handleChange = (field: any, value: any) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
     }));
   };
-  
-  const handleSubmit = (e) => {
+
+  const handleSubmit = (e: any) => {
     e.preventDefault();
-    
+
     onSave({
       ...formData,
       patientId,
       deviceType
     });
-    
+
     toast({
       title: "Alert settings saved",
       description: "Your alert threshold settings have been successfully saved."
     });
-    
+
     onClose();
   };
-  
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[500px]">
@@ -509,7 +536,7 @@ const AlertSettingsDialog = ({ patientId, deviceType, isOpen, onClose, onSave })
             Set thresholds for when alerts should be triggered for abnormal readings.
           </DialogDescription>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
             {deviceType === 'bp' ? (
@@ -539,7 +566,7 @@ const AlertSettingsDialog = ({ patientId, deviceType, isOpen, onClose, onSave })
                     />
                   </div>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="diastolicHigh">Diastolic High (mmHg)</Label>
@@ -564,7 +591,7 @@ const AlertSettingsDialog = ({ patientId, deviceType, isOpen, onClose, onSave })
                     />
                   </div>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="pulseHigh">Pulse High (bpm)</Label>
@@ -617,7 +644,7 @@ const AlertSettingsDialog = ({ patientId, deviceType, isOpen, onClose, onSave })
                 </div>
               </div>
             )}
-            
+
             <div className="grid gap-2 pt-4">
               <h4 className="text-sm font-medium">Notification Settings</h4>
               <div className="grid grid-cols-2 gap-4">
@@ -663,7 +690,7 @@ const AlertSettingsDialog = ({ patientId, deviceType, isOpen, onClose, onSave })
                 </div>
               </div>
             </div>
-            
+
             <div className="flex items-center space-x-2 pt-4">
               <input
                 type="checkbox"
@@ -675,7 +702,7 @@ const AlertSettingsDialog = ({ patientId, deviceType, isOpen, onClose, onSave })
               <Label htmlFor="enabled">Enable Alerts</Label>
             </div>
           </div>
-          
+
           <DialogFooter>
             <Button type="submit">Save Settings</Button>
           </DialogFooter>
@@ -688,7 +715,7 @@ const AlertSettingsDialog = ({ patientId, deviceType, isOpen, onClose, onSave })
 export default function MonitoringPage() {
   const [location, setLocation] = useLocation();
   const { toast } = useToast();
-  
+
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
   const [isAddDeviceDialogOpen, setIsAddDeviceDialogOpen] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState(null);
@@ -697,13 +724,13 @@ export default function MonitoringPage() {
   const [isAlertSettingsOpen, setIsAlertSettingsOpen] = useState(false);
 
   // Fetch patients data
-  const { data: patients, isLoading: isLoadingPatients } = useQuery({
+  const { data: patients, isLoading: isLoadingPatients } = useQuery<any[]>({
     queryKey: ['/api/patients'],
-    select: (data) => data || []
+    select: (data: any) => data || []
   });
 
   // Fetch devices for selected patient
-  const { data: devices, isLoading: isLoadingDevices } = useQuery({
+  const { data: devices, isLoading: isLoadingDevices } = useQuery<any[]>({
     queryKey: ['/api/monitoring/devices', selectedPatientId],
     queryFn: async () => {
       if (!selectedPatientId) return [];
@@ -752,7 +779,7 @@ export default function MonitoringPage() {
   }, [patients, selectedPatientId]);
 
   // Handle adding a new device
-  const handleAddDevice = async (deviceData) => {
+  const handleAddDevice = async (deviceData: any) => {
     try {
       const response = await fetch('/api/monitoring/device', {
         method: 'POST',
@@ -773,17 +800,17 @@ export default function MonitoringPage() {
         title: 'Device Added',
         description: 'The device has been successfully added.',
       });
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: error.message || "An error occurred",
         variant: 'destructive',
       });
     }
   };
 
   // Handle deleting a device
-  const handleDeleteDevice = async (deviceId) => {
+  const handleDeleteDevice = async (deviceId: number) => {
     try {
       const response = await fetch(`/api/monitoring/device/${deviceId}`, {
         method: 'DELETE',
@@ -800,20 +827,20 @@ export default function MonitoringPage() {
         title: 'Device Removed',
         description: 'The device has been successfully removed.',
       });
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: error.message || "An error occurred",
         variant: 'destructive',
       });
     }
   };
 
   // Handle adding a reading
-  const handleAddReading = async (readingData, type) => {
+  const handleAddReading = async (readingData: any, type: any) => {
     try {
       const endpoint = type === 'bp' ? '/api/monitoring/bp-reading' : '/api/monitoring/glucose-reading';
-      
+
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -837,17 +864,17 @@ export default function MonitoringPage() {
         title: 'Reading Added',
         description: `The ${type === 'bp' ? 'blood pressure' : 'glucose'} reading has been successfully added.`,
       });
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: error.message || "An error occurred",
         variant: 'destructive',
       });
     }
   };
 
   // Handle saving alert settings
-  const handleSaveAlertSettings = async (settingsData) => {
+  const handleSaveAlertSettings = async (settingsData: any) => {
     try {
       const response = await fetch('/api/monitoring/alert-settings', {
         method: 'POST',
@@ -862,18 +889,18 @@ export default function MonitoringPage() {
       }
 
       // Invalidate alert settings query
-      queryClient.invalidateQueries({ 
-        queryKey: ['/api/monitoring/alert-settings', selectedPatientId, activeTabType] 
+      queryClient.invalidateQueries({
+        queryKey: ['/api/monitoring/alert-settings', selectedPatientId, activeTabType]
       });
 
       toast({
         title: 'Settings Saved',
         description: 'Alert thresholds have been successfully saved.',
       });
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: error.message || "An error occurred",
         variant: 'destructive',
       });
     }
@@ -906,7 +933,7 @@ export default function MonitoringPage() {
       </div>
 
       <PatientSelector
-        patients={patients}
+        patients={patients || []}
         selectedPatientId={selectedPatientId}
         onSelectPatient={setSelectedPatientId}
       />
@@ -917,7 +944,7 @@ export default function MonitoringPage() {
             <TabsTrigger value="devices">Devices</TabsTrigger>
             <TabsTrigger value="readings">Readings</TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value="devices">
             {selectedPatientId && (
               <Card className="mb-6">
@@ -933,18 +960,18 @@ export default function MonitoringPage() {
                       <TabsTrigger value="bp">Blood Pressure Monitor</TabsTrigger>
                       <TabsTrigger value="glucose">Glucose Meter</TabsTrigger>
                     </TabsList>
-                    
+
                     <TabsContent value="bp">
-                      <BluetoothConnect 
+                      <BluetoothConnect
                         patientId={selectedPatientId}
                         deviceType="bp"
                         onDeviceConnected={handleAddDevice}
                         onReadingReceived={(readingData) => handleAddReading(readingData, 'bp')}
                       />
                     </TabsContent>
-                    
+
                     <TabsContent value="glucose">
-                      <BluetoothConnect 
+                      <BluetoothConnect
                         patientId={selectedPatientId}
                         deviceType="glucose"
                         onDeviceConnected={handleAddDevice}
@@ -955,20 +982,20 @@ export default function MonitoringPage() {
                 </CardContent>
               </Card>
             )}
-            
+
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {devices?.map((device) => (
+              {devices?.map((device: any) => (
                 <DeviceCard
                   key={device.id}
                   device={device}
                   onDelete={handleDeleteDevice}
-                  onAddReading={(device) => {
+                  onAddReading={(device: any) => {
                     setSelectedDevice(device);
                     setIsAddReadingDialogOpen(true);
                   }}
                 />
               ))}
-              
+
               {!isLoadingDevices && (!devices || devices.length === 0) && (
                 <div className="col-span-full text-center py-10">
                   <p className="text-gray-500 mb-4">No devices added yet</p>
@@ -979,18 +1006,18 @@ export default function MonitoringPage() {
               )}
             </div>
           </TabsContent>
-          
+
           <TabsContent value="readings">
             <Tabs defaultValue="bp" className="mt-6" onValueChange={(value) => setActiveTabType(value as 'bp' | 'glucose')}>
               <TabsList>
                 <TabsTrigger value="bp">Blood Pressure</TabsTrigger>
                 <TabsTrigger value="glucose">Glucose</TabsTrigger>
               </TabsList>
-              
+
               <TabsContent value="bp">
                 <ReadingsTab readings={bpReadings} type="bp" />
               </TabsContent>
-              
+
               <TabsContent value="glucose">
                 <ReadingsTab readings={glucoseReadings} type="glucose" />
               </TabsContent>

@@ -1461,18 +1461,18 @@ function VideoConsultation({ roomId, patient, onClose }: VideoConsultationProps)
                   <div key={i} className="flex flex-col">
                     <div className="flex items-center gap-2">
                       <p className={`text-xs font-medium ${item.speaker === 'Doctor' ? 'text-blue-500' :
-                          item.speaker === 'Patient' ? 'text-orange-500' :
-                            'text-muted-foreground'
+                        item.speaker === 'Patient' ? 'text-orange-500' :
+                          'text-muted-foreground'
                         }`}>{item.speaker}</p>
                       <p className="text-xs text-muted-foreground">
                         {item.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
                       </p>
                     </div>
                     <div className={`rounded-lg p-2 sm:p-3 mt-1 inline-block max-w-[85%] ${item.speaker === 'System'
-                        ? 'bg-secondary/20 italic'
-                        : item.speaker === 'Patient'
-                          ? 'bg-orange-500/10 border border-orange-500/20'
-                          : 'bg-blue-500/10 border border-blue-500/20'
+                      ? 'bg-secondary/20 italic'
+                      : item.speaker === 'Patient'
+                        ? 'bg-orange-500/10 border border-orange-500/20'
+                        : 'bg-blue-500/10 border border-blue-500/20'
                       }`}>
                       <p className="text-sm">{item.text}</p>
                     </div>
@@ -2246,7 +2246,7 @@ export default function Telemedicine() {
                         hour12: true
                       });
 
-                      const initials = `${patient.firstName.charAt(0)}${patient.lastName ? patient.lastName.charAt(0) : ''}`;
+                      const initials = `${(patient.firstName || '').charAt(0)}${(patient.lastName || '').charAt(0)}`;
 
                       return (
                         <div

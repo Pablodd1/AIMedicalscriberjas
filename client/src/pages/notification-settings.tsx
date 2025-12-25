@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,34 +32,31 @@ export default function NotificationSettings() {
   });
 
   // Load email settings
-  const { data: existingEmailSettings } = useQuery({
+  const { data: existingEmailSettings } = useQuery<any>({
     queryKey: ["/api/settings/email"],
-    onSuccess: (data: any) => {
-      if (data) {
-        setEmailSettings(prev => ({ ...prev, ...data }));
-      }
-    }
   });
 
-  // Load SMS settings
-  const { data: existingSmsSettings } = useQuery({
-    queryKey: ["/api/settings/sms"],
-    onSuccess: (data: any) => {
-      if (data) {
-        setSmsSettings(prev => ({ ...prev, ...data }));
-      }
+  useEffect(() => {
+    if (existingEmailSettings) {
+      setEmailSettings(prev => ({ ...prev, ...existingEmailSettings }));
     }
+  }, [existingEmailSettings]);
+
+  // Load SMS settings
+  const { data: existingSmsSettings } = useQuery<any>({
+    queryKey: ["/api/settings/sms"],
   });
+
+  useEffect(() => {
+    if (existingSmsSettings) {
+      setSmsSettings(prev => ({ ...prev, ...existingSmsSettings }));
+    }
+  }, [existingSmsSettings]);
 
   // Save email settings mutation
   const saveEmailMutation = useMutation({
     mutationFn: async (settings: typeof emailSettings) => {
-      const res = await apiRequest("/api/settings/email", {
-        method: "POST",
-        body: JSON.stringify(settings),
-        headers: { "Content-Type": "application/json" }
-      });
-      if (!res.ok) throw new Error("Failed to save email settings");
+      const res = await apiRequest("POST", "/api/settings/email", settings);
       return res.json();
     },
     onSuccess: () => {
@@ -81,12 +78,7 @@ export default function NotificationSettings() {
   // Save SMS settings mutation
   const saveSMSMutation = useMutation({
     mutationFn: async (settings: typeof smsSettings) => {
-      const res = await apiRequest("/api/settings/sms", {
-        method: "POST",
-        body: JSON.stringify(settings),
-        headers: { "Content-Type": "application/json" }
-      });
-      if (!res.ok) throw new Error("Failed to save SMS settings");
+      const res = await apiRequest("POST", "/api/settings/sms", settings);
       return res.json();
     },
     onSuccess: () => {
@@ -108,12 +100,7 @@ export default function NotificationSettings() {
   // Send test email
   const sendTestEmailMutation = useMutation({
     mutationFn: async (testEmail: string) => {
-      const res = await apiRequest("/api/email/test-email", {
-        method: "POST",
-        body: JSON.stringify({ testEmail }),
-        headers: { "Content-Type": "application/json" }
-      });
-      if (!res.ok) throw new Error("Failed to send test email");
+      const res = await apiRequest("POST", "/api/email/test-email", { testEmail });
       return res.json();
     },
     onSuccess: () => {

@@ -57,7 +57,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Check, X, Trash2, UserPlus, UserCog, Shield, Users, Key, AlertCircle, CheckCircle, ShieldAlert } from 'lucide-react';
+import { Loader2, Check, X, Trash2, UserPlus, UserCog, Shield, Users, Key, AlertCircle, CheckCircle, ShieldAlert, FileText } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { Link } from 'wouter';
 
@@ -116,33 +116,33 @@ const ROLE_OPTIONS: Array<{
   description: string;
   requiresGlobalAdmin?: boolean;
 }> = [
-  {
-    value: 'administrator',
-    label: ROLE_LABELS.administrator,
-    description: 'Full platform ownership. Manage admins, billing, and system-wide settings.',
-    requiresGlobalAdmin: true,
-  },
-  {
-    value: 'admin',
-    label: ROLE_LABELS.admin,
-    description: 'Clinic administrator with access to user management, billing, and settings.',
-  },
-  {
-    value: 'doctor',
-    label: ROLE_LABELS.doctor,
-    description: 'Primary provider access for patient care, telemedicine, and documentation.',
-  },
-  {
-    value: 'assistant',
-    label: ROLE_LABELS.assistant,
-    description: 'Support staff access for scheduling, documentation support, and communications.',
-  },
-  {
-    value: 'patient',
-    label: ROLE_LABELS.patient,
-    description: 'Patient portal access.',
-  },
-];
+    {
+      value: 'administrator',
+      label: ROLE_LABELS.administrator,
+      description: 'Full platform ownership. Manage admins, billing, and system-wide settings.',
+      requiresGlobalAdmin: true,
+    },
+    {
+      value: 'admin',
+      label: ROLE_LABELS.admin,
+      description: 'Clinic administrator with access to user management, billing, and settings.',
+    },
+    {
+      value: 'doctor',
+      label: ROLE_LABELS.doctor,
+      description: 'Primary provider access for patient care, telemedicine, and documentation.',
+    },
+    {
+      value: 'assistant',
+      label: ROLE_LABELS.assistant,
+      description: 'Support staff access for scheduling, documentation support, and communications.',
+    },
+    {
+      value: 'patient',
+      label: ROLE_LABELS.patient,
+      description: 'Patient portal access.',
+    },
+  ];
 
 const CreateUserSchema = z
   .object({
@@ -281,7 +281,7 @@ const AdminPanel = () => {
     password?: string;
   }
 
-  const { data: users, isLoading: isLoadingUsers } = useQuery({
+  const { data: users, isLoading: isLoadingUsers } = useQuery<UserWithPlainPassword[]>({
     queryKey: ['/api/admin/users'],
     queryFn: async () => {
       if (!isAuthenticated) return [] as UserWithPlainPassword[];
@@ -550,17 +550,17 @@ const AdminPanel = () => {
       if (selectedUserForApiKey && data.user) {
         setSelectedUserForApiKey(data.user);
       }
-      
+
       // Confirm the cache data is correct - no need to refresh since we already updated optimistically
       queryClient.setQueryData(['/api/admin/users'], (oldData: UserWithPlainPassword[] | undefined) => {
         if (!oldData) return oldData;
-        return oldData.map(user => 
-          user.id === data.user.id 
-            ? { ...user, useOwnApiKey: data.user.useOwnApiKey } 
+        return oldData.map(user =>
+          user.id === data.user.id
+            ? { ...user, useOwnApiKey: data.user.useOwnApiKey }
             : user
         );
       });
-      
+
       setShowApiKeyDialog(false);
       setTempApiKeySetting(false); // Reset temp state
       toast({
@@ -592,7 +592,7 @@ const AdminPanel = () => {
           return;
         }
       }
-      
+
       // Alternative password-based login for direct admin access
       if (data.password === 'admin@@@') {
         setIsAuthenticated(true);
@@ -629,13 +629,13 @@ const AdminPanel = () => {
     setSelectedUser(user);
     setShowDeleteDialog(true);
   };
-  
+
   const openResetPasswordDialog = (user: User) => {
     setSelectedUser(user);
     setNewPassword('');
     setShowResetPasswordDialog(true);
   };
-  
+
   const handleResetPassword = () => {
     if (selectedUser && newPassword.length >= 6) {
       resetPasswordMutation.mutate({
@@ -696,17 +696,17 @@ const AdminPanel = () => {
   const handleUpdateUserApiKeySetting = (useOwnApiKey: boolean) => {
     if (selectedUserForApiKey) {
       setTempApiKeySetting(useOwnApiKey); // Optimistic update for UI
-      
+
       // Immediately update the cache with the new setting
       queryClient.setQueryData(['/api/admin/users'], (oldData: UserWithPlainPassword[] | undefined) => {
         if (!oldData) return oldData;
-        return oldData.map(user => 
-          user.id === selectedUserForApiKey.id 
-            ? { ...user, useOwnApiKey } 
+        return oldData.map(user =>
+          user.id === selectedUserForApiKey.id
+            ? { ...user, useOwnApiKey }
             : user
         );
       });
-      
+
       updateUserApiKeySettingMutation.mutate({
         userId: selectedUserForApiKey.id,
         useOwnApiKey
@@ -811,15 +811,15 @@ const AdminPanel = () => {
               Global Prompts
             </Button>
           </Link>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             size="sm"
             onClick={forceRefreshData}
           >
             Refresh Data
           </Button>
           {(!currentUser || !['admin', 'administrator'].includes(currentUser.role)) && (
-            <Button 
+            <Button
               variant="outline"
               size="sm"
               onClick={() => {
@@ -835,14 +835,14 @@ const AdminPanel = () => {
           )}
         </div>
       </div>
-      
+
       <Tabs defaultValue="users">
         <TabsList className="mb-4">
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="users">User Management</TabsTrigger>
           <TabsTrigger value="api-keys">API Key Management</TabsTrigger>
         </TabsList>
-        
+
         <TabsContent value="dashboard">
           <Card>
             <CardHeader>
@@ -874,7 +874,7 @@ const AdminPanel = () => {
                       </div>
                     </CardContent>
                   </Card>
-                  
+
                   <Card>
                     <CardHeader className="pb-2">
                       <CardTitle className="text-base font-medium">Doctors</CardTitle>
@@ -886,7 +886,7 @@ const AdminPanel = () => {
                       </div>
                     </CardContent>
                   </Card>
-                  
+
                   <Card>
                     <CardHeader className="pb-2">
                       <CardTitle className="text-base font-medium">Patients</CardTitle>
@@ -898,7 +898,7 @@ const AdminPanel = () => {
                       </div>
                     </CardContent>
                   </Card>
-                  
+
                   <Card>
                     <CardHeader className="pb-2">
                       <CardTitle className="text-base font-medium">Admin &amp; Support</CardTitle>
@@ -932,7 +932,7 @@ const AdminPanel = () => {
             </CardContent>
           </Card>
         </TabsContent>
-        
+
         <TabsContent value="users">
           <Card>
             <CardHeader>
@@ -973,8 +973,8 @@ const AdminPanel = () => {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge variant={ROLE_BADGE_VARIANTS[user.role]}>
-                              {ROLE_LABELS[user.role]}
+                            <Badge variant={ROLE_BADGE_VARIANTS[user.role as RoleValue]}>
+                              {ROLE_LABELS[user.role as RoleValue]}
                             </Badge>
                           </TableCell>
                           <TableCell>
@@ -994,18 +994,18 @@ const AdminPanel = () => {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
+                              <Button
+                                variant="outline"
+                                size="sm"
                                 onClick={() => openEditDialog(user)}
                                 disabled={user.id === 1 || (user.role === 'administrator' && currentUser?.role !== 'administrator')}
                               >
                                 <UserCog className="h-4 w-4 mr-1" />
                                 Edit
                               </Button>
-                              <Button 
-                                variant="destructive" 
-                                size="sm" 
+                              <Button
+                                variant="destructive"
+                                size="sm"
                                 onClick={() => openDeleteDialog(user)}
                                 disabled={user.id === 1 || (user.role === 'administrator' && currentUser?.role !== 'administrator')}
                                 className="mr-1"
@@ -1013,9 +1013,9 @@ const AdminPanel = () => {
                                 <Trash2 className="h-4 w-4 mr-1" />
                                 Delete
                               </Button>
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
+                              <Button
+                                variant="outline"
+                                size="sm"
                                 onClick={() => openResetPasswordDialog(user)}
                                 disabled={user.id === 1 || (user.role === 'administrator' && currentUser?.role !== 'administrator')}
                               >
@@ -1048,7 +1048,7 @@ const AdminPanel = () => {
                   Global OpenAI API Key
                 </CardTitle>
                 <CardDescription>
-                  Configure the global OpenAI API key that will be used by default for all AI features. 
+                  Configure the global OpenAI API key that will be used by default for all AI features.
                   This key will be used for users who don't have their own personal API key configured.
                 </CardDescription>
               </CardHeader>
@@ -1163,8 +1163,8 @@ const AdminPanel = () => {
                               </div>
                             </TableCell>
                             <TableCell>
-                              <Badge variant={ROLE_BADGE_VARIANTS[user.role]}>
-                                {ROLE_LABELS[user.role]}
+                              <Badge variant={ROLE_BADGE_VARIANTS[user.role as RoleValue]}>
+                                {ROLE_LABELS[user.role as RoleValue]}
                               </Badge>
                             </TableCell>
                             <TableCell>{user.email}</TableCell>
@@ -1468,7 +1468,7 @@ const AdminPanel = () => {
               <p className="text-xs text-muted-foreground ml-6">
                 The user will use the system's global OpenAI API key for all AI features.
               </p>
-              
+
               <div className="flex items-center space-x-2">
                 <input
                   type="radio"
@@ -1492,8 +1492,8 @@ const AdminPanel = () => {
             </div>
           </div>
           <DialogFooter>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => {
                 setShowApiKeyDialog(false);
                 setTempApiKeySetting(false);
@@ -1530,13 +1530,13 @@ const AdminPanel = () => {
             </div>
           </div>
           <DialogFooter>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setShowResetPasswordDialog(false)}
             >
               Cancel
             </Button>
-            <Button 
+            <Button
               onClick={handleResetPassword}
               disabled={resetPasswordMutation.isPending || !newPassword || newPassword.length < 6}
             >
@@ -1567,19 +1567,19 @@ const AdminPanel = () => {
               Update user role and permissions.
             </DialogDescription>
           </DialogHeader>
-          
+
           {selectedUser && (
             <div className="space-y-4">
               <div>
                 <Label htmlFor="userName">Name</Label>
                 <Input id="userName" value={selectedUser.name} disabled />
               </div>
-              
+
               <div>
                 <Label htmlFor="userEmail">Email</Label>
                 <Input id="userEmail" value={selectedUser.email} disabled />
               </div>
-              
+
               <div>
                 <Label htmlFor="userRole">Role</Label>
                 <Select defaultValue={selectedUser.role} onValueChange={(value) => {
@@ -1602,7 +1602,7 @@ const AdminPanel = () => {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <div className="flex items-center space-x-2">
                 <Switch
                   id="user-active"
@@ -1620,7 +1620,7 @@ const AdminPanel = () => {
               </div>
             </div>
           )}
-          
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEditDialog(false)}>
               Cancel
@@ -1644,7 +1644,7 @@ const AdminPanel = () => {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={handleDeleteUser}
               className="bg-red-600 hover:bg-red-700"
             >

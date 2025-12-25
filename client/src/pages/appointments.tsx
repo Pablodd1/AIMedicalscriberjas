@@ -64,8 +64,8 @@ export default function Appointments() {
   const [draggedAppointment, setDraggedAppointment] = useState<Appointment | null>(null);
   const [dropTargetDate, setDropTargetDate] = useState<Date | null>(null);
   const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
-  const [rescheduleTarget, setRescheduleTarget] = useState<{appointment: Appointment, newDate: Date} | null>(null);
-  const [rescheduleTime, setRescheduleTime] = useState<{hour: string, minute: string}>({hour: "9", minute: "0"});
+  const [rescheduleTarget, setRescheduleTarget] = useState<{ appointment: Appointment, newDate: Date } | null>(null);
+  const [rescheduleTime, setRescheduleTime] = useState<{ hour: string, minute: string }>({ hour: "9", minute: "0" });
 
   const { data: appointments } = useQuery<Appointment[]>({
     queryKey: ["/api/appointments"],
@@ -97,7 +97,7 @@ export default function Appointments() {
 
   const validationSchema = insertAppointmentSchema.extend({
     patientId: insertAppointmentSchema.shape.patientId.refine(
-      (value) => value > 0, 
+      (value) => value > 0,
       { message: "Please select a patient" }
     ),
     // Allow the date to be a number (timestamp)
@@ -138,8 +138,8 @@ export default function Appointments() {
 
   // Helper functions for calendar view
   const navigateMonth = (direction: 'next' | 'prev') => {
-    setCurrentMonth(direction === 'next' 
-      ? addMonths(currentMonth, 1) 
+    setCurrentMonth(direction === 'next'
+      ? addMonths(currentMonth, 1)
       : subMonths(currentMonth, 1)
     );
   };
@@ -247,7 +247,7 @@ export default function Appointments() {
       } else {
         dateTimestamp = new Date().getTime();
       }
-      
+
       const formattedData = {
         ...data,
         date: dateTimestamp,
@@ -306,12 +306,12 @@ export default function Appointments() {
         }),
         credentials: "include",
       });
-      
+
       if (!res.ok) {
         const text = await res.text();
         throw new Error(text || `Failed to send: ${res.statusText}`);
       }
-      
+
       const data = await res.json();
       return data;
     },
@@ -344,7 +344,7 @@ export default function Appointments() {
 
   // Download appointments by status
   const downloadAppointmentsByStatus = (status: string | null) => {
-    const appointmentsToExport = status === null 
+    const appointmentsToExport = status === null
       ? appointments || []
       : appointments?.filter(apt => apt.status === status) || [];
 
@@ -365,7 +365,7 @@ export default function Appointments() {
         'Patient Email': patient?.email || '',
         'Date': new Date(apt.date).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }),
         'Time': new Date(apt.date).toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' }),
-        'Status': apt.status.charAt(0).toUpperCase() + apt.status.slice(1),
+        'Status': (apt.status || '').charAt(0).toUpperCase() + (apt.status || '').slice(1),
         'Patient Confirmation': (apt as any).patientConfirmationStatus || 'pending_confirmation',
         'Notes': apt.notes || '',
       };
@@ -377,9 +377,9 @@ export default function Appointments() {
     XLSX.utils.book_append_sheet(wb, ws, "Appointments");
 
     // Download file
-    const fileName = status === null 
+    const fileName = status === null
       ? `All_Appointments_${new Date().toLocaleDateString('en-US').replace(/\//g, '-')}.xlsx`
-      : `${status.charAt(0).toUpperCase() + status.slice(1)}_Appointments_${new Date().toLocaleDateString('en-US').replace(/\//g, '-')}.xlsx`;
+      : `${(status || '').charAt(0).toUpperCase() + (status || '').slice(1)}_Appointments_${new Date().toLocaleDateString('en-US').replace(/\//g, '-')}.xlsx`;
     XLSX.writeFile(wb, fileName);
 
     toast({
@@ -405,22 +405,22 @@ export default function Appointments() {
   // Filter appointments for list view based on search criteria
   const getSearchFilteredAppointments = () => {
     if (!appointments) return [];
-    
+
     return appointments.filter(apt => {
       const patient = patients?.find(p => p.id === apt.patientId);
       const patientName = patient ? `${patient.firstName} ${patient.lastName || ''}`.toLowerCase() : '';
       const patientEmail = patient?.email?.toLowerCase() || '';
-      
+
       // Name filter
       if (searchName && !patientName.includes(searchName.toLowerCase())) {
         return false;
       }
-      
+
       // Email filter
       if (searchEmail && !patientEmail.includes(searchEmail.toLowerCase())) {
         return false;
       }
-      
+
       // Date filter
       if (searchDate) {
         const aptDate = new Date(apt.date);
@@ -431,12 +431,12 @@ export default function Appointments() {
           return false;
         }
       }
-      
+
       // Status filter
       if (searchStatus !== "all" && apt.status !== searchStatus) {
         return false;
       }
-      
+
       return true;
     });
   };
@@ -479,10 +479,10 @@ export default function Appointments() {
   const handleDrop = (e: React.DragEvent, targetDate: Date) => {
     e.preventDefault();
     setDropTargetDate(null);
-    
+
     if (draggedAppointment) {
       // Show reschedule dialog with time selection
-      setRescheduleTarget({appointment: draggedAppointment, newDate: targetDate});
+      setRescheduleTarget({ appointment: draggedAppointment, newDate: targetDate });
       // Set initial time to the original appointment time
       const originalDate = new Date(draggedAppointment.date);
       setRescheduleTime({
@@ -491,16 +491,16 @@ export default function Appointments() {
       });
       setShowRescheduleDialog(true);
     }
-    
+
     setDraggedAppointment(null);
   };
 
   const confirmReschedule = () => {
     if (!rescheduleTarget) return;
-    
+
     const newDateTime = new Date(rescheduleTarget.newDate);
     newDateTime.setHours(parseInt(rescheduleTime.hour), parseInt(rescheduleTime.minute), 0, 0);
-    
+
     // Update the appointment
     updateAppointmentMutation.mutate({
       id: rescheduleTarget.appointment.id,
@@ -510,7 +510,7 @@ export default function Appointments() {
         status: 'rescheduled'
       }
     });
-    
+
     setShowRescheduleDialog(false);
     setRescheduleTarget(null);
     toast({
@@ -570,9 +570,9 @@ export default function Appointments() {
                       });
                       return;
                     }
-                    sendPatientListMutation.mutate({ 
-                      date: patientListDate, 
-                      email: doctorEmail 
+                    sendPatientListMutation.mutate({
+                      date: patientListDate,
+                      email: doctorEmail
                     });
                   }}
                   disabled={sendPatientListMutation.isPending}
@@ -592,194 +592,194 @@ export default function Appointments() {
               </Button>
             </DialogTrigger>
             <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Schedule New Appointment</DialogTitle>
-            </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit((data) => createAppointmentMutation.mutate(data))} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="patientId"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel>Patient</FormLabel>
-                      <Popover open={patientSearchOpen} onOpenChange={setPatientSearchOpen}>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant="outline"
-                              role="combobox"
-                              className={cn(
-                                "w-full justify-between",
-                                !field.value && "text-muted-foreground"
-                              )}
-                            >
-                              {field.value
-                                ? (() => {
+              <DialogHeader>
+                <DialogTitle>Schedule New Appointment</DialogTitle>
+              </DialogHeader>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit((data) => createAppointmentMutation.mutate(data))} className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="patientId"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col">
+                        <FormLabel>Patient</FormLabel>
+                        <Popover open={patientSearchOpen} onOpenChange={setPatientSearchOpen}>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant="outline"
+                                role="combobox"
+                                className={cn(
+                                  "w-full justify-between",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                {field.value
+                                  ? (() => {
                                     const patient = patients?.find((p) => p.id === field.value);
                                     return patient
                                       ? `${patient.firstName} ${patient.lastName || ''} (${patient.email})`
                                       : "Select patient";
                                   })()
-                                : "Select patient"}
-                              <ChevronRight className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[90vw] sm:w-[400px] p-0">
-                          <Command>
-                            <CommandInput placeholder="Search patients..." />
-                            <CommandList>
-                              <CommandEmpty>No patient found.</CommandEmpty>
-                              <CommandGroup>
-                                {patients?.map((patient) => (
-                                  <CommandItem
-                                    key={patient.id}
-                                    value={`${patient.firstName} ${patient.lastName} ${patient.email}`}
-                                    onSelect={() => {
-                                      field.onChange(patient.id);
-                                      setPatientSearchOpen(false);
-                                    }}
-                                  >
-                                    <Check
-                                      className={cn(
-                                        "mr-2 h-4 w-4",
-                                        patient.id === field.value
-                                          ? "opacity-100"
-                                          : "opacity-0"
-                                      )}
-                                    />
-                                    <div className="flex flex-col">
-                                      <span className="font-medium">{patient.firstName} {patient.lastName || ''}</span>
-                                      <span className="text-sm text-muted-foreground">{patient.email}</span>
-                                    </div>
-                                  </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="date"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel>Date & Time</FormLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant={"outline"}
-                              className={cn(
-                                "w-full pl-3 text-left font-normal",
-                                !field.value && "text-muted-foreground"
-                              )}
-                            >
-                              {field.value ? (
-                                format(new Date(field.value), "PPP p")
-                              ) : (
-                                <span>Pick a date and time</span>
-                              )}
-                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={field.value ? new Date(field.value) : undefined}
-                            onSelect={(date) => {
-                              if (date) {
-                                // Preserve the time when selecting a new date
-                                const currentDate = field.value ? new Date(field.value) : new Date();
-                                date.setHours(currentDate.getHours());
-                                date.setMinutes(currentDate.getMinutes());
-                                field.onChange(date.getTime());
+                                  : "Select patient"}
+                                <ChevronRight className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[90vw] sm:w-[400px] p-0">
+                            <Command>
+                              <CommandInput placeholder="Search patients..." />
+                              <CommandList>
+                                <CommandEmpty>No patient found.</CommandEmpty>
+                                <CommandGroup>
+                                  {patients?.map((patient) => (
+                                    <CommandItem
+                                      key={patient.id}
+                                      value={`${patient.firstName} ${patient.lastName} ${patient.email}`}
+                                      onSelect={() => {
+                                        field.onChange(patient.id);
+                                        setPatientSearchOpen(false);
+                                      }}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          "mr-2 h-4 w-4",
+                                          patient.id === field.value
+                                            ? "opacity-100"
+                                            : "opacity-0"
+                                        )}
+                                      />
+                                      <div className="flex flex-col">
+                                        <span className="font-medium">{patient.firstName} {patient.lastName || ''}</span>
+                                        <span className="text-sm text-muted-foreground">{patient.email}</span>
+                                      </div>
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="date"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col">
+                        <FormLabel>Date & Time</FormLabel>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant={"outline"}
+                                className={cn(
+                                  "w-full pl-3 text-left font-normal",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                {field.value ? (
+                                  format(new Date(field.value), "PPP p")
+                                ) : (
+                                  <span>Pick a date and time</span>
+                                )}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={field.value ? new Date(field.value) : undefined}
+                              onSelect={(date) => {
+                                if (date) {
+                                  // Preserve the time when selecting a new date
+                                  const currentDate = field.value ? new Date(field.value) : new Date();
+                                  date.setHours(currentDate.getHours());
+                                  date.setMinutes(currentDate.getMinutes());
+                                  field.onChange(date.getTime());
+                                }
+                              }}
+                              disabled={(date) =>
+                                date < new Date() || date < new Date("1900-01-01")
                               }
-                            }}
-                            disabled={(date) =>
-                              date < new Date() || date < new Date("1900-01-01")
-                            }
-                            initialFocus
-                          />
-                          <div className="p-3 border-t">
-                            <div className="flex items-center gap-2">
-                              <Select 
-                                value={field.value ? new Date(field.value).getHours().toString() : "9"}
-                                onValueChange={(hour) => {
-                                  const date = field.value ? new Date(field.value) : new Date();
-                                  date.setHours(parseInt(hour));
-                                  field.onChange(date.getTime());
-                                }}
-                              >
-                                <SelectTrigger className="w-[70px]">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {Array.from({ length: 24 }, (_, i) => (
-                                    <SelectItem key={i} value={i.toString()}>
-                                      {i.toString().padStart(2, '0')}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <span className="text-sm">:</span>
-                              <Select 
-                                value={field.value ? new Date(field.value).getMinutes().toString() : "0"}
-                                onValueChange={(minute) => {
-                                  const date = field.value ? new Date(field.value) : new Date();
-                                  date.setMinutes(parseInt(minute));
-                                  field.onChange(date.getTime());
-                                }}
-                              >
-                                <SelectTrigger className="w-[70px]">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {[0, 15, 30, 45].map((minute) => (
-                                    <SelectItem key={minute} value={minute.toString()}>
-                                      {minute.toString().padStart(2, '0')}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              initialFocus
+                            />
+                            <div className="p-3 border-t">
+                              <div className="flex items-center gap-2">
+                                <Select
+                                  value={field.value ? new Date(field.value).getHours().toString() : "9"}
+                                  onValueChange={(hour) => {
+                                    const date = field.value ? new Date(field.value) : new Date();
+                                    date.setHours(parseInt(hour));
+                                    field.onChange(date.getTime());
+                                  }}
+                                >
+                                  <SelectTrigger className="w-[70px]">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {Array.from({ length: 24 }, (_, i) => (
+                                      <SelectItem key={i} value={i.toString()}>
+                                        {i.toString().padStart(2, '0')}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <span className="text-sm">:</span>
+                                <Select
+                                  value={field.value ? new Date(field.value).getMinutes().toString() : "0"}
+                                  onValueChange={(minute) => {
+                                    const date = field.value ? new Date(field.value) : new Date();
+                                    date.setMinutes(parseInt(minute));
+                                    field.onChange(date.getTime());
+                                  }}
+                                >
+                                  <SelectTrigger className="w-[70px]">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {[0, 15, 30, 45].map((minute) => (
+                                      <SelectItem key={minute} value={minute.toString()}>
+                                        {minute.toString().padStart(2, '0')}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
                             </div>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="notes"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Notes</FormLabel>
-                      <FormControl>
-                        <textarea
-                          className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                          placeholder="Add appointment notes..."
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button type="submit" className="w-full" disabled={createAppointmentMutation.isPending}>
-                  {createAppointmentMutation.isPending ? "Scheduling..." : "Schedule Appointment"}
-                </Button>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="notes"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Notes</FormLabel>
+                        <FormControl>
+                          <textarea
+                            className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            placeholder="Add appointment notes..."
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <Button type="submit" className="w-full" disabled={createAppointmentMutation.isPending}>
+                    {createAppointmentMutation.isPending ? "Scheduling..." : "Schedule Appointment"}
+                  </Button>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -798,7 +798,7 @@ export default function Appointments() {
             <CardContent>
               {/* Mini Appointment Reports Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mb-4">
-                <Card 
+                <Card
                   className="cursor-pointer hover:shadow-md transition-all bg-gradient-to-br from-blue-500 to-blue-600 border-blue-300"
                   onClick={() => showFilteredAppointments("scheduled")}
                   data-testid="mini-card-scheduled"
@@ -814,7 +814,7 @@ export default function Appointments() {
                   </CardContent>
                 </Card>
 
-                <Card 
+                <Card
                   className="cursor-pointer hover:shadow-md transition-all bg-gradient-to-br from-red-500 to-red-600 border-red-300"
                   onClick={() => showFilteredAppointments("cancelled")}
                   data-testid="mini-card-cancelled"
@@ -830,7 +830,7 @@ export default function Appointments() {
                   </CardContent>
                 </Card>
 
-                <Card 
+                <Card
                   className="cursor-pointer hover:shadow-md transition-all bg-gradient-to-br from-green-500 to-green-600 border-green-300"
                   onClick={() => showFilteredAppointments("completed")}
                   data-testid="mini-card-complete"
@@ -846,7 +846,7 @@ export default function Appointments() {
                   </CardContent>
                 </Card>
 
-                <Card 
+                <Card
                   className="cursor-pointer hover:shadow-md transition-all bg-gradient-to-br from-orange-500 to-orange-600 border-orange-300"
                   onClick={() => showFilteredAppointments("pending")}
                   data-testid="mini-card-pending"
@@ -862,7 +862,7 @@ export default function Appointments() {
                   </CardContent>
                 </Card>
 
-                <Card 
+                <Card
                   className="cursor-pointer hover:shadow-md transition-all bg-gradient-to-br from-purple-500 to-purple-600 border-purple-300"
                   onClick={() => showFilteredAppointments(null)}
                   data-testid="mini-card-all"
@@ -941,8 +941,8 @@ export default function Appointments() {
                 </div>
               </div>
               <div className="flex gap-2">
-                <Button 
-                  onClick={clearSearch} 
+                <Button
+                  onClick={clearSearch}
                   variant="outline"
                   className="flex-1 sm:flex-initial"
                   data-testid="button-clear-search"
@@ -957,8 +957,8 @@ export default function Appointments() {
             {getSearchFilteredAppointments().length === 0 ? (
               <div className="text-center p-6 border rounded-lg">
                 <p className="text-muted-foreground">
-                  {appointments?.length === 0 
-                    ? "No appointments scheduled." 
+                  {appointments?.length === 0
+                    ? "No appointments scheduled."
                     : "No appointments found matching your search criteria."}
                 </p>
               </div>
@@ -983,25 +983,25 @@ export default function Appointments() {
                     )}
                     <div className="flex gap-2 mt-2">
                       <Badge variant={
-                        (appointment as any).patientConfirmationStatus === "confirmed" ? "default" : 
-                        (appointment as any).patientConfirmationStatus === "pending_confirmation" ? "secondary" : 
-                        (appointment as any).patientConfirmationStatus === "declined" ? "destructive" : 
-                        "secondary"
+                        (appointment as any).patientConfirmationStatus === "confirmed" ? "default" :
+                          (appointment as any).patientConfirmationStatus === "pending_confirmation" ? "secondary" :
+                            (appointment as any).patientConfirmationStatus === "declined" ? "destructive" :
+                              "secondary"
                       } className={cn("text-xs",
                         (appointment as any).patientConfirmationStatus === "confirmed" && "bg-green-500 hover:bg-green-600 text-white",
                         (appointment as any).patientConfirmationStatus === "pending_confirmation" && "bg-orange-500 hover:bg-orange-600 text-white",
                         (appointment as any).patientConfirmationStatus === "declined" && "bg-red-500 hover:bg-red-600 text-white"
                       )}>
-                        Patient Confirmation: {(appointment as any).patientConfirmationStatus === "pending_confirmation" ? "Pending" : 
-                                 (appointment as any).patientConfirmationStatus === "confirmed" ? "Confirmed" : 
-                                 (appointment as any).patientConfirmationStatus === "declined" ? "Declined" : 
-                                 (appointment as any).patientConfirmationStatus || 'Pending'}
+                        Patient Confirmation: {(appointment as any).patientConfirmationStatus === "pending_confirmation" ? "Pending" :
+                          (appointment as any).patientConfirmationStatus === "confirmed" ? "Confirmed" :
+                            (appointment as any).patientConfirmationStatus === "declined" ? "Declined" :
+                              (appointment as any).patientConfirmationStatus || 'Pending'}
                       </Badge>
                     </div>
                   </div>
                   <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       size="sm"
                       onClick={() => {
                         setEditingAppointment(appointment);
@@ -1013,8 +1013,8 @@ export default function Appointments() {
                       <Edit2 className="h-4 w-4 sm:mr-0" />
                       <span className="sm:hidden ml-2">Edit</span>
                     </Button>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       size="sm"
                       onClick={() => {
                         if (confirm('Are you sure you want to delete this appointment?')) {
@@ -1031,10 +1031,10 @@ export default function Appointments() {
                       <PopoverTrigger asChild>
                         <Button variant="outline" size="sm" className="w-full sm:w-auto">
                           <Badge variant={
-                            appointment.status === "scheduled" ? "outline" : 
-                            appointment.status === "completed" ? "default" : 
-                            appointment.status === "cancelled" ? "destructive" : 
-                            "secondary"
+                            appointment.status === "scheduled" ? "outline" :
+                              appointment.status === "completed" ? "default" :
+                                appointment.status === "cancelled" ? "destructive" :
+                                  "secondary"
                           } className="mr-2">
                             {appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
                           </Badge>
@@ -1047,34 +1047,34 @@ export default function Appointments() {
                           <h4 className="font-medium">Update Appointment Status</h4>
                           <p className="text-xs text-muted-foreground">This is your internal appointment status (not patient confirmation)</p>
                           <div className="grid grid-cols-2 gap-2">
-                            <Button 
-                              variant="outline" 
+                            <Button
+                              variant="outline"
                               size="sm"
-                              className="justify-start" 
+                              className="justify-start"
                               onClick={() => updateAppointmentStatus(appointment.id, "scheduled")}
                             >
                               Scheduled
                             </Button>
-                            <Button 
-                              variant="outline" 
+                            <Button
+                              variant="outline"
                               size="sm"
-                              className="justify-start" 
+                              className="justify-start"
                               onClick={() => updateAppointmentStatus(appointment.id, "completed")}
                             >
                               Completed
                             </Button>
-                            <Button 
-                              variant="outline" 
+                            <Button
+                              variant="outline"
                               size="sm"
-                              className="justify-start" 
+                              className="justify-start"
                               onClick={() => updateAppointmentStatus(appointment.id, "cancelled")}
                             >
                               Cancelled
                             </Button>
-                            <Button 
-                              variant="outline" 
+                            <Button
+                              variant="outline"
                               size="sm"
-                              className="justify-start" 
+                              className="justify-start"
                               onClick={() => updateAppointmentStatus(appointment.id, "rescheduled")}
                             >
                               Rescheduled
@@ -1083,13 +1083,13 @@ export default function Appointments() {
                           <div>
                             <label className="text-sm font-medium">Custom Status:</label>
                             <div className="flex mt-1 gap-2">
-                              <Input 
+                              <Input
                                 placeholder="Enter custom status"
                                 value={customStatus}
                                 onChange={(e) => setCustomStatus(e.target.value)}
                                 className="h-8"
                               />
-                              <Button 
+                              <Button
                                 size="sm"
                                 disabled={!customStatus}
                                 onClick={() => {
@@ -1119,7 +1119,7 @@ export default function Appointments() {
             <h2 className="text-xl font-semibold mb-4">Appointment Reports</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
               {/* Scheduled */}
-              <Card 
+              <Card
                 className="cursor-pointer hover:shadow-lg transition-all hover:scale-105 bg-gradient-to-br from-blue-500 to-blue-600 border-blue-300"
                 onClick={() => showFilteredAppointments("scheduled")}
                 data-testid="card-scheduled"
@@ -1134,9 +1134,9 @@ export default function Appointments() {
                   <div className="text-3xl md:text-4xl font-bold text-white mb-3">
                     {appointments?.filter(apt => apt.status === "scheduled").length || 0}
                   </div>
-                  <Button 
-                    variant="secondary" 
-                    size="sm" 
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     className="w-full text-xs bg-white hover:bg-gray-100 text-blue-700"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -1151,7 +1151,7 @@ export default function Appointments() {
               </Card>
 
               {/* Cancelled */}
-              <Card 
+              <Card
                 className="cursor-pointer hover:shadow-lg transition-all hover:scale-105 bg-gradient-to-br from-red-500 to-red-600 border-red-300"
                 onClick={() => showFilteredAppointments("cancelled")}
                 data-testid="card-cancelled"
@@ -1166,9 +1166,9 @@ export default function Appointments() {
                   <div className="text-3xl md:text-4xl font-bold text-white mb-3">
                     {appointments?.filter(apt => apt.status === "cancelled").length || 0}
                   </div>
-                  <Button 
-                    variant="secondary" 
-                    size="sm" 
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     className="w-full text-xs bg-white hover:bg-gray-100 text-red-700"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -1183,7 +1183,7 @@ export default function Appointments() {
               </Card>
 
               {/* Complete */}
-              <Card 
+              <Card
                 className="cursor-pointer hover:shadow-lg transition-all hover:scale-105 bg-gradient-to-br from-green-500 to-green-600 border-green-300"
                 onClick={() => showFilteredAppointments("completed")}
                 data-testid="card-complete"
@@ -1198,9 +1198,9 @@ export default function Appointments() {
                   <div className="text-3xl md:text-4xl font-bold text-white mb-3">
                     {appointments?.filter(apt => apt.status === "completed").length || 0}
                   </div>
-                  <Button 
-                    variant="secondary" 
-                    size="sm" 
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     className="w-full text-xs bg-white hover:bg-gray-100 text-green-700"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -1215,7 +1215,7 @@ export default function Appointments() {
               </Card>
 
               {/* Pending */}
-              <Card 
+              <Card
                 className="cursor-pointer hover:shadow-lg transition-all hover:scale-105 bg-gradient-to-br from-orange-500 to-orange-600 border-orange-300"
                 onClick={() => showFilteredAppointments("pending")}
                 data-testid="card-pending"
@@ -1230,9 +1230,9 @@ export default function Appointments() {
                   <div className="text-3xl md:text-4xl font-bold text-white mb-3">
                     {appointments?.filter(apt => apt.status === "pending").length || 0}
                   </div>
-                  <Button 
-                    variant="secondary" 
-                    size="sm" 
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     className="w-full text-xs bg-white hover:bg-gray-100 text-orange-700"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -1247,7 +1247,7 @@ export default function Appointments() {
               </Card>
 
               {/* All */}
-              <Card 
+              <Card
                 className="cursor-pointer hover:shadow-lg transition-all hover:scale-105 bg-gradient-to-br from-purple-500 to-purple-600 border-purple-300"
                 onClick={() => showFilteredAppointments(null)}
                 data-testid="card-all"
@@ -1262,9 +1262,9 @@ export default function Appointments() {
                   <div className="text-3xl md:text-4xl font-bold text-white mb-3">
                     {appointments?.length || 0}
                   </div>
-                  <Button 
-                    variant="secondary" 
-                    size="sm" 
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     className="w-full text-xs bg-white hover:bg-gray-100 text-purple-700"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -1310,8 +1310,8 @@ export default function Appointments() {
 
             <div className="grid grid-cols-7">
               {Array.from({ length: getDay(days[0].date) }).map((_, index) => (
-                <div 
-                  key={`empty-${index}`} 
+                <div
+                  key={`empty-${index}`}
                   className="h-16 md:h-24 border-t border-r p-0.5 md:p-1 bg-gray-50"
                   onDragOver={(e) => e.preventDefault()}
                 ></div>
@@ -1358,7 +1358,7 @@ export default function Appointments() {
                       const patient = patients?.find(p => p.id === appointment.patientId);
                       const patientName = patient ? `${patient.firstName} ${patient.lastName || ''}` : '';
                       const patientStatus = (appointment as any).patientConfirmationStatus || 'pending_confirmation';
-                      
+
                       return (
                         <div
                           key={i}
@@ -1368,9 +1368,9 @@ export default function Appointments() {
                           className={cn(
                             "text-[10px] md:text-xs p-0.5 md:p-1 mb-0.5 md:mb-1 text-white rounded truncate cursor-grab active:cursor-grabbing",
                             appointment.status === "completed" ? "bg-green-600" :
-                            appointment.status === "cancelled" ? "bg-red-600" :
-                            appointment.status === "rescheduled" ? "bg-purple-500" :
-                            "bg-blue-500",
+                              appointment.status === "cancelled" ? "bg-red-600" :
+                                appointment.status === "rescheduled" ? "bg-purple-500" :
+                                  "bg-blue-500",
                             draggedAppointment?.id === appointment.id && "opacity-50"
                           )}
                           title={`${patientName} - ${format(new Date(appointment.date), 'p')}
@@ -1438,11 +1438,11 @@ Status: ${appointment.status}
                             >
                               {field.value
                                 ? (() => {
-                                    const patient = patients?.find((p) => p.id === field.value);
-                                    return patient
-                                      ? `${patient.firstName} ${patient.lastName || ''} (${patient.email})`
-                                      : "Select patient";
-                                  })()
+                                  const patient = patients?.find((p) => p.id === field.value);
+                                  return patient
+                                    ? `${patient.firstName} ${patient.lastName || ''} (${patient.email})`
+                                    : "Select patient";
+                                })()
                                 : "Select patient"}
                               <ChevronRight className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                             </Button>
@@ -1492,89 +1492,89 @@ Status: ${appointment.status}
                   render={({ field }) => (
                     <FormItem className="flex flex-col">
                       <FormLabel>Date & Time</FormLabel>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button
-                                variant={"outline"}
-                                className={cn(
-                                  "w-full pl-3 text-left font-normal",
-                                  !field.value && "text-muted-foreground"
-                                )}
-                              >
-                                {field.value ? (
-                                  format(new Date(field.value), "PPP p")
-                                ) : (
-                                  <span>Pick a date and time</span>
-                                )}
-                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                              </Button>
-                            </FormControl>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={field.value ? new Date(field.value) : undefined}
-                              onSelect={(date) => {
-                                if (date) {
-                                  const currentDate = field.value ? new Date(field.value) : new Date();
-                                  date.setHours(currentDate.getHours());
-                                  date.setMinutes(currentDate.getMinutes());
-                                  field.onChange(date.getTime());
-                                }
-                              }}
-                              disabled={(date) =>
-                                date < new Date() || date < new Date("1900-01-01")
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant={"outline"}
+                              className={cn(
+                                "w-full pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value ? (
+                                format(new Date(field.value), "PPP p")
+                              ) : (
+                                <span>Pick a date and time</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value ? new Date(field.value) : undefined}
+                            onSelect={(date) => {
+                              if (date) {
+                                const currentDate = field.value ? new Date(field.value) : new Date();
+                                date.setHours(currentDate.getHours());
+                                date.setMinutes(currentDate.getMinutes());
+                                field.onChange(date.getTime());
                               }
-                              initialFocus
-                            />
-                            <div className="p-3 border-t">
-                              <div className="flex items-center gap-2">
-                                <Select 
-                                  value={field.value ? new Date(field.value).getHours().toString() : "9"}
-                                  onValueChange={(hour) => {
-                                    const date = field.value ? new Date(field.value) : new Date();
-                                    date.setHours(parseInt(hour));
-                                    field.onChange(date.getTime());
-                                  }}
-                                >
-                                  <SelectTrigger className="w-[70px]">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {Array.from({ length: 24 }, (_, i) => (
-                                      <SelectItem key={i} value={i.toString()}>
-                                        {i.toString().padStart(2, '0')}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <span className="text-sm">:</span>
-                                <Select 
-                                  value={field.value ? new Date(field.value).getMinutes().toString() : "0"}
-                                  onValueChange={(minute) => {
-                                    const date = field.value ? new Date(field.value) : new Date();
-                                    date.setMinutes(parseInt(minute));
-                                    field.onChange(date.getTime());
-                                  }}
-                                >
-                                  <SelectTrigger className="w-[70px]">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {[0, 15, 30, 45].map((minute) => (
-                                      <SelectItem key={minute} value={minute.toString()}>
-                                        {minute.toString().padStart(2, '0')}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
+                            }}
+                            disabled={(date) =>
+                              date < new Date() || date < new Date("1900-01-01")
+                            }
+                            initialFocus
+                          />
+                          <div className="p-3 border-t">
+                            <div className="flex items-center gap-2">
+                              <Select
+                                value={field.value ? new Date(field.value).getHours().toString() : "9"}
+                                onValueChange={(hour) => {
+                                  const date = field.value ? new Date(field.value) : new Date();
+                                  date.setHours(parseInt(hour));
+                                  field.onChange(date.getTime());
+                                }}
+                              >
+                                <SelectTrigger className="w-[70px]">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {Array.from({ length: 24 }, (_, i) => (
+                                    <SelectItem key={i} value={i.toString()}>
+                                      {i.toString().padStart(2, '0')}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <span className="text-sm">:</span>
+                              <Select
+                                value={field.value ? new Date(field.value).getMinutes().toString() : "0"}
+                                onValueChange={(minute) => {
+                                  const date = field.value ? new Date(field.value) : new Date();
+                                  date.setMinutes(parseInt(minute));
+                                  field.onChange(date.getTime());
+                                }}
+                              >
+                                <SelectTrigger className="w-[70px]">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {[0, 15, 30, 45].map((minute) => (
+                                    <SelectItem key={minute} value={minute.toString()}>
+                                      {minute.toString().padStart(2, '0')}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             </div>
-                          </PopoverContent>
-                        </Popover>
-                        <FormMessage />
-                      </FormItem>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
                   )}
                 />
                 <FormField
@@ -1608,8 +1608,8 @@ Status: ${appointment.status}
         <DialogContent className="max-w-3xl max-h-[80vh]">
           <DialogHeader>
             <DialogTitle>
-              {filteredStatus === null 
-                ? "All Appointments" 
+              {filteredStatus === null
+                ? "All Appointments"
                 : `${filteredStatus.charAt(0).toUpperCase() + filteredStatus.slice(1)} Appointments`}
             </DialogTitle>
           </DialogHeader>
@@ -1636,38 +1636,38 @@ Status: ${appointment.status}
                             })()}
                           </p>
                           <Badge variant={
-                            appointment.status === "scheduled" ? "outline" : 
-                            appointment.status === "completed" ? "default" : 
-                            appointment.status === "cancelled" ? "destructive" : 
-                            "secondary"
+                            appointment.status === "scheduled" ? "outline" :
+                              appointment.status === "completed" ? "default" :
+                                appointment.status === "cancelled" ? "destructive" :
+                                  "secondary"
                           }>
                             {appointment.status}
                           </Badge>
                           <Badge variant={
-                            (appointment as any).patientConfirmationStatus === "confirmed" ? "default" : 
-                            (appointment as any).patientConfirmationStatus === "pending_confirmation" ? "secondary" : 
-                            (appointment as any).patientConfirmationStatus === "declined" ? "destructive" : 
-                            "secondary"
+                            (appointment as any).patientConfirmationStatus === "confirmed" ? "default" :
+                              (appointment as any).patientConfirmationStatus === "pending_confirmation" ? "secondary" :
+                                (appointment as any).patientConfirmationStatus === "declined" ? "destructive" :
+                                  "secondary"
                           } className={cn("text-xs",
                             (appointment as any).patientConfirmationStatus === "confirmed" && "bg-green-500 hover:bg-green-600 text-white",
                             (appointment as any).patientConfirmationStatus === "pending_confirmation" && "bg-orange-500 hover:bg-orange-600 text-white",
                             (appointment as any).patientConfirmationStatus === "declined" && "bg-red-500 hover:bg-red-600 text-white"
                           )}>
-                            Patient: {(appointment as any).patientConfirmationStatus === "pending_confirmation" ? "Pending" : 
-                                     (appointment as any).patientConfirmationStatus === "confirmed" ? "Confirmed" : 
-                                     (appointment as any).patientConfirmationStatus === "declined" ? "Declined" : 
-                                     (appointment as any).patientConfirmationStatus || 'Pending'}
+                            Patient: {(appointment as any).patientConfirmationStatus === "pending_confirmation" ? "Pending" :
+                              (appointment as any).patientConfirmationStatus === "confirmed" ? "Confirmed" :
+                                (appointment as any).patientConfirmationStatus === "declined" ? "Declined" :
+                                  (appointment as any).patientConfirmationStatus || 'Pending'}
                           </Badge>
                         </div>
                         <p className="text-sm text-muted-foreground">
-                          {new Date(appointment.date).toLocaleDateString('en-US', { 
-                            month: '2-digit', 
-                            day: '2-digit', 
-                            year: 'numeric' 
-                          })} at {new Date(appointment.date).toLocaleTimeString('en-US', { 
-                            hour12: true, 
-                            hour: '2-digit', 
-                            minute: '2-digit' 
+                          {new Date(appointment.date).toLocaleDateString('en-US', {
+                            month: '2-digit',
+                            day: '2-digit',
+                            year: 'numeric'
+                          })} at {new Date(appointment.date).toLocaleTimeString('en-US', {
+                            hour12: true,
+                            hour: '2-digit',
+                            minute: '2-digit'
                           })}
                         </p>
                         {appointment.notes && (
@@ -1675,8 +1675,8 @@ Status: ${appointment.status}
                         )}
                       </div>
                       <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
-                        <Button 
-                          variant="outline" 
+                        <Button
+                          variant="outline"
                           size="sm"
                           onClick={() => {
                             setEditingAppointment(appointment);
@@ -1688,8 +1688,8 @@ Status: ${appointment.status}
                           <Edit2 className="h-4 w-4 sm:mr-2" />
                           <span className="sm:inline">Edit</span>
                         </Button>
-                        <Button 
-                          variant="outline" 
+                        <Button
+                          variant="outline"
                           size="sm"
                           onClick={() => {
                             if (confirm('Are you sure you want to delete this appointment?')) {
@@ -1739,13 +1739,13 @@ Status: ${appointment.status}
                   </p>
                 </div>
               </div>
-              
+
               <div className="space-y-2">
                 <label className="text-sm font-medium">Select New Time</label>
                 <div className="flex items-center gap-2">
-                  <Select 
+                  <Select
                     value={rescheduleTime.hour}
-                    onValueChange={(hour) => setRescheduleTime(prev => ({...prev, hour}))}
+                    onValueChange={(hour) => setRescheduleTime(prev => ({ ...prev, hour }))}
                   >
                     <SelectTrigger className="w-[100px]">
                       <SelectValue placeholder="Hour" />
@@ -1759,9 +1759,9 @@ Status: ${appointment.status}
                     </SelectContent>
                   </Select>
                   <span className="text-lg font-medium">:</span>
-                  <Select 
+                  <Select
                     value={rescheduleTime.minute}
-                    onValueChange={(minute) => setRescheduleTime(prev => ({...prev, minute}))}
+                    onValueChange={(minute) => setRescheduleTime(prev => ({ ...prev, minute }))}
                   >
                     <SelectTrigger className="w-[100px]">
                       <SelectValue placeholder="Min" />
@@ -1776,10 +1776,10 @@ Status: ${appointment.status}
                   </Select>
                 </div>
               </div>
-              
+
               <div className="flex justify-end gap-2 pt-4">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={() => {
                     setShowRescheduleDialog(false);
                     setRescheduleTarget(null);
@@ -1822,29 +1822,29 @@ Status: ${appointment.status}
                         })()}
                       </p>
                       <Badge variant={
-                        appointment.status === "scheduled" ? "outline" : 
-                        appointment.status === "completed" ? "default" : 
-                        appointment.status === "cancelled" ? "destructive" : 
-                        "secondary"
+                        appointment.status === "scheduled" ? "outline" :
+                          appointment.status === "completed" ? "default" :
+                            appointment.status === "cancelled" ? "destructive" :
+                              "secondary"
                       } className={cn(
                         appointment.status === "completed" && "bg-blue-500"
                       )}>
                         {appointment.status}
                       </Badge>
                       <Badge variant={
-                        (appointment as any).patientConfirmationStatus === "confirmed" ? "default" : 
-                        (appointment as any).patientConfirmationStatus === "pending_confirmation" ? "secondary" : 
-                        (appointment as any).patientConfirmationStatus === "declined" ? "destructive" : 
-                        "secondary"
+                        (appointment as any).patientConfirmationStatus === "confirmed" ? "default" :
+                          (appointment as any).patientConfirmationStatus === "pending_confirmation" ? "secondary" :
+                            (appointment as any).patientConfirmationStatus === "declined" ? "destructive" :
+                              "secondary"
                       } className={cn("text-xs",
                         (appointment as any).patientConfirmationStatus === "confirmed" && "bg-green-500 hover:bg-green-600 text-white",
                         (appointment as any).patientConfirmationStatus === "pending_confirmation" && "bg-orange-500 hover:bg-orange-600 text-white",
                         (appointment as any).patientConfirmationStatus === "declined" && "bg-red-500 hover:bg-red-600 text-white"
                       )}>
-                        Patient Confirmation: {(appointment as any).patientConfirmationStatus === "pending_confirmation" ? "Pending" : 
-                                 (appointment as any).patientConfirmationStatus === "confirmed" ? "Confirmed" : 
-                                 (appointment as any).patientConfirmationStatus === "declined" ? "Declined" : 
-                                 (appointment as any).patientConfirmationStatus || 'Pending'}
+                        Patient Confirmation: {(appointment as any).patientConfirmationStatus === "pending_confirmation" ? "Pending" :
+                          (appointment as any).patientConfirmationStatus === "confirmed" ? "Confirmed" :
+                            (appointment as any).patientConfirmationStatus === "declined" ? "Declined" :
+                              (appointment as any).patientConfirmationStatus || 'Pending'}
                       </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
@@ -1866,34 +1866,34 @@ Status: ${appointment.status}
                           <h4 className="font-medium">Update Appointment Status</h4>
                           <p className="text-xs text-muted-foreground">This is your internal appointment status (not patient confirmation)</p>
                           <div className="grid grid-cols-2 gap-2">
-                            <Button 
-                              variant="outline" 
+                            <Button
+                              variant="outline"
                               size="sm"
-                              className="justify-start" 
+                              className="justify-start"
                               onClick={() => updateAppointmentStatus(appointment.id, "scheduled")}
                             >
                               Scheduled
                             </Button>
-                            <Button 
-                              variant="outline" 
+                            <Button
+                              variant="outline"
                               size="sm"
-                              className="justify-start" 
+                              className="justify-start"
                               onClick={() => updateAppointmentStatus(appointment.id, "completed")}
                             >
                               Completed
                             </Button>
-                            <Button 
-                              variant="outline" 
+                            <Button
+                              variant="outline"
                               size="sm"
-                              className="justify-start" 
+                              className="justify-start"
                               onClick={() => updateAppointmentStatus(appointment.id, "cancelled")}
                             >
                               Cancelled
                             </Button>
-                            <Button 
-                              variant="outline" 
+                            <Button
+                              variant="outline"
                               size="sm"
-                              className="justify-start" 
+                              className="justify-start"
                               onClick={() => updateAppointmentStatus(appointment.id, "rescheduled")}
                             >
                               Rescheduled
@@ -1902,13 +1902,13 @@ Status: ${appointment.status}
                           <div>
                             <label className="text-sm font-medium">Custom Status:</label>
                             <div className="flex mt-1 gap-2">
-                              <Input 
+                              <Input
                                 placeholder="Enter custom status"
                                 value={customStatus}
                                 onChange={(e) => setCustomStatus(e.target.value)}
                                 className="h-8"
                               />
-                              <Button 
+                              <Button
                                 size="sm"
                                 disabled={!customStatus}
                                 onClick={() => {
@@ -1925,8 +1925,8 @@ Status: ${appointment.status}
                         </div>
                       </PopoverContent>
                     </Popover>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       size="sm"
                       onClick={() => {
                         setEditingAppointment(appointment);
@@ -1936,8 +1936,8 @@ Status: ${appointment.status}
                     >
                       <Edit2 className="h-4 w-4" />
                     </Button>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       size="sm"
                       onClick={() => {
                         if (confirm('Are you sure you want to delete this appointment?')) {

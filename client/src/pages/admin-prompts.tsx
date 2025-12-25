@@ -7,13 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { 
-  Settings, 
-  Save, 
-  Plus, 
-  Trash2, 
-  Edit2, 
-  Eye, 
+import {
+  Settings,
+  Save,
+  Plus,
+  Trash2,
+  Edit2,
+  Eye,
   EyeOff,
   FileText,
   Shield,
@@ -27,12 +27,12 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
 } from "@/components/ui/select";
 import {
   Dialog,
@@ -140,18 +140,15 @@ export default function AdminPrompts() {
   const { data: globalPrompts = [], isLoading, refetch } = useQuery<GlobalPrompt[]>({
     queryKey: ['global-prompts'],
     queryFn: async () => {
-      const response = await apiRequest('/api/admin/global-prompts');
-      return response;
+      const response = await apiRequest("GET", "/api/admin/global-prompts");
+      return response.json();
     },
   });
 
   // Toggle prompt active status
   const toggleActiveMutation = useMutation({
     mutationFn: async ({ id, is_active }: { id: number; is_active: boolean }) => {
-      return apiRequest(`/api/admin/global-prompts/${id}/toggle`, {
-        method: 'PATCH',
-        body: JSON.stringify({ is_active }),
-      });
+      return apiRequest("PATCH", `/api/admin/global-prompts/${id}/toggle`, { is_active });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['global-prompts'] });
@@ -172,10 +169,7 @@ export default function AdminPrompts() {
   // Update prompt
   const updatePromptMutation = useMutation({
     mutationFn: async (data: { id: number; updates: Partial<GlobalPrompt> }) => {
-      return apiRequest(`/api/admin/global-prompts/${data.id}`, {
-        method: 'PUT',
-        body: JSON.stringify(data.updates),
-      });
+      return apiRequest("PUT", `/api/admin/global-prompts/${data.id}`, data.updates);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['global-prompts'] });
@@ -198,10 +192,7 @@ export default function AdminPrompts() {
   // Create new prompt
   const createPromptMutation = useMutation({
     mutationFn: async (data: typeof editFormData) => {
-      return apiRequest('/api/admin/global-prompts', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      });
+      return apiRequest("POST", "/api/admin/global-prompts", data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['global-prompts'] });
@@ -231,9 +222,7 @@ export default function AdminPrompts() {
   // Delete prompt
   const deletePromptMutation = useMutation({
     mutationFn: async (id: number) => {
-      return apiRequest(`/api/admin/global-prompts/${id}`, {
-        method: 'DELETE',
-      });
+      return apiRequest("DELETE", `/api/admin/global-prompts/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['global-prompts'] });
@@ -501,7 +490,7 @@ export default function AdminPrompts() {
                           <Label className="text-sm">Active</Label>
                           <Switch
                             checked={prompt.is_active}
-                            onCheckedChange={(checked) => 
+                            onCheckedChange={(checked) =>
                               toggleActiveMutation.mutate({ id: prompt.id, is_active: checked })
                             }
                           />
@@ -544,7 +533,7 @@ export default function AdminPrompts() {
                         </Button>
                       </div>
                     </div>
-                    
+
                     {/* Expanded View */}
                     {expandedPromptId === prompt.id && (
                       <div className="mt-4 pt-4 border-t space-y-4">

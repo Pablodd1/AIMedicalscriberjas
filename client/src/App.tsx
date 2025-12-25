@@ -170,14 +170,18 @@ function Router() {
   );
 }
 
+import { RecordingProvider } from "@/contexts/recording-context";
+
 function App() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <UploadManagerProvider>
-            <Router />
-            <Toaster />
+            <RecordingProvider>
+              <Router />
+              <Toaster />
+            </RecordingProvider>
           </UploadManagerProvider>
         </AuthProvider>
       </QueryClientProvider>

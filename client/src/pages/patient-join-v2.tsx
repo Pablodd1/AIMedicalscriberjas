@@ -24,7 +24,7 @@ const formatDuration = (seconds: number): string => {
 const AudioWaveform: React.FC<{ level: number }> = ({ level }) => {
   const bars = 20;
   const activeCount = Math.floor((level / 100) * bars);
-  
+
   return (
     <div className="flex items-center justify-center gap-1 h-12">
       {Array.from({ length: bars }).map((_, i) => {
@@ -33,9 +33,8 @@ const AudioWaveform: React.FC<{ level: number }> = ({ level }) => {
         return (
           <div
             key={i}
-            className={`w-1 rounded-full transition-all duration-100 ${
-              isActive ? 'bg-red-500' : 'bg-gray-300'
-            }`}
+            className={`w-1 rounded-full transition-all duration-100 ${isActive ? 'bg-red-500' : 'bg-gray-300'
+              }`}
             style={{ height: `${height}%` }}
           />
         );
@@ -45,7 +44,7 @@ const AudioWaveform: React.FC<{ level: number }> = ({ level }) => {
 };
 
 // Signature Pad Component
-const SignaturePad: React.FC<{ 
+const SignaturePad: React.FC<{
   onSignatureChange: (signature: string) => void;
   signature?: string;
 }> = ({ onSignatureChange, signature }) => {
@@ -202,7 +201,7 @@ const LANGUAGES = [
 export default function PatientJoinPageV2() {
   const { uniqueLink } = useParams();
   const { toast } = useToast();
-  
+
   // Recording states
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
@@ -211,17 +210,17 @@ export default function PatientJoinPageV2() {
   const [fullTranscript, setFullTranscript] = useState("");
   const [recordingError, setRecordingError] = useState<string | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState('en-US');
-  
+
   // Form states
   const [isProcessing, setIsProcessing] = useState(false);
   const [extractedAnswers, setExtractedAnswers] = useState<Record<string, string>>({});
   const [aiSummary, setAiSummary] = useState("");
   const [formComplete, setFormComplete] = useState(false);
-  
+
   // Consent and signature states
   const [consentGiven, setConsentGiven] = useState(false);
   const [signature, setSignature] = useState("");
-  
+
   // Fetch intake form details by unique link
   const { data: formData, isLoading, error } = useQuery<IntakeForm>({
     queryKey: [`/api/public/intake-form/${uniqueLink}`],
@@ -231,14 +230,14 @@ export default function PatientJoinPageV2() {
   // Recording duration timer
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    
+
     if (isRecording) {
       setRecordingDuration(0);
       interval = setInterval(() => {
         setRecordingDuration(prev => prev + 1);
       }, 1000);
     }
-    
+
     return () => {
       if (interval) clearInterval(interval);
     };
@@ -247,7 +246,7 @@ export default function PatientJoinPageV2() {
   // Simulate audio level
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    
+
     if (isRecording) {
       interval = setInterval(() => {
         const level = Math.random() * 100;
@@ -258,7 +257,7 @@ export default function PatientJoinPageV2() {
       setAudioLevel(0);
       setHasAudioInput(false);
     }
-    
+
     return () => {
       if (interval) clearInterval(interval);
     };
@@ -271,7 +270,7 @@ export default function PatientJoinPageV2() {
       setFullTranscript("");
       setIsRecording(true);
       await recordingService.startRecording();
-      
+
       // Start live transcription with selected language
       try {
         await recordingService.startLiveTranscription(
@@ -302,40 +301,42 @@ export default function PatientJoinPageV2() {
   const handleStopRecording = async () => {
     setIsRecording(false);
     setIsProcessing(true);
-    
+
     try {
       // Stop live transcription if running
       if (recordingService.isLiveTranscribing) {
         recordingService.stopLiveTranscription();
       }
-      
+
       // Stop recording
       await recordingService.stopRecording();
-      
+
       // Get final transcript
       let finalTranscript = fullTranscript;
       if (!finalTranscript) {
         finalTranscript = await recordingService.getTranscript();
       }
-      
+
       if (!finalTranscript) {
         throw new Error("No transcript available");
       }
-      
+
       // Send transcript to AI for answer extraction
       const response = await apiRequest("POST", "/api/ai/extract-intake-answers", {
         transcript: finalTranscript,
         language: selectedLanguage
       });
-      
-      if (response.answers) {
-        setExtractedAnswers(response.answers);
+
+      const data = await response.json();
+
+      if (data.answers) {
+        setExtractedAnswers(data.answers);
       }
-      
-      if (response.summary) {
-        setAiSummary(response.summary);
+
+      if (data.summary) {
+        setAiSummary(data.summary);
       }
-      
+
       toast({
         title: "Processing complete",
         description: "Your answers have been extracted and organized.",
@@ -355,7 +356,7 @@ export default function PatientJoinPageV2() {
   // Submit the complete form
   const handleSubmitForm = async () => {
     if (!formData) return;
-    
+
     if (!consentGiven) {
       toast({
         title: "Consent required",
@@ -364,7 +365,7 @@ export default function PatientJoinPageV2() {
       });
       return;
     }
-    
+
     if (!signature) {
       toast({
         title: "Signature required",
@@ -373,9 +374,9 @@ export default function PatientJoinPageV2() {
       });
       return;
     }
-    
+
     setIsProcessing(true);
-    
+
     try {
       // Submit all extracted answers
       await apiRequest("POST", `/api/public/intake-form/${formData.id}/submit-continuous`, {
@@ -387,10 +388,10 @@ export default function PatientJoinPageV2() {
         signature,
         audioUrl: recordingService.getAudioUrl()
       });
-      
+
       // Mark form as completed
       await apiRequest("POST", `/api/public/intake-form/${formData.id}/complete`);
-      
+
       setFormComplete(true);
       toast({
         title: "Form submitted successfully",
@@ -499,7 +500,7 @@ export default function PatientJoinPageV2() {
             <div className="space-y-4">
               <div className="text-center px-2">
                 <p className="text-sm sm:text-base text-muted-foreground mb-6 sm:mb-8 leading-relaxed">
-                  Click the microphone button below and tell us about yourself in your own words. 
+                  Click the microphone button below and tell us about yourself in your own words.
                   Our AI will listen and organize your information.
                 </p>
                 <div className="flex justify-center py-4">
@@ -546,7 +547,7 @@ export default function PatientJoinPageV2() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <span className="font-bold text-red-600 text-base sm:text-lg flex items-center gap-2">
-                          <span className="animate-pulse">●</span> 
+                          <span className="animate-pulse">●</span>
                           <span className="truncate">REC</span>
                         </span>
                         <span className="text-xs text-red-500 block">Speak naturally</span>
@@ -556,12 +557,12 @@ export default function PatientJoinPageV2() {
                       {formatDuration(recordingDuration)}
                     </div>
                   </div>
-                  
+
                   {/* Audio Waveform */}
                   <div className="p-2 bg-white rounded-md mb-3 overflow-hidden">
                     <AudioWaveform level={audioLevel} />
                   </div>
-                  
+
                   {/* Audio Status */}
                   <div className="flex items-center gap-2 text-xs sm:text-sm mb-2">
                     {hasAudioInput ? (
@@ -576,15 +577,15 @@ export default function PatientJoinPageV2() {
                       </>
                     )}
                   </div>
-                  
+
                   {/* Audio Level Bar */}
                   <div className="h-2 bg-gray-200 rounded-full overflow-hidden mb-3">
-                    <div 
+                    <div
                       className="h-full transition-all duration-75 rounded-full bg-gradient-to-r from-red-400 to-red-500"
                       style={{ width: `${Math.max(5, audioLevel)}%` }}
                     />
                   </div>
-                  
+
                   {/* Live Transcript Preview */}
                   {fullTranscript && (
                     <div className="p-3 bg-white rounded border border-green-200">
@@ -597,7 +598,7 @@ export default function PatientJoinPageV2() {
                       </p>
                     </div>
                   )}
-                  
+
                   {/* Warning if no audio detected */}
                   {!hasAudioInput && recordingDuration > 3 && (
                     <Alert className="border-amber-300 bg-amber-50">
@@ -676,8 +677,8 @@ export default function PatientJoinPageV2() {
               {/* Consent */}
               <div className="space-y-4">
                 <div className="flex items-start gap-3 p-3 sm:p-4 bg-gray-50 rounded-md border">
-                  <Checkbox 
-                    id="consent" 
+                  <Checkbox
+                    id="consent"
                     checked={consentGiven}
                     onCheckedChange={(checked) => setConsentGiven(checked as boolean)}
                     className="mt-1 flex-shrink-0"
@@ -695,7 +696,7 @@ export default function PatientJoinPageV2() {
                 {/* Signature */}
                 <div className="space-y-2">
                   <Label className="text-xs sm:text-sm break-words">Your Signature / Su firma / Siyati ou / Ваша подпись</Label>
-                  <SignaturePad 
+                  <SignaturePad
                     onSignatureChange={setSignature}
                     signature={signature}
                   />

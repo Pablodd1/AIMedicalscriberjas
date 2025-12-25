@@ -1,11 +1,9 @@
 /**
-// Demo mode - suppress logging
-const DEMO_MODE = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo';
-const log = (...args: any[]) => !DEMO_MODE && console.log(...args);
-const logError = (...args: any[]) => !DEMO_MODE && console.error(...args);
  * Notification Scheduler Service
  * Handles automated daily patient list emails, appointment confirmations, and SMS coordination
  */
+
+import { log, logError } from './index';
 
 import cron from 'node-cron';
 import { storage } from './storage';
@@ -42,7 +40,7 @@ async function initTwilio(): Promise<any> {
 
     const twilio = await import('twilio');
     twilioClient = twilio.default(settings.twilio_account_sid, settings.twilio_auth_token);
-    
+
     log('✅ Twilio initialized successfully');
     return twilioClient;
   } catch (error) {
@@ -214,14 +212,14 @@ export async function sendAppointmentReminder(
 async function getAppointmentsForDate(date: Date): Promise<any[]> {
   try {
     // Get all doctors
-    const doctors = await storage.getAllUsers();
-    const doctorUsers = doctors.filter(u => u.role === 'doctor');
+    const doctors = await storage.getUsers();
+    const doctorUsers = doctors.filter((u: any) => u.role === 'doctor');
 
     // Get all appointments for all doctors
     const allAppointments: any[] = [];
     for (const doctor of doctorUsers) {
       const appointments = await storage.getAppointments(doctor.id);
-      
+
       // Filter for the specified date
       const dateAppointments = appointments.filter(apt => {
         const aptDate = new Date(apt.date);
@@ -497,7 +495,7 @@ async function sendTomorrowReminders(): Promise<void> {
 
     for (const appointment of tomorrowAppointments) {
       const { emailSent, smsSent } = await sendAppointmentReminder(appointment.id);
-      
+
       if (emailSent || smsSent) {
         log(`✅ Reminder sent for appointment #${appointment.id} (Email: ${emailSent}, SMS: ${smsSent})`);
       } else {

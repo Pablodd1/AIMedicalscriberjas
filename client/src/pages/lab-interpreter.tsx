@@ -67,11 +67,11 @@ export default function LabInterpreter() {
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [pasteContent, setPasteContent] = useState('');
   const [showGuidelines, setShowGuidelines] = useState(false);
-  
+
   // Rich text editor states
   const [editableContent, setEditableContent] = useState('');
   const [isEditorMode, setIsEditorMode] = useState(false);
-  
+
   // Voice recording and transcription states
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState('');
@@ -79,24 +79,24 @@ export default function LabInterpreter() {
   const [recordingTime, setRecordingTime] = useState(0);
   const recognitionRef = useRef<any>(null);
   const timerRef = useRef<any>(null);
-  
+
   // Debug mode states
   const [debugMode, setDebugMode] = useState(false);
   const [debugInfo, setDebugInfo] = useState<any>(null);
   const [isTestingSimpleAnalysis, setIsTestingSimpleAnalysis] = useState(false);
-  
+
   // Report saving states (declared later in file)
-  
+
   // Form values for settings
   const [systemPrompt, setSystemPrompt] = useState('');
   const [withPatientPrompt, setWithPatientPrompt] = useState('');
   const [withoutPatientPrompt, setWithoutPatientPrompt] = useState('');
   const [reportFormatInstructions, setReportFormatInstructions] = useState('');
-  
+
   // Refs for file uploads
   const fileInputRef = useRef<HTMLInputElement>(null);
   const knowledgeBaseFileRef = useRef<HTMLInputElement>(null);
-  
+
   // Load patients data
   useEffect(() => {
     const fetchPatients = async () => {
@@ -116,12 +116,12 @@ export default function LabInterpreter() {
         setIsLoadingPatients(false);
       }
     };
-    
+
     if (withPatient) {
       fetchPatients();
     }
   }, [withPatient, toast]);
-  
+
   // Load settings
   useEffect(() => {
     const fetchSettings = async () => {
@@ -130,7 +130,7 @@ export default function LabInterpreter() {
         const response = await apiRequest('GET', '/api/lab-interpreter/settings');
         const data = await response.json();
         setSettings(data);
-        
+
         // Map the database field names to our client field names
         setSystemPrompt(data.system_prompt || data.systemPrompt || '');
         setWithPatientPrompt(data.with_patient_prompt || data.withPatientPrompt || '');
@@ -147,23 +147,23 @@ export default function LabInterpreter() {
         setIsLoadingSettings(false);
       }
     };
-    
+
     fetchSettings();
   }, [toast]);
-  
+
   // Load knowledge base
   const loadKnowledgeBase = async () => {
     try {
       setIsLoadingKnowledgeBase(true);
       const response = await apiRequest('GET', '/api/lab-interpreter/knowledge-base');
       const result = await response.json();
-      
+
       console.log('Knowledge base response:', result);
-      
+
       // Handle both direct array and wrapped response
       const data = result.data || result;
       setKnowledgeBase(Array.isArray(data) ? data : []);
-      
+
       console.log('Knowledge base loaded:', Array.isArray(data) ? data.length : 0, 'items');
     } catch (error) {
       console.error('Error fetching knowledge base:', error);
@@ -176,16 +176,16 @@ export default function LabInterpreter() {
       setIsLoadingKnowledgeBase(false);
     }
   };
-  
+
   // Speech recognition and recording functions
   const startRecording = () => {
     try {
       // Add TypeScript declarations for the Web Speech API
-      const SpeechRecognition = (window as any).SpeechRecognition || 
-                              (window as any).webkitSpeechRecognition ||
-                              (window as any).mozSpeechRecognition || 
-                              (window as any).msSpeechRecognition;
-      
+      const SpeechRecognition = (window as any).SpeechRecognition ||
+        (window as any).webkitSpeechRecognition ||
+        (window as any).mozSpeechRecognition ||
+        (window as any).msSpeechRecognition;
+
       if (!SpeechRecognition) {
         toast({
           title: 'Not Supported',
@@ -194,15 +194,15 @@ export default function LabInterpreter() {
         });
         return;
       }
-      
+
       recognitionRef.current = new SpeechRecognition();
       recognitionRef.current.continuous = true;
       recognitionRef.current.interimResults = true;
-      
+
       recognitionRef.current.onresult = (event: any) => {
         let interimTranscript = '';
         let finalTranscript = '';
-        
+
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const transcript = event.results[i][0].transcript;
           if (event.results[i].isFinal) {
@@ -211,13 +211,13 @@ export default function LabInterpreter() {
             interimTranscript += transcript;
           }
         }
-        
+
         setTranscript(prevTranscript => {
           const newTranscript = prevTranscript + finalTranscript;
           return newTranscript;
         });
       };
-      
+
       recognitionRef.current.onerror = (event: any) => {
         console.error('Speech recognition error', event.error);
         if (event.error === 'not-allowed') {
@@ -229,16 +229,16 @@ export default function LabInterpreter() {
           stopRecording();
         }
       };
-      
+
       recognitionRef.current.start();
       setIsRecording(true);
       setRecordingTime(0);
-      
+
       // Start timer
       timerRef.current = setInterval(() => {
         setRecordingTime(prev => prev + 1);
       }, 1000);
-      
+
       toast({
         title: 'Recording Started',
         description: 'Your voice is now being recorded and transcribed.'
@@ -252,50 +252,50 @@ export default function LabInterpreter() {
       });
     }
   };
-  
+
   const stopRecording = () => {
     if (recognitionRef.current) {
       recognitionRef.current.stop();
       clearInterval(timerRef.current);
       setIsRecording(false);
-      
+
       toast({
         title: 'Recording Stopped',
         description: 'Your recording has been transcribed.'
       });
     }
   };
-  
+
   const saveTranscriptToPatient = async () => {
     if (!withPatient || !selectedPatientId || !transcript.trim()) {
       toast({
         title: 'Cannot Save',
-        description: withPatient 
-          ? 'There is no transcript to save.' 
+        description: withPatient
+          ? 'There is no transcript to save.'
           : 'You need to select a patient to save this transcript.',
         variant: 'destructive'
       });
       return;
     }
-    
+
     try {
       setIsSavingTranscript(true);
-      
+
       const response = await apiRequest('POST', '/api/lab-interpreter/save-transcript', {
         patientId: parseInt(selectedPatientId),
         transcript,
         reportId: analysisResult?.reportId || null,
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to save transcript');
       }
-      
+
       toast({
         title: 'Transcript Saved',
         description: 'The recorded transcript has been saved to the patient record.'
       });
-      
+
       // Clear transcript after saving
       setTranscript('');
     } catch (error) {
@@ -309,7 +309,7 @@ export default function LabInterpreter() {
       setIsSavingTranscript(false);
     }
   };
-  
+
   // Load knowledge base on component mount
   useEffect(() => {
     loadKnowledgeBase();
@@ -321,7 +321,7 @@ export default function LabInterpreter() {
       loadKnowledgeBase();
     }
   }, [isKnowledgeBaseOpen, toast]);
-  
+
   // Handle analyze button click
   const handleAnalyze = async () => {
     if (!inputText.trim()) {
@@ -332,12 +332,12 @@ export default function LabInterpreter() {
       });
       return;
     }
-    
+
     try {
       setIsAnalyzing(true);
       setAnalysisResult(null);
       setReportSavedToPatient(false); // Reset saved state for new analysis
-      
+
       const response = await fetch('/api/lab-interpreter/analyze', {
         method: 'POST',
         headers: {
@@ -350,36 +350,36 @@ export default function LabInterpreter() {
           withPatient
         }),
       });
-      
+
       const result = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(result.error || result.message || 'Analysis failed');
       }
-      
+
       if (!result.success) {
         throw new Error(result.error || 'Analysis failed');
       }
-      
+
       const data = result.data;
-      
+
       // Analysis is now in natural language format (not JSON)
       const analysisContent = data.analysis;
       const parsedResult = { content: analysisContent };
       setAnalysisResult(parsedResult);
-      
+
       // Store debug info if available
       if (data.debug) {
         setDebugInfo(data.debug);
         console.log('Analysis Debug Info:', data.debug);
       }
-      
+
       // Initialize editable content for the editor
       initializeEditableContent(parsedResult);
-      
+
       // Switch to results tab
       setActiveTab('results');
-      
+
       toast({
         title: 'Analysis Complete',
         description: 'Lab report analysis has been completed successfully',
@@ -395,60 +395,60 @@ export default function LabInterpreter() {
       setIsAnalyzing(false);
     }
   };
-  
+
   // Handle file upload
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
+
     // Close dialog immediately when file is selected
     setIsUploadOpen(false);
-    
+
     const formData = new FormData();
     formData.append('labReport', file);
     formData.append('withPatient', withPatient.toString());
     if (withPatient && selectedPatientId) {
       formData.append('patientId', selectedPatientId);
     }
-    
+
     try {
       setIsAnalyzing(true);
       setAnalysisResult(null);
-      
+
       const response = await fetch('/api/lab-interpreter/analyze/upload', {
         method: 'POST',
         body: formData,
         credentials: 'include'
       });
-      
+
       const result = await response.json();
-      
+
       if (!result.success) {
         throw new Error(result.error || 'Upload failed');
       }
-      
+
       const data = result.data;
-      
+
       // Set the extracted text in the input field
       setInputText(data.extractedText);
-      
+
       // Analysis is now in natural language format (not JSON)
       const analysisContent = data.analysis;
       const parsedResult = { content: analysisContent };
       setAnalysisResult(parsedResult);
-      
+
       // Store debug info if available
       if (data.debug) {
         setDebugInfo(data.debug);
         console.log('Upload Analysis Debug Info:', data.debug);
       }
-      
+
       // Initialize editable content for the editor
       initializeEditableContent(parsedResult);
-      
+
       // Switch to results tab
       setActiveTab('results');
-      
+
       toast({
         title: 'Analysis Complete',
         description: 'Lab report has been uploaded and analyzed successfully',
@@ -468,46 +468,46 @@ export default function LabInterpreter() {
       }
     }
   };
-  
+
   // Handle knowledge base upload
   // State for the knowledge base import dialog
   const [importMode, setImportMode] = useState<'excel' | 'text' | 'paste'>('excel');
   const textFileInputRef = useRef<HTMLInputElement>(null);
-  
+
   // Handle knowledge base upload - Excel file
   const handleExcelFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
+
     const formData = new FormData();
     formData.append('file', file);
     formData.append('importType', 'excel');
-    
+
     await importKnowledgeBase(formData);
-    
+
     // Reset file input
     if (knowledgeBaseFileRef.current) {
       knowledgeBaseFileRef.current.value = '';
     }
   };
-  
+
   // Handle knowledge base upload - Text file
   const handleTextFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
+
     const formData = new FormData();
     formData.append('file', file);
     formData.append('importType', 'text');
-    
+
     await importKnowledgeBase(formData);
-    
+
     // Reset file input
     if (textFileInputRef.current) {
       textFileInputRef.current.value = '';
     }
   };
-  
+
   // Download Excel template
   const downloadExcelTemplate = () => {
     // Create sample data for Excel template
@@ -529,7 +529,7 @@ export default function LabInterpreter() {
     ];
 
     // Convert to CSV format
-    const csvContent = templateData.map(row => 
+    const csvContent = templateData.map(row =>
       row.map(cell => `"${cell}"`).join(',')
     ).join('\n');
 
@@ -542,7 +542,7 @@ export default function LabInterpreter() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    
+
     toast({
       title: 'Template Downloaded',
       description: 'Excel template downloaded successfully. Open in Excel or Google Sheets to edit.',
@@ -559,18 +559,18 @@ export default function LabInterpreter() {
       });
       return;
     }
-    
+
     const formData = new FormData();
     formData.append('textContent', pasteContent);
     formData.append('importType', 'paste');
-    
+
     await importKnowledgeBase(formData);
-    
+
     // Reset pasted text and close dialog
     setPasteContent('');
     setIsImportDialogOpen(false);
   };
-  
+
   // Test simple analysis function
   const testSimpleAnalysis = async () => {
     if (!inputText.trim()) {
@@ -581,10 +581,10 @@ export default function LabInterpreter() {
       });
       return;
     }
-    
+
     try {
       setIsTestingSimpleAnalysis(true);
-      
+
       const response = await fetch('/api/lab-interpreter/test/simple-analysis', {
         method: 'POST',
         headers: {
@@ -595,19 +595,19 @@ export default function LabInterpreter() {
           testData: inputText
         }),
       });
-      
+
       const result = await response.json();
-      
+
       if (!result.success) {
         throw new Error(result.error || 'Test failed');
       }
-      
+
       console.log('Simple Test Result:', result.data);
       toast({
         title: 'Test Complete',
         description: 'Simple analysis test completed. Check console for details.',
       });
-      
+
     } catch (error) {
       console.error('Error testing simple analysis:', error);
       toast({
@@ -626,32 +626,32 @@ export default function LabInterpreter() {
     const remainingSeconds = seconds % 60;
     return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
-  
+
   // Common import knowledge base function
   const importKnowledgeBase = async (formData: FormData) => {
     try {
       setIsLoadingKnowledgeBase(true);
-      
+
       const response = await fetch('/api/lab-interpreter/knowledge-base/import', {
         method: 'POST',
         body: formData,
         credentials: 'include'
       });
-      
+
       const data = await response.json();
-      
+
       if (data.error) {
         throw new Error(data.error);
       }
-      
+
       // Reload knowledge base
       loadKnowledgeBase();
-      
+
       toast({
         title: 'Knowledge Base Imported',
         description: `Successfully imported ${data.itemsImported} items to the knowledge base`,
       });
-      
+
       // Close import dialog if open
       setIsImportDialogOpen(false);
     } catch (error) {
@@ -665,28 +665,28 @@ export default function LabInterpreter() {
       setIsLoadingKnowledgeBase(false);
     }
   };
-  
+
   // Handle save settings
   const handleSaveSettings = async () => {
     try {
       setIsLoadingSettings(true);
-      
+
       const response = await apiRequest('POST', '/api/lab-interpreter/settings', {
         systemPrompt,
         withPatientPrompt,
         withoutPatientPrompt,
         reportFormatInstructions
       });
-      
+
       const data = await response.json();
-      
+
       if (data.error) {
         throw new Error(data.error);
       }
-      
+
       setSettings(data);
       setIsSettingsOpen(false);
-      
+
       toast({
         title: 'Settings Saved',
         description: 'Lab interpreter settings have been saved successfully',
@@ -702,49 +702,49 @@ export default function LabInterpreter() {
       setIsLoadingSettings(false);
     }
   };
-  
+
   // Utility function to convert any value to readable text
   const convertToReadableText = (value: any): string => {
     if (value === null || value === undefined) return 'N/A';
-    
+
     if (typeof value === 'object') {
       if (Array.isArray(value)) {
         return value.map(item => convertToReadableText(item)).join(', ');
       }
-      
+
       // Handle objects by extracting meaningful properties
       const keys = Object.keys(value);
       if (keys.length === 0) return 'No data';
-      
+
       return keys.map(key => {
         const val = value[key];
         if (val === null || val === undefined) return '';
         return `${key}: ${convertToReadableText(val)}`;
       }).filter(Boolean).join(', ');
     }
-    
+
     return value.toString();
   };
-  
+
   // Handle download report - Generate Word document with complete analysis
   const handleDownloadReport = async () => {
     if (!analysisResult) return;
-    
+
     try {
       // Dynamic import for better performance
       const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = await import('docx');
-      
+
       // Get patient info if available
-      const patient = withPatient && selectedPatientId 
+      const patient = withPatient && selectedPatientId
         ? patients.find(p => p.id === parseInt(selectedPatientId))
         : null;
-      
+
       // Debug: Log the analysis result to see what we're working with
       console.log('Analysis result for download:', analysisResult);
-      
+
       // Create document sections
       const docSections = [];
-      
+
       // Title
       docSections.push(
         new Paragraph({
@@ -753,13 +753,13 @@ export default function LabInterpreter() {
           alignment: AlignmentType.CENTER,
         })
       );
-      
+
       // Date
       docSections.push(
         new Paragraph({
           children: [
             new TextRun({
-              text: `Generated on: ${new Date().toLocaleDateString('en-US')} at ${new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit', hour12: true})}`,
+              text: `Generated on: ${new Date().toLocaleDateString('en-US')} at ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`,
               italics: true,
             }),
           ],
@@ -767,7 +767,7 @@ export default function LabInterpreter() {
           spacing: { after: 300 },
         })
       );
-      
+
       // Patient Information
       if (patient) {
         docSections.push(
@@ -777,7 +777,7 @@ export default function LabInterpreter() {
             spacing: { before: 400, after: 200 },
           })
         );
-        
+
         docSections.push(
           new Paragraph({
             children: [
@@ -787,7 +787,7 @@ export default function LabInterpreter() {
             spacing: { after: 100 },
           })
         );
-        
+
         docSections.push(
           new Paragraph({
             children: [
@@ -798,7 +798,7 @@ export default function LabInterpreter() {
           })
         );
       }
-      
+
       // Original Lab Data
       if (inputText) {
         docSections.push(
@@ -808,7 +808,7 @@ export default function LabInterpreter() {
             spacing: { before: 400, after: 200 },
           })
         );
-        
+
         // Split input text into paragraphs for better formatting
         const labDataLines = inputText.split('\n').filter(line => line.trim());
         labDataLines.forEach(line => {
@@ -820,7 +820,7 @@ export default function LabInterpreter() {
           );
         });
       }
-      
+
       // Add complete analysis result - render all available data
       if (analysisResult) {
         docSections.push(
@@ -830,7 +830,7 @@ export default function LabInterpreter() {
             spacing: { before: 400, after: 200 },
           })
         );
-        
+
         // Function to recursively add all analysis data
         const addAnalysisData = (data: any, level: number = 0) => {
           if (!data || typeof data !== 'object') {
@@ -842,19 +842,19 @@ export default function LabInterpreter() {
             );
             return;
           }
-          
+
           Object.entries(data).forEach(([key, value]) => {
             if (value === null || value === undefined) return;
-            
+
             // Add heading for each section
             docSections.push(
               new Paragraph({
-                text: key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1'),
+                text: (key || '').charAt(0).toUpperCase() + (key || '').slice(1).replace(/([A-Z])/g, ' $1'),
                 heading: level === 0 ? HeadingLevel.HEADING_2 : HeadingLevel.HEADING_3,
                 spacing: { before: 200, after: 100 },
               })
             );
-            
+
             if (Array.isArray(value)) {
               value.forEach((item, index) => {
                 docSections.push(
@@ -879,10 +879,10 @@ export default function LabInterpreter() {
             }
           });
         };
-        
+
         addAnalysisData(analysisResult);
       }
-      
+
       // Analysis Summary
       if (analysisResult.summary) {
         docSections.push(
@@ -892,7 +892,7 @@ export default function LabInterpreter() {
             spacing: { before: 400, after: 200 },
           })
         );
-        
+
         docSections.push(
           new Paragraph({
             text: analysisResult.summary,
@@ -900,7 +900,7 @@ export default function LabInterpreter() {
           })
         );
       }
-      
+
       // Abnormal Values
       if (analysisResult.abnormalValues && Array.isArray(analysisResult.abnormalValues) && analysisResult.abnormalValues.length > 0) {
         docSections.push(
@@ -910,7 +910,7 @@ export default function LabInterpreter() {
             spacing: { before: 400, after: 200 },
           })
         );
-        
+
         analysisResult.abnormalValues.forEach((value: any) => {
           docSections.push(
             new Paragraph({
@@ -923,7 +923,7 @@ export default function LabInterpreter() {
           );
         });
       }
-      
+
       // Detailed Interpretation
       if (analysisResult.interpretation) {
         docSections.push(
@@ -933,7 +933,7 @@ export default function LabInterpreter() {
             spacing: { before: 400, after: 200 },
           })
         );
-        
+
         docSections.push(
           new Paragraph({
             text: analysisResult.interpretation,
@@ -941,7 +941,7 @@ export default function LabInterpreter() {
           })
         );
       }
-      
+
       // Recommendations
       if (analysisResult.recommendations && Array.isArray(analysisResult.recommendations) && analysisResult.recommendations.length > 0) {
         docSections.push(
@@ -951,7 +951,7 @@ export default function LabInterpreter() {
             spacing: { before: 400, after: 200 },
           })
         );
-        
+
         analysisResult.recommendations.forEach((rec: any) => {
           docSections.push(
             new Paragraph({
@@ -964,7 +964,7 @@ export default function LabInterpreter() {
           );
         });
       }
-      
+
       // Voice Notes
       if (transcript && transcript.trim()) {
         docSections.push(
@@ -974,7 +974,7 @@ export default function LabInterpreter() {
             spacing: { before: 400, after: 200 },
           })
         );
-        
+
         docSections.push(
           new Paragraph({
             text: transcript,
@@ -982,7 +982,7 @@ export default function LabInterpreter() {
           })
         );
       }
-      
+
       // Create the document
       const doc = new Document({
         sections: [
@@ -992,7 +992,7 @@ export default function LabInterpreter() {
           },
         ],
       });
-      
+
       // Generate and download
       const blob = await Packer.toBlob(doc);
       const url = URL.createObjectURL(blob);
@@ -1003,7 +1003,7 @@ export default function LabInterpreter() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      
+
       toast({
         title: 'Report Downloaded',
         description: 'Complete lab report analysis has been downloaded as a Word document.'
@@ -1017,35 +1017,35 @@ export default function LabInterpreter() {
       });
     }
   };
-  
 
-  
+
+
   // Simple PDF generation for backup
   const generateSimplePDF = async () => {
     if (!analysisResult) return;
-    
+
     try {
       // Dynamic import for better performance
       const { jsPDF } = await import('jspdf');
-      
+
       // Get patient info if available
-      const patient = withPatient && selectedPatientId 
+      const patient = withPatient && selectedPatientId
         ? patients.find(p => p.id === parseInt(selectedPatientId))
         : null;
-      
+
       // Create PDF document
       const doc = new jsPDF();
       let yPosition = 20;
       const pageWidth = doc.internal.pageSize.getWidth();
       const margin = 20;
       const maxWidth = pageWidth - 2 * margin;
-      
+
       // Helper function to add text with word wrapping
       const addText = (text: string, fontSize: number = 12, isBold: boolean = false) => {
         doc.setFontSize(fontSize);
         if (isBold) doc.setFont('helvetica', 'bold');
         else doc.setFont('helvetica', 'normal');
-        
+
         const lines = doc.splitTextToSize(text, maxWidth);
         lines.forEach((line: string) => {
           if (yPosition > 270) {
@@ -1057,15 +1057,15 @@ export default function LabInterpreter() {
         });
         yPosition += 5;
       };
-      
+
       // Add title
       addText("Lab Report Analysis", 20, true);
       yPosition += 5;
-      
+
       // Add date
-      addText(`Generated on: ${new Date().toLocaleDateString('en-US')} at ${new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit', hour12: true})}`, 10);
+      addText(`Generated on: ${new Date().toLocaleDateString('en-US')} at ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`, 10);
       yPosition += 10;
-      
+
       // Add patient info if available
       if (patient) {
         addText("Patient Information", 16, true);
@@ -1073,32 +1073,32 @@ export default function LabInterpreter() {
         addText(`Patient ID: ${patient.id}`, 12);
         yPosition += 5;
       }
-      
+
       // Add original lab data
       if (inputText) {
         addText("Original Lab Data", 16, true);
         addText(inputText, 10);
         yPosition += 5;
       }
-      
+
       // Add complete analysis result - render all available data
       if (analysisResult) {
         addText("Complete Analysis Results", 16, true);
-        
+
         // Function to recursively add all analysis data
         const addAnalysisData = (data: any, level: number = 0) => {
           if (!data || typeof data !== 'object') {
             addText(convertToReadableText(data), 12);
             return;
           }
-          
+
           Object.entries(data).forEach(([key, value]) => {
             if (value === null || value === undefined) return;
-            
+
             // Add heading for each section
             const heading = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
             addText(heading, level === 0 ? 14 : 12, true);
-            
+
             if (Array.isArray(value)) {
               value.forEach((item, index) => {
                 addText(`${index + 1}. ${convertToReadableText(item)}`, 12);
@@ -1110,18 +1110,18 @@ export default function LabInterpreter() {
             }
           });
         };
-        
+
         addAnalysisData(analysisResult);
         yPosition += 5;
       }
-      
+
       // Add analysis summary
       if (analysisResult.summary) {
         addText("Analysis Summary", 16, true);
         addText(analysisResult.summary, 12);
         yPosition += 5;
       }
-      
+
       // Add abnormal values
       if (analysisResult.abnormalValues && Array.isArray(analysisResult.abnormalValues) && analysisResult.abnormalValues.length > 0) {
         addText("Abnormal Values", 16, true);
@@ -1130,14 +1130,14 @@ export default function LabInterpreter() {
         });
         yPosition += 5;
       }
-      
+
       // Add interpretation
       if (analysisResult.interpretation) {
         addText("Detailed Interpretation", 16, true);
         addText(analysisResult.interpretation, 12);
         yPosition += 5;
       }
-      
+
       // Add recommendations
       if (analysisResult.recommendations && Array.isArray(analysisResult.recommendations) && analysisResult.recommendations.length > 0) {
         addText("Recommendations", 16, true);
@@ -1146,17 +1146,17 @@ export default function LabInterpreter() {
         });
         yPosition += 5;
       }
-      
+
       // Add voice notes
       if (transcript && transcript.trim()) {
         addText("Voice Notes", 16, true);
         addText(transcript, 12);
       }
-      
+
       // Save the PDF
       const fileName = `lab-report-analysis-${patient ? `${patient.firstName}-${patient.lastName}-` : ''}${new Date().toISOString().split('T')[0]}.pdf`;
       doc.save(fileName);
-      
+
       toast({
         title: 'Report Downloaded',
         description: 'Complete lab report analysis has been downloaded as a PDF document.'
@@ -1174,29 +1174,29 @@ export default function LabInterpreter() {
   // Initialize editable content when analysis is complete - now handles natural language format
   const initializeEditableContent = (analysisData: any) => {
     if (!analysisData) return;
-    
+
     // Helper function to convert natural language text to HTML with proper formatting
     const formatTextToHTML = (text: string): string => {
       if (!text) return '';
-      
+
       // Convert line breaks to proper HTML formatting
       let formatted = text
         .replace(/\n\n/g, '</p><p>')  // Double line breaks become new paragraphs
         .replace(/\n/g, '<br>')       // Single line breaks become <br>
         .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Bold text
         .replace(/\*(.*?)\*/g, '<em>$1</em>'); // Italic text
-      
+
       // Wrap in paragraph tags if not already
       if (!formatted.startsWith('<p>')) {
         formatted = '<p>' + formatted + '</p>';
       }
-      
+
       return formatted;
     };
-    
+
     // Convert natural language analysis to clean HTML format for the rich text editor
     let htmlContent = '<h1>Lab Report Analysis</h1>';
-    
+
     // Add patient info if available
     if (withPatient && selectedPatientId) {
       const patient = patients.find(p => p.id.toString() === selectedPatientId);
@@ -1206,19 +1206,19 @@ export default function LabInterpreter() {
         htmlContent += `<p><strong>Patient ID:</strong> ${patient.id}</p>`;
       }
     }
-    
+
     // For natural language format, just use the content directly with proper formatting
     if (analysisData.content) {
       htmlContent += `<h2>Analysis Results</h2>`;
       htmlContent += formatTextToHTML(analysisData.content);
     }
-    
+
     // Add voice notes if available
     if (transcript && transcript.trim()) {
       htmlContent += `<h2>Voice Notes</h2>`;
       htmlContent += formatTextToHTML(transcript);
     }
-    
+
     setEditableContent(htmlContent);
   };
 
@@ -1232,13 +1232,13 @@ export default function LabInterpreter() {
       });
       return;
     }
-    
+
     try {
       // Convert HTML to plain text for DOCX (with basic formatting)
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = editableContent;
       const textContent = tempDiv.textContent || tempDiv.innerText || '';
-      
+
       // Create styled DOCX content
       const response = await fetch('/api/lab-interpreter/download-styled', {
         method: 'POST',
@@ -1250,11 +1250,11 @@ export default function LabInterpreter() {
           patientId: withPatient ? selectedPatientId : undefined
         })
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to generate styled document');
       }
-      
+
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -1263,7 +1263,7 @@ export default function LabInterpreter() {
       link.download = `styled-lab-report-${patient ? `${patient.firstName}-${patient.lastName}-` : ''}${new Date().toISOString().split('T')[0]}.docx`;
       link.click();
       window.URL.revokeObjectURL(url);
-      
+
       toast({
         title: 'Styled Report Downloaded',
         description: 'Your customized lab report has been downloaded as a Word document.'
@@ -1287,7 +1287,7 @@ export default function LabInterpreter() {
       });
       return;
     }
-    
+
     try {
       const response = await fetch('/api/lab-interpreter/download-styled', {
         method: 'POST',
@@ -1299,11 +1299,11 @@ export default function LabInterpreter() {
           patientId: withPatient ? selectedPatientId : undefined
         })
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to generate styled PDF');
       }
-      
+
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -1312,7 +1312,7 @@ export default function LabInterpreter() {
       link.download = `styled-lab-report-${patient ? `${patient.firstName}-${patient.lastName}-` : ''}${new Date().toISOString().split('T')[0]}.pdf`;
       link.click();
       window.URL.revokeObjectURL(url);
-      
+
       toast({
         title: 'Styled PDF Downloaded',
         description: 'Your customized lab report has been downloaded as a PDF.'
@@ -1340,18 +1340,18 @@ export default function LabInterpreter() {
 
     try {
       setIsSavingReport(true);
-      
+
       const response = await apiRequest('POST', '/api/lab-interpreter/save-report', {
         patientId: parseInt(selectedPatientId),
         reportData: inputText,
         analysis: JSON.stringify(analysisResult),
         title: `Lab Report Analysis - ${new Date().toLocaleDateString('en-US')}`
       });
-      
+
       const result = await response.json();
-      
+
       setReportSavedToPatient(true);
-      
+
       toast({
         title: 'Report Saved Successfully',
         description: 'The lab report analysis has been saved to the patient\'s medical record.'
@@ -1367,14 +1367,14 @@ export default function LabInterpreter() {
       setIsSavingReport(false);
     }
   };
-  
+
   // Handle follow-up question
   const [followUpQuestion, setFollowUpQuestion] = useState('');
   const [isAskingFollowUp, setIsAskingFollowUp] = useState(false);
   const [followUpAnswer, setFollowUpAnswer] = useState('');
   const [isSavingReport, setIsSavingReport] = useState(false);
   const [reportSavedToPatient, setReportSavedToPatient] = useState(false);
-  
+
   const handleAskFollowUp = async () => {
     if (!followUpQuestion.trim() || !analysisResult) {
       toast({
@@ -1384,11 +1384,11 @@ export default function LabInterpreter() {
       });
       return;
     }
-    
+
     try {
       setIsAskingFollowUp(true);
       setFollowUpAnswer('');
-      
+
       // Get patient info if available
       let patientInfo = '';
       if (withPatient && selectedPatientId) {
@@ -1397,22 +1397,22 @@ export default function LabInterpreter() {
           patientInfo = `Patient: ${patient.firstName} ${patient.lastName} (ID: ${patient.id})`;
         }
       }
-      
+
       const response = await apiRequest('POST', '/api/lab-interpreter/follow-up', {
         question: followUpQuestion,
         analysisResult: JSON.stringify(analysisResult),
         patientInfo,
         patientId: withPatient ? parseInt(selectedPatientId) : undefined
       });
-      
+
       const data = await response.json();
-      
+
       if (data.error) {
         throw new Error(data.error);
       }
-      
+
       setFollowUpAnswer(data.answer);
-      
+
       toast({
         title: 'Question Answered',
         description: 'Your follow-up question has been processed.'
@@ -1428,22 +1428,22 @@ export default function LabInterpreter() {
       setIsAskingFollowUp(false);
     }
   };
-  
+
   // Render the analysis result in a structured format
   const renderAnalysisResult = () => {
     if (!analysisResult) return null;
-    
+
     // Function to safely render any value as a string
     const safeRender = (value: any): string => {
       return convertToReadableText(value);
     };
-    
+
     // Function to recursively render key-value pairs from the analysis result
     const renderSection = (data: any, level = 0): JSX.Element => {
       if (typeof data !== 'object' || data === null) {
         return <p className="text-sm">{safeRender(data)}</p>;
       }
-      
+
       return (
         <div className={`space-y-2 ${level > 0 ? 'ml-4' : ''}`}>
           {Object.entries(data).map(([key, value]) => {
@@ -1456,15 +1456,15 @@ export default function LabInterpreter() {
                 </div>
               );
             }
-            
+
             // Skip rendering if value is undefined or null
             if (value === undefined || value === null) return null;
-            
+
             // Handle arrays
             if (Array.isArray(value)) {
               return (
                 <div key={key} className="space-y-1">
-                  <h4 className="text-sm font-medium">{key.charAt(0).toUpperCase() + key.slice(1)}:</h4>
+                  <h4 className="text-sm font-medium">{(key || '').charAt(0).toUpperCase() + (key || '').slice(1)}:</h4>
                   <ul className="list-disc list-inside space-y-1">
                     {value.map((item, index) => (
                       <li key={index} className="text-sm">
@@ -1481,21 +1481,21 @@ export default function LabInterpreter() {
                 </div>
               );
             }
-            
+
             // Handle nested objects
             if (typeof value === 'object') {
               return (
                 <div key={key} className="space-y-1">
-                  <h4 className="text-sm font-medium">{key.charAt(0).toUpperCase() + key.slice(1)}:</h4>
+                  <h4 className="text-sm font-medium">{(key || '').charAt(0).toUpperCase() + (key || '').slice(1)}:</h4>
                   {renderSection(value, level + 1)}
                 </div>
               );
             }
-            
+
             // Handle simple key-value pairs
             return (
               <div key={key} className="space-y-1">
-                <h4 className="text-sm font-medium">{key.charAt(0).toUpperCase() + key.slice(1)}:</h4>
+                <h4 className="text-sm font-medium">{(key || '').charAt(0).toUpperCase() + (key || '').slice(1)}:</h4>
                 <p className="text-sm">{safeRender(value)}</p>
               </div>
             );
@@ -1503,10 +1503,10 @@ export default function LabInterpreter() {
         </div>
       );
     };
-    
+
     return renderSection(analysisResult);
   };
-  
+
   return (
     <div className="container max-w-7xl mx-auto p-4">
       <div className="flex items-center justify-between mb-6">
@@ -1585,8 +1585,8 @@ export default function LabInterpreter() {
                 <Button variant="outline" onClick={() => setIsSettingsOpen(false)}>
                   Cancel
                 </Button>
-                <Button 
-                  onClick={handleSaveSettings} 
+                <Button
+                  onClick={handleSaveSettings}
                   disabled={isLoadingSettings}
                 >
                   {isLoadingSettings && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -1595,7 +1595,7 @@ export default function LabInterpreter() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-          
+
           <Dialog open={isKnowledgeBaseOpen} onOpenChange={setIsKnowledgeBaseOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" size="icon">
@@ -1612,7 +1612,7 @@ export default function LabInterpreter() {
               <div className="py-4 overflow-y-auto">
                 {/* Template Guidelines Section - Collapsible */}
                 <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div 
+                  <div
                     className="flex items-center justify-between cursor-pointer"
                     onClick={() => setShowGuidelines(!showGuidelines)}
                   >
@@ -1622,90 +1622,90 @@ export default function LabInterpreter() {
                     </Button>
                   </div>
                   {showGuidelines && (
-                  <div className="grid md:grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <h4 className="font-medium text-blue-800 mb-2">📊 Standard Lab Format (Excel)</h4>
-                      <div className="space-y-1 text-blue-700">
-                        <p><strong>Required columns:</strong></p>
-                        <ul className="list-disc list-inside space-y-1 ml-2">
-                          <li>Test Name / Test</li>
-                          <li>Marker / Analyte / Parameter</li>
-                          <li>Normal Range Low / Min / Lower</li>
-                          <li>Normal Range High / Max / Upper</li>
-                          <li>Unit</li>
-                          <li>Interpretation / Description</li>
-                          <li>Recommendations / Advice</li>
-                        </ul>
-                        <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-xs">
-                          <p className="font-medium text-green-800">💡 Download our Excel template to get started with the correct format!</p>
-                          <p className="text-green-700 mt-1">Includes sample data for CBC, Lipid Panel, Liver Function, and Disease-Product formats</p>
+                    <div className="grid md:grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <h4 className="font-medium text-blue-800 mb-2">📊 Standard Lab Format (Excel)</h4>
+                        <div className="space-y-1 text-blue-700">
+                          <p><strong>Required columns:</strong></p>
+                          <ul className="list-disc list-inside space-y-1 ml-2">
+                            <li>Test Name / Test</li>
+                            <li>Marker / Analyte / Parameter</li>
+                            <li>Normal Range Low / Min / Lower</li>
+                            <li>Normal Range High / Max / Upper</li>
+                            <li>Unit</li>
+                            <li>Interpretation / Description</li>
+                            <li>Recommendations / Advice</li>
+                          </ul>
+                          <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-xs">
+                            <p className="font-medium text-green-800">💡 Download our Excel template to get started with the correct format!</p>
+                            <p className="text-green-700 mt-1">Includes sample data for CBC, Lipid Panel, Liver Function, and Disease-Product formats</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-blue-800 mb-2">🏥 Disease-Product Format (Excel)</h4>
+                        <div className="space-y-1 text-blue-700">
+                          <p><strong>Supported columns:</strong></p>
+                          <ul className="list-disc list-inside space-y-1 ml-2">
+                            <li>Organ System / Category</li>
+                            <li>Disease State / Condition</li>
+                            <li>Product / Supplement columns</li>
+                            <li>Peptide columns</li>
+                            <li>Formula columns</li>
+                          </ul>
+                          <p className="mt-2 text-xs"><em>Perfect for supplement/peptide recommendations</em></p>
+                        </div>
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-blue-800 mb-2">📝 Text Format</h4>
+                        <div className="space-y-1 text-blue-700">
+                          <p><strong>Format each entry as:</strong></p>
+                          <div className="bg-white p-2 rounded border text-xs font-mono">
+                            Test: Complete Blood Count<br />
+                            Marker: Hemoglobin<br />
+                            Range: 12.0-16.0 g/dL<br />
+                            Interpretation: Normal oxygen transport<br />
+                            Recommendations: Continue monitoring
+                          </div>
+                          <p className="text-xs mt-1"><em>Separate entries with blank lines</em></p>
+                        </div>
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-blue-800 mb-2">🔒 Privacy & Account Separation</h4>
+                        <div className="space-y-1 text-blue-700">
+                          <ul className="list-disc list-inside space-y-1 ml-2">
+                            <li><strong>Personal Knowledge Base:</strong> Each account has separate data</li>
+                            <li><strong>Secure Upload:</strong> Your data stays with your account only</li>
+                            <li><strong>Custom Analysis:</strong> AI uses your specific reference ranges</li>
+                            <li><strong>Data Control:</strong> You can clear/update your data anytime</li>
+                          </ul>
+                        </div>
+                      </div>
+                      <div className="md:col-span-2">
+                        <h4 className="font-medium text-blue-800 mb-2">📥 Quick Start Guide</h4>
+                        <div className="space-y-2 text-blue-700 text-xs">
+                          <div className="flex items-center gap-2">
+                            <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded font-mono">1</span>
+                            <span>Click "Download Excel Template" to get started</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded font-mono">2</span>
+                            <span>Edit the template with your lab reference values</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded font-mono">3</span>
+                            <span>Save as .xlsx or .csv file and import here</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded font-mono">4</span>
+                            <span>Your custom data will be used in all lab analyses</span>
+                          </div>
                         </div>
                       </div>
                     </div>
-                    <div>
-                      <h4 className="font-medium text-blue-800 mb-2">🏥 Disease-Product Format (Excel)</h4>
-                      <div className="space-y-1 text-blue-700">
-                        <p><strong>Supported columns:</strong></p>
-                        <ul className="list-disc list-inside space-y-1 ml-2">
-                          <li>Organ System / Category</li>
-                          <li>Disease State / Condition</li>
-                          <li>Product / Supplement columns</li>
-                          <li>Peptide columns</li>
-                          <li>Formula columns</li>
-                        </ul>
-                        <p className="mt-2 text-xs"><em>Perfect for supplement/peptide recommendations</em></p>
-                      </div>
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-blue-800 mb-2">📝 Text Format</h4>
-                      <div className="space-y-1 text-blue-700">
-                        <p><strong>Format each entry as:</strong></p>
-                        <div className="bg-white p-2 rounded border text-xs font-mono">
-                          Test: Complete Blood Count<br/>
-                          Marker: Hemoglobin<br/>
-                          Range: 12.0-16.0 g/dL<br/>
-                          Interpretation: Normal oxygen transport<br/>
-                          Recommendations: Continue monitoring
-                        </div>
-                        <p className="text-xs mt-1"><em>Separate entries with blank lines</em></p>
-                      </div>
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-blue-800 mb-2">🔒 Privacy & Account Separation</h4>
-                      <div className="space-y-1 text-blue-700">
-                        <ul className="list-disc list-inside space-y-1 ml-2">
-                          <li><strong>Personal Knowledge Base:</strong> Each account has separate data</li>
-                          <li><strong>Secure Upload:</strong> Your data stays with your account only</li>
-                          <li><strong>Custom Analysis:</strong> AI uses your specific reference ranges</li>
-                          <li><strong>Data Control:</strong> You can clear/update your data anytime</li>
-                        </ul>
-                      </div>
-                    </div>
-                    <div className="md:col-span-2">
-                      <h4 className="font-medium text-blue-800 mb-2">📥 Quick Start Guide</h4>
-                      <div className="space-y-2 text-blue-700 text-xs">
-                        <div className="flex items-center gap-2">
-                          <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded font-mono">1</span>
-                          <span>Click "Download Excel Template" to get started</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded font-mono">2</span>
-                          <span>Edit the template with your lab reference values</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded font-mono">3</span>
-                          <span>Save as .xlsx or .csv file and import here</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded font-mono">4</span>
-                          <span>Your custom data will be used in all lab analyses</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
                   )}
                 </div>
-                
+
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-lg font-medium">Your Lab Test References ({knowledgeBase.length} items)</h3>
                   <div className="flex items-center gap-2">
@@ -1726,35 +1726,35 @@ export default function LabInterpreter() {
                         </>
                       )}
                     </Button>
-                    
+
                     {knowledgeBase.length > 0 && (
-                      <Button 
-                        variant="destructive" 
+                      <Button
+                        variant="destructive"
                         size="sm"
                         onClick={() => {
                           if (confirm('Are you sure you want to delete all knowledge base items? This action cannot be undone.')) {
                             fetch('/api/lab-interpreter/knowledge-base', {
                               method: 'DELETE',
                             })
-                            .then(response => {
-                              if (response.ok) {
-                                loadKnowledgeBase();
+                              .then(response => {
+                                if (response.ok) {
+                                  loadKnowledgeBase();
+                                  toast({
+                                    title: 'Knowledge Base Cleared',
+                                    description: 'All items have been deleted',
+                                  });
+                                } else {
+                                  throw new Error('Failed to clear knowledge base');
+                                }
+                              })
+                              .catch(error => {
+                                console.error('Error clearing knowledge base:', error);
                                 toast({
-                                  title: 'Knowledge Base Cleared',
-                                  description: 'All items have been deleted',
+                                  title: 'Error',
+                                  description: 'Failed to clear knowledge base',
+                                  variant: 'destructive'
                                 });
-                              } else {
-                                throw new Error('Failed to clear knowledge base');
-                              }
-                            })
-                            .catch(error => {
-                              console.error('Error clearing knowledge base:', error);
-                              toast({
-                                title: 'Error',
-                                description: 'Failed to clear knowledge base',
-                                variant: 'destructive'
                               });
-                            });
                           }
                         }}
                       >
@@ -1792,14 +1792,14 @@ export default function LabInterpreter() {
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
-                    <input 
+                    <input
                       type="file"
                       accept=".xlsx,.xls"
                       ref={knowledgeBaseFileRef}
                       onChange={handleExcelFileUpload}
                       className="hidden"
                     />
-                    <input 
+                    <input
                       type="file"
                       accept=".txt,.text"
                       ref={textFileInputRef}
@@ -1808,7 +1808,7 @@ export default function LabInterpreter() {
                     />
                   </div>
                 </div>
-                
+
                 <div className={isFullScreenMode ? "flex-1 rounded-md border" : "h-[350px] rounded-md border flex flex-col"}>
                   {isLoadingKnowledgeBase ? (
                     <div className="flex justify-center items-center h-full">
@@ -1869,12 +1869,12 @@ export default function LabInterpreter() {
                                 'How to take_1': '',
                                 'How to take_2': ''
                               };
-                              
+
                               if (item.recommendations) {
                                 // Parse the enhanced structured format with correct section headers
                                 const peptidesSectionMatch = item.recommendations.match(/PEPTIDES:\s*\n([\s\S]*?)(?=\n\s*SUPPLEMENTS|\n\s*DOSAGE|\n\s*ADDITIONAL|$)/i);
                                 const formulasSectionMatch = item.recommendations.match(/SUPPLEMENTS & FORMULAS:\s*\n([\s\S]*?)(?=\n\s*DOSAGE|\n\s*ADDITIONAL|$)/i);
-                                
+
                                 if (peptidesSectionMatch) {
                                   const peptideLines = peptidesSectionMatch[1].trim().split('\n');
                                   peptideLines.forEach(line => {
@@ -1892,7 +1892,7 @@ export default function LabInterpreter() {
                                     }
                                   });
                                 }
-                                
+
                                 if (formulasSectionMatch) {
                                   const formulaLines = formulasSectionMatch[1].trim().split('\n');
                                   formulaLines.forEach(line => {
@@ -1914,7 +1914,7 @@ export default function LabInterpreter() {
                                     }
                                   });
                                 }
-                                
+
                                 // Parse dosage instructions
                                 const dosageSectionMatch = item.recommendations.match(/DOSAGE INSTRUCTIONS:\s*\n([\s\S]*?)(?=\n\s*ADDITIONAL|$)/i);
                                 if (dosageSectionMatch) {
@@ -1934,7 +1934,7 @@ export default function LabInterpreter() {
                                     }
                                   });
                                 }
-                                
+
                                 // Enhanced fallback parsing to catch any missed data
                                 if (!Object.values(columnData).some(v => v)) {
                                   const lines = item.recommendations.split('\n');
@@ -1943,12 +1943,12 @@ export default function LabInterpreter() {
                                     if (match) {
                                       const [, key, value] = match;
                                       const keyNormalized = key.trim().toLowerCase();
-                                      
+
                                       // Direct column name matching
                                       Object.keys(columnData).forEach(targetKey => {
                                         const targetNormalized = targetKey.toLowerCase();
-                                        if (keyNormalized.includes(targetNormalized.replace(/\s+/g, '')) || 
-                                            key.trim() === targetKey) {
+                                        if (keyNormalized.includes(targetNormalized.replace(/\s+/g, '')) ||
+                                          key.trim() === targetKey) {
                                           columnData[targetKey] = value.trim();
                                         }
                                       });
@@ -1956,7 +1956,7 @@ export default function LabInterpreter() {
                                   });
                                 }
                               }
-                              
+
                               return (
                                 <tr key={item.id} className="border-b hover:bg-muted/50">
                                   <td className="p-1 px-2 font-medium bg-blue-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate" title={item.testName}>{item.testName}</td>
@@ -1971,8 +1971,8 @@ export default function LabInterpreter() {
                                   <td className="p-1 px-2 bg-yellow-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate" title={columnData['How to take']}>{columnData['How to take']}</td>
                                   <td className="p-1 px-2 bg-yellow-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate" title={columnData['How to take_1']}>{columnData['How to take_1']}</td>
                                   <td className="p-1 px-2 bg-pink-50/50 whitespace-normal text-xs max-w-[80px] md:max-w-[100px] truncate">
-                                    <button 
-                                      className="text-blue-600 hover:text-blue-800 underline text-xs" 
+                                    <button
+                                      className="text-blue-600 hover:text-blue-800 underline text-xs"
                                       onClick={() => {
                                         alert(`Full Data for ${item.testName} - ${item.marker}:\n\n${item.recommendations}`);
                                       }}
@@ -1992,7 +1992,7 @@ export default function LabInterpreter() {
               </div>
             </DialogContent>
           </Dialog>
-          
+
           {/* Text Paste Import Dialog */}
           <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
             <DialogContent className="sm:max-w-[600px]">
@@ -2002,26 +2002,26 @@ export default function LabInterpreter() {
                   Paste lab test reference data in the following format:
                 </DialogDescription>
               </DialogHeader>
-              
+
               <div className="py-4">
                 <div className="mb-4 p-3 bg-muted rounded-md">
                   <pre className="text-xs text-muted-foreground">
-                    Test: Complete Blood Count<br/>
-                    Marker: Hemoglobin<br/>
-                    Range: 12.0-15.5 g/dL<br/>
-                    Interpretation: Hemoglobin is a protein in red blood cells<br/>
+                    Test: Complete Blood Count<br />
+                    Marker: Hemoglobin<br />
+                    Range: 12.0-15.5 g/dL<br />
+                    Interpretation: Hemoglobin is a protein in red blood cells<br />
                     Recommendations: Low levels may indicate anemia
-                    
-                    <br/><br/>
-                    
-                    Test: Liver Function<br/>
-                    Marker: ALT<br/>
-                    Range: 7-55 U/L<br/>
-                    Interpretation: Liver enzyme used to detect damage<br/>
+
+                    <br /><br />
+
+                    Test: Liver Function<br />
+                    Marker: ALT<br />
+                    Range: 7-55 U/L<br />
+                    Interpretation: Liver enzyme used to detect damage<br />
                     Recommendations: Elevated levels suggest liver injury
                   </pre>
                 </div>
-                
+
                 <Textarea
                   value={pasteContent}
                   onChange={(e) => setPasteContent(e.target.value)}
@@ -2029,7 +2029,7 @@ export default function LabInterpreter() {
                   className="h-[200px]"
                 />
               </div>
-              
+
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsImportDialogOpen(false)}>
                   Cancel
@@ -2052,7 +2052,7 @@ export default function LabInterpreter() {
           </Dialog>
         </div>
       </div>
-      
+
       <div className="grid gap-6 md:grid-cols-12">
         <Card className="md:col-span-12">
           <CardContent className="p-6">
@@ -2066,7 +2066,7 @@ export default function LabInterpreter() {
                   />
                   <Label htmlFor="with-patient">With Patient</Label>
                 </div>
-                
+
                 {withPatient && (
                   <div className="flex-1 max-w-xs">
                     <Select
@@ -2097,7 +2097,7 @@ export default function LabInterpreter() {
                     </Select>
                   </div>
                 )}
-                
+
                 <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
                   <DialogTrigger asChild>
                     <Button variant="outline">
@@ -2121,49 +2121,49 @@ export default function LabInterpreter() {
                       <div className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer"
                         onClick={() => fileInputRef.current?.click()}
                       >
-                        <input 
+                        <input
                           type="file"
                           ref={fileInputRef}
                           onChange={async (e) => {
                             const file = e.target.files?.[0];
                             if (!file) return;
-                            
+
                             try {
                               setIsProcessingUpload(true);
                               setUploadProgress(0);
                               setIsUploadOpen(false);
-                              
+
                               const formData = new FormData();
                               formData.append('file', file);
-                              
+
                               // Create progress tracking
                               const progressInterval = setInterval(() => {
                                 setUploadProgress(prev => Math.min(prev + 5, 90));
                               }, 500);
-                              
+
                               // Extract text only (no analysis)
                               const response = await fetch('/api/lab-interpreter/extract-text', {
                                 method: 'POST',
                                 body: formData,
                                 credentials: 'include'
                               });
-                              
+
                               clearInterval(progressInterval);
                               setUploadProgress(100);
-                              
+
                               if (!response.ok) {
                                 const errorData = await response.json();
                                 throw new Error(errorData.message || 'Text extraction failed');
                               }
-                              
+
                               const result = await response.json();
                               console.log('Extract text response:', result);
-                              
+
                               if (result.success && result.data && result.data.extractedText) {
                                 // Show extracted text in input field for review
                                 setInputText(result.data.extractedText);
                                 setActiveTab('input');
-                                
+
                                 toast({
                                   title: 'Text Extracted Successfully',
                                   description: `Extracted ${result.data.extractedText.length} characters. Review and edit the text below, then click "Analyze Report".`
@@ -2172,7 +2172,7 @@ export default function LabInterpreter() {
                                 // Fallback for different response format
                                 setInputText(result.extractedText);
                                 setActiveTab('input');
-                                
+
                                 toast({
                                   title: 'Text Extracted Successfully',
                                   description: `Extracted ${result.extractedText.length} characters. Review and edit the text below, then click "Analyze Report".`
@@ -2211,7 +2211,7 @@ export default function LabInterpreter() {
                   </DialogContent>
                 </Dialog>
               </div>
-              
+
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="input">Input</TabsTrigger>
@@ -2231,7 +2231,7 @@ export default function LabInterpreter() {
                           <span className="text-sm font-medium text-blue-800">Extracting text from your lab report...</span>
                         </div>
                         <div className="w-full bg-blue-200 rounded-full h-2">
-                          <div 
+                          <div
                             className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                             style={{ width: `${uploadProgress}%` }}
                           />
@@ -2262,11 +2262,11 @@ export default function LabInterpreter() {
                       value={inputText}
                       onChange={(e) => setInputText(e.target.value)}
                     />
-                    
+
                     <div className="flex justify-between items-center">
                       <div className="flex items-center gap-2">
-                        <Button 
-                          variant="ghost" 
+                        <Button
+                          variant="ghost"
                           size="sm"
                           onClick={() => setDebugMode(!debugMode)}
                           className="text-xs"
@@ -2274,8 +2274,8 @@ export default function LabInterpreter() {
                           {debugMode ? '🔍 Debug ON' : '🔍 Debug OFF'}
                         </Button>
                         {debugMode && (
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             size="sm"
                             onClick={testSimpleAnalysis}
                             disabled={isTestingSimpleAnalysis || !inputText.trim()}
@@ -2286,10 +2286,10 @@ export default function LabInterpreter() {
                           </Button>
                         )}
                       </div>
-                      
+
                       {/* Enhanced Analysis Button */}
-                      <Button 
-                        onClick={handleAnalyze} 
+                      <Button
+                        onClick={handleAnalyze}
                         disabled={isAnalyzing || (withPatient && !selectedPatientId) || !inputText.trim()}
                         size="lg"
                         className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 text-sm font-medium"
@@ -2317,8 +2317,8 @@ export default function LabInterpreter() {
                       <p className="text-sm text-muted-foreground mb-4">
                         Upload a lab report or enter lab data, then click "Now Analyze This Data" to get medical insights.
                       </p>
-                      <Button 
-                        onClick={() => setActiveTab('input')} 
+                      <Button
+                        onClick={() => setActiveTab('input')}
                         variant="outline"
                         className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
                       >
@@ -2341,76 +2341,76 @@ export default function LabInterpreter() {
                           </div>
                           {analysisResult && (
                             <div className="flex items-center gap-2">
-                            {debugMode && debugInfo && (
-                              <Button 
-                                variant="ghost" 
-                                size="sm"
-                                onClick={() => console.log('Debug Info:', debugInfo)}
-                                className="text-xs text-muted-foreground"
-                              >
-                                📊 Debug Info
+                              {debugMode && debugInfo && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => console.log('Debug Info:', debugInfo)}
+                                  className="text-xs text-muted-foreground"
+                                >
+                                  📊 Debug Info
+                                </Button>
+                              )}
+                              {withPatient && selectedPatientId && (
+                                <Button
+                                  variant={reportSavedToPatient ? "secondary" : "default"}
+                                  size="sm"
+                                  onClick={handleSaveReportToPatient}
+                                  disabled={isSavingReport || reportSavedToPatient}
+                                >
+                                  {isSavingReport ? (
+                                    <>
+                                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                      Saving...
+                                    </>
+                                  ) : reportSavedToPatient ? (
+                                    <>
+                                      <Save className="h-4 w-4 mr-1" />
+                                      Saved ✓
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Save className="h-4 w-4 mr-1" />
+                                      Save to Patient
+                                    </>
+                                  )}
+                                </Button>
+                              )}
+                              <Button variant="outline" size="sm" onClick={handleDownloadReport}>
+                                <DownloadIcon className="h-4 w-4 mr-1" />
+                                Download Report
                               </Button>
-                            )}
-                            {withPatient && selectedPatientId && (
-                              <Button 
-                                variant={reportSavedToPatient ? "secondary" : "default"} 
-                                size="sm"
-                                onClick={handleSaveReportToPatient}
-                                disabled={isSavingReport || reportSavedToPatient}
-                              >
-                                {isSavingReport ? (
-                                  <>
-                                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                                    Saving...
-                                  </>
-                                ) : reportSavedToPatient ? (
-                                  <>
-                                    <Save className="h-4 w-4 mr-1" />
-                                    Saved ✓
-                                  </>
-                                ) : (
-                                  <>
-                                    <Save className="h-4 w-4 mr-1" />
-                                    Save to Patient
-                                  </>
-                                )}
-                              </Button>
-                            )}
-                            <Button variant="outline" size="sm" onClick={handleDownloadReport}>
-                              <DownloadIcon className="h-4 w-4 mr-1" />
-                              Download Report
-                            </Button>
+                            </div>
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        {isAnalyzing ? (
+                          <div className="flex justify-center items-center py-12">
+                            <div className="flex flex-col items-center gap-2">
+                              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                              <p className="text-sm text-muted-foreground">Analyzing lab report...</p>
+                            </div>
+                          </div>
+                        ) : analysisResult ? (
+                          <ScrollArea className="h-[500px] pr-4">
+                            <div className="space-y-4">
+                              {renderAnalysisResult()}
+                            </div>
+                          </ScrollArea>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center py-12 text-center">
+                            <BookText className="h-12 w-12 text-muted-foreground mb-4" />
+                            <h3 className="text-lg font-medium mb-2">No Analysis Results</h3>
+                            <p className="text-sm text-muted-foreground mb-6 max-w-md">
+                              Enter lab report data and click "Analyze Report" to get an AI-powered interpretation.
+                            </p>
                           </div>
                         )}
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      {isAnalyzing ? (
-                        <div className="flex justify-center items-center py-12">
-                          <div className="flex flex-col items-center gap-2">
-                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                            <p className="text-sm text-muted-foreground">Analyzing lab report...</p>
-                          </div>
-                        </div>
-                      ) : analysisResult ? (
-                        <ScrollArea className="h-[500px] pr-4">
-                          <div className="space-y-4">
-                            {renderAnalysisResult()}
-                          </div>
-                        </ScrollArea>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center py-12 text-center">
-                          <BookText className="h-12 w-12 text-muted-foreground mb-4" />
-                          <h3 className="text-lg font-medium mb-2">No Analysis Results</h3>
-                          <p className="text-sm text-muted-foreground mb-6 max-w-md">
-                            Enter lab report data and click "Analyze Report" to get an AI-powered interpretation.
-                          </p>
-                        </div>
-                      )}
-                    </CardContent>
+                      </CardContent>
                     </Card>
                   )}
-                  
+
                   {/* Voice Recording and Follow-up Questions Side-by-Side */}
                   {analysisResult && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
@@ -2450,8 +2450,8 @@ export default function LabInterpreter() {
                                 {transcript}
                               </ScrollArea>
                               <div className="flex gap-2 mt-2">
-                                <Button 
-                                  variant="outline" 
+                                <Button
+                                  variant="outline"
                                   size="sm"
                                   className="flex-1"
                                   onClick={() => {
@@ -2466,8 +2466,8 @@ export default function LabInterpreter() {
                                   Copy
                                 </Button>
                                 {withPatient && (
-                                  <Button 
-                                    variant="outline" 
+                                  <Button
+                                    variant="outline"
                                     size="sm"
                                     className="flex-1"
                                     onClick={saveTranscriptToPatient}
@@ -2508,8 +2508,8 @@ export default function LabInterpreter() {
                                 onChange={(e) => setFollowUpQuestion(e.target.value)}
                                 className="flex-1"
                               />
-                              <Button 
-                                onClick={handleAskFollowUp} 
+                              <Button
+                                onClick={handleAskFollowUp}
                                 disabled={isAskingFollowUp || !followUpQuestion.trim()}
                               >
                                 {isAskingFollowUp ? (
@@ -2520,7 +2520,7 @@ export default function LabInterpreter() {
                                 Ask
                               </Button>
                             </div>
-                            
+
                             {followUpAnswer ? (
                               <ScrollArea className="h-[200px] pr-4">
                                 <Card className="bg-muted/50">
@@ -2553,7 +2553,7 @@ export default function LabInterpreter() {
                     </div>
                   )}
                 </TabsContent>
-                
+
                 <TabsContent value="editor">
                   <Card className="mt-4">
                     <CardHeader className="pb-3">
@@ -2590,8 +2590,8 @@ export default function LabInterpreter() {
                     <CardContent>
                       {analysisResult ? (
                         <div className="space-y-4">
-                          <RichTextEditor 
-                            content={editableContent} 
+                          <RichTextEditor
+                            content={editableContent}
                             onChange={setEditableContent}
                             className="w-full"
                           />
@@ -2612,7 +2612,7 @@ export default function LabInterpreter() {
             </div>
           </CardContent>
         </Card>
-        </div>
       </div>
-    );
+    </div>
+  );
 }

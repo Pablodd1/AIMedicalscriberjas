@@ -102,6 +102,7 @@ export interface IStorage {
   updateUser(id: number, updates: Partial<User>): Promise<User | undefined>;
   updateUserLastLogin(id: number): Promise<void>;
   deleteUser(id: number): Promise<boolean>;
+  updateUserApiKeySettings(id: number, useOwnApiKey: boolean): Promise<User | undefined>;
   getPatients(doctorId: number): Promise<Patient[]>;
   getPatient(id: number): Promise<Patient | undefined>;
   createPatient(patient: InsertPatient & { createdBy: number }): Promise<Patient>;
@@ -230,11 +231,22 @@ export interface IStorage {
   updateMedicalHistoryEntry(id: number, entry: Partial<InsertMedicalHistoryEntry>): Promise<MedicalHistoryEntry | undefined>;
   deleteMedicalHistoryEntry(id: number): Promise<void>;
 
+  // System settings methods
+  getSystemSetting(key: string): Promise<string | null>;
+  setSystemSetting(key: string, value: string | null, description?: string, updatedBy?: number): Promise<void>;
+
   // Custom note prompts methods
   getCustomNotePrompt(userId: number, noteType: string): Promise<CustomNotePrompt | undefined>;
   getCustomNotePrompts(userId: number): Promise<CustomNotePrompt[]>;
   saveCustomNotePrompt(prompt: InsertCustomNotePrompt): Promise<CustomNotePrompt>;
   deleteCustomNotePrompt(userId: number, noteType: string): Promise<void>;
+
+  // Global prompts methods
+  getGlobalPrompts(): Promise<CustomNotePrompt[]>;
+  getGlobalPrompt(id: number): Promise<CustomNotePrompt | undefined>;
+  createGlobalPrompt(prompt: Partial<InsertCustomNotePrompt> & { userId: number }): Promise<CustomNotePrompt>;
+  updateGlobalPrompt(id: number, updates: Partial<CustomNotePrompt>): Promise<CustomNotePrompt | undefined>;
+  deleteGlobalPrompt(id: number): Promise<boolean>;
 
   sessionStore: session.Store;
 }
@@ -1637,6 +1649,55 @@ export class DatabaseStorage implements IStorage {
         eq(customNotePrompts.userId, userId),
         eq(customNotePrompts.noteType, noteType)
       ));
+  }
+
+  // Global prompt methods
+  async getGlobalPrompts(): Promise<CustomNotePrompt[]> {
+    return await db
+      .select()
+      .from(customNotePrompts)
+      .where(eq(customNotePrompts.isGlobal, true))
+      .orderBy(asc(customNotePrompts.noteType));
+  }
+
+  async getGlobalPrompt(id: number): Promise<CustomNotePrompt | undefined> {
+    const [prompt] = await db
+      .select()
+      .from(customNotePrompts)
+      .where(and(eq(customNotePrompts.id, id), eq(customNotePrompts.isGlobal, true)));
+    return prompt;
+  }
+
+  async createGlobalPrompt(prompt: Partial<InsertCustomNotePrompt> & { userId: number }): Promise<CustomNotePrompt> {
+    const [created] = await db
+      .insert(customNotePrompts)
+      .values({
+        ...prompt,
+        isGlobal: true,
+        isActive: true,
+        version: "1.0",
+      } as any)
+      .returning();
+    return created;
+  }
+
+  async updateGlobalPrompt(id: number, updates: Partial<CustomNotePrompt>): Promise<CustomNotePrompt | undefined> {
+    const [updated] = await db
+      .update(customNotePrompts)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(customNotePrompts.id, id), eq(customNotePrompts.isGlobal, true)))
+      .returning();
+    return updated;
+  }
+
+  async deleteGlobalPrompt(id: number): Promise<boolean> {
+    const result = await db
+      .delete(customNotePrompts)
+      .where(and(eq(customNotePrompts.id, id), eq(customNotePrompts.isGlobal, true)));
+    return !!result;
   }
 }
 

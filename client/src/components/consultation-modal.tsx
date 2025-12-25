@@ -8,16 +8,18 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { 
-  recordingService, 
-  generateSoapNotes, 
+import { Label } from "@/components/ui/label";
+import {
+  recordingService,
+  generateSoapNotes,
   saveConsultationNote,
-  createMedicalNoteFromConsultation 
+  createMedicalNoteFromConsultation
 } from "@/lib/recording-service";
 import {
   Mic,
@@ -43,7 +45,10 @@ import {
   HelpCircle,
   ChevronRight,
   Save,
+  Pause,
+  Play,
 } from "lucide-react";
+import { useRecording } from "@/contexts/recording-context";
 import { SignaturePad, SignatureDisplay, SignatureData } from "@/components/signature-pad";
 import { cn } from "@/lib/utils";
 
@@ -77,27 +82,34 @@ export function ConsultationModal({
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [notes, setNotes] = useState("");
-  const [liveTranscript, setLiveTranscript] = useState("");
   const [isDownloading, setIsDownloading] = useState(false);
   const [signatureData, setSignatureData] = useState<SignatureData | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [consultationId, setConsultationId] = useState<number | null>(null);
-  
-  // Enhanced recording state
-  const [recordingState, setRecordingState] = useState<RecordingState>({
-    status: 'idle',
-    error: undefined,
-    audioLevel: 0,
-    duration: 0,
-    hasAudioInput: false,
-  });
-  
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
-  const durationIntervalRef = useRef<number | null>(null);
+
+  const {
+    isRecording,
+    isPaused,
+    duration,
+    liveTranscript,
+    audioLevel: contextAudioLevel,
+    patientInfo: contextPatientInfo,
+    startRecording: startGlobalRecording,
+    stopRecording: stopGlobalRecording,
+    pauseRecording,
+    resumeRecording,
+    resetRecording,
+    error: contextError,
+  } = useRecording();
+
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Derived recording status for UI
+  const status = contextError ? 'error' : (isRecording ? (isPaused ? 'paused' : 'recording') : (isProcessing ? 'processing' : 'idle'));
+  const hasAudioInput = contextAudioLevel > 5;
+  const audioLevel = contextAudioLevel;
+  const error = contextError;
 
   // Reset all state variables to clear the modal
   const resetModalState = () => {
@@ -105,175 +117,36 @@ export function ConsultationModal({
     setIsProcessing(false);
     setTranscript("");
     setNotes("");
-    setLiveTranscript("");
     setConsultationId(null);
     setIsSaving(false);
     setIsDownloading(false);
     setSignatureData(null);
-    setRecordingState({
-      status: 'idle',
-      error: undefined,
-      audioLevel: 0,
-      duration: 0,
-      hasAudioInput: false,
-    });
-    
-    // Cleanup audio context
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-    }
-    if (durationIntervalRef.current) {
-      clearInterval(durationIntervalRef.current);
-    }
-  };
-
-  // Monitor audio levels for visual feedback
-  const startAudioLevelMonitoring = async (stream: MediaStream) => {
-    try {
-      audioContextRef.current = new AudioContext();
-      analyserRef.current = audioContextRef.current.createAnalyser();
-      const source = audioContextRef.current.createMediaStreamSource(stream);
-      source.connect(analyserRef.current);
-      analyserRef.current.fftSize = 256;
-      
-      const bufferLength = analyserRef.current.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
-      
-      const updateLevel = () => {
-        if (!analyserRef.current || recordingState.status !== 'recording') return;
-        
-        analyserRef.current.getByteFrequencyData(dataArray);
-        const average = dataArray.reduce((a, b) => a + b) / bufferLength;
-        const normalizedLevel = Math.min(100, (average / 128) * 100);
-        
-        setRecordingState(prev => ({
-          ...prev,
-          audioLevel: normalizedLevel,
-          hasAudioInput: normalizedLevel > 5,
-        }));
-        
-        animationFrameRef.current = requestAnimationFrame(updateLevel);
-      };
-      
-      updateLevel();
-    } catch (error) {
-      console.error("Error starting audio level monitoring:", error);
-    }
   };
 
   const stopAudioLevelMonitoring = () => {
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-      audioContextRef.current = null;
-    }
-    analyserRef.current = null;
+    // This logic should now be handled within the useRecording hook
+    // or removed if the context provides the audio level directly.
   };
 
   const handleStartRecording = async () => {
     try {
-      setRecordingState(prev => ({ ...prev, status: 'initializing', error: undefined }));
-      
-      // Request microphone access and get stream
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
-      // Start audio recording
-      await recordingService.startRecording();
-      
-      // Start audio level monitoring
-      startAudioLevelMonitoring(stream);
-      
-      // Start duration timer
-      durationIntervalRef.current = window.setInterval(() => {
-        setRecordingState(prev => ({ ...prev, duration: prev.duration + 1 }));
-      }, 1000);
-      
-      setRecordingState(prev => ({
-        ...prev,
-        status: 'recording',
-        duration: 0,
-      }));
-      
-      // Try to start live transcription
-      try {
-        await recordingService.startLiveTranscription(
-          (text: string) => {
-            setLiveTranscript(text);
-          },
-          (error: string) => {
-            console.error("Live transcription error:", error);
-          }
-        );
-      } catch (liveTranscriptionError) {
-        console.log("Live transcription not available:", liveTranscriptionError);
-        toast({
-          title: "Live Transcription Unavailable",
-          description: "Recording will continue. Transcription will happen after you stop.",
-        });
-      }
-      
+      await startGlobalRecording(patientInfo);
     } catch (error) {
-      console.error("Failed to start recording:", error);
-      setRecordingState(prev => ({
-        ...prev,
-        status: 'error',
-        error: error instanceof Error ? error.message : "Could not access microphone",
-      }));
-      toast({
-        title: "Recording Failed",
-        description: "Could not start recording. Please check microphone permissions.",
-        variant: "destructive",
-      });
+      // Error handled by context and toast
     }
   };
 
   const handleStopRecording = async () => {
     try {
-      setRecordingState(prev => ({ ...prev, status: 'stopping' }));
-      
-      // Stop audio level monitoring
-      stopAudioLevelMonitoring();
-      
-      // Stop duration timer
-      if (durationIntervalRef.current) {
-        clearInterval(durationIntervalRef.current);
-        durationIntervalRef.current = null;
-      }
-      
-      // Stop live transcription if running
-      recordingService.stopLiveTranscription();
-      
-      // Stop audio recording
-      await recordingService.stopRecording();
-      
-      setRecordingState(prev => ({ ...prev, status: 'processing' }));
-      
-      // Get transcript
-      let finalTranscript = recordingService.getLiveTranscript() || liveTranscript;
-      
-      if (!finalTranscript.trim()) {
-        try {
-          finalTranscript = await recordingService.getTranscript();
-        } catch (backendError) {
-          console.error("Backend transcription failed:", backendError);
-          setRecordingState(prev => ({
-            ...prev,
-            status: 'error',
-            error: "Could not transcribe audio. Please try again or use text input.",
-          }));
-          return;
-        }
-      }
-      
+      setIsProcessing(true);
+      const finalTranscript = await stopGlobalRecording();
+
       setTranscript(finalTranscript);
-      setRecordingState(prev => ({ ...prev, status: 'idle' }));
-      
+
       if (finalTranscript.trim()) {
         generateNotes(finalTranscript, 'voice');
       } else {
+        setIsProcessing(false);
         toast({
           title: "No Speech Detected",
           description: "No speech was detected. Please try recording again or use text input.",
@@ -282,11 +155,7 @@ export function ConsultationModal({
       }
     } catch (error) {
       console.error("Failed to stop recording:", error);
-      setRecordingState(prev => ({
-        ...prev,
-        status: 'error',
-        error: "An error occurred while stopping the recording.",
-      }));
+      setIsProcessing(false);
     }
   };
 
@@ -314,7 +183,7 @@ export function ConsultationModal({
   const generateNotes = async (text: string, inputSource?: 'voice' | 'text' | 'upload') => {
     try {
       setIsProcessing(true);
-      
+
       if (!text || text.trim().length < 10) {
         toast({
           title: "Not enough text",
@@ -323,7 +192,7 @@ export function ConsultationModal({
         });
         return;
       }
-      
+
       if (!patientInfo || !patientInfo.id) {
         toast({
           title: "Patient information required",
@@ -332,12 +201,12 @@ export function ConsultationModal({
         });
         return;
       }
-      
+
       const source = inputSource || (activeTab === 'live-recording' ? 'voice' : activeTab === 'upload' ? 'upload' : 'text');
       const generatedNotes = await generateSoapNotes(text, patientInfo, noteType, source);
-      
+
       setNotes(generatedNotes);
-      
+
       if (generatedNotes.includes("error") || generatedNotes.includes("failed")) {
         toast({
           title: "Note generation limited",
@@ -371,13 +240,13 @@ export function ConsultationModal({
     try {
       setIsSaving(true);
       const recordingMethod = activeTab;
-      const patientName = patientInfo.firstName 
+      const patientName = patientInfo.firstName
         ? `${patientInfo.firstName} ${patientInfo.lastName || ''}`
         : patientInfo.name || 'Patient';
       const title = `Consultation with ${patientName} - ${new Date().toLocaleString()}`;
       const userData = JSON.parse(localStorage.getItem('currentUser') || '{}');
       const doctorId = userData?.id || 1;
-      
+
       const savedNote = await saveConsultationNote(
         patientInfo.id,
         doctorId,
@@ -411,10 +280,10 @@ export function ConsultationModal({
     try {
       setIsDownloading(true);
       const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx');
-      
+
       const docSections = [];
       const noteTitle = `Medical Documentation - ${new Date().toLocaleDateString('en-US')}`;
-      
+
       docSections.push(new Paragraph({ text: noteTitle, heading: HeadingLevel.TITLE }));
       docSections.push(new Paragraph({
         children: [new TextRun({
@@ -423,7 +292,7 @@ export function ConsultationModal({
         })],
       }));
       docSections.push(new Paragraph({ text: "" }));
-      
+
       if (patientInfo) {
         docSections.push(new Paragraph({ text: "Patient Information", heading: HeadingLevel.HEADING_1 }));
         const patientName = `${patientInfo.firstName || ''} ${patientInfo.lastName || ''}`.trim();
@@ -437,22 +306,22 @@ export function ConsultationModal({
         }
         docSections.push(new Paragraph({ text: "" }));
       }
-      
+
       docSections.push(new Paragraph({ text: "Medical Documentation", heading: HeadingLevel.HEADING_1 }));
       notes.split('\n').forEach(line => {
         docSections.push(new Paragraph({ children: [new TextRun({ text: line, size: 24 })] }));
       });
-      
+
       docSections.push(new Paragraph({ text: "" }));
       docSections.push(new Paragraph({
         children: [new TextRun({ text: `Generated: ${new Date().toLocaleString()}`, italics: true, size: 20 })],
       }));
-      
+
       const doc = new Document({ sections: [{ properties: {}, children: docSections }] });
       const docxBuffer = await Packer.toBuffer(doc);
-      
-      const blob = new Blob([docxBuffer], { 
-        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 
+
+      const blob = new Blob([new Uint8Array(docxBuffer)], {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
       });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -462,7 +331,7 @@ export function ConsultationModal({
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      
+
       toast({ title: "Downloaded", description: "Notes downloaded as Word document" });
     } catch (error) {
       console.error("Failed to download notes:", error);
@@ -482,13 +351,13 @@ export function ConsultationModal({
         if (savedConsultation) consultId = savedConsultation.id;
       }
 
-      const patientName = patientInfo.firstName 
+      const patientName = patientInfo.firstName
         ? `${patientInfo.firstName} ${patientInfo.lastName || ''}`
         : patientInfo.name || 'Patient';
       const title = `SOAP Note for ${patientName} - ${new Date().toLocaleString()}`;
       const userData = JSON.parse(localStorage.getItem('currentUser') || '{}');
       const doctorId = userData?.id || 1;
-      
+
       if (consultId) {
         await createMedicalNoteFromConsultation(consultId, patientInfo.id, doctorId, notes, 'soap', title);
       }
@@ -503,14 +372,13 @@ export function ConsultationModal({
   };
 
   const handleModalClose = () => {
-    // Stop any ongoing recording
-    if (recordingState.status === 'recording') {
-      recordingService.stopRecording();
-      recordingService.stopLiveTranscription();
-      stopAudioLevelMonitoring();
-      if (durationIntervalRef.current) clearInterval(durationIntervalRef.current);
+    // We NO LONGER stop recording on close. 
+    // The GlobalRecordingBar will handle it if the user navigates away.
+    // If they were just reviewing notes, we reset
+    if (!isRecording) {
+      resetModalState();
+      resetRecording();
     }
-    resetModalState();
     onClose();
   };
 
@@ -533,7 +401,7 @@ export function ConsultationModal({
           const levelMultiplier = Math.max(0.2, audioLevel / 100);
           const randomFactor = 0.7 + Math.random() * 0.3;
           const height = baseHeight * levelMultiplier * randomFactor;
-          
+
           return (
             <div
               key={i}
@@ -541,7 +409,7 @@ export function ConsultationModal({
                 "w-1 rounded-full transition-all duration-75",
                 audioLevel > 50 ? "bg-green-500" : audioLevel > 20 ? "bg-amber-500" : "bg-red-400"
               )}
-              style={{ 
+              style={{
                 height: `${Math.max(4, height * 32)}px`,
                 animationDelay: `${i * 50}ms`
               }}
@@ -581,13 +449,13 @@ export function ConsultationModal({
               Speak clearly and closer to the microphone
             </li>
           </ul>
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             className="mt-2 text-amber-700 border-amber-300 hover:bg-amber-100"
             onClick={() => {
               // Reset and retry
-              setRecordingState(prev => ({ ...prev, status: 'idle', error: undefined }));
+              resetRecording();
               handleStartRecording();
             }}
           >
@@ -599,12 +467,42 @@ export function ConsultationModal({
     </div>
   );
 
+  // Quick Patient Consent Component
+  const PatientConsentArea = () => {
+    const [hasConsented, setHasConsented] = useState(false);
+    return (
+      <div className="mb-4 p-4 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800">
+        <div className="flex items-start gap-3">
+          <div className="mt-1">
+            <Checkbox
+              id="patient-consent"
+              checked={hasConsented}
+              onCheckedChange={(checked: boolean | "indeterminate") => setHasConsented(!!checked)}
+              className="h-5 w-5 border-blue-400 data-[state=checked]:bg-blue-600"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label
+              htmlFor="patient-consent"
+              className="text-sm font-semibold text-blue-900 dark:text-blue-100 cursor-pointer"
+            >
+              Patient Consent for Conversation Recording
+            </Label>
+            <p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
+              "I am using an AI medical scribe to help me take accurate notes so I can focus more on you.
+              The conversation will be recorded and transcribed securely. Do you consent to this?"
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // Recording Status Indicator Component
   const RecordingIndicator = () => {
-    const { status, audioLevel, duration, hasAudioInput, error } = recordingState;
-    
+
     if (status === 'idle') return null;
-    
+
     return (
       <div className="mt-4 p-4 rounded-lg border bg-background">
         {/* Status Header */}
@@ -627,25 +525,14 @@ export function ConsultationModal({
                 </div>
               </>
             )}
-            {status === 'initializing' && (
+            {status === 'paused' && (
               <>
-                <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-950 flex items-center justify-center">
-                  <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+                <div className="h-10 w-10 rounded-full bg-medical-yellow/20 flex items-center justify-center">
+                  <Pause className="h-5 w-5 text-medical-yellow fill-current" />
                 </div>
                 <div className="flex flex-col">
-                  <span className="font-semibold text-blue-500">Initializing...</span>
-                  <span className="text-xs text-muted-foreground">Connecting to microphone</span>
-                </div>
-              </>
-            )}
-            {status === 'stopping' && (
-              <>
-                <div className="h-10 w-10 rounded-full bg-amber-100 dark:bg-amber-950 flex items-center justify-center">
-                  <Loader2 className="h-5 w-5 animate-spin text-amber-500" />
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-semibold text-amber-500">Stopping...</span>
-                  <span className="text-xs text-muted-foreground">Finalizing recording</span>
+                  <span className="font-semibold text-medical-yellow">Paused</span>
+                  <span className="text-xs text-muted-foreground">Recording is currently paused</span>
                 </div>
               </>
             )}
@@ -672,16 +559,21 @@ export function ConsultationModal({
               </>
             )}
           </div>
-          
-          {status === 'recording' && (
+
+          {(status === 'recording' || status === 'paused') && (
             <div className="flex items-center gap-3">
-              <Badge variant="outline" className="font-mono text-xl px-4 py-1 bg-red-50 dark:bg-red-950/50 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400">
+              <Badge variant="outline" className={cn(
+                "font-mono text-xl px-4 py-1",
+                status === 'paused'
+                  ? "bg-yellow-50 dark:bg-yellow-950/50 border-yellow-200 dark:border-yellow-800 text-yellow-600 dark:text-yellow-400"
+                  : "bg-red-50 dark:bg-red-950/50 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400"
+              )}>
                 {formatDuration(duration)}
               </Badge>
             </div>
           )}
         </div>
-        
+
         {/* Audio Level Indicator with Waveform */}
         {status === 'recording' && (
           <div className="space-y-3">
@@ -689,7 +581,7 @@ export function ConsultationModal({
             <div className="p-3 bg-muted/30 rounded-lg">
               <AudioWaveform audioLevel={audioLevel} />
             </div>
-            
+
             {/* Audio Status Bar */}
             <div className="flex items-center gap-3">
               <div className={cn(
@@ -713,25 +605,25 @@ export function ConsultationModal({
                 </div>
                 {/* Visual Audio Level Bar */}
                 <div className="h-2 bg-muted rounded-full overflow-hidden">
-                  <div 
+                  <div
                     className={cn(
                       "h-full transition-all duration-75 rounded-full",
-                      audioLevel > 50 ? "bg-gradient-to-r from-green-400 to-green-500" 
-                        : audioLevel > 20 ? "bg-gradient-to-r from-amber-400 to-amber-500" 
-                        : "bg-gradient-to-r from-red-400 to-red-500"
+                      audioLevel > 50 ? "bg-gradient-to-r from-green-400 to-green-500"
+                        : audioLevel > 20 ? "bg-gradient-to-r from-amber-400 to-amber-500"
+                          : "bg-gradient-to-r from-red-400 to-red-500"
                     )}
                     style={{ width: `${Math.max(5, audioLevel)}%` }}
                   />
                 </div>
               </div>
             </div>
-            
+
             {/* Status Messages */}
             <div className="flex items-center gap-2 p-2 rounded-md bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 text-sm">
               <Zap className="h-4 w-4" />
               <span>Speak clearly into your microphone. Recording will be transcribed automatically.</span>
             </div>
-            
+
             {/* Warning if no audio for extended time */}
             {!hasAudioInput && duration > 3 && (
               <>
@@ -747,7 +639,7 @@ export function ConsultationModal({
             )}
           </div>
         )}
-        
+
         {/* Error Display with Troubleshooting */}
         {status === 'error' && (
           <div className="space-y-3">
@@ -791,79 +683,114 @@ export function ConsultationModal({
             </TabsList>
 
             <TabsContent value="live-recording" className="space-y-4 mt-4">
-              <div className="flex flex-col items-center justify-center p-6 border rounded-lg bg-muted/20">
-                {recordingState.status === 'recording' ? (
-                  <Button
-                    variant="destructive"
-                    size="lg"
-                    className="w-40 h-40 rounded-full flex flex-col gap-2 relative shadow-lg shadow-red-500/30"
-                    onClick={handleStopRecording}
-                  >
-                    {/* Multiple pulsing ring animations for better visibility */}
-                    <span className="absolute inset-0 rounded-full border-4 border-red-500 animate-ping opacity-30" />
-                    <span className="absolute inset-2 rounded-full border-2 border-red-400 animate-pulse" />
-                    <span className="absolute inset-4 rounded-full bg-red-500/10 animate-pulse" style={{ animationDelay: '200ms' }} />
-                    
-                    {/* Rotating ring indicator */}
-                    <span className="absolute inset-0 rounded-full border-t-4 border-white/50 animate-spin" style={{ animationDuration: '2s' }} />
-                    
-                    <div className="relative z-10 flex flex-col items-center">
-                      <StopCircle className="h-12 w-12" />
-                      <span className="text-sm font-bold mt-1">STOP</span>
-                      <span className="text-xs opacity-80">Recording</span>
+              {/* Patient Consent Area - Now always visible or prominent during recording */}
+              {status !== 'recording' && status !== 'processing' && <PatientConsentArea />}
+
+              <div className="flex flex-col items-center justify-center p-6 border rounded-lg bg-muted/20 relative overflow-hidden min-h-[200px] transition-all duration-500 ease-in-out">
+                {status === 'recording' ? (
+                  <div className="w-full flex flex-col items-center animate-in fade-in zoom-in duration-300">
+                    <div className="flex flex-col items-center gap-6">
+                      <div className="flex items-center gap-6">
+                        {isPaused ? (
+                          <Button
+                            variant="outline"
+                            size="lg"
+                            className="w-24 h-24 rounded-full flex flex-col gap-1 border-medical-yellow text-medical-yellow hover:bg-medical-yellow/10"
+                            onClick={resumeRecording}
+                          >
+                            <Play className="h-8 w-8 fill-current" />
+                            <span className="text-xs font-bold">RESUME</span>
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="lg"
+                            className="w-24 h-24 rounded-full flex flex-col gap-1 border-medical-yellow text-medical-yellow hover:bg-medical-yellow/10"
+                            onClick={pauseRecording}
+                          >
+                            <Pause className="h-8 w-8" />
+                            <span className="text-xs font-bold">PAUSE</span>
+                          </Button>
+                        )}
+
+                        <Button
+                          variant="destructive"
+                          size="lg"
+                          className="w-32 h-32 rounded-full flex flex-col gap-2 relative shadow-lg shadow-red-500/30 transition-all hover:scale-105"
+                          onClick={handleStopRecording}
+                        >
+                          {/* Pulsing rings only when NOT paused */}
+                          {!isPaused && (
+                            <>
+                              <span className="absolute inset-0 rounded-full border-4 border-red-500 animate-ping opacity-30" />
+                              <span className="absolute inset-2 rounded-full border-2 border-red-400 animate-pulse" />
+                            </>
+                          )}
+                          <span className="absolute inset-0 rounded-full border-t-4 border-white/50 animate-spin" style={{ animationDuration: '2s', display: isPaused ? 'none' : 'block' }} />
+
+                          <div className="relative z-10 flex flex-col items-center">
+                            <StopCircle className="h-10 w-10" />
+                            <span className="text-sm font-bold mt-1">STOP</span>
+                          </div>
+                        </Button>
+                      </div>
                     </div>
-                  </Button>
-                ) : recordingState.status === 'initializing' || recordingState.status === 'stopping' || recordingState.status === 'processing' ? (
+
+                    {/* Live transcription display MOVED CLOSER to the button */}
+                    {liveTranscript && (
+                      <div className="w-full mt-6 space-y-2 animate-in slide-in-from-bottom-4 duration-500">
+                        <div className="flex items-center justify-center gap-2">
+                          <span className="text-xs font-bold text-green-600 dark:text-green-400 uppercase tracking-wider">Live Transcription</span>
+                          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                        </div>
+                        <div className="relative">
+                          <div className="absolute inset-x-0 top-0 h-4 bg-gradient-to-b from-green-50/50 dark:from-green-950/20 to-transparent z-10 pointer-events-none rounded-t-lg" />
+                          <div className="p-4 border-2 border-green-200 dark:border-green-800 rounded-lg bg-green-50/40 dark:bg-green-950/10 min-h-[80px] max-h-[350px] overflow-y-auto shadow-inner transition-all duration-300">
+                            <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90 font-medium italic">
+                              {liveTranscript}
+                              <span className="inline-block w-1.5 h-4 bg-green-500 ml-1 animate-pulse align-middle" />
+                            </p>
+                          </div>
+                          <div className="absolute inset-x-0 bottom-0 h-4 bg-gradient-to-t from-green-50/50 dark:from-green-950/20 to-transparent z-10 pointer-events-none rounded-b-lg" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : status === 'processing' ? (
                   <Button
                     variant="outline"
                     size="lg"
-                    className="w-36 h-36 rounded-full flex flex-col gap-2"
+                    className="w-32 h-32 rounded-full flex flex-col gap-2"
                     disabled
                   >
-                    <Loader2 className="h-10 w-10 animate-spin" />
-                    <span className="text-sm">
-                      {recordingState.status === 'initializing' ? 'Starting...' : 
-                       recordingState.status === 'stopping' ? 'Stopping...' : 'Processing...'}
-                    </span>
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                    <span className="text-sm">Processing...</span>
                   </Button>
                 ) : (
                   <Button
                     variant="outline"
                     size="lg"
-                    className="w-36 h-36 rounded-full flex flex-col gap-2 hover:bg-primary/10 hover:border-primary transition-all"
+                    className="w-32 h-32 rounded-full flex flex-col gap-2 hover:bg-primary/10 hover:border-primary transition-all shadow-md group"
                     onClick={handleStartRecording}
                   >
-                    <Mic className="h-10 w-10" />
-                    <span className="text-sm">Start Recording</span>
+                    <Mic className="h-8 w-8 group-hover:scale-110 transition-transform" />
+                    <span className="text-sm font-semibold">Start Recording</span>
                   </Button>
                 )}
-                
-                <p className="text-sm text-muted-foreground mt-4 text-center max-w-md">
-                  {recordingState.status === 'recording'
-                    ? "Recording in progress. Speak clearly into your microphone. Click stop when finished."
-                    : recordingState.status === 'error'
-                    ? "Recording failed. Please check your microphone and try again."
-                    : "Click to start recording. Your audio will be transcribed and used to generate medical documentation."}
+
+                <p className="text-xs text-muted-foreground mt-4 text-center max-w-sm">
+                  {status === 'recording'
+                    ? (isPaused ? "Recording paused. Resume to continue." : "Recording in progress. Click STOP when finished.")
+                    : status === 'error'
+                      ? "Recording failed. Please check your microphone."
+                      : "Click button to start recording. Transcription occurs in real-time."}
                 </p>
               </div>
-              
-              {/* Recording Status Indicator */}
-              <RecordingIndicator />
-              
-              {/* Live transcript display */}
-              {liveTranscript && recordingState.status === 'recording' && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-lg font-medium">Live Transcript</h3>
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                  </div>
-                  <div className="p-4 border rounded-md bg-green-50 dark:bg-green-950/20 max-h-[150px] overflow-y-auto border-green-200 dark:border-green-800">
-                    <p className="whitespace-pre-wrap text-sm">{liveTranscript}</p>
-                  </div>
-                </div>
-              )}
 
-              {transcript && recordingState.status === 'idle' && (
+              {/* Recording Status Indicator - Compact Version */}
+              <RecordingIndicator />
+
+              {transcript && status === 'idle' && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <h3 className="text-lg font-medium">Final Transcript</h3>
@@ -918,11 +845,11 @@ export function ConsultationModal({
                 <Upload className="h-4 w-4 text-purple-600" />
                 <AlertTitle className="text-purple-900 dark:text-purple-100">Upload Audio File</AlertTitle>
                 <AlertDescription className="text-purple-700 dark:text-purple-300 text-sm">
-                  Upload any audio format (MP3, WAV, M4A, AAC, FLAC, OGG, etc.). 
+                  Upload any audio format (MP3, WAV, M4A, AAC, FLAC, OGG, etc.).
                   Maximum file size: 50MB. The audio will be transcribed automatically.
                 </AlertDescription>
               </Alert>
-              
+
               <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg bg-muted/20 hover:bg-muted/30 transition-colors">
                 <input
                   type="file"
@@ -975,7 +902,7 @@ export function ConsultationModal({
                   The AI will generate professional SOAP notes from your text.
                 </AlertDescription>
               </Alert>
-              
+
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label className="text-base font-medium">Consultation Text</Label>
@@ -1046,7 +973,7 @@ export function ConsultationModal({
                     compact
                     documentTitle="Medical Documentation"
                     documentType="consultation"
-                    patientName={patientInfo?.firstName ? `${patientInfo.firstName} ${patientInfo.lastName || ''}` : patientInfo?.name}
+                    patientName={patientInfo?.firstName ? `${patientInfo.firstName} ${patientInfo.lastName || ''}` : (patientInfo?.name || 'Patient')}
                     onSignatureComplete={(data) => {
                       setSignatureData(data);
                       toast({ title: "Signature Captured", description: "Your electronic signature has been added." });
@@ -1057,7 +984,7 @@ export function ConsultationModal({
               <div className="p-4 border rounded-md bg-muted/50 max-h-[300px] overflow-y-auto">
                 <pre className="whitespace-pre-wrap font-sans text-sm">{notes}</pre>
               </div>
-              
+
               {signatureData && (
                 <div className="mt-2">
                   <SignatureDisplay signatureData={signatureData} showDetails={false} />
@@ -1065,7 +992,7 @@ export function ConsultationModal({
               )}
             </div>
           )}
-          
+
           <DialogFooter className="mt-6 flex sm:justify-between justify-center flex-wrap gap-2">
             <Button variant="outline" onClick={handleModalClose}>
               Cancel

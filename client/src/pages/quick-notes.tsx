@@ -8,10 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { 
-  Loader2, 
-  FileText, 
-  Save, 
+import {
+  Loader2,
+  FileText,
+  Save,
   Stethoscope,
   ClipboardList,
   MessageSquare,
@@ -36,12 +36,12 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
 } from "@/components/ui/select";
 import {
   Command,
@@ -87,7 +87,7 @@ export default function QuickNotes() {
   const [mode, setMode] = useState<'quick' | 'patient'>('quick');
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
   const [patientSearchOpen, setPatientSearchOpen] = useState(false);
-  
+
   const [isRecording, setIsRecording] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [noteText, setNoteText] = useState("");
@@ -143,7 +143,7 @@ export default function QuickNotes() {
   useEffect(() => {
     if (!noteText) {
       setNoteText(
-`SOAP Note
+        `SOAP Note
 
 Subjective:
 -
@@ -173,7 +173,7 @@ Plan:
     if (mode === 'patient' && selectedPatient && patientMedicalNotes) {
       const hasNotes = patientMedicalNotes.length > 0;
       const lastNote = hasNotes ? patientMedicalNotes[0] : null;
-      
+
       if (!hasNotes) {
         setAiSuggestion("New patient with no previous notes. Recommend: Initial Consultation");
         setSelectedNoteType("initial");
@@ -299,7 +299,7 @@ Plan:
     setShowConsultationModal(true);
   };
 
-  const handleConsultationComplete = (transcript: string, notes: string) => {
+  const handleConsultationComplete = (notes: string) => {
     if (notes) {
       setNoteText(notes);
       const patientName = selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : "Quick Note";
@@ -322,10 +322,10 @@ Plan:
     setIsAssistantThinking(true);
 
     try {
-      const patientContext = selectedPatient 
+      const patientContext = selectedPatient
         ? `Patient: ${selectedPatient.firstName} ${selectedPatient.lastName || ''}, Age: ${calculateAge(selectedPatient.dateOfBirth)}.`
         : '';
-      
+
       const messages = [
         {
           role: 'system',
@@ -366,7 +366,7 @@ Plan:
 
   const handleGenerateNotes = async () => {
     setIsGenerating(true);
-    
+
     try {
       const transcript = noteText || `Quick note documentation. Please generate a structured medical note.`;
 
@@ -386,7 +386,7 @@ Plan:
       });
 
       const data = await response.json();
-      
+
       if (data.success && data.soap) {
         setNoteText(data.soap);
         const patientName = selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : "Quick Note";
@@ -467,9 +467,9 @@ Plan:
       setIsDownloading(true);
 
       const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx');
-      
+
       const docSections = [];
-      
+
       // Title
       docSections.push(
         new Paragraph({
@@ -477,7 +477,7 @@ Plan:
           heading: HeadingLevel.TITLE,
         })
       );
-      
+
       // Note type and date info
       const noteTypeLabel = NOTE_TYPES.find(t => t.id === selectedNoteType)?.name || 'Quick Note';
       docSections.push(
@@ -491,9 +491,9 @@ Plan:
           ],
         })
       );
-      
+
       docSections.push(new Paragraph({ text: "" })); // Empty line
-      
+
       // Patient info if selected
       if (selectedPatient) {
         docSections.push(
@@ -520,7 +520,7 @@ Plan:
         );
         docSections.push(new Paragraph({ text: "" }));
       }
-      
+
       // Note content
       docSections.push(
         new Paragraph({
@@ -528,7 +528,7 @@ Plan:
           heading: HeadingLevel.HEADING_1,
         })
       );
-      
+
       // Split content by lines and create paragraphs
       const contentLines = noteText.split('\n');
       contentLines.forEach(line => {
@@ -543,7 +543,7 @@ Plan:
           })
         );
       });
-      
+
       // Add timestamp
       docSections.push(new Paragraph({ text: "" })); // Empty line
       docSections.push(
@@ -557,7 +557,7 @@ Plan:
           ],
         })
       );
-      
+
       const doc = new Document({
         sections: [{
           properties: {},
@@ -739,11 +739,11 @@ Plan:
   return (
     <div className="container mx-auto p-4 md:p-6 space-y-4 md:space-y-6">
       <ConsultationModal
-        open={showConsultationModal}
+        isOpen={showConsultationModal}
         onClose={() => setShowConsultationModal(false)}
-        onComplete={handleConsultationComplete}
-        patientId={selectedPatientId}
-        patientName={selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : "Quick Note"}
+        onGeneratedNotes={handleConsultationComplete}
+        patientInfo={selectedPatient || { firstName: "Quick", lastName: "Note", id: 0 }}
+        noteType={selectedNoteType}
       />
 
       {/* Preview Dialog */}
@@ -877,7 +877,7 @@ Plan:
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsSettingsOpen(false)}>Cancel</Button>
-                <Button 
+                <Button
                   onClick={() => {
                     saveCustomPromptMutation.mutate({
                       noteType: selectedNoteType,
@@ -927,8 +927,8 @@ Plan:
               </div>
             </div>
             <p className="text-sm text-muted-foreground">
-              {mode === 'quick' 
-                ? "Create notes without patient selection" 
+              {mode === 'quick'
+                ? "Create notes without patient selection"
                 : "Link notes to a patient with full context"}
             </p>
           </div>
@@ -1009,8 +1009,8 @@ Plan:
                 onClick={() => setSelectedNoteType(type.id)}
                 className={cn(
                   "px-3 py-2 rounded-lg border text-sm transition-all hover:shadow-md flex items-center gap-2",
-                  selectedNoteType === type.id 
-                    ? "border-primary bg-primary/10 text-primary" 
+                  selectedNoteType === type.id
+                    ? "border-primary bg-primary/10 text-primary"
                     : "border-muted hover:border-primary/50"
                 )}
               >
@@ -1037,8 +1037,8 @@ Plan:
               )}
             </CardTitle>
             <CardDescription className="text-sm">
-              {mode === 'patient' && selectedPatient 
-                ? `Creating note for ${selectedPatient.firstName}` 
+              {mode === 'patient' && selectedPatient
+                ? `Creating note for ${selectedPatient.firstName}`
                 : "Quick note without patient assignment"}
             </CardDescription>
           </CardHeader>
@@ -1060,7 +1060,7 @@ Plan:
                 value={noteText}
                 onChange={(e) => setNoteText(e.target.value)}
               />
-              
+
               {/* Action Buttons Row 1 */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 <Button
@@ -1072,8 +1072,8 @@ Plan:
                   <span className="hidden sm:inline">Voice</span>
                   <span className="sm:hidden">Voice</span>
                 </Button>
-                <Button 
-                  onClick={handleGenerateNotes} 
+                <Button
+                  onClick={handleGenerateNotes}
                   disabled={isGenerating}
                   className="w-full"
                   variant="outline"
@@ -1091,7 +1091,7 @@ Plan:
                     </>
                   )}
                 </Button>
-                <Button 
+                <Button
                   variant="outline"
                   onClick={() => setShowSignature(true)}
                   className="w-full col-span-2 sm:col-span-1"
@@ -1103,7 +1103,7 @@ Plan:
 
               {/* Action Buttons Row 2 */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <Button 
+                <Button
                   variant="outline"
                   onClick={() => setShowPreview(true)}
                   disabled={!noteText.trim() || !noteTitle.trim()}
@@ -1111,7 +1111,7 @@ Plan:
                   <Eye className="h-4 w-4 mr-2" />
                   Preview
                 </Button>
-                <Button 
+                <Button
                   variant="outline"
                   onClick={handleDownloadNote}
                   disabled={!noteText.trim() || !noteTitle.trim() || isDownloading}
@@ -1128,7 +1128,7 @@ Plan:
                     </>
                   )}
                 </Button>
-                <Button 
+                <Button
                   onClick={handleSaveNote}
                   disabled={!noteText.trim() || !noteTitle.trim() || createQuickNoteMutation.isPending || createMedicalNoteMutation.isPending}
                 >
@@ -1163,21 +1163,21 @@ Plan:
                 </TabsTrigger>
                 <TabsTrigger value="assistant" className="text-xs sm:text-sm">Chat</TabsTrigger>
               </TabsList>
-              
+
               <TabsContent value="templates">
                 <div className="space-y-2">
                   <p className="text-sm text-muted-foreground mb-4">
                     Click a template to populate your note
                   </p>
-                  
-                  <Button 
-                    variant="outline" 
+
+                  <Button
+                    variant="outline"
                     className="w-full justify-start text-left h-auto py-3"
                     onClick={() => {
                       const patientName = selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : "Patient";
                       setNoteTitle(`${patientName} - Initial Consultation`);
                       setNoteText(
-`SOAP Note - Initial Consultation
+                        `SOAP Note - Initial Consultation
 
 Subjective:
 - Chief complaint:
@@ -1213,15 +1213,15 @@ Plan:
                       </div>
                     </div>
                   </Button>
-                  
-                  <Button 
-                    variant="outline" 
+
+                  <Button
+                    variant="outline"
                     className="w-full justify-start text-left h-auto py-3"
                     onClick={() => {
                       const patientName = selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : "Patient";
                       setNoteTitle(`${patientName} - Follow-up Visit`);
                       setNoteText(
-`SOAP Note - Follow-up Visit
+                        `SOAP Note - Follow-up Visit
 
 Subjective:
 - Response to treatment:
@@ -1255,15 +1255,15 @@ Plan:
                       </div>
                     </div>
                   </Button>
-                  
-                  <Button 
-                    variant="outline" 
+
+                  <Button
+                    variant="outline"
                     className="w-full justify-start text-left h-auto py-3"
                     onClick={() => {
                       const patientName = selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : "Patient";
                       setNoteTitle(`${patientName} - Physical Examination`);
                       setNoteText(
-`SOAP Note - Physical Examination
+                        `SOAP Note - Physical Examination
 
 Subjective:
 - Presenting concerns:
@@ -1301,15 +1301,15 @@ Plan:
                       </div>
                     </div>
                   </Button>
-                  
-                  <Button 
-                    variant="outline" 
+
+                  <Button
+                    variant="outline"
                     className="w-full justify-start text-left h-auto py-3"
                     onClick={() => {
                       const patientName = selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : "Patient";
                       setNoteTitle(`${patientName} - Procedure Note`);
                       setNoteText(
-`Procedure Note
+                        `Procedure Note
 
 Date: ${format(new Date(), "MM/dd/yyyy")}
 ${selectedPatient ? `Patient: ${selectedPatient.firstName} ${selectedPatient.lastName || ''}` : ''}
@@ -1349,7 +1349,7 @@ Post-procedure:
                   </Button>
                 </div>
               </TabsContent>
-              
+
               <TabsContent value="analysis">
                 <div className="space-y-4">
                   {mode === 'patient' && selectedPatient ? (
@@ -1446,7 +1446,7 @@ Post-procedure:
                   )}
                 </div>
               </TabsContent>
-              
+
               <TabsContent value="assistant">
                 <div className="h-[400px] flex flex-col">
                   <div className="flex-1 border rounded-md mb-4 p-4 overflow-y-auto bg-secondary/5">
@@ -1458,7 +1458,7 @@ Post-procedure:
                             <span className="font-medium text-sm">Doctor Helper Smart</span>
                           </div>
                           <p className="text-sm">
-                            Hello! I'm your AI medical assistant. 
+                            Hello! I'm your AI medical assistant.
                             {selectedPatient && ` I see you're working on a note for ${selectedPatient.firstName}.`}
                             {' '}How can I help you today?
                           </p>
@@ -1466,11 +1466,10 @@ Post-procedure:
                       </div>
                       {chatMessages.map((message, index) => (
                         <div key={index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`rounded-lg p-3 max-w-[85%] ${
-                            message.role === 'user' 
-                              ? 'bg-primary text-primary-foreground' 
+                          <div className={`rounded-lg p-3 max-w-[85%] ${message.role === 'user'
+                              ? 'bg-primary text-primary-foreground'
                               : 'bg-primary/10'
-                          }`}>
+                            }`}>
                             <div className="flex items-center gap-2 mb-1">
                               {message.role === 'assistant' && <Stethoscope className="h-4 w-4 text-primary" />}
                               <span className="font-medium text-sm">
@@ -1499,8 +1498,8 @@ Post-procedure:
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Input 
-                      placeholder="Ask a medical question or request help..." 
+                    <Input
+                      placeholder="Ask a medical question or request help..."
                       value={chatInput}
                       onChange={(e) => setChatInput(e.target.value)}
                       onKeyDown={(e) => {
@@ -1511,7 +1510,7 @@ Post-procedure:
                       }}
                       disabled={isAssistantThinking}
                     />
-                    <Button 
+                    <Button
                       onClick={handleSendChatMessage}
                       disabled={!chatInput.trim() || isAssistantThinking}
                     >

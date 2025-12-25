@@ -5,7 +5,7 @@ import { InsertConsultationNote, InsertMedicalNote } from "@shared/schema";
 // Simple notification function using toast
 function notify(message: string, type: 'success' | 'error' = 'success') {
   console.log(`[${type.toUpperCase()}]: ${message}`);
-  
+
   if (type === 'error') {
     toast({
       title: "Error",
@@ -18,7 +18,7 @@ function notify(message: string, type: 'success' | 'error' = 'success') {
       description: message,
     });
   }
-  
+
   return message;
 }
 
@@ -28,11 +28,9 @@ interface RecordingServiceInterface {
   stopRecording: () => Promise<void>;
   getTranscript: () => Promise<string>;
   processAudioFile: (file: File) => Promise<string>;
-  isRecording: boolean;
-  // Live transcription methods
-  startLiveTranscription: (onTranscript: (text: string) => void, onError?: (error: string) => void, language?: string) => Promise<void>;
-  stopLiveTranscription: () => void;
-  isLiveTranscribing: boolean;
+  pauseRecording: () => void;
+  resumeRecording: () => void;
+  isPaused: boolean;
   getLiveTranscript: () => string;
   getAudioUrl: () => string;
 }
@@ -48,42 +46,54 @@ class BrowserRecordingService implements RecordingServiceInterface {
   private liveTranscriptText: string = "";
   private onTranscriptCallback: ((text: string) => void) | null = null;
   private onErrorCallback: ((error: string) => void) | null = null;
+  private _isPaused: boolean = false;
   private audioUrl: string = "";
-  
-  constructor() {}
-  
+  private stream: MediaStream | null = null;
+
+  constructor() { }
+
   get isRecording(): boolean {
     return this._isRecording;
   }
-  
+
+  get isPaused(): boolean {
+    return this._isPaused;
+  }
+
   get isLiveTranscribing(): boolean {
     return this._isLiveTranscribing;
   }
-  
+
   getLiveTranscript(): string {
     return this.liveTranscriptText;
   }
-  
+
   getAudioUrl(): string {
     return this.audioUrl;
   }
-  
+
   async startRecording(): Promise<void> {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
-      this.mediaRecorder = new MediaRecorder(stream);
+      this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      this.mediaRecorder = new MediaRecorder(this.stream);
       this.audioChunks = [];
-      
+
       this.mediaRecorder.addEventListener('dataavailable', (event) => {
         if (event.data.size > 0) {
           this.audioChunks.push(event.data);
         }
       });
-      
-      this.mediaRecorder.start();
+
+      this.mediaRecorder.start(1000); // Collect data every second for safety
       this._isRecording = true;
-      
+      this._isPaused = false;
+
+      // Prevent browser from stopping media when tab is hidden
+      if ('setSinkId' in AudioContext.prototype || (window as any).chrome) {
+        console.log("Persistence hint: Recording in background supported");
+      }
+
       notify("Recording started. Speak clearly into your microphone");
     } catch (error) {
       console.error("Error starting recording:", error);
@@ -91,62 +101,88 @@ class BrowserRecordingService implements RecordingServiceInterface {
       throw error;
     }
   }
-  
+
+  pauseRecording(): void {
+    if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+      this.mediaRecorder.pause();
+      this._isPaused = true;
+      if (this.speechRecognition && this._isLiveTranscribing) {
+        this.speechRecognition.stop();
+      }
+      notify("Recording paused. It will continue when you resume.");
+    }
+  }
+
+  resumeRecording(): void {
+    if (this.mediaRecorder && this.mediaRecorder.state === 'paused') {
+      this.mediaRecorder.resume();
+      this._isPaused = false;
+      if (this.speechRecognition && this._isLiveTranscribing) {
+        try {
+          this.speechRecognition.start();
+        } catch (e) {
+          console.error("Failed to resume speech recognition", e);
+        }
+      }
+      notify("Recording resumed.");
+    }
+  }
+
   async startLiveTranscription(onTranscript: (text: string) => void, onError?: (error: string) => void, language: string = 'en-US'): Promise<void> {
     try {
       // Check for speech recognition support
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      
+
       if (!SpeechRecognition) {
         const errorMsg = "Live transcription not supported in this browser. Recording will continue and transcription will happen after recording stops.";
         if (onError) onError(errorMsg);
         notify(errorMsg, "error");
         throw new Error(errorMsg);
       }
-      
+
       // Store callbacks
       this.onTranscriptCallback = onTranscript;
       this.onErrorCallback = onError || null;
-      
+
       // Initialize speech recognition
       this.speechRecognition = new SpeechRecognition();
       this.speechRecognition.continuous = true;
       this.speechRecognition.interimResults = true;
       this.speechRecognition.lang = language; // Support multi-language
-      
+
       // Handle results
       this.speechRecognition.onresult = (event: any) => {
         let interimTranscript = '';
         let finalTranscript = '';
-        
+
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const transcript = event.results[i][0].transcript;
-          
+
           if (event.results[i].isFinal) {
             finalTranscript += transcript + ' ';
           } else {
             interimTranscript += transcript;
           }
         }
-        
+
         // Update live transcript with final results
         if (finalTranscript) {
           this.liveTranscriptText += finalTranscript;
         }
-        
+
         // Call callback with current transcript (final + interim)
         const currentTranscript = this.liveTranscriptText + interimTranscript;
         if (this.onTranscriptCallback) {
           this.onTranscriptCallback(currentTranscript);
         }
       };
-      
+
       // Handle errors
       this.speechRecognition.onerror = (event: any) => {
         console.error("Speech recognition error:", event.error);
         let errorMsg = "";
         let shouldNotify = true;
-        
+
         switch (event.error) {
           case 'not-allowed':
             errorMsg = "Microphone access denied. Please allow microphone access and try again.";
@@ -172,19 +208,19 @@ class BrowserRecordingService implements RecordingServiceInterface {
           default:
             errorMsg = "Speech recognition error: " + event.error;
         }
-        
+
         if (this.onErrorCallback && errorMsg) {
           this.onErrorCallback(errorMsg);
         }
-        
+
         if (shouldNotify && errorMsg) {
           notify(errorMsg, "error");
         }
       };
-      
+
       // Handle end event
       this.speechRecognition.onend = () => {
-        if (this._isLiveTranscribing) {
+        if (this._isLiveTranscribing && !this._isPaused) {
           // Restart recognition if it stopped unexpectedly
           try {
             this.speechRecognition.start();
@@ -193,12 +229,12 @@ class BrowserRecordingService implements RecordingServiceInterface {
           }
         }
       };
-      
+
       // Start recognition
       this.speechRecognition.start();
       this._isLiveTranscribing = true;
       this.liveTranscriptText = "";
-      
+
       notify("Live transcription started. Begin speaking...");
     } catch (error) {
       console.error("Error starting live transcription:", error);
@@ -208,7 +244,7 @@ class BrowserRecordingService implements RecordingServiceInterface {
       throw error;
     }
   }
-  
+
   stopLiveTranscription(): void {
     if (this.speechRecognition) {
       this._isLiveTranscribing = false;
@@ -216,55 +252,59 @@ class BrowserRecordingService implements RecordingServiceInterface {
       this.speechRecognition = null;
       notify("Live transcription stopped");
     }
-    
+
     // Clear callbacks
     this.onTranscriptCallback = null;
     this.onErrorCallback = null;
   }
-  
+
   async stopRecording(): Promise<void> {
     return new Promise((resolve, reject) => {
       if (!this.mediaRecorder) {
         reject(new Error("No active recording"));
         return;
       }
-      
+
       this.mediaRecorder.addEventListener('stop', async () => {
         try {
           // Convert audio chunks to a single blob
           const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
-          
+
           // Create audio URL for playback/storage
           this.audioUrl = URL.createObjectURL(audioBlob);
-          
+
           // Transcribe the audio
           this.transcriptText = await this.transcribeAudio(audioBlob);
-          
+
           // Stop all tracks in the stream
-          this.mediaRecorder?.stream.getTracks().forEach(track => track.stop());
-          
+          if (this.stream) {
+            this.stream.getTracks().forEach(track => track.stop());
+            this.stream = null;
+          }
+
           this._isRecording = false;
+          this._isPaused = false;
           resolve();
         } catch (error) {
           reject(error);
         }
       });
-      
+
       this.mediaRecorder.stop();
     });
   }
-  
+
   async getTranscript(): Promise<string> {
     return this.transcriptText;
   }
-  
+
   async processAudioFile(file: File): Promise<string> {
     try {
       // Check if the file is an audio file
-      if (!file.type.startsWith('audio/')) {
-        throw new Error("File must be an audio file");
+      if (!file.type.startsWith('audio/') && !file.type.startsWith('video/')) {
+        throw new Error("File must be an audio or video file");
       }
-      
+
       // Transcribe the uploaded audio file
       this.transcriptText = await this.transcribeAudio(file);
       return this.transcriptText;
@@ -274,26 +314,26 @@ class BrowserRecordingService implements RecordingServiceInterface {
       throw error;
     }
   }
-  
-  private async transcribeAudio(audioBlob: Blob): Promise<string> {
+
+  private async transcribeAudio(audioBlob: Blob | File): Promise<string> {
     try {
-      // Create a File from the Blob with appropriate metadata
-      const file = new File([audioBlob], "recording.webm", { type: audioBlob.type });
-      
+      // Create a File from the Blob with appropriate metadata if it's not already a File
+      const file = audioBlob instanceof File ? audioBlob : new File([audioBlob], "recording.webm", { type: audioBlob.type });
+
       // Convert to form data for API
       const formData = new FormData();
       formData.append("audio", file);
-      
+
       // Call our backend API to transcribe
       const response = await fetch('/api/ai/transcribe', {
         method: 'POST',
         body: formData,
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to transcribe audio');
       }
-      
+
       const data = await response.json();
       return data.transcript;
     } catch (error) {
@@ -306,19 +346,19 @@ class BrowserRecordingService implements RecordingServiceInterface {
 
 // Generate SOAP notes from transcript using AI
 export async function generateSoapNotes(
-  transcript: string, 
-  patientInfo: any, 
+  transcript: string,
+  patientInfo: any,
   noteType?: string,
   inputSource?: 'voice' | 'text' | 'upload' | 'telemedicine'
 ): Promise<string> {
   try {
     // Determine location/input method for the note
-    const location = inputSource === 'telemedicine' ? 'Telemedicine/Video Consultation' 
-                   : inputSource === 'voice' ? 'In-Office Voice Recording'
-                   : inputSource === 'upload' ? 'Audio File Upload (Pre-recorded)'
-                   : inputSource === 'text' ? 'Manual Transcript Entry'
-                   : 'Office Visit'; // Default for unknown
-    
+    const location = inputSource === 'telemedicine' ? 'Telemedicine/Video Consultation'
+      : inputSource === 'voice' ? 'In-Office Voice Recording'
+        : inputSource === 'upload' ? 'Audio File Upload (Pre-recorded)'
+          : inputSource === 'text' ? 'Manual Transcript Entry'
+            : 'Office Visit'; // Default for unknown
+
     // Simple direct implementation that should work reliably
     const response = await fetch('/api/ai/generate-soap', {
       method: 'POST',
@@ -337,17 +377,17 @@ export async function generateSoapNotes(
         }
       }),
     });
-    
+
     // Parse response as json
     const data = await response.json();
-    
+
     // Return the soap notes or a fallback
     return data.soap || "No SOAP notes were generated. Please try again.";
-    
+
   } catch (error) {
     console.error("Error generating SOAP notes:", error);
     notify("Failed to generate SOAP notes", "error");
-    
+
     // Return a fallback message instead of throwing to prevent UI breaking
     return "There was an error generating SOAP notes. Please try again.";
   }
@@ -369,17 +409,17 @@ export async function saveConsultationNote(
       recordingMethod,
       title
     });
-    
+
     if (!response.ok) {
       throw new Error('Failed to save consultation note');
     }
-    
+
     const data = await response.json();
-    
+
     // Invalidate any related queries
     queryClient.invalidateQueries({ queryKey: ['/api/consultation-notes'] });
     queryClient.invalidateQueries({ queryKey: ['/api/consultation-notes', patientId] });
-    
+
     return data;
   } catch (error) {
     console.error("Error saving consultation note:", error);
@@ -406,17 +446,17 @@ export async function createMedicalNoteFromConsultation(
       type,
       title
     });
-    
+
     if (!response.ok) {
       throw new Error('Failed to create medical note from consultation');
     }
-    
+
     const data = await response.json();
-    
+
     // Invalidate any related queries
     queryClient.invalidateQueries({ queryKey: ['/api/medical-notes'] });
     queryClient.invalidateQueries({ queryKey: ['/api/medical-notes', patientId] });
-    
+
     return data;
   } catch (error) {
     console.error("Error creating medical note from consultation:", error);

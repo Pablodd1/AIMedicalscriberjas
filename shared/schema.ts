@@ -1,10 +1,10 @@
-import { 
-  pgTable, 
-  text, 
-  serial, 
-  integer, 
-  boolean, 
-  timestamp, 
+import {
+  pgTable,
+  text,
+  serial,
+  integer,
+  boolean,
+  timestamp,
   pgEnum,
   varchar,
   date,
@@ -157,8 +157,13 @@ export const customNotePrompts = pgTable("custom_note_prompts", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull(),
   noteType: text("note_type").notNull(), // initial, followup, physical, reevaluation, procedure, psychiatric, discharge
+  name: text("name").notNull().default("Untitled Prompt"),
+  description: text("description"),
   systemPrompt: text("system_prompt").notNull(),
   templateContent: text("template_content"),
+  isGlobal: boolean("is_global").default(false),
+  isActive: boolean("is_active").default(true),
+  version: text("version").default("1.0"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -388,7 +393,7 @@ export const invoices = pgTable("invoices", {
 
 // Invoice insert schema
 export const insertInvoiceSchema = createInsertSchema(invoices, {
-  dueDate: z.string().or(z.date()).transform(val => 
+  dueDate: z.string().or(z.date()).transform(val =>
     typeof val === 'string' ? val : val.toISOString().split('T')[0])
 }).pick({
   patientId: true,
@@ -672,7 +677,7 @@ export const insertDeviceSchema = createInsertSchema(devices).pick({
 export const insertBpReadingSchema = createInsertSchema(bpReadings).pick({
   deviceId: true,
   patientId: true,
-  systolic: true, 
+  systolic: true,
   diastolic: true,
   pulse: true,
   notes: true

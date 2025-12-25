@@ -1,5 +1,6 @@
 import Sidebar from "@/components/layout/sidebar";
 import { UploadStatusIndicator } from "@/components/upload-status-indicator";
+import { GlobalRecordingBar } from "@/components/global-recording-bar";
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -19,6 +20,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
           </div>
         </main>
       </div>
+      <GlobalRecordingBar />
     </div>
   );
 }
