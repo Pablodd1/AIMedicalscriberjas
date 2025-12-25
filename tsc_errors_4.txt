@@ -1,0 +1,225 @@
+﻿
+> rest-express@1.0.0 check
+> tsc
+
+client/src/pages/admin-prompts.tsx(142,5): error TS2769: No overload matches this call.
+  Overload 1 of 3, '(options: DefinedInitialDataOptions<GlobalPrompt[], Error, GlobalPrompt[], QueryKey>, queryClient?: QueryClient | undefined): DefinedUseQueryResult<...>', gave the following error.
+    Type '() => Promise<Response>' is not assignable to type 'unique symbol | QueryFunction<GlobalPrompt[], QueryKey, never> | undefined'.
+      Type '() => Promise<Response>' is not assignable to type 'QueryFunction<GlobalPrompt[], QueryKey, never>'.
+        Type 'Promise<Response>' is not assignable to type 'GlobalPrompt[] | Promise<GlobalPrompt[]>'.
+          Type 'Promise<Response>' is not assignable to type 'Promise<GlobalPrompt[]>'.
+            Type 'Response' is missing the following properties from type 'GlobalPrompt[]': length, pop, push, concat, and 35 more.
+  Overload 2 of 3, '(options: UndefinedInitialDataOptions<GlobalPrompt[], Error, GlobalPrompt[], QueryKey>, queryClient?: QueryClient | undefined): UseQueryResult<...>', gave the following error.
+    Type '() => Promise<Response>' is not assignable to type 'unique symbol | QueryFunction<GlobalPrompt[], QueryKey, never> | undefined'.
+      Type '() => Promise<Response>' is not assignable to type 'QueryFunction<GlobalPrompt[], QueryKey, never>'.
+        Type 'Promise<Response>' is not assignable to type 'GlobalPrompt[] | Promise<GlobalPrompt[]>'.
+          Type 'Promise<Response>' is not assignable to type 'Promise<GlobalPrompt[]>'.
+            Type 'Response' is missing the following properties from type 'GlobalPrompt[]': length, pop, push, concat, and 35 more.
+  Overload 3 of 3, '(options: UseQueryOptions<GlobalPrompt[], Error, GlobalPrompt[], QueryKey>, queryClient?: QueryClient | undefined): UseQueryResult<...>', gave the following error.
+    Type '() => Promise<Response>' is not assignable to type 'unique symbol | QueryFunction<GlobalPrompt[], QueryKey, never> | undefined'.
+      Type '() => Promise<Response>' is not assignable to type 'QueryFunction<GlobalPrompt[], QueryKey, never>'.
+        Type 'Promise<Response>' is not assignable to type 'GlobalPrompt[] | Promise<GlobalPrompt[]>'.
+          Type 'Promise<Response>' is not assignable to type 'Promise<GlobalPrompt[]>'.
+            Type 'Response' is missing the following properties from type 'GlobalPrompt[]': length, pop, push, concat, and 35 more.
+client/src/pages/admin-prompts.tsx(143,30): error TS2554: Expected 2-3 arguments, but got 1.
+client/src/pages/admin-prompts.tsx(151,67): error TS2345: Argument of type '{ method: string; body: string; }' is not assignable to parameter of type 'string'.
+client/src/pages/admin-prompts.tsx(175,65): error TS2345: Argument of type '{ method: string; body: string; }' is not assignable to parameter of type 'string'.
+client/src/pages/admin-prompts.tsx(201,54): error TS2345: Argument of type '{ method: string; body: string; }' is not assignable to parameter of type 'string'.
+client/src/pages/admin-prompts.tsx(234,60): error TS2345: Argument of type '{ method: string; }' is not assignable to parameter of type 'string'.
+client/src/pages/admin-prompts.tsx(402,66): error TS2339: Property 'length' does not exist on type 'never[] | TQueryFnData'.
+  Property 'length' does not exist on type 'TQueryFnData'.
+client/src/pages/admin-prompts.tsx(414,34): error TS2339: Property 'filter' does not exist on type 'never[] | TQueryFnData'.
+  Property 'filter' does not exist on type 'TQueryFnData'.
+client/src/pages/admin-prompts.tsx(414,41): error TS7006: Parameter 'p' implicitly has an 'any' type.
+client/src/pages/admin-prompts.tsx(427,34): error TS2339: Property 'filter' does not exist on type 'never[] | TQueryFnData'.
+  Property 'filter' does not exist on type 'TQueryFnData'.
+client/src/pages/admin-prompts.tsx(427,41): error TS7006: Parameter 'p' implicitly has an 'any' type.
+client/src/pages/admin-prompts.tsx(440,42): error TS2339: Property 'map' does not exist on type 'never[] | TQueryFnData'.
+  Property 'map' does not exist on type 'TQueryFnData'.
+client/src/pages/admin-prompts.tsx(440,46): error TS7006: Parameter 'p' implicitly has an 'any' type.
+client/src/pages/admin-prompts.tsx(470,29): error TS2339: Property 'length' does not exist on type 'never[] | TQueryFnData'.
+  Property 'length' does not exist on type 'TQueryFnData'.
+client/src/pages/admin-prompts.tsx(476,30): error TS2339: Property 'map' does not exist on type 'never[] | TQueryFnData'.
+  Property 'map' does not exist on type 'TQueryFnData'.
+client/src/pages/admin-prompts.tsx(476,35): error TS7006: Parameter 'prompt' implicitly has an 'any' type.
+client/src/pages/auth-page.tsx(257,64): error TS2554: Expected 1-2 arguments, but got 0.
+client/src/pages/monitoring.tsx(987,30): error TS7006: Parameter 'device' implicitly has an 'any' type.
+client/src/pages/notification-settings.tsx(103,61): error TS2345: Argument of type '{ method: string; body: string; headers: { "Content-Type": string; }; }' is not assignable to parameter of type 'string'.
+client/src/pages/quick-notes.tsx(204,39): error TS2339: Property 'find' does not exist on type '{}'.
+client/src/pages/quick-notes.tsx(742,9): error TS2322: Type '{ open: boolean; onClose: () => void; onComplete: (transcript: string, notes: string) => void; patientId: number | null; patientName: string; }' is not assignable to type 'IntrinsicAttributes & ConsultationModalProps'.
+  Property 'open' does not exist on type 'IntrinsicAttributes & ConsultationModalProps'.
+server/mock-storage.ts(90,13): error TS2353: Object literal may only specify known properties, and 'name' does not exist in type '{ email: string; firstName: string; phone?: string | undefined; lastName?: string | undefined; dateOfBirth?: string | undefined; address?: string | undefined; medicalHistory?: string | undefined; } & { ...; }'.
+server/mock-storage.ts(100,13): error TS2353: Object literal may only specify known properties, and 'name' does not exist in type '{ email: string; firstName: string; phone?: string | undefined; lastName?: string | undefined; dateOfBirth?: string | undefined; address?: string | undefined; medicalHistory?: string | undefined; } & { ...; }'.
+server/mock-storage.ts(113,13): error TS2322: Type 'string' is not assignable to type 'Date'.
+server/mock-storage.ts(121,13): error TS2322: Type 'string' is not assignable to type 'Date'.
+server/notification-scheduler.ts(10,18): error TS7016: Could not find a declaration file for module 'node-cron'. 'C:/Users/Owner/.gemini/antigravity/scratch/AIMedicalscriberjas/node_modules/node-cron/src/node-cron.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/node-cron` if it exists or add a new declaration (.d.ts) file containing `declare module 'node-cron';`
+server/notification-scheduler.ts(39,7): error TS2304: Cannot find name 'log'.
+server/notification-scheduler.ts(46,5): error TS2304: Cannot find name 'log'.
+server/notification-scheduler.ts(49,5): error TS2552: Cannot find name 'logError'. Did you mean 'onerror'?
+server/notification-scheduler.ts(64,7): error TS2304: Cannot find name 'log'.
+server/notification-scheduler.ts(72,7): error TS2552: Cannot find name 'logError'. Did you mean 'onerror'?
+server/notification-scheduler.ts(83,5): error TS2304: Cannot find name 'log'.
+server/notification-scheduler.ts(86,5): error TS2552: Cannot find name 'logError'. Did you mean 'onerror'?
+server/notification-scheduler.ts(100,7): error TS2552: Cannot find name 'logError'. Did you mean 'onerror'?
+server/notification-scheduler.ts(106,7): error TS2552: Cannot find name 'logError'. Did you mean 'onerror'?
+server/notification-scheduler.ts(149,5): error TS2552: Cannot find name 'logError'. Did you mean 'onerror'?
+server/notification-scheduler.ts(206,5): error TS2304: Cannot find name 'logError'.
+server/notification-scheduler.ts(217,35): error TS2551: Property 'getAllUsers' does not exist on type 'DatabaseStorage | MockStorage'. Did you mean 'getUsers'?
+  Property 'getAllUsers' does not exist on type 'DatabaseStorage'.
+server/notification-scheduler.ts(218,40): error TS7006: Parameter 'u' implicitly has an 'any' type.
+server/notification-scheduler.ts(244,5): error TS2304: Cannot find name 'logError'.
+server/notification-scheduler.ts(255,5): error TS2304: Cannot find name 'log'.
+server/notification-scheduler.ts(278,7): error TS2304: Cannot find name 'log'.
+server/notification-scheduler.ts(283,7): error TS2304: Cannot find name 'log'.
+server/notification-scheduler.ts(300,7): error TS2304: Cannot find name 'log'.
+server/notification-scheduler.ts(470,9): error TS2304: Cannot find name 'log'.
+server/notification-scheduler.ts(472,9): error TS2304: Cannot find name 'logError'.
+server/notification-scheduler.ts(476,5): error TS2304: Cannot find name 'log'.
+server/notification-scheduler.ts(478,5): error TS2304: Cannot find name 'logError'.
+server/notification-scheduler.ts(488,5): error TS2304: Cannot find name 'log'.
+server/notification-scheduler.ts(496,5): error TS2304: Cannot find name 'log'.
+server/notification-scheduler.ts(502,9): error TS2304: Cannot find name 'log'.
+server/notification-scheduler.ts(504,9): error TS2304: Cannot find name 'log'.
+server/notification-scheduler.ts(511,5): error TS2304: Cannot find name 'log'.
+server/notification-scheduler.ts(513,5): error TS2304: Cannot find name 'logError'.
+server/notification-scheduler.ts(521,3): error TS2304: Cannot find name 'log'.
+server/notification-scheduler.ts(525,5): error TS2304: Cannot find name 'log'.
+server/notification-scheduler.ts(533,5): error TS2304: Cannot find name 'log'.
+server/notification-scheduler.ts(539,3): error TS2304: Cannot find name 'log'.
+server/notification-scheduler.ts(540,3): error TS2304: Cannot find name 'log'.
+server/notification-scheduler.ts(541,3): error TS2304: Cannot find name 'log'.
+server/routes.ts(150,45): error TS2345: Argument of type 'DatabaseStorage | MockStorage' is not assignable to parameter of type 'IStorage'.
+  Type 'DatabaseStorage' is not assignable to type 'IStorage'.
+    Types of property 'importLabKnowledgeBase' are incompatible.
+      Type '(items: { userId: number; test_name: string; marker: string; interpretation: string; normal_range_low?: number | null | undefined; normal_range_high?: number | null | undefined; unit?: string | null | undefined; recommendations?: string | ... 1 more ... | undefined; }[], userId: number) => Promise<...>' is not assignable to type '(items: { userId: number; test_name: string; marker: string; interpretation: string; normal_range_low?: number | null | undefined; normal_range_high?: number | null | undefined; unit?: string | null | undefined; recommendations?: string | ... 1 more ... | undefined; }[]) => Promise<...>'.
+        Target signature provides too few arguments. Expected 2 or more, but got 1.
+server/routes.ts(193,33): error TS18048: 'req.user' is possibly 'undefined'.
+server/routes.ts(226,20): error TS18048: 'req.user' is possibly 'undefined'.
+server/routes.ts(331,24): error TS18048: 'req.user' is possibly 'undefined'.
+server/routes.ts(375,37): error TS18048: 'req.user' is possibly 'undefined'.
+server/routes.ts(402,19): error TS18048: 'req.user' is possibly 'undefined'.
+server/routes.ts(570,37): error TS18048: 'req.user' is possibly 'undefined'.
+server/routes.ts(945,39): error TS2339: Property 'getMedicalNoteTemplates' does not exist on type 'DatabaseStorage | MockStorage'.
+  Property 'getMedicalNoteTemplates' does not exist on type 'MockStorage'.
+server/routes.ts(960,39): error TS2339: Property 'getMedicalNoteTemplatesByType' does not exist on type 'DatabaseStorage | MockStorage'.
+  Property 'getMedicalNoteTemplatesByType' does not exist on type 'MockStorage'.
+server/routes.ts(975,38): error TS2339: Property 'getMedicalNoteTemplate' does not exist on type 'DatabaseStorage | MockStorage'.
+  Property 'getMedicalNoteTemplate' does not exist on type 'MockStorage'.
+server/routes.ts(999,38): error TS2551: Property 'createMedicalNoteTemplate' does not exist on type 'DatabaseStorage | MockStorage'. Did you mean 'createMedicalNote'?
+  Property 'createMedicalNoteTemplate' does not exist on type 'MockStorage'.
+server/routes.ts(1014,38): error TS2339: Property 'getMedicalNoteTemplate' does not exist on type 'DatabaseStorage | MockStorage'.
+  Property 'getMedicalNoteTemplate' does not exist on type 'MockStorage'.
+server/routes.ts(1020,45): error TS2339: Property 'updateMedicalNoteTemplate' does not exist on type 'DatabaseStorage | MockStorage'.
+  Property 'updateMedicalNoteTemplate' does not exist on type 'MockStorage'.
+server/routes.ts(1035,36): error TS2339: Property 'deleteMedicalNoteTemplate' does not exist on type 'DatabaseStorage | MockStorage'.
+  Property 'deleteMedicalNoteTemplate' does not exist on type 'MockStorage'.
+server/routes.ts(1182,36): error TS2339: Property 'getUserApiKey' does not exist on type 'DatabaseStorage | MockStorage'.
+  Property 'getUserApiKey' does not exist on type 'MockStorage'.
+server/routes.ts(1228,21): error TS2339: Property 'updateUserApiKey' does not exist on type 'DatabaseStorage | MockStorage'.
+  Property 'updateUserApiKey' does not exist on type 'MockStorage'.
+server/routes.ts(1257,21): error TS2339: Property 'updateUserApiKey' does not exist on type 'DatabaseStorage | MockStorage'.
+  Property 'updateUserApiKey' does not exist on type 'MockStorage'.
+server/routes.ts(1285,21): error TS2339: Property 'updateUserApiKey' does not exist on type 'DatabaseStorage | MockStorage'.
+  Property 'updateUserApiKey' does not exist on type 'MockStorage'.
+server/routes.ts(1504,9): error TS2353: Object literal may only specify known properties, and 'startTime' does not exist in type '{ patientId: number; doctorId: number; roomId: string; notes?: string | null | undefined; status?: string | undefined; transcript?: string | null | undefined; }'.
+server/routes.ts(2484,15): error TS2322: Type 'string' is not assignable to type 'number'.
+server/routes.ts(2499,11): error TS2322: Type 'string' is not assignable to type 'number'.
+server/routes.ts(2511,11): error TS2322: Type 'string' is not assignable to type 'number'.
+server/routes.ts(2523,11): error TS2322: Type 'string' is not assignable to type 'number'.
+server/routes.ts(2534,11): error TS2322: Type 'string' is not assignable to type 'number'.
+server/routes/ai.ts(30,42): error TS2339: Property 'getUserApiKey' does not exist on type 'DatabaseStorage | MockStorage'.
+  Property 'getUserApiKey' does not exist on type 'MockStorage'.
+server/routes/lab-interpreter.ts(15,21): error TS7016: Could not find a declaration file for module 'html-pdf-node'. 'C:/Users/Owner/.gemini/antigravity/scratch/AIMedicalscriberjas/node_modules/html-pdf-node/index.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/html-pdf-node` if it exists or add a new declaration (.d.ts) file containing `declare module 'html-pdf-node';`
+server/routes/lab-interpreter.ts(16,22): error TS7016: Could not find a declaration file for module 'html-docx-js'. 'C:/Users/Owner/.gemini/antigravity/scratch/AIMedicalscriberjas/node_modules/html-docx-js/build/api.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/html-docx-js` if it exists or add a new declaration (.d.ts) file containing `declare module 'html-docx-js';`
+server/routes/lab-interpreter.ts(436,40): error TS2339: Property 'getUserApiKey' does not exist on type 'DatabaseStorage | MockStorage'.
+  Property 'getUserApiKey' does not exist on type 'MockStorage'.
+server/routes/lab-interpreter.ts(808,39): error TS18048: 'req.user' is possibly 'undefined'.
+server/routes/lab-interpreter.ts(822,47): error TS18048: 'req.user' is possibly 'undefined'.
+server/routes/lab-interpreter.ts(838,13): error TS18048: 'req.user' is possibly 'undefined'.
+server/routes/lab-interpreter.ts(842,46): error TS2345: Argument of type '{ test_name: string; marker: string; interpretation: string; userId?: number | undefined; normal_range_low?: number | null | undefined; normal_range_high?: number | null | undefined; unit?: string | ... 1 more ... | undefined; recommendations?: string | ... 1 more ... | undefined; }' is not assignable to parameter of type '{ userId: number; test_name: string; marker: string; interpretation: string; normal_range_low?: number | null | undefined; normal_range_high?: number | null | undefined; unit?: string | null | undefined; recommendations?: string | ... 1 more ... | undefined; }'.
+  Types of property 'userId' are incompatible.
+    Type 'number | undefined' is not assignable to type 'number'.
+      Type 'undefined' is not assignable to type 'number'.
+server/routes/lab-interpreter.ts(861,65): error TS18048: 'req.user' is possibly 'undefined'.
+server/routes/lab-interpreter.ts(880,50): error TS18048: 'req.user' is possibly 'undefined'.
+server/routes/lab-interpreter.ts(894,19): error TS2551: Property 'clearUserLabKnowledgeBase' does not exist on type 'DatabaseStorage | MockStorage'. Did you mean 'getLabKnowledgeBase'?
+  Property 'clearUserLabKnowledgeBase' does not exist on type 'MockStorage'.
+server/routes/lab-interpreter.ts(894,45): error TS18048: 'req.user' is possibly 'undefined'.
+server/routes/lab-interpreter.ts(1116,18): error TS18046: 'fileError' is of type 'unknown'.
+server/routes/lab-interpreter.ts(1148,42): error TS2345: Argument of type '{ test_name: string; marker: string; interpretation: string; userId?: number | undefined; normal_range_low?: number | null | undefined; normal_range_high?: number | null | undefined; unit?: string | ... 1 more ... | undefined; recommendations?: string | ... 1 more ... | undefined; }[]' is not assignable to parameter of type '{ userId: number; test_name: string; marker: string; interpretation: string; normal_range_low?: number | null | undefined; normal_range_high?: number | null | undefined; unit?: string | null | undefined; recommendations?: string | ... 1 more ... | undefined; }[]'.
+  Type '{ test_name: string; marker: string; interpretation: string; userId?: number | undefined; normal_range_low?: number | null | undefined; normal_range_high?: number | null | undefined; unit?: string | ... 1 more ... | undefined; recommendations?: string | ... 1 more ... | undefined; }' is not assignable to type '{ userId: number; test_name: string; marker: string; interpretation: string; normal_range_low?: number | null | undefined; normal_range_high?: number | null | undefined; unit?: string | null | undefined; recommendations?: string | ... 1 more ... | undefined; }'.
+    Types of property 'userId' are incompatible.
+      Type 'number | undefined' is not assignable to type 'number'.
+        Type 'undefined' is not assignable to type 'number'.
+server/routes/lab-interpreter.ts(1148,57): error TS18048: 'req.user' is possibly 'undefined'.
+server/routes/lab-interpreter.ts(1259,59): error TS2551: Property 'systemPrompt' does not exist on type '{ id: number; created_at: Date; system_prompt: string; with_patient_prompt: string | null; without_patient_prompt: string | null; report_format_instructions: string | null; }'. Did you mean 'system_prompt'?
+server/routes/lab-interpreter.ts(1260,66): error TS2551: Property 'withoutPatientPrompt' does not exist on type '{ id: number; created_at: Date; system_prompt: string; with_patient_prompt: string | null; without_patient_prompt: string | null; report_format_instructions: string | null; }'. Did you mean 'without_patient_prompt'?
+server/routes/lab-interpreter.ts(1279,63): error TS2551: Property 'withPatientPrompt' does not exist on type '{ id: number; created_at: Date; system_prompt: string; with_patient_prompt: string | null; without_patient_prompt: string | null; report_format_instructions: string | null; }'. Did you mean 'with_patient_prompt'?
+server/routes/lab-interpreter.ts(1522,40): error TS18048: 'req.user' is possibly 'undefined'.
+server/routes/lab-interpreter.ts(1530,29): error TS18048: 'req.user' is possibly 'undefined'.
+server/routes/lab-interpreter.ts(1858,34): error TS2339: Property 'userId' does not exist on type 'Session & Partial<SessionData>'.
+server/routes/lab-interpreter.ts(1957,17): error TS18048: 'req.user' is possibly 'undefined'.
+server/routes/lab-interpreter.ts(2535,19): error TS2345: Argument of type 'undefined' is not assignable to parameter of type 'string'.
+server/routes/lab-interpreter.ts(2539,19): error TS2345: Argument of type 'undefined' is not assignable to parameter of type 'string'.
+server/routes/lab-interpreter.ts(2551,21): error TS2345: Argument of type 'undefined' is not assignable to parameter of type 'string'.
+server/routes/lab-interpreter.ts(2557,21): error TS2345: Argument of type 'undefined' is not assignable to parameter of type 'string'.
+server/routes/lab-interpreter.ts(2570,21): error TS2345: Argument of type 'undefined' is not assignable to parameter of type 'string'.
+server/routes/lab-interpreter.ts(2576,21): error TS2345: Argument of type 'undefined' is not assignable to parameter of type 'string'.
+server/routes/lab-interpreter.ts(2592,19): error TS2345: Argument of type 'undefined' is not assignable to parameter of type 'string'.
+server/routes/lab-interpreter.ts(2598,19): error TS2345: Argument of type 'undefined' is not assignable to parameter of type 'string'.
+server/routes/lab-interpreter.ts(2628,23): error TS2345: Argument of type 'undefined' is not assignable to parameter of type 'string'.
+server/routes/lab-interpreter.ts(2633,23): error TS2345: Argument of type 'undefined' is not assignable to parameter of type 'string'.
+server/routes/lab-interpreter.ts(2649,23): error TS2345: Argument of type 'undefined' is not assignable to parameter of type 'string'.
+server/routes/lab-interpreter.ts(2656,27): error TS2345: Argument of type 'undefined' is not assignable to parameter of type 'string'.
+server/routes/lab-interpreter.ts(2661,27): error TS2345: Argument of type 'undefined' is not assignable to parameter of type 'string'.
+server/routes/lab-interpreter.ts(2682,23): error TS2345: Argument of type 'undefined' is not assignable to parameter of type 'string'.
+server/routes/lab-interpreter.ts(2690,29): error TS2345: Argument of type 'undefined' is not assignable to parameter of type 'string'.
+server/routes/lab-interpreter.ts(2695,29): error TS2345: Argument of type 'undefined' is not assignable to parameter of type 'string'.
+server/routes/lab-interpreter.ts(2711,29): error TS2345: Argument of type 'undefined' is not assignable to parameter of type 'string'.
+server/routes/lab-interpreter.ts(2718,25): error TS2345: Argument of type 'undefined' is not assignable to parameter of type 'string'.
+server/routes/lab-interpreter.ts(2739,23): error TS2345: Argument of type 'undefined' is not assignable to parameter of type 'string'.
+server/routes/lab-interpreter.ts(2744,23): error TS2345: Argument of type 'undefined' is not assignable to parameter of type 'string'.
+server/routes/lab-interpreter.ts(2794,21): error TS2345: Argument of type 'undefined' is not assignable to parameter of type 'string'.
+server/routes/lab-interpreter.ts(2800,21): error TS2345: Argument of type 'undefined' is not assignable to parameter of type 'string'.
+server/routes/lab-interpreter.ts(2841,32): error TS2304: Cannot find name 'formatContent'.
+server/routes/monitoring.ts(62,71): error TS18046: 'error' is of type 'unknown'.
+server/routes/monitoring.ts(79,71): error TS18046: 'error' is of type 'unknown'.
+server/routes/monitoring.ts(134,75): error TS18046: 'error' is of type 'unknown'.
+server/routes/monitoring.ts(172,80): error TS18046: 'error' is of type 'unknown'.
+server/routes/monitoring.ts(202,77): error TS18046: 'error' is of type 'unknown'.
+server/routes/monitoring.ts(219,79): error TS18046: 'error' is of type 'unknown'.
+server/routes/patient-documents.ts(125,42): error TS7006: Parameter 'tag' implicitly has an 'any' type.
+server/routes/patient-documents.ts(292,42): error TS7006: Parameter 'tag' implicitly has an 'any' type.
+server/settings-cache.ts(77,32): error TS2802: Type 'MapIterator<[string, CacheEntry]>' can only be iterated through when using the '--downlevelIteration' flag or with a '--target' of 'es2015' or higher.
+server/storage.ts(1006,7): error TS2741: Property 'limit' is missing in type 'Omit<import("C:/Users/Owner/.gemini/antigravity/scratch/AIMedicalscriberjas/node_modules/drizzle-orm/pg-core/query-builders/select").PgSelectBase<"bp_readings", { id: import("C:/Users/Owner/.gemini/antigravity/scratch/AIMedicalscriberjas/node_modules/drizzle-orm/pg-core/columns/common").PgColumn<{ name: "id"; tableN...' but required in type 'Omit<import("C:/Users/Owner/.gemini/antigravity/scratch/AIMedicalscriberjas/node_modules/drizzle-orm/pg-core/query-builders/select").PgSelectBase<"bp_readings", { id: import("C:/Users/Owner/.gemini/antigravity/scratch/AIMedicalscriberjas/node_modules/drizzle-orm/pg-core/columns/common").PgColumn<{ name: "id"; tableN...'.
+server/storage.ts(1019,7): error TS2741: Property 'limit' is missing in type 'Omit<import("C:/Users/Owner/.gemini/antigravity/scratch/AIMedicalscriberjas/node_modules/drizzle-orm/pg-core/query-builders/select").PgSelectBase<"bp_readings", { id: import("C:/Users/Owner/.gemini/antigravity/scratch/AIMedicalscriberjas/node_modules/drizzle-orm/pg-core/columns/common").PgColumn<{ name: "id"; tableN...' but required in type 'Omit<import("C:/Users/Owner/.gemini/antigravity/scratch/AIMedicalscriberjas/node_modules/drizzle-orm/pg-core/query-builders/select").PgSelectBase<"bp_readings", { id: import("C:/Users/Owner/.gemini/antigravity/scratch/AIMedicalscriberjas/node_modules/drizzle-orm/pg-core/columns/common").PgColumn<{ name: "id"; tableN...'.
+server/storage.ts(1044,7): error TS2741: Property 'limit' is missing in type 'Omit<import("C:/Users/Owner/.gemini/antigravity/scratch/AIMedicalscriberjas/node_modules/drizzle-orm/pg-core/query-builders/select").PgSelectBase<"glucose_readings", { id: import("C:/Users/Owner/.gemini/antigravity/scratch/AIMedicalscriberjas/node_modules/drizzle-orm/pg-core/columns/common").PgColumn<{ name: "id"; t...' but required in type 'Omit<import("C:/Users/Owner/.gemini/antigravity/scratch/AIMedicalscriberjas/node_modules/drizzle-orm/pg-core/query-builders/select").PgSelectBase<"glucose_readings", { id: import("C:/Users/Owner/.gemini/antigravity/scratch/AIMedicalscriberjas/node_modules/drizzle-orm/pg-core/columns/common").PgColumn<{ name: "id"; t...'.
+server/storage.ts(1057,7): error TS2741: Property 'limit' is missing in type 'Omit<import("C:/Users/Owner/.gemini/antigravity/scratch/AIMedicalscriberjas/node_modules/drizzle-orm/pg-core/query-builders/select").PgSelectBase<"glucose_readings", { id: import("C:/Users/Owner/.gemini/antigravity/scratch/AIMedicalscriberjas/node_modules/drizzle-orm/pg-core/columns/common").PgColumn<{ name: "id"; t...' but required in type 'Omit<import("C:/Users/Owner/.gemini/antigravity/scratch/AIMedicalscriberjas/node_modules/drizzle-orm/pg-core/query-builders/select").PgSelectBase<"glucose_readings", { id: import("C:/Users/Owner/.gemini/antigravity/scratch/AIMedicalscriberjas/node_modules/drizzle-orm/pg-core/columns/common").PgColumn<{ name: "id"; t...'.
+server/storage.ts(1091,7): error TS2345: Argument of type 'number | null | undefined' is not assignable to parameter of type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+server/storage.ts(1154,23): error TS2339: Property 'where' does not exist on type 'Omit<PgSelectBase<"lab_knowledge_base", { id: PgColumn<{ name: "id"; tableName: "lab_knowledge_base"; dataType: "number"; columnType: "PgSerial"; data: number; driverParam: number; notNull: true; hasDefault: true; ... 6 more ...; generated: undefined; }, {}, {}>; ... 8 more ...; created_at: PgColumn<...>; }, ... 5 m...'.
+server/storage.ts(1185,23): error TS2339: Property 'where' does not exist on type 'Omit<PgUpdateBase<PgTableWithColumns<{ name: "lab_knowledge_base"; schema: undefined; columns: { id: PgColumn<{ name: "id"; tableName: "lab_knowledge_base"; dataType: "number"; columnType: "PgSerial"; data: number; driverParam: number; ... 8 more ...; generated: undefined; }, {}, {}>; ... 8 more ...; created_at: PgC...'.
+server/storage.ts(1201,23): error TS2339: Property 'where' does not exist on type 'Omit<PgDeleteBase<PgTableWithColumns<{ name: "lab_knowledge_base"; schema: undefined; columns: { id: PgColumn<{ name: "id"; tableName: "lab_knowledge_base"; dataType: "number"; columnType: "PgSerial"; data: number; driverParam: number; ... 8 more ...; generated: undefined; }, {}, {}>; ... 8 more ...; created_at: PgC...'.
+server/storage.ts(1205,14): error TS18047: 'result.rowCount' is possibly 'null'.
+server/storage.ts(1212,9): error TS2416: Property 'importLabKnowledgeBase' in type 'DatabaseStorage' is not assignable to the same property in base type 'IStorage'.
+  Type '(items: { userId: number; test_name: string; marker: string; interpretation: string; normal_range_low?: number | null | undefined; normal_range_high?: number | null | undefined; unit?: string | null | undefined; recommendations?: string | ... 1 more ... | undefined; }[], userId: number) => Promise<...>' is not assignable to type '(items: { userId: number; test_name: string; marker: string; interpretation: string; normal_range_low?: number | null | undefined; normal_range_high?: number | null | undefined; unit?: string | null | undefined; recommendations?: string | ... 1 more ... | undefined; }[]) => Promise<...>'.
+    Target signature provides too few arguments. Expected 2 or more, but got 1.
+server/storage.ts(1260,13): error TS2353: Object literal may only specify known properties, and 'updatedAt' does not exist in type '{ system_prompt?: string | SQL<unknown> | PgColumn<ColumnBaseConfig<ColumnDataType, string>, {}, {}> | undefined; id?: number | SQL<...> | PgColumn<...> | undefined; created_at?: SQL<...> | ... 2 more ... | undefined; with_patient_prompt?: string | ... 3 more ... | undefined; without_patient_prompt?: string | ... 3 ...'.
+server/storage.ts(1308,16): error TS2769: No overload matches this call.
+  Overload 1 of 3, '(left: PgColumn<{ name: "type"; tableName: "medical_note_templates"; dataType: "string"; columnType: "PgEnumColumn"; data: "soap" | "progress" | "procedure" | "consultation"; driverParam: string; ... 8 more ...; generated: undefined; }, {}, {}>, right: SQLWrapper | ... 3 more ... | "consultation"): SQL<...>', gave the following error.
+    Argument of type 'string' is not assignable to parameter of type 'SQLWrapper | "soap" | "progress" | "procedure" | "consultation"'.
+  Overload 2 of 3, '(left: Aliased<string>, right: string | SQLWrapper): SQL<unknown>', gave the following error.
+    Argument of type 'PgColumn<{ name: "type"; tableName: "medical_note_templates"; dataType: "string"; columnType: "PgEnumColumn"; data: "soap" | "progress" | "procedure" | "consultation"; driverParam: string; ... 8 more ...; generated: undefined; }, {}, {}>' is not assignable to parameter of type 'Aliased<string>'.
+      Type 'PgColumn<{ name: "type"; tableName: "medical_note_templates"; dataType: "string"; columnType: "PgEnumColumn"; data: "soap" | "progress" | "procedure" | "consultation"; driverParam: string; ... 8 more ...; generated: undefined; }, {}, {}>' is missing the following properties from type 'Aliased<string>': sql, fieldAlias
+  Overload 3 of 3, '(left: never, right: unknown): SQL<unknown>', gave the following error.
+    Argument of type 'PgColumn<{ name: "type"; tableName: "medical_note_templates"; dataType: "string"; columnType: "PgEnumColumn"; data: "soap" | "progress" | "procedure" | "consultation"; driverParam: string; ... 8 more ...; generated: undefined; }, {}, {}>' is not assignable to parameter of type 'never'.
+server/storage.ts(1364,14): error TS18047: 'result.rowCount' is possibly 'null'.
+server/storage.ts(1421,14): error TS18047: 'result.rowCount' is possibly 'null'.
+server/storage.ts(1487,14): error TS18047: 'result.rowCount' is possibly 'null'.
+server/visual-health-assessment.ts(191,30): error TS2802: Type 'Set<string>' can only be iterated through when using the '--downlevelIteration' flag or with a '--target' of 'es2015' or higher.
+server/vite.ts(42,5): error TS2322: Type '{ middlewareMode: boolean; hmr: { server: Server<typeof IncomingMessage, typeof ServerResponse>; }; allowedHosts: boolean; }' is not assignable to type 'ServerOptions'.
+  Types of property 'allowedHosts' are incompatible.
+    Type 'boolean' is not assignable to type 'true | string[] | undefined'.
