@@ -28,10 +28,7 @@ import {
 import multer from "multer";
 import * as XLSX from 'xlsx';
 
-// Demo mode - suppress logging for cleaner output
-const DEMO_MODE = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo';
-const log = (...args: any[]) => !DEMO_MODE && console.log(...args);
-const logError = (...args: any[]) => !DEMO_MODE && console.error(...args);
+import { log, logError } from './logger';
 
 // Extend the global namespace to include our media storage
 declare global {
@@ -241,6 +238,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const allowedTypes = [
         'application/vnd.ms-excel',
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/octet-stream',
       ];
       if (allowedTypes.includes(file.mimetype)) {
         cb(null, true);

@@ -1,8 +1,5 @@
 import 'dotenv/config';
-// Demo mode - suppress logging
-const DEMO_MODE = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo';
-export const log = (...args: any[]) => !DEMO_MODE && console.log(...args);
-export const logError = (...args: any[]) => !DEMO_MODE && console.error(...args);
+import { log, logError } from './logger';
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic } from "./vite";
