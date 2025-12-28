@@ -50,11 +50,11 @@ class PythonServiceManager {
   async startPythonService(): Promise<boolean> {
     try {
       if (this.isServiceRunning) {
-        log('Python service already running');
+        log('Python service already running', { requestId: 'python-service' });
         return true;
       }
 
-      log('Starting Python analytics service...');
+      log('Starting Python analytics service...', { requestId: 'python-service' });
 
       const pythonServicePath = path.join(process.cwd(), 'python_services', 'main.py');
 
@@ -68,15 +68,15 @@ class PythonServiceManager {
 
       // Handle Python service output
       this.pythonProcess.stdout?.on('data', (data) => {
-        log(`Python service: ${data.toString()}`);
+        log(`Python service: ${data.toString()}`, { requestId: 'python-service' });
       });
 
       this.pythonProcess.stderr?.on('data', (data) => {
-        logError(`Python service error: ${data.toString()}`);
+        logError(`Python service error: ${data.toString()}`, undefined, { requestId: 'python-service' });
       });
 
       this.pythonProcess.on('close', (code) => {
-        log(`Python service exited with code ${code}`);
+        log(`Python service exited with code ${code}`, { requestId: 'python-service' });
         this.isServiceRunning = false;
         this.pythonProcess = null;
       });
@@ -84,11 +84,11 @@ class PythonServiceManager {
       // Wait for service to start
       await this.waitForService();
       this.isServiceRunning = true;
-      log(`Python analytics service started on port ${this.config.port}`);
+      log(`Python analytics service started on port ${this.config.port}`, { requestId: 'python-service' });
 
       return true;
     } catch (error) {
-      logError('Failed to start Python service:', error);
+      logError('Failed to start Python service:', error, { requestId: 'python-service' });
       return false;
     }
   }
@@ -98,7 +98,7 @@ class PythonServiceManager {
    */
   stopPythonService(): void {
     if (this.pythonProcess) {
-      log('Stopping Python analytics service...');
+      log('Stopping Python analytics service...', { requestId: 'python-service' });
       this.pythonProcess.kill();
       this.pythonProcess = null;
       this.isServiceRunning = false;
@@ -155,7 +155,7 @@ class PythonServiceManager {
 
       return response.data;
     } catch (error) {
-      logError('Lab analysis failed:', error);
+      logError('Lab analysis failed:', error, { requestId: 'python-service' });
       throw new Error(`Python service analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -177,7 +177,7 @@ class PythonServiceManager {
 
       return response.data;
     } catch (error) {
-      logError('Outlier detection failed:', error);
+      logError('Outlier detection failed:', error, { requestId: 'python-service' });
       throw new Error(`Python service outlier detection failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -199,7 +199,7 @@ class PythonServiceManager {
 
       return response.data;
     } catch (error) {
-      logError('Risk assessment failed:', error);
+      logError('Risk assessment failed:', error, { requestId: 'python-service' });
       throw new Error(`Python service risk assessment failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -221,7 +221,7 @@ class PythonServiceManager {
 
       return response.data;
     } catch (error) {
-      logError('Insight generation failed:', error);
+      logError('Insight generation failed:', error, { requestId: 'python-service' });
       throw new Error(`Python service insight generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -247,7 +247,7 @@ class PythonServiceManager {
 
       return response.data;
     } catch (error) {
-      logError('Trend analysis failed:', error);
+      logError('Trend analysis failed:', error, { requestId: 'python-service' });
       throw new Error(`Python service trend analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -332,7 +332,7 @@ function categorizeLabTest(testName: string): string {
 
 // Initialize Python service on module load
 pythonService.startPythonService().catch(error => {
-  logError('Failed to initialize Python service:', error);
+  logError('Failed to initialize Python service:', error, { requestId: 'python-service' });
 });
 
 // Graceful shutdown

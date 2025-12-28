@@ -42,10 +42,19 @@ export class CloudinaryStorage {
         },
         (error, result) => {
           if (error) {
-            logError('Cloudinary upload error:', error);
+            logError('Cloudinary upload error:', error, {
+              requestId: `cloudinary-upload-${recordingId}`,
+              publicId,
+              resourceType
+            });
             reject(error);
           } else if (result) {
-            log(`Uploaded to Cloudinary: ${result.secure_url}`);
+            log(`Uploaded to Cloudinary: ${result.secure_url}`, {
+              requestId: `cloudinary-upload-${recordingId}`,
+              publicId,
+              resourceType,
+              url: result.secure_url
+            });
             resolve(result.secure_url);
           } else {
             reject(new Error('Upload failed: no result returned'));
@@ -70,9 +79,17 @@ export class CloudinaryStorage {
       const publicId = `${folder}/${recordingId}_${mediaType}`;
       
       await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
-      log(`Deleted from Cloudinary: ${publicId}`);
+      log(`Deleted from Cloudinary: ${publicId}`, {
+        requestId: `cloudinary-delete-${recordingId}`,
+        publicId,
+        resourceType
+      });
     } catch (error) {
-      logError('Error deleting from Cloudinary:', error);
+      logError('Error deleting from Cloudinary:', error, {
+        requestId: `cloudinary-delete-${recordingId}`,
+        publicId: `${'telemedicine/recordings'}/${recordingId}_${mediaType}`,
+        resourceType: mediaType === 'video' ? 'video' : 'raw'
+      });
       // Don't throw - deletion failures shouldn't break the app
     }
   }
