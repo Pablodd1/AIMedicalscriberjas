@@ -12,3 +12,5 @@ test_openai.js
 core
 uploads/*
 !uploads/.gitkeep
+*.log
+cookies.txt

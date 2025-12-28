@@ -16,7 +16,7 @@ process.on('uncaughtException', (error) => {
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  logError('UNHANDLED REJECTION at:', promise, 'reason:', reason);
+  logError('UNHANDLED REJECTION', reason as Error, { promise });
   // Log but don't exit - allow the app to continue
 });
 
