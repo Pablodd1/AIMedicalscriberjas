@@ -1,14 +1,14 @@
 import 'dotenv/config';
-// Demo mode - suppress logging
-const DEMO_MODE = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo';
-export const log = (...args: any[]) => !DEMO_MODE && console.log(...args);
-export const logError = (...args: any[]) => !DEMO_MODE && console.error(...args);
+import { log, logError } from './logger';
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic } from "./vite";
 import { globalErrorHandler } from "./error-handler";
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
+import winston from 'winston';
+import expressWinston from 'express-winston';
+import crypto from 'crypto';
 
 // ==========================================
 // CRITICAL: Global error handlers to prevent container crashes
@@ -19,7 +19,7 @@ process.on('uncaughtException', (error) => {
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  logError('UNHANDLED REJECTION at:', promise, 'reason:', reason);
+  logError('UNHANDLED REJECTION', reason as Error, { promise });
   // Log but don't exit - allow the app to continue
 });
 
@@ -72,36 +72,38 @@ app.use('/api/', generalLimiter);
 app.use(express.json({ limit: '50mb' })); // Increase JSON limit for base64 audio/images
 app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 
+// Add request ID
 app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      // Truncate very long log lines for readability (this is just for LOGS, not actual responses)
-      if (logLine.length > 200) {
-        logLine = logLine.slice(0, 199) + "…";
-      }
-
-      log(logLine);
-    }
-  });
-
+  const requestId = crypto.randomBytes(16).toString('hex');
+  req.id = requestId;
   next();
 });
+
+// Request logging middleware
+app.use(expressWinston.logger({
+  transports: [new winston.transports.Console()],
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  meta: true,
+  msg: "HTTP {{req.method}} {{req.url}}",
+  expressFormat: true,
+  colorize: false,
+  dynamicMeta: (req, res) => {
+    const meta: any = {
+      requestId: req.id,
+      ip: req.ip,
+    };
+    if (req.user) {
+      meta.user = {
+        id: req.user.id,
+        username: req.user.username,
+      };
+    }
+    return meta;
+  }
+}));
 
 (async () => {
   const server = await registerRoutes(app);

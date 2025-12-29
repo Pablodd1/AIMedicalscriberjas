@@ -3,10 +3,7 @@
  * Hybrid approach: Use Gemini for visual/video, Keep OpenAI for SOAP notes
  */
 
-// Demo mode - suppress logging
-const DEMO_MODE = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo';
-const log = (...args: any[]) => !DEMO_MODE && console.log(...args);
-const logError = (...args: any[]) => !DEMO_MODE && console.error(...args);
+import { log, logError } from './logger';
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 

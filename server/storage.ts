@@ -85,10 +85,7 @@ import { db, pool } from "./db";
 import { eq, and, desc, asc } from "drizzle-orm";
 import { MockStorage } from "./mock-storage";
 
-// Demo mode - suppress logging for cleaner output
-const DEMO_MODE = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'demo';
-const log = (...args: any[]) => !DEMO_MODE && console.log(...args);
-const logError = (...args: any[]) => !DEMO_MODE && console.error(...args);
+import { log, logError } from './logger';
 
 // Use connect-pg-simple for session storage with PostgreSQL
 const PostgresSessionStore = connectPg(session);

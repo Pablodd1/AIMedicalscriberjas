@@ -12,7 +12,8 @@
     "railway:start": "node dist/index.js",
     "check": "tsc",
     "db:push": "drizzle-kit push",
-    "db:seed": "tsx scripts/seed-users.ts"
+    "db:seed": "tsx scripts/seed-users.ts",
+    "test": "vitest"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.37.0",
@@ -80,6 +81,7 @@
     "express": "^4.21.2",
     "express-rate-limit": "^8.2.1",
     "express-session": "^1.18.1",
+    "express-winston": "^4.2.0",
     "framer-motion": "^11.13.1",
     "helmet": "^8.1.0",
     "html-docx-js": "^0.3.1",
@@ -113,6 +115,7 @@
     "tailwindcss-animate": "^1.0.7",
     "twilio": "^5.3.7",
     "vaul": "^1.1.0",
+    "winston": "^3.19.0",
     "wouter": "^3.3.5",
     "ws": "^8.18.0",
     "xlsx": "^0.18.5",
@@ -141,7 +144,8 @@
     "tailwindcss": "^3.4.14",
     "tsx": "^4.19.1",
     "typescript": "5.6.3",
-    "vite": "^5.4.14"
+    "vite": "^5.4.14",
+    "vitest": "^4.0.16"
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8"

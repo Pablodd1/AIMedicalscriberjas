@@ -3,7 +3,7 @@
  * Handles automated daily patient list emails, appointment confirmations, and SMS coordination
  */
 
-import { log, logError } from './index';
+import { log, logError } from './logger';
 
 import cron from 'node-cron';
 import { storage } from './storage';

@@ -98,7 +98,7 @@ export class MockStorage implements IStorage {
         // Create a default admin user
         this.createUser({
             username: "admin",
-            password: "admin123", // In real use it's hashed, but for mock we can handle it
+            password: "7765d034b6e047cb28c78951e4c04c794ec1781713a9bddb6b1fbb2a3fba3e8fb407075297a194ab8cadc5ee6a336bfaa4a95e31661f4d81534c3b1ef468a6ca.031b5a2f420b44c810123e1372db98a5", // Hashed password for "admin123"
             name: "System Administrator",
             role: "administrator",
             email: "admin@aims.medical",

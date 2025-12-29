@@ -581,6 +581,7 @@ export const devices = pgTable("devices", {
   id: serial("id").primaryKey(),
   patientId: integer("patient_id").references(() => patients.id, { onDelete: "cascade" }),
   name: varchar("name", { length: 100 }).notNull(),
+  nickname: text("nickname"),
   type: deviceTypeEnum("type").notNull(),
   model: varchar("model", { length: 100 }).notNull(),
   status: deviceStatusEnum("status").default("disconnected").notNull(),
