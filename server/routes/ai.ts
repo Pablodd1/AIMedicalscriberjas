@@ -182,6 +182,59 @@ aiRouter.post('/generate-soap', async (req, res) => {
       });
     }
 
+    // Check for mock mode (Demo)
+    log(`Checking mock mode: env key=${process.env.OPENAI_API_KEY}`);
+    if (process.env.OPENAI_API_KEY === 'sk-dummy-key' || !process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'mock') {
+      log('Using MOCK AI response for demo');
+      return res.json({
+        success: true,
+        soap: `
+═══════════════════════════════════════
+CLINICAL DOCUMENTATION (DEMO)
+═══════════════════════════════════════
+
+📋 PATIENT INFORMATION
+• Name: ${patientInfo?.name || 'Unknown'}
+• Visit Date: ${new Date().toLocaleDateString()}
+• Visit Type: General Consultation
+
+📍 CHIEF COMPLAINT (CC)
+"Feeling unwell"
+
+📝 HISTORY OF PRESENT ILLNESS (HPI)
+Patient presents with general malaise. (This is a generated demo note because no valid OpenAI key was provided).
+
+═══════════════════════════════════════
+ASSESSMENT & DIAGNOSIS
+═══════════════════════════════════════
+
+🏥 DIAGNOSES (ICD-10 Codes):
+1. R53.81 - Other malaise
+   → Rationale: Patient complaint
+
+═══════════════════════════════════════
+PLAN
+═══════════════════════════════════════
+
+Recommended rest and fluids.
+`,
+        structuredData: {
+          note_sections: {
+            ChiefComplaint: "Feeling unwell",
+            HPI: "Patient presents with general malaise.",
+            Assessment: "General malaise",
+            Plan: "Rest and fluids"
+          },
+          icd10_codes: [
+            { code: "R53.81", description: "Other malaise", confidence: "high" }
+          ],
+          cpt_codes_today: [
+            { code: "99213", description: "Office visit, established patient", confidence: "medium" }
+          ]
+        }
+      });
+    }
+
     const openai = await getOpenAIClient(userId);
     if (!openai) {
       const user = await dbStorage.getUser(userId);
@@ -197,6 +250,7 @@ aiRouter.post('/generate-soap', async (req, res) => {
 
     try {
       // Sanitize inputs
+
       const sanitizedTranscript = (transcript || '').toString().slice(0, 4000); // Limit length to avoid token issues
 
       // Extract patient info for the prompt
@@ -583,6 +637,21 @@ aiRouter.post('/transcribe', upload.single('audio'), async (req, res) => {
 
     // Check for Deepgram API key
     const deepgramApiKey = process.env.DEEPGRAM_API_KEY;
+
+    // Handle mock transcription if no keys are present or mock key is set
+    if (!deepgramApiKey && (process.env.OPENAI_API_KEY === 'sk-dummy-key' || !process.env.OPENAI_API_KEY)) {
+      log('Using MOCK Transcription for demo');
+      return res.json({
+        transcript: "This is a simulated transcription. The patient reports experiencing mild fatigue and headaches for the past three days. Vitals are stable. No fever reported.",
+        provider: 'mock-transcriber',
+        metadata: {
+          confidence: 0.99,
+          words: 25,
+          duration: 15.5,
+          paragraphs: 1
+        }
+      });
+    }
 
     if (!deepgramApiKey) {
       // Fallback to OpenAI Whisper if Deepgram not configured
