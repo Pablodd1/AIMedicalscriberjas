@@ -2394,6 +2394,11 @@ export default function LabInterpreter() {
                           </div>
                         ) : analysisResult ? (
                           <ScrollArea className="h-[500px] pr-4">
+                            <div className="mb-4">
+                              <span className="text-[10px] font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-100">
+                                AI Generated - Verify Accuracy
+                              </span>
+                            </div>
                             <div className="space-y-4">
                               {renderAnalysisResult()}
                             </div>

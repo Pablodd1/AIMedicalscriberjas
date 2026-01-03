@@ -224,6 +224,13 @@ export default function Assistant() {
                   <div className="whitespace-pre-wrap">
                     {message.content}
                   </div>
+                  {message.role !== 'user' && (
+                    <div className="mt-2 pt-2 border-t border-secondary/20">
+                      <span className="text-[10px] text-amber-600 bg-amber-50/50 px-1.5 py-0.5 rounded border border-amber-100/50">
+                        AI Generated - Verify Accuracy
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

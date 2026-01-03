@@ -171,6 +171,7 @@ function Router() {
 }
 
 import { RecordingProvider } from "@/contexts/recording-context";
+import { DisclaimerModal } from "@/components/disclaimer-modal";
 
 function App() {
   return (
@@ -180,6 +181,7 @@ function App() {
           <UploadManagerProvider>
             <RecordingProvider>
               <Router />
+              <DisclaimerModal />
               <Toaster />
             </RecordingProvider>
           </UploadManagerProvider>

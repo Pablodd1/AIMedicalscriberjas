@@ -33,6 +33,7 @@ interface RecordingServiceInterface {
   isPaused: boolean;
   getLiveTranscript: () => string;
   getAudioUrl: () => string;
+  getAudioLevel: () => number;
 }
 
 class BrowserRecordingService implements RecordingServiceInterface {
@@ -49,6 +50,10 @@ class BrowserRecordingService implements RecordingServiceInterface {
   private _isPaused: boolean = false;
   private audioUrl: string = "";
   private stream: MediaStream | null = null;
+  // Audio analysis
+  private audioContext: AudioContext | null = null;
+  private analyser: AnalyserNode | null = null;
+  private dataArray: Uint8Array | null = null;
 
   constructor() { }
 
@@ -72,12 +77,43 @@ class BrowserRecordingService implements RecordingServiceInterface {
     return this.audioUrl;
   }
 
+  getAudioLevel(): number {
+    if (!this.analyser || !this.dataArray) return 0;
+    this.analyser.getByteFrequencyData(this.dataArray);
+    
+    // Calculate average volume
+    let sum = 0;
+    for (let i = 0; i < this.dataArray.length; i++) {
+      sum += this.dataArray[i];
+    }
+    const average = sum / this.dataArray.length;
+    
+    // Normalize to 0-100 range (approximate)
+    // 255 is max byte value
+    return Math.min(100, (average / 128) * 100);
+  }
+
   async startRecording(): Promise<void> {
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
       this.mediaRecorder = new MediaRecorder(this.stream);
       this.audioChunks = [];
+
+      // Set up audio analysis
+      try {
+        const AudioContextClass = (window.AudioContext || (window as any).webkitAudioContext);
+        if (AudioContextClass) {
+          this.audioContext = new AudioContextClass();
+          const source = this.audioContext.createMediaStreamSource(this.stream);
+          this.analyser = this.audioContext.createAnalyser();
+          this.analyser.fftSize = 256;
+          source.connect(this.analyser);
+          this.dataArray = new Uint8Array(this.analyser.frequencyBinCount);
+        }
+      } catch (e) {
+        console.error("Failed to setup audio analysis:", e);
+      }
 
       this.mediaRecorder.addEventListener('dataavailable', (event) => {
         if (event.data.size > 0) {
@@ -280,6 +316,14 @@ class BrowserRecordingService implements RecordingServiceInterface {
           if (this.stream) {
             this.stream.getTracks().forEach(track => track.stop());
             this.stream = null;
+          }
+
+          // Cleanup audio context
+          if (this.audioContext) {
+            this.audioContext.close();
+            this.audioContext = null;
+            this.analyser = null;
+            this.dataArray = null;
           }
 
           this._isRecording = false;

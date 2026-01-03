@@ -761,7 +761,10 @@ Plan:
                 {selectedPatient && ` • ${selectedPatient.firstName} ${selectedPatient.lastName || ''}`}
               </p>
               <Separator className="my-4" />
-              <div className="prose max-w-none">
+              <div className="prose max-w-none relative">
+                <div className="absolute top-0 right-0 text-[10px] font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100">
+                  AI Generated - Verify Accuracy
+                </div>
                 {noteText.split('\n').map((line, i) => (
                   <p key={i} className="mb-2 whitespace-pre-wrap">{line}</p>
                 ))}
@@ -1478,6 +1481,13 @@ Post-procedure:
                               {message.role === 'user' && <UserPlus className="h-4 w-4" />}
                             </div>
                             <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                            {message.role === 'assistant' && (
+                              <div className="mt-1">
+                                <span className="text-[10px] text-amber-600 bg-amber-50 px-1 py-0.5 rounded border border-amber-100">
+                                  AI Generated - Verify Accuracy
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}

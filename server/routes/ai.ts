@@ -182,6 +182,23 @@ aiRouter.post('/generate-soap', async (req, res) => {
       });
     }
 
+    // Fetch patient history if ID is available
+    let patientHistory = "";
+    if (patientInfo?.id && !isNaN(parseInt(patientInfo.id))) {
+      try {
+        const notes = await dbStorage.getMedicalNotesByPatient(parseInt(patientInfo.id));
+        if (notes && notes.length > 0) {
+          // Get last 3 notes for context
+          const recent = notes.slice(0, 3).map(n => 
+            `Date: ${new Date(n.createdAt).toLocaleDateString()}\nTitle: ${n.title}\nSummary: ${n.content.substring(0, 300)}...`
+          ).join('\n---\n');
+          patientHistory = `\n\nPATIENT MEDICAL HISTORY (Recent Visits):\n${recent}`;
+        }
+      } catch (err) {
+        console.error('Error fetching patient history for context', err);
+      }
+    }
+
     // Check for mock mode (Demo)
     log(`Checking mock mode: env key=${process.env.OPENAI_API_KEY}`);
     if (process.env.OPENAI_API_KEY === 'sk-dummy-key' || !process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'mock') {
@@ -560,6 +577,8 @@ E. **Language**
 
 VISIT METADATA (use this to determine visit type and location):
 ${JSON.stringify(visitMeta, null, 2)}
+${patientHistory}
+${patientHistory}
 
 IMPORTANT: Use the 'location' and 'inputSource' fields above to determine visit context:
 - If inputSource is 'voice' or location is 'In-Office' → This is an in-person office visit

@@ -487,189 +487,44 @@ export default function Notes() {
     </div>
   );
 
-  // Step 2: Patient Summary & Note Type Selection
+  // Step 2: Note Type Selection (Simplified)
   const renderPatientSummary = () => (
     <div className="space-y-6">
-      <div className="text-center mb-4">
-        <h2 className="text-2xl font-bold">Pre-Consultation Summary</h2>
-        <p className="text-muted-foreground">Review patient history and select consultation type</p>
+      <div className="text-center mb-8">
+        <h2 className="text-2xl font-bold">Select Consultation Type</h2>
+        <p className="text-muted-foreground">Choose the type of medical note to create for {selectedPatient?.firstName}</p>
       </div>
-
-      {/* Patient Quick Info */}
-      {selectedPatient && (
-        <Card className="bg-primary/5 border-primary/20">
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-12 w-12 bg-primary rounded-full flex items-center justify-center text-primary-foreground font-bold text-lg">
-                  {selectedPatient.firstName[0]}{(selectedPatient.lastName || '')[0] || ''}
-                </div>
-                <div>
-                  <h3 className="font-semibold">{selectedPatient.firstName} {selectedPatient.lastName || ''}</h3>
-                  <p className="text-sm text-muted-foreground">Age {calculateAge(selectedPatient.dateOfBirth)} • {selectedPatient.email}</p>
-                </div>
-              </div>
-              <Button variant="ghost" size="sm" onClick={() => setWorkflowStep(1)}>
-                Change Patient
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Previous Notes Summary */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <History className="h-4 w-4" />
-              Previous Notes ({patientMedicalNotes?.length || 0})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {patientMedicalNotes && patientMedicalNotes.length > 0 ? (
-              <ScrollArea className="h-[200px]">
-                <div className="space-y-2">
-                  {patientMedicalNotes.slice(0, 5).map((note) => (
-                    <div key={note.id} className="p-2 bg-muted/50 rounded text-sm">
-                      <div className="font-medium truncate">{note.title || 'Untitled Note'}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {format(new Date(note.createdAt), 'MMM d, yyyy')}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            ) : (
-              <div className="h-[200px] flex items-center justify-center text-muted-foreground text-sm">
-                <div className="text-center">
-                  <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>No previous notes</p>
-                  <p className="text-xs">This is a new patient</p>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Intake Forms Summary */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <FileCheck className="h-4 w-4" />
-              Intake Forms ({patientIntakeForms?.length || 0})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {patientIntakeForms && patientIntakeForms.length > 0 ? (
-              <ScrollArea className="h-[200px]">
-                <div className="space-y-2">
-                  {patientIntakeForms.map((form: any) => (
-                    <div key={form.id} className="p-2 bg-muted/50 rounded text-sm">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium">Intake Form</span>
-                        <Badge variant={form.status === 'completed' ? 'default' : 'secondary'} className="text-xs">
-                          {form.status}
-                        </Badge>
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {format(new Date(form.createdAt), 'MMM d, yyyy')}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            ) : (
-              <div className="h-[200px] flex items-center justify-center text-muted-foreground text-sm">
-                <div className="text-center">
-                  <ClipboardList className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>No intake forms</p>
-                  <p className="text-xs">Send form from Patient Intake</p>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Medical History */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Activity className="h-4 w-4" />
-              Medical History
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-[200px]">
-              {selectedPatient?.medicalHistory ? (
-                <p className="text-sm whitespace-pre-wrap">{selectedPatient.medicalHistory}</p>
-              ) : (
-                <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
-                  <div className="text-center">
-                    <Stethoscope className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p>No medical history</p>
-                    <p className="text-xs">Add via patient profile</p>
-                  </div>
-                </div>
-              )}
-            </ScrollArea>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* AI Suggestion */}
-      {aiSuggestion && (
-        <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20">
-          <CardContent className="pt-4">
-            <div className="flex items-start gap-3">
-              <Sparkles className="h-5 w-5 text-amber-500 mt-0.5" />
-              <div>
-                <p className="font-medium text-amber-800 dark:text-amber-200">AI Suggestion</p>
-                <p className="text-sm text-amber-700 dark:text-amber-300">{aiSuggestion}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Note Type Selection */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Select Consultation Type
-          </CardTitle>
-          <CardDescription>Choose the type of medical note to create</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+      <Card className="border-none shadow-none bg-transparent">
+        <CardContent className="p-0">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {NOTE_TYPES.map((type) => (
               <button
                 key={type.id}
                 onClick={() => setSelectedNoteType(type.id)}
                 className={cn(
-                  "p-4 rounded-lg border-2 text-left transition-all hover:shadow-md",
+                  "p-6 rounded-xl border-2 text-left transition-all duration-200 hover:shadow-lg bg-card",
                   selectedNoteType === type.id
-                    ? "border-primary bg-primary/5"
+                    ? "border-primary bg-primary/5 shadow-md scale-[1.02]"
                     : "border-muted hover:border-primary/50"
                 )}
               >
-                <div className="text-2xl mb-2">{type.icon}</div>
-                <div className="font-medium text-sm">{type.name}</div>
-                <div className="text-xs text-muted-foreground mt-1">{type.description}</div>
-                <Badge variant="outline" className="mt-2 text-xs">{type.specialty}</Badge>
+                <div className="text-3xl mb-3">{type.icon}</div>
+                <div className="font-semibold text-base mb-1">{type.name}</div>
+                <div className="text-xs text-muted-foreground">{type.description}</div>
               </button>
             ))}
           </div>
         </CardContent>
       </Card>
 
-      <div className="flex justify-between">
-        <Button variant="outline" onClick={() => setWorkflowStep(1)}>
+      <div className="flex justify-between mt-8">
+        <Button variant="outline" size="lg" onClick={() => setWorkflowStep(1)}>
           <ChevronLeft className="mr-2 h-4 w-4" />
           Back
         </Button>
-        <Button size="lg" onClick={() => setWorkflowStep(3)} className="px-8">
+        <Button size="lg" onClick={() => setWorkflowStep(3)} className="px-8 h-12 text-lg">
           Start Consultation
           <ArrowRight className="ml-2 h-4 w-4" />
         </Button>
@@ -697,35 +552,7 @@ export default function Notes() {
                   <Mic className="h-5 w-5" />
                   Consultation Input
                 </span>
-                <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-                  <DialogTrigger asChild>
-                    <Button variant="ghost" size="sm">
-                      <Settings className="h-4 w-4" />
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-2xl">
-                    <DialogHeader>
-                      <DialogTitle>Prompt Settings</DialogTitle>
-                      <DialogDescription>Customize prompts for {NOTE_TYPES.find(t => t.id === selectedNoteType)?.name}</DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <div>
-                        <Label>System Prompt</Label>
-                        <Textarea value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} rows={4} />
-                      </div>
-                      <div>
-                        <Label>Template Content</Label>
-                        <Textarea value={templateContent} onChange={(e) => setTemplateContent(e.target.value)} rows={6} />
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setIsSettingsOpen(false)}>Cancel</Button>
-                      <Button onClick={() => saveCustomPromptMutation.mutate({ noteType: selectedNoteType, systemPrompt, templateContent })}>
-                        Save
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
+                {/* Settings removed for simplicity */}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -763,7 +590,7 @@ export default function Notes() {
               <Separator />
 
               {/* Note Editor */}
-              <div>
+              <div className="hidden">
                 <Label>Note Title</Label>
                 <Input
                   value={noteTitle}
@@ -804,36 +631,67 @@ export default function Notes() {
               </CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col h-[calc(100%-60px)]">
-              <ScrollArea className="flex-1 mb-4">
-                <div className="space-y-3">
-                  <div className="p-3 bg-primary/10 rounded-lg">
-                    <p className="text-sm">Hello! I can help with medical terminology, suggest diagnoses, or answer questions about this consultation.</p>
+              <Tabs defaultValue="assistant" className="h-full flex flex-col">
+                <TabsList className="mb-4 grid grid-cols-2 w-full">
+                  <TabsTrigger value="analysis" className="text-xs sm:text-sm">
+                    Tips
+                  </TabsTrigger>
+                  <TabsTrigger value="assistant" className="text-xs sm:text-sm">Chat</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="analysis" className="flex-1 overflow-y-auto">
+                  <div className="space-y-4 pr-2">
+                    <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-800">
+                      <h4 className="font-medium text-blue-800 dark:text-blue-300 flex items-center gap-2 mb-2">
+                        <Sparkles className="h-4 w-4" />
+                        AI Analysis
+                      </h4>
+                      <p className="text-sm text-blue-700 dark:text-blue-200">
+                        {aiSuggestion || "Select a patient and start consultation to get AI insights."}
+                      </p>
+                    </div>
                   </div>
-                  {chatMessages.map((msg, i) => (
-                    <div key={i} className={cn("p-3 rounded-lg text-sm", msg.role === 'user' ? "bg-muted ml-4" : "bg-primary/10 mr-4")}>
-                      {msg.content}
-                    </div>
-                  ))}
-                  {isAssistantThinking && (
-                    <div className="p-3 bg-primary/10 rounded-lg flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="text-sm">Thinking...</span>
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
-              <div className="flex gap-2">
-                <Input
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSendChatMessage()}
-                  placeholder="Ask a question..."
-                  disabled={isAssistantThinking}
-                />
-                <Button onClick={handleSendChatMessage} disabled={!chatInput.trim() || isAssistantThinking} size="icon">
-                  <MessageSquare className="h-4 w-4" />
-                </Button>
-              </div>
+                </TabsContent>
+
+                <TabsContent value="assistant" className="flex-1 flex flex-col overflow-hidden">
+                  <div className="flex-1 overflow-y-auto space-y-4 pr-2 mb-4">
+                    {chatMessages.length === 0 ? (
+                      <div className="text-center text-muted-foreground py-8">
+                        <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                        <p className="text-sm">Ask me anything about the patient or medical guidelines.</p>
+                      </div>
+                    ) : (
+                      chatMessages.map((msg, i) => (
+                        <div key={i} className={cn("flex flex-col gap-1", msg.role === 'user' ? "items-end" : "items-start")}>
+                          <div className={cn("p-3 rounded-lg text-sm max-w-[85%]", msg.role === 'user' ? "bg-primary text-primary-foreground" : "bg-muted")}>
+                            {msg.content}
+                          </div>
+                          {msg.role === 'assistant' && (
+                             <span className="text-[10px] text-muted-foreground ml-1">AI Generated - Verify Accuracy</span>
+                          )}
+                        </div>
+                      ))
+                    )}
+                    {isAssistantThinking && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        AI is thinking...
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Input 
+                      value={chatInput} 
+                      onChange={(e) => setChatInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSendChatMessage()}
+                      placeholder="Ask AI assistant..." 
+                    />
+                    <Button size="icon" onClick={handleSendChatMessage} disabled={!chatInput.trim() || isAssistantThinking}>
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </TabsContent>
+              </Tabs>
             </CardContent>
           </Card>
         </div>
@@ -879,8 +737,11 @@ export default function Notes() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="p-4 bg-muted/30 rounded-lg">
-                <pre className="whitespace-pre-wrap text-sm font-sans">{noteText}</pre>
+              <div className="p-4 bg-muted/30 rounded-lg relative">
+                <div className="absolute top-2 right-2 text-[10px] font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100">
+                  AI Generated - Verify Accuracy
+                </div>
+                <pre className="whitespace-pre-wrap text-sm font-sans pt-4">{noteText}</pre>
               </div>
             </CardContent>
           </Card>

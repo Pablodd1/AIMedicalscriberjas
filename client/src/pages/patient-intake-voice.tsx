@@ -40,7 +40,7 @@ const formatDuration = (seconds: number): string => {
 
 // Audio waveform visualization
 const AudioWaveform: React.FC<{ level: number }> = ({ level }) => {
-  const bars = 20;
+  const bars = 12;
   const activeCount = Math.floor((level / 100) * bars);
 
   return (
@@ -51,7 +51,7 @@ const AudioWaveform: React.FC<{ level: number }> = ({ level }) => {
         return (
           <div
             key={i}
-            className={`w-1 rounded-full transition-all duration-100 ${isActive ? 'bg-red-500' : 'bg-gray-300'
+            className={`w-2 rounded-full transition-all duration-100 ${isActive ? 'bg-red-500' : 'bg-gray-300'
               }`}
             style={{ height: `${height}%` }}
           />
@@ -99,12 +99,12 @@ export default function PatientIntakeVoice() {
     };
   }, [isRecording]);
 
-  // Simulate audio level
+  // Real audio level
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isRecording) {
       interval = setInterval(() => {
-        const level = Math.random() * 100;
+        const level = recordingService.getAudioLevel();
         setAudioLevel(level);
         setHasAudioInput(level > 5);
       }, 100);
@@ -467,7 +467,10 @@ export default function PatientIntakeVoice() {
           <CardHeader className="p-4 sm:p-6">
             <CardTitle className="text-lg sm:text-xl">Voice Recording - Speak Naturally</CardTitle>
             <CardDescription className="text-sm">
-              The AI is listening and organizing your information automatically
+              The AI is listening and organizing your information automatically.
+              <span className="block mt-1 text-xs font-medium text-amber-600 bg-amber-50 w-fit px-2 py-0.5 rounded">
+                AI Generated - Verify Accuracy
+              </span>
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 sm:space-y-6 p-4 sm:p-6">
@@ -668,7 +671,10 @@ export default function PatientIntakeVoice() {
           <CardHeader className="p-6">
             <CardTitle className="text-xl">Review Your Information</CardTitle>
             <CardDescription>
-              Please verify everything is correct before submitting
+              Please verify everything is correct before submitting.
+              <span className="block mt-1 text-xs font-medium text-amber-600 bg-amber-50 w-fit px-2 py-0.5 rounded">
+                AI Generated - Verify Accuracy
+              </span>
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 p-6">
