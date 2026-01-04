@@ -59,33 +59,14 @@ import memorystore from "memorystore";
 
 const MemoryStore = memorystore(session);
 
+import fs from 'fs';
+import path from 'path';
+
+const PERSISTENCE_FILE = path.join(process.cwd(), 'mock-data.json');
+
 export class MockStorage implements IStorage {
     private users: Map<number, User> = new Map();
-    private patients: Map<number, Patient> = new Map();
-    private appointments: Map<number, Appointment> = new Map();
-    private settings: Map<string, string> = new Map();
-    private systemSettings: Map<string, any> = new Map();
-    private customNotePrompts: Map<number, CustomNotePrompt> = new Map();
-    private medicalNotes: Map<number, MedicalNote> = new Map();
-    private consultationNotes: Map<number, ConsultationNote> = new Map();
-    private invoices: Map<number, Invoice> = new Map();
-    private emailTemplates: Map<number, EmailTemplate> = new Map();
-    private intakeForms: Map<number, IntakeForm> = new Map();
-    private intakeFormResponses: Map<number, IntakeFormResponse> = new Map();
-    private recordingSessions: Map<number, RecordingSession> = new Map();
-    private devices: Map<number, Device> = new Map();
-    private bpReadings: Map<number, BpReading> = new Map();
-    private glucoseReadings: Map<number, GlucoseReading> = new Map();
-    private alertSettings: Map<number, AlertSetting> = new Map();
-    private labKnowledgeBase: Map<number, LabKnowledgeBase> = new Map();
-    private labInterpreterSettings: Map<number, LabInterpreterSettings> = new Map();
-    private labReports: Map<number, LabReport> = new Map();
-    private patientDocuments: Map<number, PatientDocument> = new Map();
-    private medicalNoteTemplates: Map<number, MedicalNoteTemplate> = new Map();
-    private medicalAlerts: Map<number, MedicalAlert> = new Map();
-    private patientActivity: Map<number, PatientActivity> = new Map();
-    private prescriptions: Map<number, Prescription> = new Map();
-    private medicalHistoryEntries: Map<number, MedicalHistoryEntry> = new Map();
+    // ... other maps ...
 
     public sessionStore: session.Store;
     private currentId: number = 1;
@@ -95,6 +76,94 @@ export class MockStorage implements IStorage {
             checkPeriod: 86400000
         });
 
+        // Try to load persisted data
+        if (this.loadData()) {
+            console.log('Loaded persisted mock data');
+        } else {
+            // Initialize defaults if no persistence found
+            this.initializeDefaults();
+        }
+    }
+
+    private saveData() {
+        const data = {
+            users: Array.from(this.users.entries()),
+            patients: Array.from(this.patients.entries()),
+            appointments: Array.from(this.appointments.entries()),
+            settings: Array.from(this.settings.entries()),
+            systemSettings: Array.from(this.systemSettings.entries()),
+            customNotePrompts: Array.from(this.customNotePrompts.entries()),
+            medicalNotes: Array.from(this.medicalNotes.entries()),
+            consultationNotes: Array.from(this.consultationNotes.entries()),
+            invoices: Array.from(this.invoices.entries()),
+            emailTemplates: Array.from(this.emailTemplates.entries()),
+            intakeForms: Array.from(this.intakeForms.entries()),
+            intakeFormResponses: Array.from(this.intakeFormResponses.entries()),
+            recordingSessions: Array.from(this.recordingSessions.entries()),
+            devices: Array.from(this.devices.entries()),
+            bpReadings: Array.from(this.bpReadings.entries()),
+            glucoseReadings: Array.from(this.glucoseReadings.entries()),
+            alertSettings: Array.from(this.alertSettings.entries()),
+            labKnowledgeBase: Array.from(this.labKnowledgeBase.entries()),
+            labInterpreterSettings: Array.from(this.labInterpreterSettings.entries()),
+            labReports: Array.from(this.labReports.entries()),
+            patientDocuments: Array.from(this.patientDocuments.entries()),
+            medicalNoteTemplates: Array.from(this.medicalNoteTemplates.entries()),
+            medicalAlerts: Array.from(this.medicalAlerts.entries()),
+            patientActivity: Array.from(this.patientActivity.entries()),
+            prescriptions: Array.from(this.prescriptions.entries()),
+            medicalHistoryEntries: Array.from(this.medicalHistoryEntries.entries()),
+            currentId: this.currentId
+        };
+        try {
+            fs.writeFileSync(PERSISTENCE_FILE, JSON.stringify(data, null, 2));
+        } catch (err) {
+            console.error('Failed to persist mock data:', err);
+        }
+    }
+
+    private loadData(): boolean {
+        try {
+            if (fs.existsSync(PERSISTENCE_FILE)) {
+                const raw = fs.readFileSync(PERSISTENCE_FILE, 'utf-8');
+                const data = JSON.parse(raw);
+                
+                this.users = new Map(data.users);
+                this.patients = new Map(data.patients);
+                this.appointments = new Map(data.appointments);
+                this.settings = new Map(data.settings);
+                this.systemSettings = new Map(data.systemSettings);
+                this.customNotePrompts = new Map(data.customNotePrompts);
+                this.medicalNotes = new Map(data.medicalNotes);
+                this.consultationNotes = new Map(data.consultationNotes);
+                this.invoices = new Map(data.invoices);
+                this.emailTemplates = new Map(data.emailTemplates);
+                this.intakeForms = new Map(data.intakeForms);
+                this.intakeFormResponses = new Map(data.intakeFormResponses);
+                this.recordingSessions = new Map(data.recordingSessions);
+                this.devices = new Map(data.devices);
+                this.bpReadings = new Map(data.bpReadings);
+                this.glucoseReadings = new Map(data.glucoseReadings);
+                this.alertSettings = new Map(data.alertSettings);
+                this.labKnowledgeBase = new Map(data.labKnowledgeBase);
+                this.labInterpreterSettings = new Map(data.labInterpreterSettings);
+                this.labReports = new Map(data.labReports);
+                this.patientDocuments = new Map(data.patientDocuments);
+                this.medicalNoteTemplates = new Map(data.medicalNoteTemplates);
+                this.medicalAlerts = new Map(data.medicalAlerts);
+                this.patientActivity = new Map(data.patientActivity);
+                this.prescriptions = new Map(data.prescriptions);
+                this.medicalHistoryEntries = new Map(data.medicalHistoryEntries);
+                this.currentId = data.currentId;
+                return true;
+            }
+        } catch (err) {
+            console.error('Failed to load mock data:', err);
+        }
+        return false;
+    }
+
+    private initializeDefaults() {
         // Create a default admin user
         this.createUser({
             username: "admin",
@@ -161,29 +230,28 @@ export class MockStorage implements IStorage {
         });
     }
 
-    async getUser(id: number): Promise<User | undefined> {
-        return this.users.get(id);
+    // Wrap modification methods to trigger save
+    private withSave<T>(promise: Promise<T>): Promise<T> {
+        return promise.then(result => {
+            this.saveData();
+            return result;
+        });
     }
-    async getUserByUsername(username: string): Promise<User | undefined> {
-        return Array.from(this.users.values()).find(u => u.username === username);
-    }
-    async getUserByEmail(email: string): Promise<User | undefined> {
-        return Array.from(this.users.values()).find(u => u.email === email);
-    }
-    async getUsers(): Promise<User[]> {
-        return Array.from(this.users.values());
-    }
+
     async createUser(user: InsertUser): Promise<User> {
         const id = this.currentId++;
         const newUser: User = { ...user, id, createdAt: new Date(), lastLogin: null, phone: user.phone || null, specialty: user.specialty || null, licenseNumber: user.licenseNumber || null, avatar: user.avatar || null, bio: user.bio || null, isActive: user.isActive ?? true, openaiApiKey: user.openaiApiKey || null, useOwnApiKey: user.useOwnApiKey ?? false };
         this.users.set(id, newUser);
+        this.saveData();
         return newUser;
     }
+
     async updateUser(id: number, updates: Partial<User>): Promise<User | undefined> {
         const user = this.users.get(id);
         if (!user) return undefined;
         const updatedUser = { ...user, ...updates };
         this.users.set(id, updatedUser);
+        this.saveData();
         return updatedUser;
     }
     async updateUserLastLogin(id: number): Promise<void> {
@@ -191,16 +259,20 @@ export class MockStorage implements IStorage {
         if (user) {
             user.lastLogin = new Date();
             this.users.set(id, user);
+            this.saveData();
         }
     }
     async deleteUser(id: number): Promise<boolean> {
-        return this.users.delete(id);
+        const result = this.users.delete(id);
+        this.saveData();
+        return result;
     }
     async updateUserApiKeySettings(id: number, useOwnApiKey: boolean): Promise<User | undefined> {
         const user = this.users.get(id);
         if (!user) return undefined;
         user.useOwnApiKey = useOwnApiKey;
         this.users.set(id, user);
+        this.saveData();
         return user;
     }
 
@@ -215,6 +287,7 @@ export class MockStorage implements IStorage {
         const id = this.currentId++;
         const newPatient: Patient = { ...patient, id, lastName: patient.lastName || null, phone: patient.phone || null, dateOfBirth: patient.dateOfBirth || null, address: patient.address || null, medicalHistory: patient.medicalHistory || null };
         this.patients.set(id, newPatient);
+        this.saveData();
         return newPatient;
     }
 
@@ -232,6 +305,7 @@ export class MockStorage implements IStorage {
         const id = this.currentId++;
         const newAppointment: Appointment = { ...appointment, id, notes: appointment.notes || null, confirmationToken: appointment.confirmationToken || null, patientConfirmed: appointment.patientConfirmed || null, roomId: appointment.roomId || null, createdAt: new Date(), updatedAt: new Date() };
         this.appointments.set(id, newAppointment);
+        this.saveData();
         return newAppointment;
     }
     async updateAppointmentStatus(id: number, status: string): Promise<Appointment | undefined> {
@@ -245,6 +319,7 @@ export class MockStorage implements IStorage {
         if (appt) {
             appt.confirmationToken = null;
             this.appointments.set(id, appt);
+            this.saveData();
         }
     }
     async updateAppointment(id: number, updates: Partial<Appointment>): Promise<Appointment | undefined> {
@@ -252,10 +327,13 @@ export class MockStorage implements IStorage {
         if (!appt) return undefined;
         const updated = { ...appt, ...updates, updatedAt: new Date() };
         this.appointments.set(id, updated);
+        this.saveData();
         return updated;
     }
     async deleteAppointment(id: number): Promise<boolean> {
-        return this.appointments.delete(id);
+        const result = this.appointments.delete(id);
+        this.saveData();
+        return result;
     }
 
     // Medical Notes
@@ -272,6 +350,7 @@ export class MockStorage implements IStorage {
         const id = this.currentId++;
         const newNote: MedicalNote = { ...note, id, consultationId: note.consultationId || null, isQuickNote: note.isQuickNote || false, template: note.template || null, signature: note.signature || null, createdAt: new Date(), updatedAt: new Date() };
         this.medicalNotes.set(id, newNote);
+        this.saveData();
         return newNote;
     }
     async getQuickNotes(doctorId: number): Promise<MedicalNote[]> {
@@ -295,6 +374,7 @@ export class MockStorage implements IStorage {
             updatedAt: new Date()
         };
         this.medicalNotes.set(id, newNote);
+        this.saveData();
         return newNote;
     }
     async createMedicalNoteFromConsultation(note: InsertMedicalNote, consultationId: number): Promise<MedicalNote> {
@@ -315,6 +395,7 @@ export class MockStorage implements IStorage {
         const id = this.currentId++;
         const newNote: ConsultationNote = { ...note, id, createdAt: new Date(), updatedAt: new Date() };
         this.consultationNotes.set(id, newNote);
+        this.saveData();
         return newNote;
     }
 
@@ -332,6 +413,7 @@ export class MockStorage implements IStorage {
         const id = this.currentId++;
         const newInvoice: Invoice = { ...invoice, id, description: invoice.description || null, createdAt: new Date(), updatedAt: new Date() };
         this.invoices.set(id, newInvoice);
+        this.saveData();
         return newInvoice;
     }
     async updateInvoiceStatus(id: number, status: string): Promise<Invoice | undefined> {
@@ -339,6 +421,7 @@ export class MockStorage implements IStorage {
         if (!invoice) return undefined;
         invoice.status = status as any;
         this.invoices.set(id, invoice);
+        this.saveData();
         return invoice;
     }
     async updateInvoicePayment(id: number, amountPaid: number): Promise<Invoice | undefined> {
@@ -346,6 +429,7 @@ export class MockStorage implements IStorage {
         if (!invoice) return undefined;
         invoice.amountPaid = amountPaid;
         this.invoices.set(id, invoice);
+        this.saveData();
         return invoice;
     }
 
@@ -363,6 +447,7 @@ export class MockStorage implements IStorage {
     }
     async saveSetting(key: string, value: string): Promise<Setting> {
         this.settings.set(key, value);
+        this.saveData();
         return { id: this.currentId++, key, value, updatedAt: new Date() };
     }
 
@@ -377,11 +462,13 @@ export class MockStorage implements IStorage {
         const existing = await this.getEmailTemplate(type);
         if (existing) {
             existing.content = content;
+            this.saveData();
             return existing;
         }
         const id = this.currentId++;
         const newTemplate = { id, type, content, updatedAt: new Date() };
         this.emailTemplates.set(id, newTemplate);
+        this.saveData();
         return newTemplate;
     }
 
@@ -399,6 +486,7 @@ export class MockStorage implements IStorage {
         const id = this.currentId++;
         const newForm: IntakeForm = { ...form, id, description: form.description || null, completedAt: null, createdAt: new Date() };
         this.intakeForms.set(id, newForm);
+        this.saveData();
         return newForm;
     }
     async updateIntakeFormStatus(id: number, status: string): Promise<IntakeForm | undefined> {
@@ -406,6 +494,7 @@ export class MockStorage implements IStorage {
         if (!form) return undefined;
         form.status = status;
         this.intakeForms.set(id, form);
+        this.saveData();
         return form;
     }
     async getIntakeFormResponses(formId: number): Promise<IntakeFormResponse[]> {
@@ -415,6 +504,7 @@ export class MockStorage implements IStorage {
         const id = this.currentId++;
         const newResponse: IntakeFormResponse = { ...response, id, submittedAt: new Date() };
         this.intakeFormResponses.set(id, newResponse);
+        this.saveData();
         return newResponse;
     }
 
@@ -435,6 +525,7 @@ export class MockStorage implements IStorage {
         const id = this.currentId++;
         const newSession: RecordingSession = { ...session, id, endTime: null, summary: null, transcript: null, notes: null, createdAt: new Date() };
         this.recordingSessions.set(id, newSession);
+        this.saveData();
         return newSession;
     }
     async updateRecordingSession(id: number, updates: Partial<RecordingSession>): Promise<RecordingSession | undefined> {
@@ -442,10 +533,13 @@ export class MockStorage implements IStorage {
         if (!session) return undefined;
         const updated = { ...session, ...updates };
         this.recordingSessions.set(id, updated);
+        this.saveData();
         return updated;
     }
     async deleteRecordingSession(id: number): Promise<boolean> {
-        return this.recordingSessions.delete(id);
+        const result = this.recordingSessions.delete(id);
+        this.saveData();
+        return result;
     }
 
     // Consultation Participants
@@ -476,6 +570,7 @@ export class MockStorage implements IStorage {
         const id = this.currentId++;
         const newDevice: Device = { ...device, id, lastSync: null, batteryLevel: null, status: 'offline', macAddress: device.macAddress || null, serialNumber: device.serialNumber || null, firmwareVersion: device.firmwareVersion || null, settings: device.settings || null, createdAt: new Date(), updatedAt: new Date() };
         this.devices.set(id, newDevice);
+        this.saveData();
         return newDevice;
     }
     async updateDevice(id: number, updates: Partial<Device>): Promise<Device | undefined> {
@@ -483,10 +578,13 @@ export class MockStorage implements IStorage {
         if (!device) return undefined;
         const updated = { ...device, ...updates };
         this.devices.set(id, updated);
+        this.saveData();
         return updated;
     }
     async deleteDevice(id: number): Promise<boolean> {
-        return this.devices.delete(id);
+        const result = this.devices.delete(id);
+        this.saveData();
+        return result;
     }
 
     // BP Readings
@@ -500,6 +598,7 @@ export class MockStorage implements IStorage {
         const id = this.currentId++;
         const newReading: BpReading = { ...reading, id, deviceId: reading.deviceId || null, notes: reading.notes || null, location: reading.location || null, position: reading.position || null, arm: reading.arm || null, irregularHeartbeat: reading.irregularHeartbeat || false, timestamp: new Date() };
         this.bpReadings.set(id, newReading);
+        this.saveData();
         return newReading;
     }
 
@@ -514,6 +613,7 @@ export class MockStorage implements IStorage {
         const id = this.currentId++;
         const newReading: GlucoseReading = { ...reading, id, deviceId: reading.deviceId || null, notes: reading.notes || null, context: reading.context || null, mealType: reading.mealType || null, timestamp: new Date() };
         this.glucoseReadings.set(id, newReading);
+        this.saveData();
         return newReading;
     }
 
@@ -525,6 +625,7 @@ export class MockStorage implements IStorage {
         const id = this.currentId++;
         const newSettings: AlertSetting = { ...settings, id, isEnabled: settings.isEnabled ?? true, sysHigh: settings.sysHigh || null, sysLow: settings.sysLow || null, diaHigh: settings.diaHigh || null, diaLow: settings.diaLow || null, glucoseHigh: settings.glucoseHigh || null, glucoseLow: settings.glucoseLow || null, emailNotification: settings.emailNotification ?? false, smsNotification: settings.smsNotification ?? false, createdAt: new Date(), updatedAt: new Date() };
         this.alertSettings.set(id, newSettings);
+        this.saveData();
         return newSettings;
     }
     async updateAlertSettings(id: number, updates: Partial<AlertSetting>): Promise<AlertSetting | undefined> {
@@ -532,6 +633,7 @@ export class MockStorage implements IStorage {
         if (!setting) return undefined;
         const updated = { ...setting, ...updates };
         this.alertSettings.set(id, updated);
+        this.saveData();
         return updated;
     }
 
@@ -546,6 +648,7 @@ export class MockStorage implements IStorage {
         const id = this.currentId++;
         const newItem: LabKnowledgeBase = { ...item, id, userId: item.userId || 1, normalRangeLow: item.normalRangeLow || null, normalRangeHigh: item.normalRangeHigh || null, unit: item.unit || null, recommendations: item.recommendations || null, confidenceScore: item.confidenceScore || null, source: item.source || null, category: item.category || null, createdAt: new Date() };
         this.labKnowledgeBase.set(id, newItem);
+        this.saveData();
         return newItem;
     }
     async updateLabKnowledgeBaseItem(id: number, updates: Partial<LabKnowledgeBase>): Promise<LabKnowledgeBase | undefined> {
@@ -553,10 +656,13 @@ export class MockStorage implements IStorage {
         if (!item) return undefined;
         const updated = { ...item, ...updates };
         this.labKnowledgeBase.set(id, updated);
+        this.saveData();
         return updated;
     }
     async deleteLabKnowledgeBaseItem(id: number): Promise<boolean> {
-        return this.labKnowledgeBase.delete(id);
+        const result = this.labKnowledgeBase.delete(id);
+        this.saveData();
+        return result;
     }
     async importLabKnowledgeBase(items: InsertLabKnowledgeBase[]): Promise<number> {
         let count = 0;
@@ -574,6 +680,7 @@ export class MockStorage implements IStorage {
                 count++;
             }
         }
+        this.saveData();
         return count;
     }
 
@@ -586,6 +693,7 @@ export class MockStorage implements IStorage {
         const id = this.currentId++;
         const newSettings = { ...settings, id, withPatientPrompt: settings.withPatientPrompt || null, withoutPatientPrompt: settings.withoutPatientPrompt || null, reportFormatInstructions: settings.reportFormatInstructions || null, createdAt: new Date() };
         this.labInterpreterSettings.set(id, newSettings);
+        this.saveData();
         return newSettings;
     }
 
@@ -603,10 +711,13 @@ export class MockStorage implements IStorage {
         const id = this.currentId++;
         const newReport: LabReport = { ...report, id, patientId: report.patientId || null, analysis: report.analysis || null, findings: report.findings || null, recommendations: report.recommendations || null, rawData: report.rawData || null, metadata: report.metadata || null, createdAt: new Date() };
         this.labReports.set(id, newReport);
+        this.saveData();
         return newReport;
     }
     async deleteLabReport(id: number): Promise<boolean> {
-        return this.labReports.delete(id);
+        const result = this.labReports.delete(id);
+        this.saveData();
+        return result;
     }
 
     // Patient Documents
@@ -620,6 +731,7 @@ export class MockStorage implements IStorage {
         const id = this.currentId++;
         const newDoc: PatientDocument = { ...doc, id, description: doc.description || null, tags: doc.tags || null, analyzed: doc.analyzed ?? false, analysisData: doc.analysisData || null, uploadedBy: doc.uploadedBy || 1, createdAt: new Date() };
         this.patientDocuments.set(id, newDoc);
+        this.saveData();
         return newDoc;
     }
     async updatePatientDocument(id: number, updates: Partial<PatientDocument>): Promise<PatientDocument | undefined> {
@@ -627,10 +739,13 @@ export class MockStorage implements IStorage {
         if (!doc) return undefined;
         const updated = { ...doc, ...updates };
         this.patientDocuments.set(id, updated);
+        this.saveData();
         return updated;
     }
     async deletePatientDocument(id: number): Promise<boolean> {
-        return this.patientDocuments.delete(id);
+        const result = this.patientDocuments.delete(id);
+        this.saveData();
+        return result;
     }
 
     // Medical Note Templates
@@ -644,6 +759,7 @@ export class MockStorage implements IStorage {
         const id = this.currentId++;
         const newTemplate: MedicalNoteTemplate = { ...template, id, systemPrompt: template.systemPrompt || null, createdAt: new Date(), updatedAt: new Date() };
         this.medicalNoteTemplates.set(id, newTemplate);
+        this.saveData();
         return newTemplate;
     }
     async updateMedicalNoteTemplate(id: number, updates: Partial<MedicalNoteTemplate>): Promise<MedicalNoteTemplate | undefined> {
@@ -651,10 +767,13 @@ export class MockStorage implements IStorage {
         if (!template) return undefined;
         const updated = { ...template, ...updates };
         this.medicalNoteTemplates.set(id, updated);
+        this.saveData();
         return updated;
     }
     async deleteMedicalNoteTemplate(id: number): Promise<boolean> {
-        return this.medicalNoteTemplates.delete(id);
+        const result = this.medicalNoteTemplates.delete(id);
+        this.saveData();
+        return result;
     }
 
     // Medical Alerts
@@ -665,6 +784,7 @@ export class MockStorage implements IStorage {
         const id = this.currentId++;
         const newAlert: MedicalAlert = { ...alert, id, description: alert.description || null, isActive: alert.isActive ?? true, severity: alert.severity || 'medium', createdAt: new Date() };
         this.medicalAlerts.set(id, newAlert);
+        this.saveData();
         return newAlert;
     }
     async updateMedicalAlert(id: number, updates: Partial<InsertMedicalAlert>): Promise<MedicalAlert | undefined> {
@@ -672,10 +792,12 @@ export class MockStorage implements IStorage {
         if (!alert) return undefined;
         const updated = { ...alert, ...updates };
         this.medicalAlerts.set(id, updated as MedicalAlert);
+        this.saveData();
         return updated as MedicalAlert;
     }
     async deleteMedicalAlert(id: number): Promise<void> {
         this.medicalAlerts.delete(id);
+        this.saveData();
     }
 
     // Patient Activity
@@ -686,10 +808,12 @@ export class MockStorage implements IStorage {
         const id = this.currentId++;
         const newActivity: PatientActivity = { ...activity, id, description: activity.description || null, metadata: activity.metadata || null, date: new Date() };
         this.patientActivity.set(id, newActivity);
+        this.saveData();
         return newActivity;
     }
     async deletePatientActivity(id: number): Promise<void> {
         this.patientActivity.delete(id);
+        this.saveData();
     }
 
     // Prescriptions
@@ -700,6 +824,7 @@ export class MockStorage implements IStorage {
         const id = this.currentId++;
         const newPrescription: Prescription = { ...prescription, id, duration: prescription.duration || null, instructions: prescription.instructions || null, notes: prescription.notes || null, isActive: prescription.isActive ?? true, refills: prescription.refills || 0, prescribedDate: new Date() };
         this.prescriptions.set(id, newPrescription);
+        this.saveData();
         return newPrescription;
     }
     async updatePrescription(id: number, updates: Partial<InsertPrescription>): Promise<Prescription | undefined> {
@@ -707,10 +832,12 @@ export class MockStorage implements IStorage {
         if (!prescription) return undefined;
         const updated = { ...prescription, ...updates };
         this.prescriptions.set(id, updated as Prescription);
+        this.saveData();
         return updated as Prescription;
     }
     async deletePrescription(id: number): Promise<void> {
         this.prescriptions.delete(id);
+        this.saveData();
     }
 
     // Medical History Entries
@@ -721,6 +848,7 @@ export class MockStorage implements IStorage {
         const id = this.currentId++;
         const newEntry: MedicalHistoryEntry = { ...entry, id, description: entry.description || null, date: entry.date || null, isActive: entry.isActive ?? true, createdAt: new Date() };
         this.medicalHistoryEntries.set(id, newEntry);
+        this.saveData();
         return newEntry;
     }
     async updateMedicalHistoryEntry(id: number, updates: Partial<InsertMedicalHistoryEntry>): Promise<MedicalHistoryEntry | undefined> {
@@ -728,10 +856,12 @@ export class MockStorage implements IStorage {
         if (!entry) return undefined;
         const updated = { ...entry, ...updates };
         this.medicalHistoryEntries.set(id, updated as MedicalHistoryEntry);
+        this.saveData();
         return updated as MedicalHistoryEntry;
     }
     async deleteMedicalHistoryEntry(id: number): Promise<void> {
         this.medicalHistoryEntries.delete(id);
+        this.saveData();
     }
 
     // Custom Note Prompts
@@ -743,11 +873,13 @@ export class MockStorage implements IStorage {
         if (existing) {
             existing.systemPrompt = prompt.systemPrompt;
             existing.template = prompt.template;
+            this.saveData();
             return existing;
         }
         const id = this.currentId++;
         const newPrompt: CustomNotePrompt = { ...prompt, id, name: prompt.name || "Untitled Prompt", isGlobal: prompt.isGlobal || false, description: prompt.description || null, isActive: prompt.isActive ?? true, version: "1.0", createdAt: new Date(), updatedAt: new Date() };
         this.customNotePrompts.set(id, newPrompt);
+        this.saveData();
         return newPrompt;
     }
     async getGlobalPrompts(): Promise<CustomNotePrompt[]> {
@@ -773,6 +905,7 @@ export class MockStorage implements IStorage {
             updatedAt: new Date()
         };
         this.customNotePrompts.set(id, newPrompt);
+        this.saveData();
         return newPrompt;
     }
     async updateGlobalPrompt(id: number, updates: Partial<CustomNotePrompt>): Promise<CustomNotePrompt | undefined> {
@@ -780,9 +913,12 @@ export class MockStorage implements IStorage {
         if (!prompt) return undefined;
         const updated = { ...prompt, ...updates, updatedAt: new Date() };
         this.customNotePrompts.set(id, updated);
+        this.saveData();
         return updated;
     }
     async deleteGlobalPrompt(id: number): Promise<boolean> {
-        return this.customNotePrompts.delete(id);
+        const result = this.customNotePrompts.delete(id);
+        this.saveData();
+        return result;
     }
 }

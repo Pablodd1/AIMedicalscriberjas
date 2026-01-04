@@ -50,10 +50,9 @@ class BrowserRecordingService implements RecordingServiceInterface {
   private _isPaused: boolean = false;
   private audioUrl: string = "";
   private stream: MediaStream | null = null;
-  // Audio analysis
-  private audioContext: AudioContext | null = null;
-  private analyser: AnalyserNode | null = null;
-  private dataArray: Uint8Array | null = null;
+  private readonly MAX_RECORDING_TIME_MS = 60 * 60 * 1000; // 1 hour safety limit
+  private recordingStartTime: number = 0;
+  private recordingTimer: any = null;
 
   constructor() { }
 
@@ -99,6 +98,15 @@ class BrowserRecordingService implements RecordingServiceInterface {
 
       this.mediaRecorder = new MediaRecorder(this.stream);
       this.audioChunks = [];
+      this.recordingStartTime = Date.now();
+
+      // Safety timer to prevent memory leaks from infinite recording
+      this.recordingTimer = setTimeout(() => {
+        if (this._isRecording) {
+          this.stopRecording();
+          notify("Recording stopped automatically after 1 hour limit.", "error");
+        }
+      }, this.MAX_RECORDING_TIME_MS);
 
       // Set up audio analysis
       try {
@@ -311,6 +319,12 @@ class BrowserRecordingService implements RecordingServiceInterface {
 
           // Transcribe the audio
           this.transcriptText = await this.transcribeAudio(audioBlob);
+
+          // Cleanup timers
+          if (this.recordingTimer) {
+            clearTimeout(this.recordingTimer);
+            this.recordingTimer = null;
+          }
 
           // Stop all tracks in the stream
           if (this.stream) {
