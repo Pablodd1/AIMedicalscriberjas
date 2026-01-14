@@ -238,6 +238,22 @@ export class MockStorage implements IStorage {
         });
     }
 
+    async getUser(id: number): Promise<User | undefined> {
+        return this.users.get(id);
+    }
+
+    async getUserByUsername(username: string): Promise<User | undefined> {
+        return Array.from(this.users.values()).find(u => u.username === username);
+    }
+
+    async getUserByEmail(email: string): Promise<User | undefined> {
+        return Array.from(this.users.values()).find(u => u.email === email);
+    }
+
+    async getUsers(): Promise<User[]> {
+        return Array.from(this.users.values());
+    }
+
     async createUser(user: InsertUser): Promise<User> {
         const id = this.currentId++;
         const newUser: User = { ...user, id, createdAt: new Date(), lastLogin: null, phone: user.phone || null, specialty: user.specialty || null, licenseNumber: user.licenseNumber || null, avatar: user.avatar || null, bio: user.bio || null, isActive: user.isActive ?? true, openaiApiKey: user.openaiApiKey || null, useOwnApiKey: user.useOwnApiKey ?? false };
@@ -282,6 +298,9 @@ export class MockStorage implements IStorage {
     }
     async getPatient(id: number): Promise<Patient | undefined> {
         return this.patients.get(id);
+    }
+    async getPatientsByIds(ids: number[]): Promise<Patient[]> {
+        return ids.map(id => this.patients.get(id)).filter((p): p is Patient => !!p);
     }
     async createPatient(patient: InsertPatient & { createdBy: number }): Promise<Patient> {
         const id = this.currentId++;
