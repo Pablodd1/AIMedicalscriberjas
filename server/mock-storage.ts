@@ -66,7 +66,32 @@ const PERSISTENCE_FILE = path.join(process.cwd(), 'mock-data.json');
 
 export class MockStorage implements IStorage {
     private users: Map<number, User> = new Map();
-    // ... other maps ...
+    private patients: Map<number, Patient> = new Map();
+    private appointments: Map<number, Appointment> = new Map();
+    private medicalNotes: Map<number, MedicalNote> = new Map();
+    private consultationNotes: Map<number, ConsultationNote> = new Map();
+    private invoices: Map<number, Invoice> = new Map();
+    private settings: Map<string, string> = new Map();
+    private emailTemplates: Map<number, EmailTemplate> = new Map();
+    private intakeForms: Map<number, IntakeForm> = new Map();
+    private intakeFormResponses: Map<number, IntakeFormResponse> = new Map();
+    private recordingSessions: Map<number, RecordingSession> = new Map();
+    private consultationParticipants: Map<number, ConsultationParticipant> = new Map();
+    private devices: Map<number, Device> = new Map();
+    private bpReadings: Map<number, BpReading> = new Map();
+    private glucoseReadings: Map<number, GlucoseReading> = new Map();
+    private alertSettings: Map<number, AlertSetting> = new Map();
+    private labKnowledgeBase: Map<number, LabKnowledgeBase> = new Map();
+    private labInterpreterSettings: Map<number, LabInterpreterSettings> = new Map();
+    private labReports: Map<number, LabReport> = new Map();
+    private patientDocuments: Map<number, PatientDocument> = new Map();
+    private medicalNoteTemplates: Map<number, MedicalNoteTemplate> = new Map();
+    private systemSettings: Map<number, SystemSetting> = new Map();
+    private medicalAlerts: Map<number, MedicalAlert> = new Map();
+    private patientActivity: Map<number, PatientActivity> = new Map();
+    private prescriptions: Map<number, Prescription> = new Map();
+    private medicalHistoryEntries: Map<number, MedicalHistoryEntry> = new Map();
+    private customNotePrompts: Map<number, CustomNotePrompt> = new Map();
 
     public sessionStore: session.Store;
     private currentId: number = 1;
@@ -282,6 +307,9 @@ export class MockStorage implements IStorage {
     }
     async getPatient(id: number): Promise<Patient | undefined> {
         return this.patients.get(id);
+    }
+    async getPatientsByIds(ids: number[]): Promise<Patient[]> {
+        return ids.map(id => this.patients.get(id)).filter((p): p is Patient => p !== undefined);
     }
     async createPatient(patient: InsertPatient & { createdBy: number }): Promise<Patient> {
         const id = this.currentId++;

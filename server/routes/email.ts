@@ -230,15 +230,17 @@ emailRouter.post("/send-patient-list", async (req: any, res) => {
     }
     
     // Get patient details for each appointment
-    const appointmentsWithPatients = await Promise.all(
-      dateAppointments.map(async (apt) => {
-        const patient = await storage.getPatient(apt.patientId);
-        return {
-          ...apt,
-          patient
-        };
-      })
-    );
+    const patientIds = [...new Set(dateAppointments.map(apt => apt.patientId))];
+    const patients = await storage.getPatientsByIds(patientIds);
+    const patientsMap = new Map(patients.map(p => [p.id, p]));
+
+    const appointmentsWithPatients = dateAppointments.map(apt => {
+      const patient = patientsMap.get(apt.patientId);
+      return {
+        ...apt,
+        patient
+      };
+    });
     
     // Sort by appointment time
     appointmentsWithPatients.sort((a, b) => 
