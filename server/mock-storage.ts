@@ -66,7 +66,31 @@ const PERSISTENCE_FILE = path.join(process.cwd(), 'mock-data.json');
 
 export class MockStorage implements IStorage {
     private users: Map<number, User> = new Map();
-    // ... other maps ...
+    private patients: Map<number, Patient> = new Map();
+    private appointments: Map<number, Appointment> = new Map();
+    private settings: Map<string, string> = new Map();
+    private systemSettings: Map<string, SystemSetting> = new Map();
+    private customNotePrompts: Map<number, CustomNotePrompt> = new Map();
+    private medicalNotes: Map<number, MedicalNote> = new Map();
+    private consultationNotes: Map<number, ConsultationNote> = new Map();
+    private invoices: Map<number, Invoice> = new Map();
+    private emailTemplates: Map<number, EmailTemplate> = new Map();
+    private intakeForms: Map<number, IntakeForm> = new Map();
+    private intakeFormResponses: Map<number, IntakeFormResponse> = new Map();
+    private recordingSessions: Map<number, RecordingSession> = new Map();
+    private devices: Map<number, Device> = new Map();
+    private bpReadings: Map<number, BpReading> = new Map();
+    private glucoseReadings: Map<number, GlucoseReading> = new Map();
+    private alertSettings: Map<number, AlertSetting> = new Map();
+    private labKnowledgeBase: Map<number, LabKnowledgeBase> = new Map();
+    private labInterpreterSettings: Map<number, LabInterpreterSettings> = new Map();
+    private labReports: Map<number, LabReport> = new Map();
+    private patientDocuments: Map<number, PatientDocument> = new Map();
+    private medicalNoteTemplates: Map<number, MedicalNoteTemplate> = new Map();
+    private medicalAlerts: Map<number, MedicalAlert> = new Map();
+    private patientActivity: Map<number, PatientActivity> = new Map();
+    private prescriptions: Map<number, Prescription> = new Map();
+    private medicalHistoryEntries: Map<number, MedicalHistoryEntry> = new Map();
 
     public sessionStore: session.Store;
     private currentId: number = 1;
@@ -340,8 +364,19 @@ export class MockStorage implements IStorage {
     async getMedicalNotes(doctorId: number): Promise<MedicalNote[]> {
         return Array.from(this.medicalNotes.values()).filter(n => n.doctorId === doctorId);
     }
-    async getMedicalNotesByPatient(patientId: number): Promise<MedicalNote[]> {
-        return Array.from(this.medicalNotes.values()).filter(n => n.patientId === patientId);
+    async getMedicalNotesByPatient(patientId: number, limit?: number): Promise<MedicalNote[]> {
+        const notes = Array.from(this.medicalNotes.values())
+            .filter(n => n.patientId === patientId)
+            // Sort by date desc to match DB behavior (though mock creates date implicitly)
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+        if (limit) {
+            return notes.slice(0, limit);
+        }
+        return notes;
+    }
+    async getMedicalNotesCountByPatient(patientId: number): Promise<number> {
+        return Array.from(this.medicalNotes.values()).filter(n => n.patientId === patientId).length;
     }
     async getMedicalNote(id: number): Promise<MedicalNote | undefined> {
         return this.medicalNotes.get(id);
@@ -449,6 +484,26 @@ export class MockStorage implements IStorage {
         this.settings.set(key, value);
         this.saveData();
         return { id: this.currentId++, key, value, updatedAt: new Date() };
+    }
+
+    // System Settings
+    async getSystemSetting(key: string): Promise<string | null> {
+        const setting = this.systemSettings.get(key);
+        return setting ? setting.settingValue : null;
+    }
+
+    async setSystemSetting(key: string, value: string | null, description?: string, updatedBy?: number): Promise<void> {
+        const existing = this.systemSettings.get(key);
+        const newSetting: SystemSetting = {
+            id: existing ? existing.id : this.currentId++,
+            settingKey: key,
+            settingValue: value,
+            description: description || null,
+            updatedBy: updatedBy || null,
+            updatedAt: new Date()
+        };
+        this.systemSettings.set(key, newSetting);
+        this.saveData();
     }
 
     // Email Templates
