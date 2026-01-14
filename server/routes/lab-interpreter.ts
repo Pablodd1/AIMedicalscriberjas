@@ -498,7 +498,7 @@ const upload = multer({
         file.originalname.endsWith('.text')) {
         cb(null, true);
       } else {
-        cb(null, true); // Allow all files for now to debug
+        cb(new Error('Invalid file type. Only Excel (.xlsx, .xls) and text files are allowed for knowledge base import.'));
       }
     } else if (file.fieldname === 'labReport') {
       // Validate PDF and image files more strictly
