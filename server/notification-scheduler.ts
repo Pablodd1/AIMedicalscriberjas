@@ -300,15 +300,18 @@ async function sendDailyPatientList(): Promise<void> {
     }
 
     // Get patient details for each appointment
-    const appointmentsWithPatients = await Promise.all(
-      todayAppointments.map(async (apt) => {
-        const patient = await storage.getPatient(apt.patientId);
-        return {
-          ...apt,
-          patient
-        };
-      })
-    );
+    // Optimize: Bulk fetch patients to avoid N+1 query problem
+    const patientIds = [...new Set(todayAppointments.map((apt: any) => apt.patientId))] as number[];
+    const patientsList = await storage.getPatientsByIds(patientIds);
+    const patientsMap = new Map(patientsList.map(p => [p.id, p]));
+
+    const appointmentsWithPatients = todayAppointments.map((apt: any) => {
+      const patient = patientsMap.get(apt.patientId);
+      return {
+        ...apt,
+        patient
+      };
+    });
 
     // Sort by appointment time
     appointmentsWithPatients.sort((a, b) =>

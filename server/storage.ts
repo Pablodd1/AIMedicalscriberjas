@@ -82,7 +82,7 @@ import {
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { db, pool } from "./db";
-import { eq, and, desc, asc } from "drizzle-orm";
+import { eq, and, desc, asc, inArray } from "drizzle-orm";
 import { MockStorage } from "./mock-storage";
 
 import { log, logError } from './logger';
@@ -102,6 +102,7 @@ export interface IStorage {
   updateUserApiKeySettings(id: number, useOwnApiKey: boolean): Promise<User | undefined>;
   getPatients(doctorId: number): Promise<Patient[]>;
   getPatient(id: number): Promise<Patient | undefined>;
+  getPatientsByIds(ids: number[]): Promise<Patient[]>;
   createPatient(patient: InsertPatient & { createdBy: number }): Promise<Patient>;
   getAppointments(doctorId: number): Promise<Appointment[]>;
   getAppointment(id: number): Promise<Appointment | undefined>;
@@ -446,6 +447,11 @@ export class DatabaseStorage implements IStorage {
   async getPatient(id: number): Promise<Patient | undefined> {
     const [patient] = await db.select().from(patients).where(eq(patients.id, id));
     return patient;
+  }
+
+  async getPatientsByIds(ids: number[]): Promise<Patient[]> {
+    if (ids.length === 0) return [];
+    return db.select().from(patients).where(inArray(patients.id, ids));
   }
 
   async createPatient(patient: InsertPatient & { createdBy: number }): Promise<Patient> {
