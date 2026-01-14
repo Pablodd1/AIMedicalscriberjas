@@ -1807,13 +1807,6 @@ JSON SCHEMA:
 
     // Note: Temporary images are cleaned up automatically in processPdfSequentially
 
-    // LOG DETAILED ANALYSIS INFO FOR DEBUGGING
-    log('=== ANALYSIS COMPLETED ===');
-    log('Extracted Text Length:', extractedText.length);
-    log('Knowledge Base Items Used:', knowledgeBase.length);
-    log('Analysis Response Length:', analysis.length);
-    log('Analysis Preview:', analysis.substring(0, 200) + '...');
-
     // Try to parse the analysis to ensure it's valid JSON
     let parsedAnalysis = null;
     try {
