@@ -14,6 +14,7 @@ import htmlDocx from 'html-docx-js';
 // PDF parsing removed - using OpenAI Vision API for better accuracy
 import {
   requireAuth,
+  requireAdmin,
   sendErrorResponse,
   sendSuccessResponse,
   asyncHandler,
@@ -1428,7 +1429,7 @@ JSON SCHEMA:
 }));
 
 // DEBUG ENDPOINT: Check analysis pipeline
-labInterpreterRouter.get('/debug/analysis', requireAuth, asyncHandler(async (req, res) => {
+labInterpreterRouter.get('/debug/analysis', requireAuth, requireAdmin, asyncHandler(async (req, res) => {
   const doctorId = (req.user as any).id;
   const settings = await handleDatabaseOperation(
     () => storage.getLabInterpreterSettings(),
