@@ -196,7 +196,7 @@ function cleanupTempImages(imagePaths: string[]) {
 
 // ULTRA-FAST PARALLEL PDF PROCESSING
 async function processPdfSequentially(pdfPath: string, openai: OpenAI): Promise<string> {
-  log('=== Starting Ultra-Fast Parallel PDF Processing ===');
+  log('Starting PDF processing...');
 
   // Step 1: Convert PDF to images with ultra-fast settings
   const tempDir = path.join(path.dirname(pdfPath), 'temp_images');
@@ -206,22 +206,16 @@ async function processPdfSequentially(pdfPath: string, openai: OpenAI): Promise<
     throw new AppError('No pages could be converted from the PDF', 400, 'PDF_CONVERSION_FAILED');
   }
 
-  log(`Successfully converted PDF to ${convertedImages.length} images`);
-
   // Step 2: Process ALL pages in parallel (no delays)
-  log('Processing ALL pages in parallel...');
   const processingPromises = convertedImages.map(async (imagePath, index) => {
     const pageNumber = index + 1;
 
     try {
-      log(`Starting parallel processing of page ${pageNumber}/${convertedImages.length}`);
       const pageText = await processImageFileFast(imagePath, openai, pageNumber, convertedImages.length);
 
       if (pageText && pageText.trim()) {
-        log(`✓ Page ${pageNumber} completed (${pageText.length} chars)`);
         return pageText;
       } else {
-        log(`⚠ Page ${pageNumber} appears blank`);
         return '';
       }
     } catch (error: any) {
@@ -240,9 +234,7 @@ async function processPdfSequentially(pdfPath: string, openai: OpenAI): Promise<
   const validTexts = allExtractedTexts.filter(text => text.trim().length > 0);
   const finalText = validTexts.join('\n\n');
 
-  log(`=== Ultra-Fast PDF Processing Complete ===`);
-  log(`Successfully processed ${validTexts.length}/${convertedImages.length} pages in parallel`);
-  log(`Total extracted text: ${finalText.length} characters`);
+  log(`Successfully processed ${validTexts.length}/${convertedImages.length} pages.`);
 
   if (!finalText.trim()) {
     throw new AppError('No text could be extracted from any page of the PDF. Please ensure the PDF contains readable content.', 400, 'NO_TEXT_EXTRACTED');
@@ -267,8 +259,6 @@ async function processImageFileFast(imagePath: string, openai: OpenAI, pageNumbe
   // Read and encode image
   const imageBuffer = fs.readFileSync(imagePath);
   const base64Image = imageBuffer.toString('base64');
-
-  log(`  → [PARALLEL] Processing page ${pageNumber} (${Math.round(imageStats.size / 1024)}KB)`);
 
   // Enhanced Vision API extraction with comprehensive medical lab data prompt
   const response = await openai.chat.completions.create({
@@ -325,9 +315,6 @@ This is page ${pageNumber} of ${totalPages}. Extract ALL content systematically 
 
   const extractedText = response.choices[0].message.content || '';
 
-  // Debug: Log what we extracted to see if the Vision API is working
-  log(`[DEBUG] Page ${pageNumber} Vision API Response:`, extractedText.substring(0, 200) + '...');
-
   // Check for Vision API failure responses
   if (extractedText.includes("I'm unable to extract text") ||
     extractedText.includes("I can't") ||
@@ -346,8 +333,6 @@ This is page ${pageNumber} of ${totalPages}. Extract ALL content systematically 
   if (extractedText.length < 100) {
     console.warn(`⚠ Page ${pageNumber} extracted very little text (${extractedText.length} chars). May need quality check.`);
   }
-
-  log(`✓ Page ${pageNumber} completed (${extractedText.length} chars)`);
 
   return `=== Page ${pageNumber} ===\n${extractedText}`;
 }
@@ -375,8 +360,6 @@ async function convertPdfToImagesFast(pdfPath: string, tempDir: string): Promise
     // Enhanced ImageMagick command for superior text extraction
     const outputPattern = path.join(tempDir, 'page-%d.png');
     const command = `convert -limit memory 1024MB -limit map 2048MB -density 300 -quality 100 -background white -alpha remove -colorspace RGB -normalize "${pdfPath}" "${outputPattern}"`;
-
-    log('Running enhanced high-quality conversion for text extraction...');
 
     // Execute with extended timeout for high-quality processing
     const { stdout, stderr } = await execAsync(command, {
@@ -408,7 +391,6 @@ async function convertPdfToImagesFast(pdfPath: string, tempDir: string): Promise
       }
     });
 
-    log(`✓ Generated ${validImages.length} high-quality images for text extraction`);
     return validImages;
 
   } catch (error: any) {
@@ -529,8 +511,6 @@ function parseExcelFile(filePath: string) {
     const worksheet = workbook.Sheets[sheetName];
     const data = xlsx.utils.sheet_to_json(worksheet);
 
-    log("Excel Data headers:", Object.keys(data[0] || {}));
-
     // Detect file format
     const isDiseasesFormat = detectDiseasesReferenceFormat(data);
 
@@ -560,46 +540,12 @@ function detectDiseasesReferenceFormat(data: any[]) {
   // This allows for various Excel file structures
   const productColumnCount = keys.filter(k => /product|supplement|peptide|formula|support|take|dosage/i.test(k)).length;
 
-  log('Format detection:', {
-    hasOrganSystem,
-    hasDiseaseState,
-    hasProductColumns,
-    productColumnCount,
-    totalColumns: keys.length,
-    columns: keys
-  });
-
   // If we have organ/disease columns OR multiple product columns OR more than 5 columns, try disease-product format
   return (hasOrganSystem || hasDiseaseState) || productColumnCount >= 1 || keys.length > 5;
 }
 
 // Parse the Disease-Product reference format
 function parseDiseaseProductReference(data: any[]) {
-  log("Processing disease-product reference format - ENHANCED AI CAPTURE");
-
-  // Enhanced analysis of file structure
-  if (data.length > 0) {
-    const allKeys = Object.keys(data[0]);
-    log("Total columns detected:", allKeys.length);
-    log("All column headers:", allKeys);
-
-    // Advanced pattern detection for your Excel structure
-    const peptideColumns = allKeys.filter(k => /peptide/i.test(k));
-    const formulaColumns = allKeys.filter(k => /formula|supplement|product|support|guard/i.test(k));
-    const dosageColumns = allKeys.filter(k => /take|dose|dosage|instruction|how.*to/i.test(k));
-    const systemColumns = allKeys.filter(k => /organ|system/i.test(k));
-    const diseaseColumns = allKeys.filter(k => /disease|state|condition/i.test(k));
-
-    log("Enhanced column analysis:", {
-      systemColumns,
-      diseaseColumns,
-      peptideColumns,
-      formulaColumns,
-      dosageColumns,
-      totalColumns: allKeys.length
-    });
-  }
-
   return data.filter(row => {
     // Skip completely empty rows
     const values = Object.values(row).filter(v => v !== null && v !== undefined && v !== '');
@@ -607,7 +553,6 @@ function parseDiseaseProductReference(data: any[]) {
   }).map((row: any) => {
     // Get ALL column keys from the row
     const allKeys = Object.keys(row);
-    log(`Processing row with ${allKeys.length} columns`);
 
     // Smart detection of organ system and disease columns
     let organSystemKey = '';
@@ -636,8 +581,6 @@ function parseDiseaseProductReference(data: any[]) {
     const organSystem = organSystemKey ? String(row[organSystemKey] || '').trim() : 'General';
     const diseaseState = diseaseStateKey ? String(row[diseaseStateKey] || '').trim() : '';
 
-    log(`Organ: ${organSystem}, Disease: ${diseaseState}`);
-
     // ENHANCED: Capture EVERY single column with intelligent categorization
     const categoryData: { [category: string]: { [key: string]: string } } = {
       peptides: {},
@@ -659,22 +602,16 @@ function parseDiseaseProductReference(data: any[]) {
       const keyLower = key.toLowerCase();
       const cleanKeyName = key.replace(/([A-Z])/g, ' $1').trim();
 
-      log(`Processing column ${index + 1}: "${key}" = "${value}"`);
-
       // Smart categorization with comprehensive pattern matching
       if (/peptide/i.test(key)) {
         categoryData.peptides[cleanKeyName] = value;
-        log(`  → Categorized as PEPTIDE: ${cleanKeyName}`);
       } else if (/formula|supplement|product|support.*formula|guard.*formula|guard$|cleanse|wash/i.test(key)) {
         categoryData.formulas[cleanKeyName] = value;
-        log(`  → Categorized as FORMULA: ${cleanKeyName}`);
       } else if (/take|dosage|dose|instruction|how.*to|daily|units|mg|ml|tsp|cap|admin/i.test(key) || /take|daily|units|mg|ml/i.test(value)) {
         categoryData.dosages[cleanKeyName] = value;
-        log(`  → Categorized as DOSAGE: ${cleanKeyName}`);
       } else {
         // Capture EVERYTHING else - no data left behind
         categoryData.additional[cleanKeyName] = value;
-        log(`  → Categorized as ADDITIONAL: ${cleanKeyName}`);
       }
     });
 
@@ -728,8 +665,6 @@ function parseDiseaseProductReference(data: any[]) {
         }
       });
     }
-
-    log(`Final recommendations length: ${fullRecommendations.length} characters`);
 
     return {
       test_name: organSystem || 'Organ System',
@@ -1096,13 +1031,10 @@ labInterpreterRouter.post('/knowledge-base/import', requireAuth, upload.single('
 
     try {
       // Read the text file with better error handling
-      log("Reading text file:", req.file.path);
       const textContent = fs.readFileSync(req.file.path, 'utf-8');
-      log("Text file content sample:", textContent.substring(0, 100));
 
       // Parse the text content
       data = parseTextFormat(textContent);
-      log(`Parsed ${data.length} entries from text file`);
 
       // Clean up uploaded file when done
       fs.unlinkSync(req.file.path);
@@ -1261,10 +1193,6 @@ labInterpreterRouter.post('/analyze', requireAuth, asyncHandler(async (req, res)
     systemPrompt += `\n\nFORMAT INSTRUCTIONS: ${settings.report_format_instructions}`;
   }
 
-  log('Using prompts for analysis:');
-  log('System Prompt:', systemPrompt.substring(0, 100) + '...');
-  log('User Prompt:', userPrompt.substring(0, 100) + '...');
-
   let patient = null;
   if (withPatient && patientId) {
     // Get patient info if needed
@@ -1278,7 +1206,6 @@ labInterpreterRouter.post('/analyze', requireAuth, asyncHandler(async (req, res)
       userPrompt = userPrompt
         .replace('${patientName}', `${patient.firstName} ${patient.lastName}`)
         .replace('${patientId}', patient.id.toString());
-      log('Using patient-specific prompt for:', `${patient.firstName} ${patient.lastName}`);
     }
   }
 
@@ -1316,11 +1243,6 @@ Complete Recommendations:
 ${recommendations}
 ---`;
   }).join('\n\n');
-
-  log(`Using ${knowledgeBase.length} knowledge base entries for analysis`);
-  if (knowledgeBase.length > 0) {
-    log('Sample KB entry:', knowledgeBase[0].test_name, '-', knowledgeBase[0].marker);
-  }
 
   // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
   let analysis = '';
@@ -1405,13 +1327,6 @@ JSON SCHEMA:
     );
   }
 
-  // LOG DETAILED ANALYSIS INFO FOR DEBUGGING
-  log('=== TEXT ANALYSIS COMPLETED ===');
-  log('Report Text Length:', reportText.length);
-  log('Knowledge Base Items Used:', knowledgeBase.length);
-  log('Analysis Response Length:', analysis.length);
-  log('Analysis Preview:', analysis.substring(0, 200) + '...');
-
   // Analysis is now in natural language format based on system prompts
   log('Analysis returned in natural language format');
 
@@ -1468,10 +1383,6 @@ labInterpreterRouter.post('/test/simple-analysis', requireAuth, asyncHandler(asy
     'Failed to get knowledge base'
   );
 
-  log('=== SIMPLE TEST ANALYSIS ===');
-  log('Test Data:', testData);
-  log('Knowledge Base Items:', knowledgeBase.length);
-
   // Create a simple prompt for testing
   const testPrompt = `You are analyzing lab data. Based on the knowledge base provided, give recommendations ONLY from the available products.
 
@@ -1495,8 +1406,6 @@ Respond with JSON: {"summary": "brief analysis", "recommendations": [{"product":
     });
 
     const testAnalysis = response.choices[0].message.content || '';
-
-    log('Test Analysis Result:', testAnalysis);
 
     sendSuccessResponse(res, {
       testAnalysis,
@@ -1535,23 +1444,17 @@ labInterpreterRouter.post('/extract-text', requireAuth, upload.single('file'), a
     throw new AppError(errorMessage, 503, 'NO_API_KEY');
   }
 
-  log(`Extracting text from: ${req.file.originalname} (${Math.round(req.file.size / 1024)}KB)`);
-
   let extractedText = '';
 
   try {
     // Process file based on type
     if (req.file.mimetype === 'application/pdf') {
-      log('Extracting text from PDF...');
       extractedText = await processPdfSequentially(req.file.path, openai);
     } else if (req.file.mimetype.startsWith('image/')) {
-      log('Extracting text from image...');
       extractedText = await processImageFileFast(req.file.path, openai, 1, 1);
     } else {
       throw new AppError('Unsupported file type. Please upload a PDF or image file.', 400, 'UNSUPPORTED_FILE_TYPE');
     }
-
-    log(`Text extraction completed. Length: ${extractedText.length} characters`);
 
     if (!extractedText.trim()) {
       throw new AppError('No text could be extracted from the uploaded file. Please ensure the file contains readable content.', 400, 'NO_TEXT_EXTRACTED');
@@ -1613,27 +1516,19 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
     throw new AppError(errorMessage, 503, 'NO_API_KEY');
   }
 
-  log('OpenAI client created successfully for user:', doctorId);
-
   let extractedText = '';
   let analysis = '';
   let convertedImages: string[] = [];
 
   try {
-    log(`Processing uploaded file: ${req.file.originalname} (${Math.round(req.file.size / 1024)}KB)`);
-
     // ULTRA-FAST PROCESSING: Process PDF and images with speed optimization
     if (req.file.mimetype === 'application/pdf') {
-      log('Starting ULTRA-FAST PDF processing...');
       extractedText = await processPdfSequentially(req.file.path, openai);
     } else if (req.file.mimetype.startsWith('image/')) {
-      log('Processing single image with fast mode...');
       extractedText = await processImageFileFast(req.file.path, openai, 1, 1);
     } else {
       throw new AppError('Unsupported file type. Please upload a PDF or image file.', 400, 'UNSUPPORTED_FILE_TYPE');
     }
-
-    log(`Text extraction completed. Total length: ${extractedText.length} characters`);
 
     if (!extractedText.trim()) {
       throw new AppError('No text could be extracted from the uploaded file. Please ensure the file contains readable lab report data.', 400, 'NO_TEXT_EXTRACTED');
@@ -1653,10 +1548,6 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
     const systemPrompt = settings?.system_prompt || 'You are a medical lab report interpreter. Your task is to analyze lab test results and provide insights based on medical knowledge and the provided reference ranges. Be factual and evidence-based in your analysis.';
     let userPrompt = settings?.without_patient_prompt || 'Analyze this lab report. Provide a detailed interpretation of abnormal values, possible implications, and recommendations.';
 
-    log('Using prompts for upload analysis:');
-    log('System Prompt:', systemPrompt.substring(0, 100) + '...');
-    log('User Prompt:', userPrompt.substring(0, 100) + '...');
-
     let patient = null;
     if (withPatient === 'true' && patientId) {
       // Get patient info if needed
@@ -1670,7 +1561,6 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
         userPrompt = userPrompt
           .replace('${patientName}', `${patient.firstName} ${patient.lastName}`)
           .replace('${patientId}', patient.id.toString());
-        log('Using patient-specific prompt for upload analysis:', `${patient.firstName} ${patient.lastName}`);
       }
     }
 
@@ -1708,11 +1598,6 @@ Complete Recommendations:
 ${recommendations}
 ---`;
     }).join('\n\n');
-
-    log(`Using ${knowledgeBase.length} knowledge base entries for upload analysis`);
-    if (knowledgeBase.length > 0) {
-      log('Sample KB entry:', knowledgeBase[0].test_name, '-', knowledgeBase[0].marker);
-    }
 
     // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
     try {
@@ -1807,19 +1692,10 @@ JSON SCHEMA:
 
     // Note: Temporary images are cleaned up automatically in processPdfSequentially
 
-    // LOG DETAILED ANALYSIS INFO FOR DEBUGGING
-    log('=== ANALYSIS COMPLETED ===');
-    log('Extracted Text Length:', extractedText.length);
-    log('Knowledge Base Items Used:', knowledgeBase.length);
-    log('Analysis Response Length:', analysis.length);
-    log('Analysis Preview:', analysis.substring(0, 200) + '...');
-
     // Try to parse the analysis to ensure it's valid JSON
     let parsedAnalysis = null;
     try {
       parsedAnalysis = JSON.parse(analysis);
-      log('Analysis successfully parsed as JSON');
-      log('Analysis structure:', Object.keys(parsedAnalysis));
     } catch (parseError) {
       logError('Analysis is not valid JSON:', parseError);
     }
