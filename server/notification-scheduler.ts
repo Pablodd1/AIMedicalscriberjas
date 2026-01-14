@@ -214,28 +214,29 @@ async function getAppointmentsForDate(date: Date): Promise<any[]> {
     // Get all doctors
     const doctors = await storage.getUsers();
     const doctorUsers = doctors.filter((u: any) => u.role === 'doctor');
+    const doctorMap = new Map(doctorUsers.map(d => [d.id, d]));
 
-    // Get all appointments for all doctors
-    const allAppointments: any[] = [];
-    for (const doctor of doctorUsers) {
-      const appointments = await storage.getAppointments(doctor.id);
+    // Define date range for the entire day
+    const startDate = new Date(date);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(date);
+    endDate.setHours(23, 59, 59, 999);
 
-      // Filter for the specified date
-      const dateAppointments = appointments.filter(apt => {
-        const aptDate = new Date(apt.date);
-        return aptDate.toDateString() === date.toDateString();
+    // Get appointments for the date range in a single query
+    const appointments = await storage.getAppointmentsForDateRange(startDate, endDate);
+
+    // Filter appointments for known doctors and add doctor info
+    const allAppointments = appointments
+      .filter(apt => doctorMap.has(apt.doctorId))
+      .map(apt => {
+        const doctor = doctorMap.get(apt.doctorId)!;
+        return {
+          ...apt,
+          doctorId: doctor.id,
+          doctorName: doctor.name,
+          doctorEmail: doctor.email
+        };
       });
-
-      // Add doctor info to each appointment
-      const appointmentsWithDoctor = dateAppointments.map(apt => ({
-        ...apt,
-        doctorId: doctor.id,
-        doctorName: doctor.name,
-        doctorEmail: doctor.email
-      }));
-
-      allAppointments.push(...appointmentsWithDoctor);
-    }
 
     return allAppointments;
   } catch (error) {
