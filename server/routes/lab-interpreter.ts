@@ -253,7 +253,7 @@ async function processPdfSequentially(pdfPath: string, openai: OpenAI): Promise<
 
 // Process a single image file with OpenAI Vision API
 // ULTRA-FAST Image Processing with minimal tokens
-async function processImageFileFast(imagePath: string, openai: OpenAI, pageNumber: number, totalPages: number): Promise<string> {
+export async function processImageFileFast(imagePath: string, openai: OpenAI, pageNumber: number, totalPages: number): Promise<string> {
   // Quick validation
   if (!fs.existsSync(imagePath)) {
     throw new Error(`Image file not found: ${imagePath}`);
@@ -265,7 +265,7 @@ async function processImageFileFast(imagePath: string, openai: OpenAI, pageNumbe
   }
 
   // Read and encode image
-  const imageBuffer = fs.readFileSync(imagePath);
+  const imageBuffer = await fs.promises.readFile(imagePath);
   const base64Image = imageBuffer.toString('base64');
 
   log(`  → [PARALLEL] Processing page ${pageNumber} (${Math.round(imageStats.size / 1024)}KB)`);
