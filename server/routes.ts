@@ -1459,19 +1459,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const doctorId = req.user!.id;
 
-      const recordings = await storage.getRecordingSessions(doctorId);
-
-      // Get patient details for each recording
-      const recordingsWithPatients = await Promise.all(
-        recordings.map(async (recording) => {
-          const patient = await storage.getPatient(recording.patientId);
-          return {
-            ...recording,
-            patient: patient || null
-          };
-        })
-      );
-
+      // 🚀 PERFORMANCE OPTIMIZATION: Use optimized single query instead of N+1
+      const recordingsWithPatients = await storage.getRecordingSessionsWithPatients(doctorId);
       res.json(recordingsWithPatients);
     } catch (error) {
       logError('Error fetching recording sessions:', error, { requestId: req.id });

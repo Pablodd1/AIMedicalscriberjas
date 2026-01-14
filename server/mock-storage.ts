@@ -66,7 +66,31 @@ const PERSISTENCE_FILE = path.join(process.cwd(), 'mock-data.json');
 
 export class MockStorage implements IStorage {
     private users: Map<number, User> = new Map();
-    // ... other maps ...
+    private patients: Map<number, Patient> = new Map();
+    private appointments: Map<number, Appointment> = new Map();
+    private medicalNotes: Map<number, MedicalNote> = new Map();
+    private consultationNotes: Map<number, ConsultationNote> = new Map();
+    private invoices: Map<number, Invoice> = new Map();
+    private settings: Map<string, string> = new Map();
+    private emailTemplates: Map<number, EmailTemplate> = new Map();
+    private intakeForms: Map<number, IntakeForm> = new Map();
+    private intakeFormResponses: Map<number, IntakeFormResponse> = new Map();
+    private recordingSessions: Map<number, RecordingSession> = new Map();
+    private devices: Map<number, Device> = new Map();
+    private bpReadings: Map<number, BpReading> = new Map();
+    private glucoseReadings: Map<number, GlucoseReading> = new Map();
+    private alertSettings: Map<number, AlertSetting> = new Map();
+    private labKnowledgeBase: Map<number, LabKnowledgeBase> = new Map();
+    private labInterpreterSettings: Map<number, LabInterpreterSettings> = new Map();
+    private labReports: Map<number, LabReport> = new Map();
+    private patientDocuments: Map<number, PatientDocument> = new Map();
+    private medicalNoteTemplates: Map<number, MedicalNoteTemplate> = new Map();
+    private systemSettings: Map<string, string> = new Map();
+    private medicalAlerts: Map<number, MedicalAlert> = new Map();
+    private patientActivity: Map<number, PatientActivity> = new Map();
+    private prescriptions: Map<number, Prescription> = new Map();
+    private medicalHistoryEntries: Map<number, MedicalHistoryEntry> = new Map();
+    private customNotePrompts: Map<number, CustomNotePrompt> = new Map();
 
     public sessionStore: session.Store;
     private currentId: number = 1;
@@ -236,6 +260,50 @@ export class MockStorage implements IStorage {
             this.saveData();
             return result;
         });
+    }
+
+    async getUser(id: number): Promise<User | undefined> {
+        return this.users.get(id);
+    }
+
+    async getUserByUsername(username: string): Promise<User | undefined> {
+        return Array.from(this.users.values()).find(u => u.username === username);
+    }
+
+    async getUserByEmail(email: string): Promise<User | undefined> {
+        return Array.from(this.users.values()).find(u => u.email === email);
+    }
+
+    async getUsers(): Promise<User[]> {
+        return Array.from(this.users.values());
+    }
+
+    async getUserApiKey(id: number): Promise<string | null> {
+        const user = this.users.get(id);
+        return user?.openaiApiKey || null;
+    }
+
+    async updateUserApiKey(id: number, apiKey: string | null): Promise<User | undefined> {
+        const user = this.users.get(id);
+        if (!user) return undefined;
+        const updatedUser = { ...user, openaiApiKey: apiKey };
+        this.users.set(id, updatedUser);
+        this.saveData();
+        return updatedUser;
+    }
+
+    // System Settings methods needed by IStorage interface
+    async getSystemSetting(key: string): Promise<string | null> {
+        return this.systemSettings.get(key) || null;
+    }
+
+    async setSystemSetting(key: string, value: string | null, description?: string, updatedBy?: number): Promise<void> {
+        if (value === null) {
+            this.systemSettings.delete(key);
+        } else {
+            this.systemSettings.set(key, value);
+        }
+        this.saveData();
     }
 
     async createUser(user: InsertUser): Promise<User> {
@@ -511,6 +579,13 @@ export class MockStorage implements IStorage {
     // Recording Sessions
     async getRecordingSessions(doctorId: number): Promise<RecordingSession[]> {
         return Array.from(this.recordingSessions.values()).filter(s => s.doctorId === doctorId);
+    }
+    async getRecordingSessionsWithPatients(doctorId: number): Promise<(RecordingSession & { patient: Patient | null })[]> {
+        const sessions = await this.getRecordingSessions(doctorId);
+        return Promise.all(sessions.map(async (session) => {
+            const patient = await this.getPatient(session.patientId);
+            return { ...session, patient: patient || null };
+        }));
     }
     async getRecordingSessionsByPatient(patientId: number): Promise<RecordingSession[]> {
         return Array.from(this.recordingSessions.values()).filter(s => s.patientId === patientId);

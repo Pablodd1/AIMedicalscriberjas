@@ -1,0 +1,147 @@
+{
+  "users": [
+    [
+      1,
+      {
+        "username": "admin",
+        "password": "7765d034b6e047cb28c78951e4c04c794ec1781713a9bddb6b1fbb2a3fba3e8fb407075297a194ab8cadc5ee6a336bfaa4a95e31661f4d81534c3b1ef468a6ca.031b5a2f420b44c810123e1372db98a5",
+        "name": "System Administrator",
+        "role": "administrator",
+        "email": "admin@aims.medical",
+        "isActive": true,
+        "phone": null,
+        "specialty": null,
+        "licenseNumber": null,
+        "avatar": null,
+        "bio": null,
+        "openaiApiKey": null,
+        "useOwnApiKey": false,
+        "id": 1,
+        "createdAt": "2026-01-14T19:42:54.696Z",
+        "lastLogin": null
+      }
+    ]
+  ],
+  "patients": [
+    [
+      2,
+      {
+        "firstName": "Jane",
+        "lastName": "Doe",
+        "email": "jane@example.com",
+        "phone": "555-0101",
+        "dateOfBirth": "1985-05-15",
+        "address": "123 Main St",
+        "medicalHistory": null,
+        "createdBy": 1,
+        "id": 2
+      }
+    ],
+    [
+      3,
+      {
+        "firstName": "John",
+        "lastName": "Smith",
+        "email": "john@example.com",
+        "phone": "555-0102",
+        "dateOfBirth": "1970-10-20",
+        "address": "456 Oak Ave",
+        "medicalHistory": null,
+        "createdBy": 1,
+        "id": 3
+      }
+    ],
+    [
+      6,
+      {
+        "firstName": "Test",
+        "lastName": "Patient",
+        "email": "test@patient.com",
+        "phone": "1234567890",
+        "createdBy": 1,
+        "id": 6,
+        "dateOfBirth": null,
+        "address": null,
+        "medicalHistory": null
+      }
+    ]
+  ],
+  "appointments": [
+    [
+      4,
+      {
+        "patientId": 1,
+        "doctorId": 1,
+        "date": "2026-01-15T19:42:54.699Z",
+        "reason": "Annual Checkup",
+        "status": "scheduled",
+        "notes": null,
+        "confirmationToken": null,
+        "patientConfirmed": null,
+        "roomId": null,
+        "id": 4,
+        "createdAt": "2026-01-14T19:42:54.699Z",
+        "updatedAt": "2026-01-14T19:42:54.699Z"
+      }
+    ],
+    [
+      5,
+      {
+        "patientId": 2,
+        "doctorId": 1,
+        "date": "2026-01-16T19:42:54.700Z",
+        "reason": "Follow-up",
+        "status": "scheduled",
+        "notes": null,
+        "confirmationToken": null,
+        "patientConfirmed": null,
+        "roomId": null,
+        "id": 5,
+        "createdAt": "2026-01-14T19:42:54.700Z",
+        "updatedAt": "2026-01-14T19:42:54.700Z"
+      }
+    ]
+  ],
+  "settings": [],
+  "systemSettings": [],
+  "customNotePrompts": [],
+  "medicalNotes": [],
+  "consultationNotes": [],
+  "invoices": [],
+  "emailTemplates": [],
+  "intakeForms": [],
+  "intakeFormResponses": [],
+  "recordingSessions": [
+    [
+      7,
+      {
+        "roomId": "test_room",
+        "patientId": 6,
+        "doctorId": 1,
+        "startTime": "2026-01-14T19:42:54.702Z",
+        "status": "completed",
+        "recordingType": "audio",
+        "id": 7,
+        "endTime": null,
+        "summary": null,
+        "transcript": null,
+        "notes": null,
+        "createdAt": "2026-01-14T19:42:54.702Z"
+      }
+    ]
+  ],
+  "devices": [],
+  "bpReadings": [],
+  "glucoseReadings": [],
+  "alertSettings": [],
+  "labKnowledgeBase": [],
+  "labInterpreterSettings": [],
+  "labReports": [],
+  "patientDocuments": [],
+  "medicalNoteTemplates": [],
+  "medicalAlerts": [],
+  "patientActivity": [],
+  "prescriptions": [],
+  "medicalHistoryEntries": [],
+  "currentId": 8
+}
