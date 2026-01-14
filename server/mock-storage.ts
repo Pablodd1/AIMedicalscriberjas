@@ -295,6 +295,12 @@ export class MockStorage implements IStorage {
     async getAppointments(doctorId: number): Promise<Appointment[]> {
         return Array.from(this.appointments.values()).filter(a => a.doctorId === doctorId);
     }
+    async getAppointmentsForDateRange(startDate: Date, endDate: Date): Promise<Appointment[]> {
+        return Array.from(this.appointments.values()).filter(a => {
+            const date = new Date(a.date);
+            return date >= startDate && date <= endDate;
+        });
+    }
     async getAppointment(id: number): Promise<Appointment | undefined> {
         return this.appointments.get(id);
     }
