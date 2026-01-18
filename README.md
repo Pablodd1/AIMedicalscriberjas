@@ -43,6 +43,34 @@ Preferred communication style: Simple, everyday language.
 - **Security**: HIPAA compliance, encrypted data, secure sessions, CSRF protection, secure file uploads, parameterized queries.
 - **Error Handling**: Centralized error management, structured error responses, authentication middleware, database error handling, OpenAI-specific error processing, Zod schema validation.
 
+## Testing
+
+The project includes a comprehensive test suite covering both unit tests for backend logic and End-to-End (E2E) tests for critical user flows.
+
+### Running Tests
+
+1. **Unit Tests** (Backend logic, MockStorage):
+   ```bash
+   npm test
+   ```
+   Uses Vitest.
+
+2. **E2E Tests** (User flows, Frontend + Backend integration):
+   ```bash
+   npx playwright test
+   ```
+   Uses Playwright. Automatically starts the dev server.
+
+### Test Coverage
+- **Unit Tests**:
+  - `MockStorage` CRUD operations
+  - Logging utilities
+- **E2E Tests**:
+  - **Authentication**: Login (demo/credential), Logout, Protected routes
+  - **Patient Management**: Create patient, List patients, Navigation
+  - **Quick Notes**: Create note, AI generation, Saving
+  - **Lab Interpreter**: Navigation, Upload UI
+
 ## External Dependencies
 
 - **Database**: @neondatabase/serverless, drizzle-orm

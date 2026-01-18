@@ -27,7 +27,7 @@ monitoringRouter.get("/devices/:patientId", authenticate, async (req: Request, r
     res.json(devices);
   } catch (error: unknown) {
     logError("Error fetching devices:", error);
-    res.status(500).json({ message: "Failed to fetch devices" });
+    res.status(500).json({ message: "Failed to fetch devices", error: (error as Error).message });
   }
 });
 
@@ -42,9 +42,9 @@ monitoringRouter.get("/device/:id", authenticate, async (req, res) => {
     }
     
     res.json(device);
-  } catch (error) {
+  } catch (error: unknown) {
     logError("Error fetching device:", error);
-    res.status(500).json({ message: "Failed to fetch device" });
+    res.status(500).json({ message: "Failed to fetch device", error: (error as Error).message });
   }
 });
 
@@ -54,9 +54,9 @@ monitoringRouter.post("/device", authenticate, async (req, res) => {
     const validatedData = insertDeviceSchema.parse(req.body);
     const device = await storage.createDevice(validatedData);
     res.status(201).json(device);
-  } catch (error) {
+  } catch (error: unknown) {
     logError("Error creating device:", error);
-    res.status(400).json({ message: "Failed to create device", error: error.message });
+    res.status(500).json({ message: "Failed to create device", error: (error as Error).message });
   }
 });
 
@@ -71,9 +71,9 @@ monitoringRouter.patch("/device/:id", authenticate, async (req, res) => {
     }
     
     res.json(device);
-  } catch (error) {
+  } catch (error: unknown) {
     logError("Error updating device:", error);
-    res.status(400).json({ message: "Failed to update device", error: error.message });
+    res.status(400).json({ message: "Failed to update device", error: (error as Error).message });
   }
 });
 
@@ -88,9 +88,9 @@ monitoringRouter.delete("/device/:id", authenticate, async (req, res) => {
     }
     
     res.json({ message: "Device deleted successfully" });
-  } catch (error) {
+  } catch (error: unknown) {
     logError("Error deleting device:", error);
-    res.status(500).json({ message: "Failed to delete device" });
+    res.status(500).json({ message: "Failed to delete device", error: (error as Error).message });
   }
 });
 
@@ -101,9 +101,9 @@ monitoringRouter.get("/bp-readings/:patientId", authenticate, async (req, res) =
     const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
     const readings = await storage.getBpReadings(patientId, limit);
     res.json(readings);
-  } catch (error) {
+  } catch (error: unknown) {
     logError("Error fetching BP readings:", error);
-    res.status(500).json({ message: "Failed to fetch BP readings" });
+    res.status(500).json({ message: "Failed to fetch BP readings", error: (error as Error).message });
   }
 });
 
@@ -114,9 +114,9 @@ monitoringRouter.get("/bp-readings/device/:deviceId", authenticate, async (req, 
     const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
     const readings = await storage.getBpReadingsByDevice(deviceId, limit);
     res.json(readings);
-  } catch (error) {
+  } catch (error: unknown) {
     logError("Error fetching BP readings:", error);
-    res.status(500).json({ message: "Failed to fetch BP readings" });
+    res.status(500).json({ message: "Failed to fetch BP readings", error: (error as Error).message });
   }
 });
 
@@ -126,9 +126,9 @@ monitoringRouter.post("/bp-reading", authenticate, async (req, res) => {
     const validatedData = insertBpReadingSchema.parse(req.body);
     const reading = await storage.createBpReading(validatedData);
     res.status(201).json(reading);
-  } catch (error) {
+  } catch (error: unknown) {
     logError("Error creating BP reading:", error);
-    res.status(400).json({ message: "Failed to create BP reading", error: error.message });
+    res.status(500).json({ message: "Failed to create reading", error: (error as Error).message });
   }
 });
 
@@ -139,9 +139,9 @@ monitoringRouter.get("/glucose-readings/:patientId", authenticate, async (req, r
     const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
     const readings = await storage.getGlucoseReadings(patientId, limit);
     res.json(readings);
-  } catch (error) {
+  } catch (error: unknown) {
     logError("Error fetching glucose readings:", error);
-    res.status(500).json({ message: "Failed to fetch glucose readings" });
+    res.status(500).json({ message: "Failed to fetch glucose readings", error: (error as Error).message });
   }
 });
 
@@ -152,9 +152,9 @@ monitoringRouter.get("/glucose-readings/device/:deviceId", authenticate, async (
     const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
     const readings = await storage.getGlucoseReadingsByDevice(deviceId, limit);
     res.json(readings);
-  } catch (error) {
+  } catch (error: unknown) {
     logError("Error fetching glucose readings:", error);
-    res.status(500).json({ message: "Failed to fetch glucose readings" });
+    res.status(500).json({ message: "Failed to fetch glucose readings", error: (error as Error).message });
   }
 });
 
@@ -164,9 +164,9 @@ monitoringRouter.post("/glucose-reading", authenticate, async (req, res) => {
     const validatedData = insertGlucoseReadingSchema.parse(req.body);
     const reading = await storage.createGlucoseReading(validatedData);
     res.status(201).json(reading);
-  } catch (error) {
+  } catch (error: unknown) {
     logError("Error creating glucose reading:", error);
-    res.status(400).json({ message: "Failed to create glucose reading", error: error.message });
+    res.status(500).json({ message: "Failed to create reading", error: (error as Error).message });
   }
 });
 
@@ -182,9 +182,9 @@ monitoringRouter.get("/alert-settings/:patientId/:deviceType", authenticate, asy
     }
     
     res.json(settings);
-  } catch (error) {
+  } catch (error: unknown) {
     logError("Error fetching alert settings:", error);
-    res.status(500).json({ message: "Failed to fetch alert settings" });
+    res.status(500).json({ message: "Failed to fetch alert settings", error: (error as Error).message });
   }
 });
 
@@ -194,9 +194,9 @@ monitoringRouter.post("/alert-settings", authenticate, async (req, res) => {
     const validatedData = insertAlertSettingSchema.parse(req.body);
     const settings = await storage.saveAlertSettings(validatedData);
     res.status(201).json(settings);
-  } catch (error) {
+  } catch (error: unknown) {
     logError("Error saving alert settings:", error);
-    res.status(400).json({ message: "Failed to save alert settings", error: error.message });
+    res.status(500).json({ message: "Failed to create settings", error: (error as Error).message });
   }
 });
 
@@ -211,8 +211,8 @@ monitoringRouter.patch("/alert-settings/:id", authenticate, async (req, res) => 
     }
     
     res.json(settings);
-  } catch (error) {
+  } catch (error: unknown) {
     logError("Error updating alert settings:", error);
-    res.status(400).json({ message: "Failed to update alert settings", error: error.message });
+    res.status(500).json({ message: "Failed to update settings", error: (error as Error).message });
   }
 });

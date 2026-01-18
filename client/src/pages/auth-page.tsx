@@ -60,7 +60,7 @@ export default function AuthPage() {
   const [activeTab, setActiveTab] = useState("login");
   const { user, loginMutation, registerMutation, bypassLoginMutation, demoLoginMutation } = useAuth();
   const [showDeactivationAlert, setShowDeactivationAlert] = useState(false);
-  const allowBypassLogin = import.meta.env.VITE_ENABLE_LOGIN_BYPASS === 'true';
+  const allowBypassLogin = (import.meta as any).env.VITE_ENABLE_LOGIN_BYPASS === 'true';
   const [deactivationMessage, setDeactivationMessage] = useState("");
   
   // Login form
@@ -254,7 +254,7 @@ export default function AuthPage() {
                             variant="ghost"
                             className="w-full text-xs"
                             disabled={bypassLoginMutation.isPending}
-                            onClick={() => bypassLoginMutation.mutate()}
+                            onClick={() => bypassLoginMutation.mutate({})}
                           >
                             {bypassLoginMutation.isPending ? "Connecting..." : "Quick Skip (default role)"}
                           </Button>

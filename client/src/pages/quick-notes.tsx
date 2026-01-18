@@ -196,7 +196,7 @@ Plan:
   }, [mode, selectedPatient, patientMedicalNotes]);
 
   // Fetch note templates
-  const { data: templates } = useQuery({
+  const { data: templates } = useQuery<any[]>({
     queryKey: ["/api/note-templates", selectedNoteType],
     enabled: isSettingsOpen,
   });

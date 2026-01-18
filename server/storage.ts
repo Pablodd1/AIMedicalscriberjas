@@ -183,8 +183,9 @@ export interface IStorage {
   getLabKnowledgeBaseItem(id: number): Promise<LabKnowledgeBase | undefined>;
   createLabKnowledgeBaseItem(item: InsertLabKnowledgeBase): Promise<LabKnowledgeBase>;
   updateLabKnowledgeBaseItem(id: number, updates: Partial<LabKnowledgeBase>): Promise<LabKnowledgeBase | undefined>;
-  deleteLabKnowledgeBaseItem(id: number): Promise<boolean>;
-  importLabKnowledgeBase(items: InsertLabKnowledgeBase[]): Promise<number>;
+  deleteLabKnowledgeBaseItem(id: number, userId?: number): Promise<boolean>;
+  importLabKnowledgeBase(items: InsertLabKnowledgeBase[], userId: number): Promise<number>;
+  clearUserLabKnowledgeBase(userId: number): Promise<number>;
 
   // Lab Interpreter Settings methods
   getLabInterpreterSettings(): Promise<LabInterpreterSettings | undefined>;
@@ -387,7 +388,7 @@ export class DatabaseStorage implements IStorage {
       // First, check if user exists
       const user = await this.getUser(id);
       if (!user) {
-        log('User not found for deletion:', id);
+        log('User not found for deletion:', { id });
         return false;
       }
 
@@ -434,7 +435,7 @@ export class DatabaseStorage implements IStorage {
 
       return success;
     } catch (error) {
-      logError('Error deleting user:', error);
+      logError('Error deleting user:', error, { id });
       return false;
     }
   }
@@ -994,26 +995,26 @@ export class DatabaseStorage implements IStorage {
 
   // Blood pressure readings
   async getBpReadings(patientId: number, limit?: number): Promise<BpReading[]> {
-    let query = db.select()
+    const query = db.select()
       .from(bpReadings)
       .where(eq(bpReadings.patientId, patientId))
       .orderBy(desc(bpReadings.timestamp));
 
     if (limit) {
-      query = query.limit(limit);
+      return query.limit(limit);
     }
 
     return query;
   }
 
   async getBpReadingsByDevice(deviceId: number, limit?: number): Promise<BpReading[]> {
-    let query = db.select()
+    const query = db.select()
       .from(bpReadings)
       .where(eq(bpReadings.deviceId, deviceId))
       .orderBy(desc(bpReadings.timestamp));
 
     if (limit) {
-      query = query.limit(limit);
+      return query.limit(limit);
     }
 
     return query;
@@ -1032,26 +1033,26 @@ export class DatabaseStorage implements IStorage {
 
   // Glucose readings
   async getGlucoseReadings(patientId: number, limit?: number): Promise<GlucoseReading[]> {
-    let query = db.select()
+    const query = db.select()
       .from(glucoseReadings)
       .where(eq(glucoseReadings.patientId, patientId))
       .orderBy(desc(glucoseReadings.timestamp));
 
     if (limit) {
-      query = query.limit(limit);
+      return query.limit(limit);
     }
 
     return query;
   }
 
   async getGlucoseReadingsByDevice(deviceId: number, limit?: number): Promise<GlucoseReading[]> {
-    let query = db.select()
+    const query = db.select()
       .from(glucoseReadings)
       .where(eq(glucoseReadings.deviceId, deviceId))
       .orderBy(desc(glucoseReadings.timestamp));
 
     if (limit) {
-      query = query.limit(limit);
+      return query.limit(limit);
     }
 
     return query;
@@ -1085,7 +1086,7 @@ export class DatabaseStorage implements IStorage {
   async saveAlertSettings(settingsData: InsertAlertSetting): Promise<AlertSetting> {
     // Check if settings already exist for this patient and device type
     const existing = await this.getAlertSettings(
-      settingsData.patientId,
+      settingsData.patientId as number,
       settingsData.deviceType as string
     );
 
@@ -1145,13 +1146,12 @@ export class DatabaseStorage implements IStorage {
 
   async getLabKnowledgeBaseItem(id: number, userId?: number): Promise<LabKnowledgeBase | undefined> {
     try {
-      let query = db.select().from(labKnowledgeBase).where(eq(labKnowledgeBase.id, id));
-
+      const conditions = [eq(labKnowledgeBase.id, id)];
       if (userId) {
-        query = query.where(eq(labKnowledgeBase.userId, userId));
+        conditions.push(eq(labKnowledgeBase.userId, userId));
       }
 
-      const [item] = await query;
+      const [item] = await db.select().from(labKnowledgeBase).where(and(...conditions));
       return item;
     } catch (error) {
       logError("Error fetching lab knowledge base item:", error);
@@ -1171,18 +1171,18 @@ export class DatabaseStorage implements IStorage {
 
   async updateLabKnowledgeBaseItem(id: number, updates: Partial<LabKnowledgeBase>, userId?: number): Promise<LabKnowledgeBase | undefined> {
     try {
-      let query = db
+      const conditions = [eq(labKnowledgeBase.id, id)];
+      if (userId) {
+        conditions.push(eq(labKnowledgeBase.userId, userId));
+      }
+
+      const [updated] = await db
         .update(labKnowledgeBase)
         .set({
           ...updates
         })
-        .where(eq(labKnowledgeBase.id, id));
-
-      if (userId) {
-        query = query.where(eq(labKnowledgeBase.userId, userId));
-      }
-
-      const [updated] = await query.returning();
+        .where(and(...conditions))
+        .returning();
       return updated;
     } catch (error) {
       logError("Error updating lab knowledge base item:", error);
@@ -1192,14 +1192,13 @@ export class DatabaseStorage implements IStorage {
 
   async deleteLabKnowledgeBaseItem(id: number, userId?: number): Promise<boolean> {
     try {
-      let query = db.delete(labKnowledgeBase).where(eq(labKnowledgeBase.id, id));
-
+      const conditions = [eq(labKnowledgeBase.id, id)];
       if (userId) {
-        query = query.where(eq(labKnowledgeBase.userId, userId));
+        conditions.push(eq(labKnowledgeBase.userId, userId));
       }
 
-      const result = await query;
-      return result.rowCount > 0;
+      const result = await db.delete(labKnowledgeBase).where(and(...conditions));
+      return (result.rowCount || 0) > 0;
     } catch (error) {
       logError("Error deleting lab knowledge base item:", error);
       return false;
@@ -1214,7 +1213,7 @@ export class DatabaseStorage implements IStorage {
         userId
       }));
 
-      const result = await db.insert(labKnowledgeBase).values(itemsWithUserId).returning();
+      const result = await db.insert(labKnowledgeBase).values(itemsWithUserId as any).returning();
       return result.length;
     } catch (error) {
       logError("Error importing lab knowledge base:", error);
@@ -1253,8 +1252,7 @@ export class DatabaseStorage implements IStorage {
         const [updated] = await db
           .update(labInterpreterSettings)
           .set({
-            ...settings,
-            updatedAt: new Date()
+          ...settings
           })
           .where(eq(labInterpreterSettings.id, existingSettings.id))
           .returning();
@@ -1302,7 +1300,7 @@ export class DatabaseStorage implements IStorage {
       return await db
         .select()
         .from(medicalNoteTemplates)
-        .where(eq(medicalNoteTemplates.type, type))
+        .where(eq(medicalNoteTemplates.type, type as any))
         .orderBy(asc(medicalNoteTemplates.createdAt));
     } catch (error) {
       logError("Error fetching medical note templates by type:", error);
@@ -1358,7 +1356,7 @@ export class DatabaseStorage implements IStorage {
       const result = await db
         .delete(medicalNoteTemplates)
         .where(eq(medicalNoteTemplates.id, id));
-      return result.rowCount > 0;
+      return (result.rowCount || 0) > 0;
     } catch (error) {
       logError("Error deleting medical note template:", error);
       return false;
@@ -1415,7 +1413,7 @@ export class DatabaseStorage implements IStorage {
   async deleteLabReport(id: number): Promise<boolean> {
     try {
       const result = await db.delete(labReports).where(eq(labReports.id, id));
-      return result.rowCount > 0;
+      return (result.rowCount || 0) > 0;
     } catch (error) {
       logError("Error deleting lab report:", error);
       return false;
@@ -1481,7 +1479,7 @@ export class DatabaseStorage implements IStorage {
       const result = await db
         .delete(patientDocuments)
         .where(eq(patientDocuments.id, id));
-      return result.rowCount > 0;
+      return (result.rowCount || 0) > 0;
     } catch (error) {
       logError("Error deleting patient document:", error);
       return false;

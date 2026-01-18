@@ -187,7 +187,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Patients routes
   app.get("/api/patients", requireAuth, asyncHandler(async (req, res) => {
     const patients = await handleDatabaseOperation(
-      () => storage.getPatients(req.user.id),
+      () => storage.getPatients(req.user!.id),
       'Failed to fetch patients'
     );
     sendSuccessResponse(res, patients);
@@ -220,7 +220,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const patient = await handleDatabaseOperation(
       () => storage.createPatient({
         ...validation.data,
-        createdBy: req.user.id,
+        createdBy: req.user!.id,
       }),
       'Failed to create patient'
     );
@@ -326,7 +326,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Create patient
           const patient = await storage.createPatient({
             ...validation.data,
-            createdBy: req.user.id,
+            createdBy: req.user!.id,
           });
           successfulImports.push({
             row: i + 2,
@@ -358,7 +358,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }, `Successfully imported ${successfulImports.length} of ${rawData.length} patients`, 200);
 
     } catch (error) {
-      logError('Error processing Excel file:', error, { requestId: req.id });
+      logError('Error processing Excel file:', error, { requestId: (req as any).id });
       throw new AppError(
         error instanceof Error ? error.message : 'Failed to process Excel file',
         400,
@@ -370,7 +370,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Appointments routes
   app.get("/api/appointments", requireAuth, asyncHandler(async (req, res) => {
     const appointments = await handleDatabaseOperation(
-      () => storage.getAppointments(req.user.id),
+      () => storage.getAppointments(req.user!.id),
       'Failed to fetch appointments'
     );
     sendSuccessResponse(res, appointments);
@@ -397,7 +397,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const appointment = await handleDatabaseOperation(
       () => storage.createAppointment({
         ...validation.data,
-        doctorId: req.user.id,
+        doctorId: req.user!.id,
         confirmationToken,
       }),
       'Failed to create appointment'
@@ -430,7 +430,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
       }
     } catch (emailError) {
-      logError('Failed to send confirmation email:', emailError, { requestId: req.id });
+      logError('Failed to send confirmation email:', emailError, { requestId: (req as any).id });
       // Don't fail the request if email fails
     }
 
@@ -504,7 +504,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
       }
     } catch (emailError) {
-      logError('Failed to send rescheduled email:', emailError, { requestId: req.id });
+      logError('Failed to send rescheduled email:', emailError, { requestId: (req as any).id });
       // Don't fail the request if email fails
     }
 
@@ -555,7 +555,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
       }
     } catch (emailError) {
-      logError('Failed to send cancellation email:', emailError, { requestId: req.id });
+      logError('Failed to send cancellation email:', emailError, { requestId: (req as any).id });
       // Don't fail the request if email fails
     }
 
@@ -565,7 +565,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Medical Notes routes
   app.get("/api/medical-notes", requireAuth, asyncHandler(async (req, res) => {
     const notes = await handleDatabaseOperation(
-      () => storage.getMedicalNotes(req.user.id),
+      () => storage.getMedicalNotes(req.user!.id),
       'Failed to fetch medical notes'
     );
     sendSuccessResponse(res, notes);
@@ -760,7 +760,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.send(docxBuffer);
 
     } catch (error) {
-      logError('Error generating medical note document:', error, { requestId: req.id });
+      logError('Error generating medical note document:', error, { requestId: (req as any).id });
       throw new AppError('Failed to generate document', 500, 'DOCUMENT_GENERATION_FAILED');
     }
   }));
@@ -803,7 +803,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const notes = await storage.getQuickNotes(doctorId);
       res.json(notes);
     } catch (error) {
-      logError("Error fetching quick notes:", error, { requestId: req.id });
+      logError("Error fetching quick notes:", error, { requestId: (req as any).id });
       res.status(500).json({ message: "Failed to fetch quick notes" });
     }
   });
@@ -825,7 +825,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const note = await storage.createQuickNote(quickNoteData);
       res.status(201).json(note);
     } catch (error: any) {
-      logError("Error creating quick note:", error, { requestId: req.id });
+      logError("Error creating quick note:", error, { requestId: (req as any).id });
       res.status(400).json({ message: "Failed to create quick note", error: error.message });
     }
   });
@@ -928,7 +928,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.status(201).json(medicalNote);
     } catch (error: any) {
-      logError("Error creating medical note from consultation:", error, { requestId: req.id });
+      logError("Error creating medical note from consultation:", error, { requestId: (req as any).id });
       res.status(500).json({ message: "Failed to create medical note from consultation" });
     }
   });
@@ -943,7 +943,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const templates = await storage.getMedicalNoteTemplates();
       res.json(templates);
     } catch (error) {
-      logError("Error fetching medical note templates:", error, { requestId: req.id });
+      logError("Error fetching medical note templates:", error, { requestId: (req as any).id });
       res.status(500).json({ message: "Failed to fetch medical note templates" });
     }
   });
@@ -958,7 +958,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const templates = await storage.getMedicalNoteTemplatesByType(type);
       res.json(templates);
     } catch (error) {
-      logError("Error fetching medical note templates by type:", error, { requestId: req.id });
+      logError("Error fetching medical note templates by type:", error, { requestId: (req as any).id });
       res.status(500).json({ message: "Failed to fetch medical note templates" });
     }
   });
@@ -978,7 +978,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(template);
     } catch (error) {
-      logError("Error fetching medical note template:", error, { requestId: req.id });
+      logError("Error fetching medical note template:", error, { requestId: (req as any).id });
       res.status(500).json({ message: "Failed to fetch medical note template" });
     }
   });
@@ -997,7 +997,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const template = await storage.createMedicalNoteTemplate(validation.data);
       res.status(201).json(template);
     } catch (error) {
-      logError("Error creating medical note template:", error, { requestId: req.id });
+      logError("Error creating medical note template:", error, { requestId: (req as any).id });
       res.status(500).json({ message: "Failed to create medical note template" });
     }
   });
@@ -1018,7 +1018,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updatedTemplate = await storage.updateMedicalNoteTemplate(id, req.body);
       res.json(updatedTemplate);
     } catch (error) {
-      logError("Error updating medical note template:", error, { requestId: req.id });
+      logError("Error updating medical note template:", error, { requestId: (req as any).id });
       res.status(500).json({ message: "Failed to update medical note template" });
     }
   });
@@ -1038,7 +1038,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.sendStatus(204);
     } catch (error) {
-      logError("Error deleting medical note template:", error, { requestId: req.id });
+      logError("Error deleting medical note template:", error, { requestId: (req as any).id });
       res.status(500).json({ message: "Failed to delete medical note template" });
     }
   });
@@ -1054,7 +1054,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const prompts = await storage.getCustomNotePrompts(userId);
       res.json(prompts);
     } catch (error) {
-      logError("Error fetching custom note prompts:", error, { requestId: req.id });
+      logError("Error fetching custom note prompts:", error, { requestId: (req as any).id });
       res.status(500).json({ message: "Failed to fetch custom note prompts" });
     }
   });
@@ -1085,7 +1085,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `);
       res.json(result.rows);
     } catch (error) {
-      logError("Error fetching global prompts:", error, { requestId: req.id });
+      logError("Error fetching global prompts:", error, { requestId: (req as any).id });
       // Return empty array instead of error to allow the app to function
       res.json([]);
     }
@@ -1110,7 +1110,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // If no user prompt, return null (no global prompts in current schema)
       res.json(null);
     } catch (error) {
-      logError("Error fetching custom note prompt:", error, { requestId: req.id });
+      logError("Error fetching custom note prompt:", error, { requestId: (req as any).id });
       res.status(500).json({ message: "Failed to fetch custom note prompt" });
     }
   });
@@ -1133,7 +1133,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(prompt);
     } catch (error) {
-      logError("Error saving custom note prompt:", error, { requestId: req.id });
+      logError("Error saving custom note prompt:", error, { requestId: (req as any).id });
       res.status(500).json({ message: "Failed to save custom note prompt" });
     }
   });
@@ -1149,7 +1149,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.deleteCustomNotePrompt(userId, noteType);
       res.json({ success: true });
     } catch (error) {
-      logError("Error deleting custom note prompt:", error, { requestId: req.id });
+      logError("Error deleting custom note prompt:", error, { requestId: (req as any).id });
       res.status(500).json({ message: "Failed to delete custom note prompt" });
     }
   });
@@ -1161,7 +1161,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Unauthorized" });
       }
 
-      const userId = req.user.id;
+      const userId = req.user!.id;
       const user = await storage.getUser(userId);
 
       if (!user) {
@@ -1188,7 +1188,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         maskedKey
       });
     } catch (error) {
-      logError("Error fetching user API key:", error, { requestId: req.id });
+      logError("Error fetching user API key:", error, { requestId: (req as any).id });
       res.status(500).json({ message: "Failed to fetch API key" });
     }
   });
@@ -1200,7 +1200,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { apiKey } = req.body;
-      const userId = req.user.id;
+      const userId = req.user!.id;
       const user = await storage.getUser(userId);
 
       if (!user) {
@@ -1226,7 +1226,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateUserApiKey(userId, apiKey);
       res.json({ success: true, message: "API key updated successfully" });
     } catch (error) {
-      logError("Error updating user API key:", error, { requestId: req.id });
+      logError("Error updating user API key:", error, { requestId: (req as any).id });
       res.status(500).json({ message: "Failed to update API key" });
     }
   });
@@ -1238,7 +1238,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Unauthorized" });
       }
 
-      const userId = req.user.id;
+      const userId = req.user!.id;
       const user = await storage.getUser(userId);
 
       if (!user) {
@@ -1255,7 +1255,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateUserApiKey(userId, null);
       res.json({ success: true, message: "API key removed successfully" });
     } catch (error) {
-      logError("Error removing user API key:", error, { requestId: req.id });
+      logError("Error removing user API key:", error, { requestId: (req as any).id });
       res.status(500).json({ message: "Failed to remove API key" });
     }
   });
@@ -1266,7 +1266,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Unauthorized" });
       }
 
-      const userId = req.user.id;
+      const userId = req.user!.id;
       const user = await storage.getUser(userId);
 
       if (!user) {
@@ -1283,7 +1283,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateUserApiKey(userId, null);
       res.json({ success: true, message: "API key removed successfully" });
     } catch (error) {
-      logError("Error removing user API key:", error, { requestId: req.id });
+      logError("Error removing user API key:", error, { requestId: (req as any).id });
       res.status(500).json({ message: "Failed to remove API key" });
     }
   });
@@ -1296,12 +1296,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      const doctorId = req.user.id;
+      const doctorId = req.user!.id;
 
       const invoices = await storage.getInvoices(doctorId);
       res.json(invoices);
     } catch (error) {
-      logError("Error fetching invoices:", error, { requestId: req.id });
+      logError("Error fetching invoices:", error, { requestId: (req as any).id });
       res.status(500).json({ message: "Failed to fetch invoices" });
     }
   });
@@ -1316,7 +1316,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const invoices = await storage.getInvoicesByPatient(patientId);
       res.json(invoices);
     } catch (error) {
-      logError("Error fetching patient invoices:", error, { requestId: req.id });
+      logError("Error fetching patient invoices:", error, { requestId: (req as any).id });
       res.status(500).json({ message: "Failed to fetch patient invoices" });
     }
   });
@@ -1336,7 +1336,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(invoice);
     } catch (error) {
-      logError("Error fetching invoice:", error, { requestId: req.id });
+      logError("Error fetching invoice:", error, { requestId: (req as any).id });
       res.status(500).json({ message: "Failed to fetch invoice" });
     }
   });
@@ -1346,7 +1346,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      const doctorId = req.user.id;
+      const doctorId = req.user!.id;
 
       // Create a modified request body to ensure proper types
       let dueDate;
@@ -1372,7 +1372,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           dueDate = new Date(req.body.dueDate);
         }
       } catch (e) {
-        logError("Error parsing date:", e, { requestId: req.id });
+        logError("Error parsing date:", e, { requestId: (req as any).id });
         dueDate = new Date(); // Fallback to current date
       }
 
@@ -1391,7 +1391,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const invoice = await storage.createInvoice(validation.data);
       res.status(201).json(invoice);
     } catch (error) {
-      logError("Error creating invoice:", error, { requestId: req.id });
+      logError("Error creating invoice:", error, { requestId: (req as any).id });
       res.status(500).json({ message: "Failed to create invoice" });
     }
   });
@@ -1409,7 +1409,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(invoice);
     } catch (error) {
-      logError("Error updating invoice status:", error, { requestId: req.id });
+      logError("Error updating invoice status:", error, { requestId: (req as any).id });
       res.status(500).json({ message: "Failed to update invoice status" });
     }
   });
@@ -1427,7 +1427,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(invoice);
     } catch (error) {
-      logError("Error updating invoice payment:", error, { requestId: req.id });
+      logError("Error updating invoice payment:", error, { requestId: (req as any).id });
       res.status(500).json({ message: "Failed to update invoice payment" });
     }
   });
@@ -1474,7 +1474,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(recordingsWithPatients);
     } catch (error) {
-      logError('Error fetching recording sessions:', error, { requestId: req.id });
+      logError('Error fetching recording sessions:', error, { requestId: (req as any).id });
       res.status(500).json({ message: 'Failed to fetch recording sessions' });
     }
   });
@@ -1489,7 +1489,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const doctorId = req.user!.id;
       const { roomId, patientId, startTime, endTime, duration, status, recordingType, mediaFormat } = req.body;
 
-      log('Creating recording session:', { requestId: req.id, roomId, patientId, duration, recordingType, mediaFormat });
+      log('Creating recording session:', { requestId: (req as any).id, roomId, patientId, duration, recordingType, mediaFormat });
 
       if (!roomId || !patientId) {
         return res.status(400).json({ message: 'Missing required fields: roomId and patientId' });
@@ -1509,11 +1509,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         notes: null
       });
 
-      log('Recording session created:', { requestId: req.id, recordingId: recording.id });
+      log('Recording session created:', { requestId: (req as any).id, recordingId: recording.id });
 
       res.status(200).json(recording);
     } catch (error) {
-      logError('Error creating recording session:', error, { requestId: req.id });
+      logError('Error creating recording session:', error, { requestId: (req as any).id });
       res.status(500).json({ message: 'Failed to create recording session' });
     }
   });
@@ -1542,7 +1542,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         patient: patient || { name: 'Unknown Patient' }
       });
     } catch (error) {
-      logError('Error fetching recording session:', error, { requestId: req.id });
+      logError('Error fetching recording session:', error, { requestId: (req as any).id });
       res.status(500).json({ message: 'Failed to fetch recording session' });
     }
   });
@@ -1579,18 +1579,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await FileStorage.deleteRecording(id, 'audio');
           // Update database to remove audioUrl since file is deleted
           const finalRecording = await storage.updateRecordingSession(id, { audioUrl: null });
-          log(`Deleted audio recording for session ${id} after transcription`, { requestId: req.id });
+          log(`Deleted audio recording for session ${id} after transcription`, { requestId: (req as any).id });
           // Return the updated recording with audioUrl set to null
           return res.json(finalRecording);
         } catch (error) {
-          logError(`Failed to delete audio recording for session ${id}:`, error, { requestId: req.id });
+          logError(`Failed to delete audio recording for session ${id}:`, error, { requestId: (req as any).id });
           // Don't fail the request if cleanup fails
         }
       }
 
       res.json(updatedRecording);
     } catch (error) {
-      logError('Error updating recording session:', error, { requestId: req.id });
+      logError('Error updating recording session:', error, { requestId: (req as any).id });
       res.status(500).json({ message: 'Failed to update recording session' });
     }
   });
@@ -1643,7 +1643,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
 
         if (error) {
-          logError('Deepgram transcription error:', error, { requestId: req.id });
+          logError('Deepgram transcription error:', error, { requestId: (req as any).id });
           return res.status(500).json({ message: 'Failed to transcribe video: ' + error.message });
         }
 
@@ -1664,13 +1664,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           message: 'Transcript generated successfully'
         });
       } catch (deepgramError: any) {
-        logError('Deepgram API error:', deepgramError, { requestId: req.id });
+        logError('Deepgram API error:', deepgramError, { requestId: (req as any).id });
         return res.status(500).json({
           message: 'Transcription failed: ' + (deepgramError.message || 'Unknown error')
         });
       }
     } catch (error) {
-      logError('Error generating transcript:', error, { requestId: req.id });
+      logError('Error generating transcript:', error, { requestId: (req as any).id });
       res.status(500).json({ message: 'Failed to generate transcript' });
     }
   });
@@ -1682,7 +1682,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Unauthorized" });
       }
 
-      const doctorId = req.user.id;
+      const doctorId = req.user!.id;
       const id = parseInt(req.params.id);
 
       if (isNaN(id)) {
@@ -1709,7 +1709,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.status(200).json({ message: 'Recording deleted successfully' });
     } catch (error) {
-      logError('Error deleting recording:', error, { requestId: req.id });
+      logError('Error deleting recording:', error, { requestId: (req as any).id });
       res.status(500).json({ message: 'Failed to delete recording' });
     }
   });
@@ -1728,46 +1728,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.setTimeout(1800000); // 30 minutes
 
     try {
-      log(`=== MEDIA UPLOAD START ===`, { requestId: req.id });
-      log(`Received media upload request for recording ${req.params.id}`, { requestId: req.id });
-      log(`Request authenticated: ${req.isAuthenticated()}`, { requestId: req.id });
+      log(`=== MEDIA UPLOAD START ===`, { requestId: (req as any).id });
+      log(`Received media upload request for recording ${req.params.id}`, { requestId: (req as any).id });
+      log(`Request authenticated: ${req.isAuthenticated()}`, { requestId: (req as any).id });
 
       if (!req.isAuthenticated()) {
-        log('Upload rejected: not authenticated', { requestId: req.id });
+        log('Upload rejected: not authenticated', { requestId: (req as any).id });
         return res.status(401).json({ message: "Unauthorized" });
       }
 
       const doctorId = req.user!.id;
       const recordingId = parseInt(req.params.id);
-      log(`Doctor ID: ${doctorId}, Recording ID: ${recordingId}`, { requestId: req.id });
+      log(`Doctor ID: ${doctorId}, Recording ID: ${recordingId}`, { requestId: (req as any).id });
 
       if (isNaN(recordingId)) {
-        log('Upload rejected: invalid recording ID', { requestId: req.id });
+        log('Upload rejected: invalid recording ID', { requestId: (req as any).id });
         return res.status(400).json({ message: 'Invalid recording ID format' });
       }
 
       if (!req.file) {
-        log('Upload rejected: no file uploaded', { requestId: req.id });
-        log('Request body:', { requestId: req.id, body: req.body });
+        log('Upload rejected: no file uploaded', { requestId: (req as any).id });
+        log('Request body:', { requestId: (req as any).id, body: req.body });
         return res.status(400).json({ message: 'No file uploaded' });
       }
 
-      log(`File received: ${req.file.originalname}, size: ${req.file.size} bytes (${(req.file.size / 1024 / 1024).toFixed(2)} MB)`, { requestId: req.id });
-      log(`File mimetype: ${req.file.mimetype}`, { requestId: req.id });
+      log(`File received: ${req.file.originalname}, size: ${req.file.size} bytes (${(req.file.size / 1024 / 1024).toFixed(2)} MB)`, { requestId: (req as any).id });
+      log(`File mimetype: ${req.file.mimetype}`, { requestId: (req as any).id });
 
       // Get the recording session
       const recording = await storage.getRecordingSession(recordingId);
 
       if (!recording) {
-        log(`Upload rejected: recording ${recordingId} not found in database`, { requestId: req.id });
+        log(`Upload rejected: recording ${recordingId} not found in database`, { requestId: (req as any).id });
         return res.status(404).json({ message: 'Recording not found' });
       }
 
-      log(`Recording found - Doctor ID: ${recording.doctorId}, Status: ${recording.status}`, { requestId: req.id });
+      log(`Recording found - Doctor ID: ${recording.doctorId}, Status: ${recording.status}`, { requestId: (req as any).id });
 
       // Security check: Only allow the doctor who owns the recording to upload to it
       if (recording.doctorId !== doctorId) {
-        log(`Upload rejected: doctor ${doctorId} does not own recording ${recordingId} (owner: ${recording.doctorId})`, { requestId: req.id });
+        log(`Upload rejected: doctor ${doctorId} does not own recording ${recordingId} (owner: ${recording.doctorId})`, { requestId: (req as any).id });
         return res.status(403).json({ message: 'You do not have permission to modify this recording' });
       }
 
@@ -1775,8 +1775,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const fileBuffer = req.file.buffer;
       const extension = req.file.originalname.split('.').pop() || 'webm';
 
-      log(`Starting Cloudinary upload - Type: ${mediaType}, Extension: ${extension}`, { requestId: req.id });
-      log(`Buffer size: ${fileBuffer.length} bytes`, { requestId: req.id });
+      log(`Starting Cloudinary upload - Type: ${mediaType}, Extension: ${extension}`, { requestId: (req as any).id });
+      log(`Buffer size: ${fileBuffer.length} bytes`, { requestId: (req as any).id });
 
       // Upload the file to Cloudinary
       const cloudinaryUrl = await CloudinaryStorage.uploadRecording(
@@ -1786,7 +1786,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         extension
       );
 
-      log(`✓ Successfully uploaded to Cloudinary: ${cloudinaryUrl}`, { requestId: req.id });
+      log(`✓ Successfully uploaded to Cloudinary: ${cloudinaryUrl}`, { requestId: (req as any).id });
 
       // Update the recording session with the Cloudinary URL
       const updateData: any = {};
@@ -1796,13 +1796,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updateData.videoUrl = cloudinaryUrl;
       }
 
-      log(`Updating database with ${mediaType}Url...`, { requestId: req.id });
+      log(`Updating database with ${mediaType}Url...`, { requestId: (req as any).id });
 
       // Update the database record
       await storage.updateRecordingSession(recordingId, updateData);
 
-      log(`✓ Database updated successfully`, { requestId: req.id });
-      log(`=== MEDIA UPLOAD COMPLETE ===`, { requestId: req.id });
+      log(`✓ Database updated successfully`, { requestId: (req as any).id });
+      log(`=== MEDIA UPLOAD COMPLETE ===`, { requestId: (req as any).id });
 
       res.status(200).json({
         message: `${mediaType} recording uploaded successfully`,
@@ -1810,8 +1810,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         url: cloudinaryUrl
       });
     } catch (error) {
-      logError(`❌ Error uploading recording:`, error, { requestId: req.id });
-      logError(`Error stack:`, error instanceof Error ? error.stack : 'No stack trace', { requestId: req.id });
+      logError(`❌ Error uploading recording:`, error, { requestId: (req as any).id });
+      logError(`Error stack:`, error instanceof Error ? error.stack : 'No stack trace', { requestId: (req as any).id });
       res.status(500).json({
         message: 'Failed to upload recording',
         error: error instanceof Error ? error.message : String(error)
@@ -1868,7 +1868,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       return res.send(audioBuffer);
     } catch (error) {
-      logError('Error retrieving audio recording:', error, { requestId: req.id });
+      logError('Error retrieving audio recording:', error, { requestId: (req as any).id });
       res.status(500).json({ message: 'Failed to retrieve audio recording' });
     }
   });
@@ -1922,7 +1922,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       return res.send(videoBuffer);
     } catch (error) {
-      logError('Error retrieving video recording:', error, { requestId: req.id });
+      logError('Error retrieving video recording:', error, { requestId: (req as any).id });
       res.status(500).json({ message: 'Failed to retrieve video recording' });
     }
   });
@@ -1934,7 +1934,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Unauthorized" });
       }
 
-      const doctorId = req.user.id;
+      const doctorId = req.user!.id;
       const recordingId = parseInt(req.params.id);
 
       if (isNaN(recordingId)) {
@@ -1966,7 +1966,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.status(200).json(updatedRecording);
     } catch (error) {
-      logError('Error storing video recording:', error, { requestId: req.id });
+      logError('Error storing video recording:', error, { requestId: (req as any).id });
       res.status(500).json({ message: 'Failed to store video recording' });
     }
   });
@@ -1975,7 +1975,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Unauthorized" });
     }
-    const doctorId = req.user.id;
+    const doctorId = req.user!.id;
 
     const { patientId, patientName } = req.body;
 
@@ -2005,7 +2005,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.status(201).json({ roomId, recordingSessionId: recordingSession.id });
     } catch (error) {
-      logError('Error creating telemedicine room:', error, { requestId: req.id });
+      logError('Error creating telemedicine room:', error, { requestId: (req as any).id });
       res.status(500).json({ message: 'Failed to create telemedicine room' });
     }
   });
@@ -2296,12 +2296,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      const doctorId = req.user.id;
+      const doctorId = req.user!.id;
 
       const forms = await storage.getIntakeForms(doctorId);
       res.json(forms);
     } catch (error: any) {
-      logError("Error fetching intake forms:", error, { requestId: req.id });
+      logError("Error fetching intake forms:", error, { requestId: (req as any).id });
       res.status(500).json({ message: "Failed to fetch intake forms" });
     }
   });
@@ -2330,7 +2330,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         responses
       });
     } catch (error: any) {
-      logError("Error fetching intake form:", error, { requestId: req.id });
+      logError("Error fetching intake form:", error, { requestId: (req as any).id });
       res.status(500).json({ message: "Failed to fetch intake form" });
     }
   });
@@ -2340,9 +2340,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      const doctorId = req.user.id;
+      const doctorId = req.user!.id;
 
-      log("Creating intake form with data:", { requestId: req.id, body: req.body });
+      log("Creating intake form with data:", { requestId: (req as any).id, body: req.body });
 
       // Set the authenticated doctor ID
       req.body.doctorId = doctorId;
@@ -2365,7 +2365,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const validation = insertIntakeFormSchema.safeParse(req.body);
       if (!validation.success) {
-        logError("Validation error:", validation.error.format(), { requestId: req.id });
+        logError("Validation error:", validation.error.format(), { requestId: (req as any).id });
         return res.status(400).json({
           message: "Invalid form data",
           issues: validation.error.format()
@@ -2376,7 +2376,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.status(201).json(intakeForm);
     } catch (error: any) {
-      logError("Error creating intake form:", error, { requestId: req.id });
+      logError("Error creating intake form:", error, { requestId: (req as any).id });
       res.status(500).json({ message: "Failed to create intake form: " + (error.message || "Unknown error") });
     }
   });
@@ -2409,7 +2409,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         responses
       });
     } catch (error: any) {
-      logError("Error fetching public intake form:", error, { requestId: req.id });
+      logError("Error fetching public intake form:", error, { requestId: (req as any).id });
       res.status(500).json({ message: "Failed to fetch intake form" });
     }
   });
@@ -2450,7 +2450,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.status(201).json(response);
     } catch (error: any) {
-      logError("Error saving intake form response:", error, { requestId: req.id });
+      logError("Error saving intake form response:", error, { requestId: (req as any).id });
       res.status(500).json({ message: "Failed to save response" });
     }
   });
@@ -2539,7 +2539,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ success: true, message: "Intake form data saved successfully" });
     } catch (error: any) {
-      logError("Error saving continuous intake form:", error, { requestId: req.id });
+      logError("Error saving continuous intake form:", error, { requestId: (req as any).id });
       res.status(500).json({ message: "Failed to save intake form data" });
     }
   });
@@ -2563,7 +2563,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(updatedForm);
     } catch (error: any) {
-      logError("Error completing intake form:", error, { requestId: req.id });
+      logError("Error completing intake form:", error, { requestId: (req as any).id });
       res.status(500).json({ message: "Failed to complete intake form" });
     }
   });

@@ -248,6 +248,8 @@ export const insertUserSchema = createInsertSchema(users).pick({
   avatar: true,
   bio: true,
   isActive: true,
+  openaiApiKey: true,
+  useOwnApiKey: true,
 });
 
 export const insertPatientSchema = createInsertSchema(patients).pick({
@@ -439,7 +441,7 @@ export const intakeForms = pgTable("intake_forms", {
 export const intakeFormResponses = pgTable("intake_form_responses", {
   id: serial("id").primaryKey(),
   formId: integer("form_id").references(() => intakeForms.id).notNull(),
-  questionId: integer("question_id").notNull(),
+  questionId: text("question_id").notNull(),
   question: text("question").notNull(),
   answer: text("answer"),
   answerType: text("answer_type").default("text"), // text, voice
@@ -520,6 +522,13 @@ export const insertRecordingSessionSchema = createInsertSchema(recordingSessions
   status: true,
   transcript: true,
   notes: true,
+  startTime: true,
+  endTime: true,
+  duration: true,
+  recordingType: true,
+  audioUrl: true,
+  videoUrl: true,
+  mediaFormat: true,
 });
 
 export type InsertRecordingSession = z.infer<typeof insertRecordingSessionSchema>;

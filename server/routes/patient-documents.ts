@@ -119,7 +119,7 @@ patientDocumentsRouter.post('/:patientId/upload', upload.single('document'), asy
       try {
         parsedTags = Array.isArray(tags) ? tags : JSON.parse(tags);
       } catch (e) {
-        parsedTags = tags.split(',').map(tag => tag.trim());
+        parsedTags = (tags as string).split(',').map((tag: string) => tag.trim());
       }
     }
     
@@ -286,7 +286,7 @@ patientDocumentsRouter.patch('/:patientId/documents/:documentId', async (req, re
       try {
         parsedTags = Array.isArray(tags) ? tags : JSON.parse(tags);
       } catch (e) {
-        parsedTags = tags.split(',').map(tag => tag.trim());
+        parsedTags = (tags as string).split(',').map((tag: string) => tag.trim());
       }
       updates.tags = parsedTags;
     }
