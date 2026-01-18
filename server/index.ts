@@ -75,7 +75,7 @@ app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 // Add request ID
 app.use((req, res, next) => {
   const requestId = crypto.randomBytes(16).toString('hex');
-  req.id = requestId;
+  (req as any).id = requestId;
   next();
 });
 
@@ -92,13 +92,13 @@ app.use(expressWinston.logger({
   colorize: false,
   dynamicMeta: (req, res) => {
     const meta: any = {
-      requestId: req.id,
+      requestId: (req as any).id,
       ip: req.ip,
     };
-    if (req.user) {
+    if ((req as any).user) {
       meta.user = {
-        id: req.user.id,
-        username: req.user.username,
+        id: (req as any).user.id,
+        username: (req as any).user.username,
       };
     }
     return meta;

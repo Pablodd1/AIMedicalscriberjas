@@ -50,6 +50,9 @@ class BrowserRecordingService implements RecordingServiceInterface {
   private _isPaused: boolean = false;
   private audioUrl: string = "";
   private stream: MediaStream | null = null;
+  private audioContext: any = null;
+  private analyser: any = null;
+  private dataArray: Uint8Array | null = null;
   private readonly MAX_RECORDING_TIME_MS = 60 * 60 * 1000; // 1 hour safety limit
   private recordingStartTime: number = 0;
   private recordingTimer: any = null;

@@ -13,6 +13,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export async function runMigrations(): Promise<void> {
+  // Skip migrations if no database URL is configured
+  if (!process.env.DATABASE_URL) {
+    console.log('ℹ️ Skipping database migrations (DATABASE_URL not set)');
+    return;
+  }
+
   console.log('🔄 Running database migrations...');
   
   const migrationsDir = path.join(__dirname);
