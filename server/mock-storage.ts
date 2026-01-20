@@ -316,6 +316,11 @@ export class MockStorage implements IStorage {
     async getPatients(doctorId: number): Promise<Patient[]> {
         return Array.from(this.patients.values()).filter(p => p.createdBy === doctorId);
     }
+    async getClinicPatients(location: string): Promise<Patient[]> {
+        const doctors = Array.from(this.users.values()).filter(u => u.clinicLocation === location);
+        const doctorIds = doctors.map(d => d.id);
+        return Array.from(this.patients.values()).filter(p => doctorIds.includes(p.createdBy));
+    }
     async getPatient(id: number): Promise<Patient | undefined> {
         return this.patients.get(id);
     }
@@ -341,6 +346,11 @@ export class MockStorage implements IStorage {
     }
     async getAppointment(id: number): Promise<Appointment | undefined> {
         return this.appointments.get(id);
+    }
+    async getClinicAppointments(location: string): Promise<Appointment[]> {
+        const doctors = Array.from(this.users.values()).filter(u => u.clinicLocation === location);
+        const doctorIds = doctors.map(d => d.id);
+        return Array.from(this.appointments.values()).filter(a => doctorIds.includes(a.doctorId));
     }
     async getAppointmentByToken(token: string): Promise<Appointment[]> {
         return Array.from(this.appointments.values()).filter(a => a.confirmationToken === token);

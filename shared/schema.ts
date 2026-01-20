@@ -16,7 +16,7 @@ import { z } from "zod";
 import { relations } from "drizzle-orm";
 
 // Define user roles enum
-export const userRoleEnum = pgEnum('user_role', ['doctor', 'admin', 'assistant', 'patient', 'administrator']);
+export const userRoleEnum = pgEnum('user_role', ['doctor', 'admin', 'assistant', 'patient', 'administrator', 'clinic']);
 
 // User table with enhanced fields for multi-user support
 export const users = pgTable("users", {
@@ -34,6 +34,7 @@ export const users = pgTable("users", {
   isActive: boolean("is_active").default(true),
   openaiApiKey: text("openai_api_key"),
   useOwnApiKey: boolean("use_own_api_key").default(false),
+  clinicLocation: text("clinic_location"),
   createdAt: timestamp("created_at").defaultNow(),
   lastLogin: timestamp("last_login"),
 });
@@ -250,6 +251,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
   isActive: true,
   openaiApiKey: true,
   useOwnApiKey: true,
+  clinicLocation: true,
 });
 
 export const insertPatientSchema = createInsertSchema(patients).pick({

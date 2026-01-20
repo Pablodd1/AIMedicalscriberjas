@@ -34,6 +34,7 @@ import MonitoringSystem from "@/pages/monitoring";
 import LabInterpreter from "@/pages/lab-interpreter";
 import AdminPanel from "@/pages/admin-panel";
 import AdminPrompts from "@/pages/admin-prompts";
+import KioskPage from "@/pages/kiosk";
 import ErrorBoundary from "@/components/error-boundary";
 
 // Wrapper components for each page with the MainLayout
@@ -149,6 +150,7 @@ function Router() {
       <ProtectedRoute path="/lab-interpreter" component={LabInterpreterPage} />
       <ProtectedRoute path="/admin" component={AdminPanelPage} />
       <ProtectedRoute path="/admin/prompts" component={AdminPromptsPage} />
+      <ProtectedRoute path="/kiosk" component={KioskPage} />
 
       {/* Public Routes - accessible without authentication */}
       <Route path="/login" component={AuthPage} />

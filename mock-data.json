@@ -188,6 +188,50 @@
         "openaiApiKey": null,
         "useOwnApiKey": false
       }
+    ],
+    [
+      22,
+      {
+        "username": "doc1",
+        "password": "pw",
+        "name": "Doctor 1",
+        "email": "doc1@test.com",
+        "role": "doctor",
+        "clinicLocation": "North",
+        "id": 22,
+        "createdAt": "2026-01-20T00:09:56.610Z",
+        "lastLogin": null,
+        "phone": null,
+        "specialty": null,
+        "licenseNumber": null,
+        "avatar": null,
+        "bio": null,
+        "isActive": true,
+        "openaiApiKey": null,
+        "useOwnApiKey": false
+      }
+    ],
+    [
+      23,
+      {
+        "username": "doc2",
+        "password": "pw",
+        "name": "Doctor 2",
+        "email": "doc2@test.com",
+        "role": "doctor",
+        "clinicLocation": "South",
+        "id": 23,
+        "createdAt": "2026-01-20T00:09:56.612Z",
+        "lastLogin": null,
+        "phone": null,
+        "specialty": null,
+        "licenseNumber": null,
+        "avatar": null,
+        "bio": null,
+        "isActive": true,
+        "openaiApiKey": null,
+        "useOwnApiKey": false
+      }
     ]
   ],
   "patients": [
@@ -288,9 +332,54 @@
         "createdBy": 2,
         "id": 21
       }
+    ],
+    [
+      24,
+      {
+        "firstName": "Test",
+        "email": "test@test.com",
+        "createdBy": 22,
+        "id": 24,
+        "lastName": null,
+        "phone": null,
+        "dateOfBirth": null,
+        "address": null,
+        "medicalHistory": null
+      }
     ]
   ],
-  "appointments": [],
+  "appointments": [
+    [
+      25,
+      {
+        "patientId": 24,
+        "doctorId": 22,
+        "date": "2026-01-20T00:09:56.613Z",
+        "status": "scheduled",
+        "id": 25,
+        "notes": null,
+        "confirmationToken": null,
+        "patientConfirmationStatus": "pending_confirmation",
+        "type": "in-person",
+        "reason": null
+      }
+    ],
+    [
+      26,
+      {
+        "patientId": 24,
+        "doctorId": 23,
+        "date": "2026-01-20T00:09:56.613Z",
+        "status": "scheduled",
+        "id": 26,
+        "notes": null,
+        "confirmationToken": null,
+        "patientConfirmationStatus": "pending_confirmation",
+        "type": "in-person",
+        "reason": null
+      }
+    ]
+  ],
   "settings": [],
   "systemSettings": [],
   "customNotePrompts": [],
@@ -395,5 +484,5 @@
   "patientActivity": [],
   "prescriptions": [],
   "medicalHistoryEntries": [],
-  "currentId": 22
+  "currentId": 27
 }
