@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/table";
 import { CalendarIcon, Plus, DollarSign, FileText, CreditCard, Calendar, Edit, FileCheck, Pencil, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Patient, Invoice } from "@shared/schema";
 import { format } from "date-fns";
 
@@ -91,6 +92,7 @@ export default function Billing() {
   const [showNewInvoiceForm, setShowNewInvoiceForm] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<ExtendedInvoice | null>(null);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [isMarkedAsPaid, setIsMarkedAsPaid] = useState(false);
   
   // Fetch invoices
   const { data: invoices, isLoading: isLoadingInvoices } = useQuery<ExtendedInvoice[]>({
@@ -109,6 +111,7 @@ export default function Billing() {
       amount: 0,
       amountPaid: 0,
       description: "",
+      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     },
   });
   
@@ -395,6 +398,11 @@ export default function Billing() {
           
           <Form {...invoiceForm}>
             <form onSubmit={invoiceForm.handleSubmit(onSubmitNewInvoice)} className="space-y-4">
+              <div className="rounded-md bg-muted/50 p-3">
+                <div className="text-sm font-medium text-muted-foreground">Invoice #</div>
+                <div className="text-lg font-bold">Auto-generated</div>
+              </div>
+
               <FormField
                 control={invoiceForm.control}
                 name="patientId"
@@ -430,7 +438,18 @@ export default function Billing() {
                     <FormItem>
                       <FormLabel>Total Amount ($)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="0.01" {...field} />
+                        <Input
+                          type="number"
+                          step="0.01"
+                          {...field}
+                          onChange={(e) => {
+                            field.onChange(e);
+                            if (isMarkedAsPaid) {
+                              const val = parseFloat(e.target.value);
+                              invoiceForm.setValue("amountPaid", isNaN(val) ? 0 : val);
+                            }
+                          }}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -450,6 +469,53 @@ export default function Billing() {
                     </FormItem>
                   )}
                 />
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="markAsPaid"
+                  checked={isMarkedAsPaid}
+                  onCheckedChange={(checked) => {
+                    setIsMarkedAsPaid(!!checked);
+                    if (checked) {
+                      const amount = invoiceForm.getValues("amount");
+                      invoiceForm.setValue("amountPaid", amount);
+                    } else {
+                      invoiceForm.setValue("amountPaid", 0);
+                    }
+                  }}
+                />
+                <label
+                  htmlFor="markAsPaid"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Mark as Fully Paid
+                </label>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">Status:</span>
+                {(() => {
+                  const amount = invoiceForm.watch("amount");
+                  const amountPaid = invoiceForm.watch("amountPaid") || 0;
+                  let status = "unpaid";
+                  if (amount > 0 && amountPaid >= amount) status = "paid";
+                  else if (amountPaid > 0) status = "partial";
+
+                  return (
+                    <Badge
+                      className={
+                        status === "paid"
+                          ? "bg-medical-yellow text-black"
+                          : status === "partial"
+                          ? "bg-medical-dark-blue text-white"
+                          : "border-2 border-medical-dark-blue text-medical-dark-blue"
+                      }
+                    >
+                      {status.charAt(0).toUpperCase() + status.slice(1)}
+                    </Badge>
+                  );
+                })()}
               </div>
               
               <FormField
@@ -590,9 +656,41 @@ export default function Billing() {
                   name="amountPaid"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Amount Paid ($)</FormLabel>
+                      <div className="flex justify-between items-center">
+                        <FormLabel>Amount Paid ($)</FormLabel>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-xs"
+                          onClick={() => {
+                            const totalAmount = selectedInvoice.amount / 100;
+                            field.onChange(totalAmount);
+                            paymentForm.setValue("status", "paid");
+                          }}
+                        >
+                          Pay Full Amount
+                        </Button>
+                      </div>
                       <FormControl>
-                        <Input type="number" step="0.01" {...field} />
+                        <Input
+                          type="number"
+                          step="0.01"
+                          {...field}
+                          onChange={(e) => {
+                            field.onChange(e);
+                            // Auto-update status based on amount paid
+                            const val = parseFloat(e.target.value);
+                            const totalAmount = selectedInvoice.amount / 100;
+                            if (val >= totalAmount) {
+                              paymentForm.setValue("status", "paid");
+                            } else if (val > 0) {
+                              paymentForm.setValue("status", "partial");
+                            } else {
+                              paymentForm.setValue("status", "unpaid");
+                            }
+                          }}
+                        />
                       </FormControl>
                       <FormDescription>
                         Enter the total amount that has been paid so far.
