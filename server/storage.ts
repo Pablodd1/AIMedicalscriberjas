@@ -82,7 +82,7 @@ import {
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { db, pool } from "./db";
-import { eq, and, desc, asc } from "drizzle-orm";
+import { eq, and, desc, asc, gte, lte } from "drizzle-orm";
 import { MockStorage } from "./mock-storage";
 
 import { log, logError } from './logger';
@@ -105,6 +105,7 @@ export interface IStorage {
   getPatient(id: number): Promise<Patient | undefined>;
   createPatient(patient: InsertPatient & { createdBy: number }): Promise<Patient>;
   getAppointments(doctorId: number): Promise<Appointment[]>;
+  getAppointmentsForDateRange(startDate: Date, endDate: Date): Promise<Appointment[]>;
   getAppointment(id: number): Promise<Appointment | undefined>;
   getClinicAppointments(location: string): Promise<Appointment[]>;
   getAppointmentByToken(token: string): Promise<Appointment[]>;
@@ -472,6 +473,17 @@ export class DatabaseStorage implements IStorage {
 
   async getAppointments(doctorId: number): Promise<Appointment[]> {
     return db.select().from(appointments).where(eq(appointments.doctorId, doctorId));
+  }
+
+  async getAppointmentsForDateRange(startDate: Date, endDate: Date): Promise<Appointment[]> {
+    return db.select()
+      .from(appointments)
+      .where(
+        and(
+          gte(appointments.date, startDate),
+          lte(appointments.date, endDate)
+        )
+      );
   }
 
   async getAppointment(id: number): Promise<Appointment | undefined> {
