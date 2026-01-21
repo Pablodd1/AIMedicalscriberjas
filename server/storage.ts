@@ -101,10 +101,12 @@ export interface IStorage {
   deleteUser(id: number): Promise<boolean>;
   updateUserApiKeySettings(id: number, useOwnApiKey: boolean): Promise<User | undefined>;
   getPatients(doctorId: number): Promise<Patient[]>;
+  getClinicPatients(location: string): Promise<Patient[]>;
   getPatient(id: number): Promise<Patient | undefined>;
   createPatient(patient: InsertPatient & { createdBy: number }): Promise<Patient>;
   getAppointments(doctorId: number): Promise<Appointment[]>;
   getAppointment(id: number): Promise<Appointment | undefined>;
+  getClinicAppointments(location: string): Promise<Appointment[]>;
   getAppointmentByToken(token: string): Promise<Appointment[]>;
   createAppointment(appointment: InsertAppointment): Promise<Appointment>;
   updateAppointmentStatus(id: number, status: string): Promise<Appointment | undefined>;
@@ -444,6 +446,17 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(patients).where(eq(patients.createdBy, doctorId));
   }
 
+  async getClinicPatients(location: string): Promise<Patient[]> {
+    const results = await db
+      .select({
+        patient: patients
+      })
+      .from(patients)
+      .innerJoin(users, eq(patients.createdBy, users.id))
+      .where(eq(users.clinicLocation, location));
+    return results.map(r => r.patient);
+  }
+
   async getPatient(id: number): Promise<Patient | undefined> {
     const [patient] = await db.select().from(patients).where(eq(patients.id, id));
     return patient;
@@ -464,6 +477,17 @@ export class DatabaseStorage implements IStorage {
   async getAppointment(id: number): Promise<Appointment | undefined> {
     const [appointment] = await db.select().from(appointments).where(eq(appointments.id, id));
     return appointment;
+  }
+
+  async getClinicAppointments(location: string): Promise<Appointment[]> {
+    const results = await db
+      .select({
+        appointment: appointments
+      })
+      .from(appointments)
+      .innerJoin(users, eq(appointments.doctorId, users.id))
+      .where(eq(users.clinicLocation, location));
+    return results.map(r => r.appointment);
   }
 
   async getAppointmentByToken(token: string): Promise<Appointment[]> {

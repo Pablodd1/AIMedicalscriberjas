@@ -27,6 +27,11 @@ export function ProtectedRoute({
           return <Redirect to="/login" />;
         }
 
+        // Redirect clinic users to kiosk mode if they try to access other pages
+        if (user.role === 'clinic' && path !== '/kiosk') {
+          return <Redirect to="/kiosk" />;
+        }
+
         return <Component />;
       }}
     </Route>

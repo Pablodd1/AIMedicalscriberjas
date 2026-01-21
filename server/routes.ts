@@ -110,6 +110,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         licenseNumber: 'MD-67890',
         isActive: true,
       },
+      {
+        username: 'clinic_main',
+        password: 'clinic123',
+        name: 'Main Clinic',
+        role: 'clinic' as const,
+        email: 'main@aims.medical',
+        clinicLocation: 'Main Clinic',
+        isActive: true,
+      }
     ];
 
     const results = [];
@@ -118,13 +127,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const existing = await storage.getUserByUsername(userData.username);
         if (!existing) {
           const hashedPassword = await hashPassword(userData.password);
+          // Update clinic location for default doctors if creating them
+          const userToCreate = { ...userData };
+          if (userToCreate.role === 'doctor') {
+            userToCreate.clinicLocation = 'Main Clinic';
+          }
           const user = await storage.createUser({
-            ...userData,
+            ...userToCreate,
             password: hashedPassword,
           });
           results.push({ username: userData.username, status: 'created' });
         } else {
           results.push({ username: userData.username, status: 'exists' });
+          // If existing doctor, we should update their clinic location for the demo
+          if (existing.role === 'doctor' && !existing.clinicLocation) {
+             await storage.updateUser(existing.id, { clinicLocation: 'Main Clinic' });
+             results.push({ username: userData.username, status: 'updated_location' });
+          }
         }
       } catch (error: any) {
         results.push({ username: userData.username, status: 'error', message: error.message });
@@ -186,10 +205,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Patients routes
   app.get("/api/patients", requireAuth, asyncHandler(async (req, res) => {
-    const patients = await handleDatabaseOperation(
-      () => storage.getPatients(req.user!.id),
-      'Failed to fetch patients'
-    );
+    let patients;
+    if (req.user!.role === 'clinic' && req.user!.clinicLocation) {
+      patients = await handleDatabaseOperation(
+        () => storage.getClinicPatients(req.user!.clinicLocation!),
+        'Failed to fetch clinic patients'
+      );
+    } else {
+      patients = await handleDatabaseOperation(
+        () => storage.getPatients(req.user!.id),
+        'Failed to fetch patients'
+      );
+    }
     sendSuccessResponse(res, patients);
   }));
 
@@ -369,10 +396,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Appointments routes
   app.get("/api/appointments", requireAuth, asyncHandler(async (req, res) => {
-    const appointments = await handleDatabaseOperation(
-      () => storage.getAppointments(req.user!.id),
-      'Failed to fetch appointments'
-    );
+    let appointments;
+    if (req.user!.role === 'clinic' && req.user!.clinicLocation) {
+      appointments = await handleDatabaseOperation(
+        () => storage.getClinicAppointments(req.user!.clinicLocation!),
+        'Failed to fetch clinic appointments'
+      );
+    } else {
+      appointments = await handleDatabaseOperation(
+        () => storage.getAppointments(req.user!.id),
+        'Failed to fetch appointments'
+      );
+    }
     sendSuccessResponse(res, appointments);
   }));
 
