@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Healthcare Voice Control Kiosk</title>
+    <meta name="description" content="Hands-free voice control system for healthcare kiosks" />
+    <meta name="keywords" content="healthcare, voice control, kiosk, accessibility, hands-free" />
+    
+    <!-- Accessibility meta tags -->
+    <meta name="application-name" content="Healthcare Voice Control Kiosk" />
+    <meta name="apple-mobile-web-app-title" content="Healthcare Kiosk" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Healthcare Voice Control Kiosk" />
+    <meta property="og:description" content="Hands-free voice control system for healthcare kiosks" />
+    <meta property="og:site_name" content="Healthcare Voice Control" />
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:title" content="Healthcare Voice Control Kiosk" />
+    <meta property="twitter:description" content="Hands-free voice control system for healthcare kiosks" />
+    
+    <!-- Theme color -->
+    <meta name="theme-color" content="#3b82f6" />
+    <meta name="msapplication-TileColor" content="#3b82f6" />
+    
+    <!-- Favicons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    
+    <!-- Manifest -->
+    <link rel="manifest" href="/site.webmanifest" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/main.tsx"></script>
+    
+    <!-- Accessibility skip link -->
+    <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 bg-blue-600 text-white px-4 py-2 rounded-md z-50">
+      Skip to main content
+    </a>
+    
+    <!-- Loading indicator -->
+    <div id="loading-indicator" class="fixed top-4 right-4 bg-white shadow-lg rounded-lg p-4 hidden">
+      <div class="flex items-center">
+        <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-3"></div>
+        <span class="text-sm text-gray-600">Loading...</span>
+      </div>
+    </div>
+  </body>
+</html>

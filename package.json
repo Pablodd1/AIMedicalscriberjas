@@ -1,0 +1,54 @@
+{
+  "name": "voice-control-healthcare-kiosk",
+  "version": "1.0.0",
+  "description": "Hands-free voice control system for healthcare kiosk applications",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:coverage": "vitest --coverage",
+    "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "voice-control",
+    "healthcare",
+    "kiosk",
+    "accessibility",
+    "speech-recognition",
+    "hands-free"
+  ],
+  "author": "Healthcare Voice Control Team",
+  "license": "MIT",
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "framer-motion": "^10.16.4",
+    "zustand": "^4.4.1",
+    "fuse.js": "^7.0.0",
+    "compromise": "^14.10.0",
+    "date-fns": "^2.30.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.15",
+    "@types/react-dom": "^18.2.7",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "@vitejs/plugin-react": "^4.0.3",
+    "@vitest/coverage-v8": "^0.34.6",
+    "eslint": "^8.45.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.3",
+    "jsdom": "^22.1.0",
+    "typescript": "^5.0.2",
+    "vite": "^4.4.5",
+    "vitest": "^0.34.6"
+  },
+  "peerDependencies": {
+    "react": ">=16.8.0",
+    "react-dom": ">=16.8.0"
+  }
+}
