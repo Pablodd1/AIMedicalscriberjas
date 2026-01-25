@@ -103,6 +103,7 @@ export interface IStorage {
   getPatients(doctorId: number): Promise<Patient[]>;
   getPatient(id: number): Promise<Patient | undefined>;
   createPatient(patient: InsertPatient & { createdBy: number }): Promise<Patient>;
+  createPatients(patients: (InsertPatient & { createdBy: number })[]): Promise<Patient[]>;
   getAppointments(doctorId: number): Promise<Appointment[]>;
   getAppointment(id: number): Promise<Appointment | undefined>;
   getAppointmentByToken(token: string): Promise<Appointment[]>;
@@ -455,6 +456,17 @@ export class DatabaseStorage implements IStorage {
       .values(patient)
       .returning();
     return newPatient;
+  }
+
+  async createPatients(patientsData: (InsertPatient & { createdBy: number })[]): Promise<Patient[]> {
+    if (patientsData.length === 0) {
+      return [];
+    }
+    const newPatients = await db
+      .insert(patients)
+      .values(patientsData)
+      .returning();
+    return newPatients;
   }
 
   async getAppointments(doctorId: number): Promise<Appointment[]> {

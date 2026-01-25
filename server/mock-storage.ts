@@ -334,6 +334,14 @@ export class MockStorage implements IStorage {
         this.saveData();
         return newPatient;
     }
+    async createPatients(patients: (InsertPatient & { createdBy: number })[]): Promise<Patient[]> {
+        const newPatients: Patient[] = [];
+        for (const patient of patients) {
+            const newPatient = await this.createPatient(patient);
+            newPatients.push(newPatient);
+        }
+        return newPatients;
+    }
 
     // Appointments
     async getAppointments(doctorId: number): Promise<Appointment[]> {
