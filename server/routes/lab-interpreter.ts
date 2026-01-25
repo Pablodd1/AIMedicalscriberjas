@@ -486,8 +486,8 @@ const upload = multer({
     files: 1
   },
   fileFilter: (req, file, cb) => {
-    // Accept Excel files, text files, and PDF/images
-    if (file.fieldname === 'file' || file.fieldname === 'knowledgeBase') {
+    // Accept Excel files, text files for 'knowledgeBase'
+    if (file.fieldname === 'knowledgeBase') {
       if (file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
         file.mimetype === 'application/vnd.ms-excel' ||
         file.mimetype === 'application/octet-stream' ||
@@ -498,10 +498,10 @@ const upload = multer({
         file.originalname.endsWith('.text')) {
         cb(null, true);
       } else {
-        cb(null, true); // Allow all files for now to debug
+        return cb(new Error('Only Excel and text files are allowed for knowledge base import.'));
       }
-    } else if (file.fieldname === 'labReport') {
-      // Validate PDF and image files more strictly
+    } else if (file.fieldname === 'labReport' || file.fieldname === 'file') {
+      // Validate PDF and image files more strictly for 'labReport' and 'file'
       if (file.mimetype === 'application/pdf') {
         cb(null, true);
       } else if (file.mimetype.startsWith('image/')) {
