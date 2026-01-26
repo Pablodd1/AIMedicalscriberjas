@@ -20,16 +20,18 @@ vi.mock('winston', () => {
     error: vi.fn(),
   };
 
-  return {
-    default: {
+  const mockWinston = {
+    createLogger: vi.fn(() => ({
+      info: mLogger.info,
+      error: mLogger.error,
       format: mFormat,
       transports: mTransports,
-      createLogger: vi.fn(() => mLogger),
-    },
+    })),
     format: mFormat,
     transports: mTransports,
-    createLogger: vi.fn(() => mLogger),
   };
+
+  return mockWinston;
 });
 
 describe('Logger', () => {
@@ -37,7 +39,8 @@ describe('Logger', () => {
     const message = 'Test message';
     const context = { requestId: '123' };
     log(message, context);
-    expect(winston.createLogger().info).toHaveBeenCalledWith(message, context);
+    const mockWinston = await import('winston');
+expect(mockWinston.createLogger().info).toHaveBeenCalledWith(message, context);
   });
 
   it('should call logger.error with the correct arguments', () => {
