@@ -5,7 +5,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "tsx server/index.ts",
-    "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
+    "build": "vite build",
     "vercel-build": "vite build",
     "start": "NODE_ENV=production node dist/index.js",
     "railway:build": "npm install && npm run build",
@@ -13,7 +13,8 @@
     "check": "tsc",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx scripts/seed-users.ts",
-    "test": "vitest"
+    "test": "vitest",
+    "build:prod": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.37.0",
