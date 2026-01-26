@@ -62,7 +62,7 @@ async function convertPdfToImages(pdfPath: string): Promise<string[]> {
     const outputPattern = path.join(tempDir, 'page-%d.jpg');
     const command = `convert -limit memory 128MB -limit map 256MB -density 150 -quality 70 -colorspace Gray "${pdfPath}" "${outputPattern}"`;
 
-    log('Converting PDF to images with optimized command:', { command });
+    log('Converting PDF to images with optimized command:', command);
 
     // Reduced timeout for faster processing
     const timeoutMs = 3 * 60 * 1000; // 3 minutes timeout
@@ -174,7 +174,7 @@ function cleanupTempImages(imagePaths: string[]) {
         fs.unlinkSync(imagePath);
       }
     } catch (error) {
-      logError('Error cleaning up temp image:', error, { imagePath });
+      logError('Error cleaning up temp image:', imagePath, error);
     }
   });
 
@@ -189,14 +189,14 @@ function cleanupTempImages(imagePaths: string[]) {
         }
       }
     } catch (error) {
-      logError('Error cleaning up temp directory:', error, { tempDir });
+      logError('Error cleaning up temp directory:', tempDir, error);
     }
   }
 }
 
 // ULTRA-FAST PARALLEL PDF PROCESSING
 async function processPdfSequentially(pdfPath: string, openai: OpenAI): Promise<string> {
-  log('=== Starting Ultra-Fast Parallel PDF Processing ===');
+  log('Starting PDF processing...');
 
   // Step 1: Convert PDF to images with ultra-fast settings
   const tempDir = path.join(path.dirname(pdfPath), 'temp_images');
@@ -206,26 +206,20 @@ async function processPdfSequentially(pdfPath: string, openai: OpenAI): Promise<
     throw new AppError('No pages could be converted from the PDF', 400, 'PDF_CONVERSION_FAILED');
   }
 
-  log(`Successfully converted PDF to ${convertedImages.length} images`);
-
   // Step 2: Process ALL pages in parallel (no delays)
-  log('Processing ALL pages in parallel...');
   const processingPromises = convertedImages.map(async (imagePath, index) => {
     const pageNumber = index + 1;
 
     try {
-      log(`Starting parallel processing of page ${pageNumber}/${convertedImages.length}`);
       const pageText = await processImageFileFast(imagePath, openai, pageNumber, convertedImages.length);
 
       if (pageText && pageText.trim()) {
-        log(`✓ Page ${pageNumber} completed (${pageText.length} chars)`);
         return pageText;
       } else {
-        log(`⚠ Page ${pageNumber} appears blank`);
         return '';
       }
     } catch (error: any) {
-      logError(`✗ Page ${pageNumber} failed:`, error);
+      logError(`✗ Page ${pageNumber} failed:`, error.message);
       return `=== Page ${pageNumber} ===\n[Error: ${error.message}]`;
     }
   });
@@ -240,9 +234,7 @@ async function processPdfSequentially(pdfPath: string, openai: OpenAI): Promise<
   const validTexts = allExtractedTexts.filter(text => text.trim().length > 0);
   const finalText = validTexts.join('\n\n');
 
-  log(`=== Ultra-Fast PDF Processing Complete ===`);
-  log(`Successfully processed ${validTexts.length}/${convertedImages.length} pages in parallel`);
-  log(`Total extracted text: ${finalText.length} characters`);
+  log(`Successfully processed ${validTexts.length}/${convertedImages.length} pages.`);
 
   if (!finalText.trim()) {
     throw new AppError('No text could be extracted from any page of the PDF. Please ensure the PDF contains readable content.', 400, 'NO_TEXT_EXTRACTED');
@@ -267,8 +259,6 @@ async function processImageFileFast(imagePath: string, openai: OpenAI, pageNumbe
   // Read and encode image
   const imageBuffer = fs.readFileSync(imagePath);
   const base64Image = imageBuffer.toString('base64');
-
-  log(`  → [PARALLEL] Processing page ${pageNumber} (${Math.round(imageStats.size / 1024)}KB)`);
 
   // Enhanced Vision API extraction with comprehensive medical lab data prompt
   const response = await openai.chat.completions.create({
@@ -325,9 +315,6 @@ This is page ${pageNumber} of ${totalPages}. Extract ALL content systematically 
 
   const extractedText = response.choices[0].message.content || '';
 
-  // Debug: Log what we extracted to see if the Vision API is working
-  log(`[DEBUG] Page ${pageNumber} Vision API Response:`, { response: extractedText.substring(0, 200) + '...' });
-
   // Check for Vision API failure responses
   if (extractedText.includes("I'm unable to extract text") ||
     extractedText.includes("I can't") ||
@@ -346,8 +333,6 @@ This is page ${pageNumber} of ${totalPages}. Extract ALL content systematically 
   if (extractedText.length < 100) {
     console.warn(`⚠ Page ${pageNumber} extracted very little text (${extractedText.length} chars). May need quality check.`);
   }
-
-  log(`✓ Page ${pageNumber} completed (${extractedText.length} chars)`);
 
   return `=== Page ${pageNumber} ===\n${extractedText}`;
 }
@@ -375,8 +360,6 @@ async function convertPdfToImagesFast(pdfPath: string, tempDir: string): Promise
     // Enhanced ImageMagick command for superior text extraction
     const outputPattern = path.join(tempDir, 'page-%d.png');
     const command = `convert -limit memory 1024MB -limit map 2048MB -density 300 -quality 100 -background white -alpha remove -colorspace RGB -normalize "${pdfPath}" "${outputPattern}"`;
-
-    log('Running enhanced high-quality conversion for text extraction...');
 
     // Execute with extended timeout for high-quality processing
     const { stdout, stderr } = await execAsync(command, {
@@ -408,7 +391,6 @@ async function convertPdfToImagesFast(pdfPath: string, tempDir: string): Promise
       }
     });
 
-    log(`✓ Generated ${validImages.length} high-quality images for text extraction`);
     return validImages;
 
   } catch (error: any) {
@@ -486,8 +468,8 @@ const upload = multer({
     files: 1
   },
   fileFilter: (req, file, cb) => {
-    // Accept Excel files, text files for 'knowledgeBase'
-    if (file.fieldname === 'knowledgeBase') {
+    // Accept Excel files, text files, and PDF/images
+    if (file.fieldname === 'file' || file.fieldname === 'knowledgeBase') {
       if (file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
         file.mimetype === 'application/vnd.ms-excel' ||
         file.mimetype === 'application/octet-stream' ||
@@ -498,10 +480,10 @@ const upload = multer({
         file.originalname.endsWith('.text')) {
         cb(null, true);
       } else {
-        return cb(new Error('Only Excel and text files are allowed for knowledge base import.'));
+        cb(null, true); // Allow all files for now to debug
       }
-    } else if (file.fieldname === 'labReport' || file.fieldname === 'file') {
-      // Validate PDF and image files more strictly for 'labReport' and 'file'
+    } else if (file.fieldname === 'labReport') {
+      // Validate PDF and image files more strictly
       if (file.mimetype === 'application/pdf') {
         cb(null, true);
       } else if (file.mimetype.startsWith('image/')) {
@@ -528,8 +510,6 @@ function parseExcelFile(filePath: string) {
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
     const data = xlsx.utils.sheet_to_json(worksheet);
-
-    log("Excel Data headers:", Object.keys(data[0] || {}));
 
     // Detect file format
     const isDiseasesFormat = detectDiseasesReferenceFormat(data);
@@ -560,46 +540,12 @@ function detectDiseasesReferenceFormat(data: any[]) {
   // This allows for various Excel file structures
   const productColumnCount = keys.filter(k => /product|supplement|peptide|formula|support|take|dosage/i.test(k)).length;
 
-  log('Format detection:', {
-    hasOrganSystem,
-    hasDiseaseState,
-    hasProductColumns,
-    productColumnCount,
-    totalColumns: keys.length,
-    columns: keys
-  });
-
   // If we have organ/disease columns OR multiple product columns OR more than 5 columns, try disease-product format
   return (hasOrganSystem || hasDiseaseState) || productColumnCount >= 1 || keys.length > 5;
 }
 
 // Parse the Disease-Product reference format
 function parseDiseaseProductReference(data: any[]) {
-  log("Processing disease-product reference format - ENHANCED AI CAPTURE");
-
-  // Enhanced analysis of file structure
-  if (data.length > 0) {
-    const allKeys = Object.keys(data[0]);
-    log(`Total columns detected: ${allKeys.length}`);
-    log("All column headers:", { keys: allKeys });
-
-    // Advanced pattern detection for your Excel structure
-    const peptideColumns = allKeys.filter(k => /peptide/i.test(k));
-    const formulaColumns = allKeys.filter(k => /formula|supplement|product|support|guard/i.test(k));
-    const dosageColumns = allKeys.filter(k => /take|dose|dosage|instruction|how.*to/i.test(k));
-    const systemColumns = allKeys.filter(k => /organ|system/i.test(k));
-    const diseaseColumns = allKeys.filter(k => /disease|state|condition/i.test(k));
-
-    log("Enhanced column analysis:", {
-      systemColumns,
-      diseaseColumns,
-      peptideColumns,
-      formulaColumns,
-      dosageColumns,
-      totalColumns: allKeys.length
-    });
-  }
-
   return data.filter(row => {
     // Skip completely empty rows
     const values = Object.values(row).filter(v => v !== null && v !== undefined && v !== '');
@@ -607,7 +553,6 @@ function parseDiseaseProductReference(data: any[]) {
   }).map((row: any) => {
     // Get ALL column keys from the row
     const allKeys = Object.keys(row);
-    log(`Processing row with ${allKeys.length} columns`);
 
     // Smart detection of organ system and disease columns
     let organSystemKey = '';
@@ -636,8 +581,6 @@ function parseDiseaseProductReference(data: any[]) {
     const organSystem = organSystemKey ? String(row[organSystemKey] || '').trim() : 'General';
     const diseaseState = diseaseStateKey ? String(row[diseaseStateKey] || '').trim() : '';
 
-    log(`Organ: ${organSystem}, Disease: ${diseaseState}`);
-
     // ENHANCED: Capture EVERY single column with intelligent categorization
     const categoryData: { [category: string]: { [key: string]: string } } = {
       peptides: {},
@@ -659,22 +602,16 @@ function parseDiseaseProductReference(data: any[]) {
       const keyLower = key.toLowerCase();
       const cleanKeyName = key.replace(/([A-Z])/g, ' $1').trim();
 
-      log(`Processing column ${index + 1}: "${key}" = "${value}"`);
-
       // Smart categorization with comprehensive pattern matching
       if (/peptide/i.test(key)) {
         categoryData.peptides[cleanKeyName] = value;
-        log(`  → Categorized as PEPTIDE: ${cleanKeyName}`);
       } else if (/formula|supplement|product|support.*formula|guard.*formula|guard$|cleanse|wash/i.test(key)) {
         categoryData.formulas[cleanKeyName] = value;
-        log(`  → Categorized as FORMULA: ${cleanKeyName}`);
       } else if (/take|dosage|dose|instruction|how.*to|daily|units|mg|ml|tsp|cap|admin/i.test(key) || /take|daily|units|mg|ml/i.test(value)) {
         categoryData.dosages[cleanKeyName] = value;
-        log(`  → Categorized as DOSAGE: ${cleanKeyName}`);
       } else {
         // Capture EVERYTHING else - no data left behind
         categoryData.additional[cleanKeyName] = value;
-        log(`  → Categorized as ADDITIONAL: ${cleanKeyName}`);
       }
     });
 
@@ -728,8 +665,6 @@ function parseDiseaseProductReference(data: any[]) {
         }
       });
     }
-
-    log(`Final recommendations length: ${fullRecommendations.length} characters`);
 
     return {
       test_name: organSystem || 'Organ System',
@@ -802,7 +737,7 @@ const labKnowledgeBaseItemSchema = z.object({
 // Get knowledge base data
 labInterpreterRouter.get('/knowledge-base', requireAuth, asyncHandler(async (req, res) => {
   const items = await handleDatabaseOperation(
-    () => storage.getLabKnowledgeBase(req.user!.id),
+    () => storage.getLabKnowledgeBase(req.user.id),
     'Failed to fetch knowledge base'
   );
   sendSuccessResponse(res, items, 'Knowledge base fetched successfully');
@@ -816,7 +751,7 @@ labInterpreterRouter.get('/knowledge-base/:id', requireAuth, asyncHandler(async 
   }
 
   const item = await handleDatabaseOperation(
-    () => storage.getLabKnowledgeBaseItem(id, req.user!.id),
+    () => storage.getLabKnowledgeBaseItem(id, req.user.id),
     'Failed to fetch knowledge base item'
   );
 
@@ -832,11 +767,11 @@ labInterpreterRouter.post('/knowledge-base', requireAuth, asyncHandler(async (re
   // Validate input and add userId
   const validatedData = labKnowledgeBaseItemSchema.parse({
     ...req.body,
-    userId: req.user!.id
+    userId: req.user.id
   });
 
   const newItem = await handleDatabaseOperation(
-    () => storage.createLabKnowledgeBaseItem(validatedData as any),
+    () => storage.createLabKnowledgeBaseItem(validatedData),
     'Failed to create knowledge base item'
   );
 
@@ -855,7 +790,7 @@ labInterpreterRouter.put('/knowledge-base/:id', requireAuth, asyncHandler(async 
 
   // Update item (user-specific)
   const updatedItem = await handleDatabaseOperation(
-    () => storage.updateLabKnowledgeBaseItem(id, validatedData, req.user!.id),
+    () => storage.updateLabKnowledgeBaseItem(id, validatedData, req.user.id),
     'Failed to update knowledge base item'
   );
 
@@ -874,7 +809,7 @@ labInterpreterRouter.delete('/knowledge-base/:id', requireAuth, asyncHandler(asy
   }
 
   const success = await handleDatabaseOperation(
-    () => storage.deleteLabKnowledgeBaseItem(id, req.user!.id),
+    () => storage.deleteLabKnowledgeBaseItem(id, req.user.id),
     'Failed to delete knowledge base item'
   );
 
@@ -888,7 +823,7 @@ labInterpreterRouter.delete('/knowledge-base/:id', requireAuth, asyncHandler(asy
 // Delete all knowledge base items for current user
 labInterpreterRouter.delete('/knowledge-base', requireAuth, asyncHandler(async (req, res) => {
   const deletedCount = await handleDatabaseOperation(
-    () => storage.clearUserLabKnowledgeBase(req.user!.id),
+    () => storage.clearUserLabKnowledgeBase(req.user.id),
     'Failed to clear knowledge base'
   );
 
@@ -1096,21 +1031,18 @@ labInterpreterRouter.post('/knowledge-base/import', requireAuth, upload.single('
 
     try {
       // Read the text file with better error handling
-      log(`Reading text file: ${req.file.path}`);
       const textContent = fs.readFileSync(req.file.path, 'utf-8');
-      log("Text file content sample: " + textContent.substring(0, 100));
 
       // Parse the text content
       data = parseTextFormat(textContent);
-      log(`Parsed ${data.length} entries from text file`);
 
       // Clean up uploaded file when done
       fs.unlinkSync(req.file.path);
     } catch (fileError) {
-      logError('Error processing text file:', (fileError as Error));
+      logError('Error processing text file:', fileError);
       return res.status(400).json({
         error: 'Failed to process text file',
-        details: (fileError as Error).message
+        details: fileError.message
       });
     }
   }
@@ -1141,9 +1073,8 @@ labInterpreterRouter.post('/knowledge-base/import', requireAuth, upload.single('
   }
 
   // Import data with user ID
-  // CASTING validatedData to ANY to bypass strict type check for optional userId
   const itemsImported = await handleDatabaseOperation(
-    () => storage.importLabKnowledgeBase(validatedData as any[], req.user!.id),
+    () => storage.importLabKnowledgeBase(validatedData, req.user.id),
     'Failed to import knowledge base'
   );
 
@@ -1178,7 +1109,7 @@ labInterpreterRouter.get('/settings', async (req, res) => {
 
     return res.json(response);
   } catch (error) {
-    logError('Error fetching lab interpreter settings:', error as Error);
+    logError('Error fetching lab interpreter settings:', error);
     return res.status(500).json({ error: 'Failed to fetch lab interpreter settings' });
   }
 });
@@ -1210,7 +1141,7 @@ labInterpreterRouter.post('/settings', async (req, res) => {
 
     return res.json(response);
   } catch (error) {
-    logError('Error saving lab interpreter settings:', error as Error);
+    logError('Error saving lab interpreter settings:', error);
     return res.status(500).json({ error: 'Failed to save lab interpreter settings' });
   }
 });
@@ -1254,16 +1185,13 @@ labInterpreterRouter.post('/analyze', requireAuth, asyncHandler(async (req, res)
   );
 
   // Default prompts if settings not found
-  let systemPrompt = settings?.system_prompt || 'You are a medical lab report interpreter. Your task is to analyze lab test results and provide insights based on medical knowledge and the provided reference ranges. Be factual and evidence-based in your analysis.';
-  let userPrompt = settings?.without_patient_prompt || 'Analyze this lab report. Provide a detailed interpretation of abnormal values, possible implications, and recommendations.';
+  let systemPrompt = settings?.system_prompt || settings?.systemPrompt || 'You are a medical lab report interpreter. Your task is to analyze lab test results and provide insights based on medical knowledge and the provided reference ranges. Be factual and evidence-based in your analysis.';
+  let userPrompt = settings?.without_patient_prompt || settings?.withoutPatientPrompt || 'Analyze this lab report. Provide a detailed interpretation of abnormal values, possible implications, and recommendations.';
 
   // Add format instructions if provided
   if (settings?.report_format_instructions) {
     systemPrompt += `\n\nFORMAT INSTRUCTIONS: ${settings.report_format_instructions}`;
   }
-
-  log('Using prompts for analysis:', { promptPreview: systemPrompt.substring(0, 100) + '...' });
-  log('User Prompt:', { promptPreview: userPrompt.substring(0, 100) + '...' });
 
   let patient = null;
   if (withPatient && patientId) {
@@ -1273,12 +1201,11 @@ labInterpreterRouter.post('/analyze', requireAuth, asyncHandler(async (req, res)
       'Failed to get patient information'
     );
     if (patient) {
-      userPrompt = settings?.with_patient_prompt || 'Analyze this lab report for the patient. Provide a detailed interpretation of abnormal values, possible implications, and recommendations.';
+      userPrompt = settings?.with_patient_prompt || settings?.withPatientPrompt || 'Analyze this lab report for the patient. Provide a detailed interpretation of abnormal values, possible implications, and recommendations.';
       // Replace placeholders with actual patient info
       userPrompt = userPrompt
         .replace('${patientName}', `${patient.firstName} ${patient.lastName}`)
         .replace('${patientId}', patient.id.toString());
-      log('Using patient-specific prompt for:', { patientName: `${patient.firstName} ${patient.lastName}` });
     }
   }
 
@@ -1316,11 +1243,6 @@ Complete Recommendations:
 ${recommendations}
 ---`;
   }).join('\n\n');
-
-  log(`Using ${knowledgeBase.length} knowledge base entries for analysis`);
-  if (knowledgeBase.length > 0) {
-    log('Sample KB entry:', { name: knowledgeBase[0].test_name, marker: knowledgeBase[0].marker });
-  }
 
   // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
   let analysis = '';
@@ -1405,13 +1327,6 @@ JSON SCHEMA:
     );
   }
 
-  // LOG DETAILED ANALYSIS INFO FOR DEBUGGING
-  log('=== TEXT ANALYSIS COMPLETED ===');
-  log('Report Text Length:', { length: reportText.length });
-  log('Knowledge Base Items Used:', { count: knowledgeBase.length });
-  log('Analysis Response Length:', { length: analysis.length });
-  log('Analysis Preview:', { preview: analysis.substring(0, 200) + '...' });
-
   // Analysis is now in natural language format based on system prompts
   log('Analysis returned in natural language format');
 
@@ -1429,7 +1344,7 @@ JSON SCHEMA:
 
 // DEBUG ENDPOINT: Check analysis pipeline
 labInterpreterRouter.get('/debug/analysis', requireAuth, asyncHandler(async (req, res) => {
-  const doctorId = req.user!.id;
+  const doctorId = (req.user as any).id;
   const settings = await handleDatabaseOperation(
     () => storage.getLabInterpreterSettings(),
     'Failed to get lab interpreter settings'
@@ -1455,7 +1370,7 @@ labInterpreterRouter.post('/test/simple-analysis', requireAuth, asyncHandler(asy
     throw new AppError('Test data is required', 400, 'TEST_DATA_MISSING');
   }
 
-  const doctorId = req.user!.id;
+  const doctorId = (req.user as any).id;
   // Get OpenAI client for this user
   const openai = await getOpenAIClient(doctorId);
   if (!openai) {
@@ -1467,10 +1382,6 @@ labInterpreterRouter.post('/test/simple-analysis', requireAuth, asyncHandler(asy
     () => storage.getLabKnowledgeBase(doctorId),
     'Failed to get knowledge base'
   );
-
-  log('=== SIMPLE TEST ANALYSIS ===');
-  log('Test Data:', { data: testData });
-  log('Knowledge Base Items:', { count: knowledgeBase.length });
 
   // Create a simple prompt for testing
   const testPrompt = `You are analyzing lab data. Based on the knowledge base provided, give recommendations ONLY from the available products.
@@ -1496,8 +1407,6 @@ Respond with JSON: {"summary": "brief analysis", "recommendations": [{"product":
 
     const testAnalysis = response.choices[0].message.content || '';
 
-    log('Test Analysis Result:', { result: testAnalysis });
-
     sendSuccessResponse(res, {
       testAnalysis,
       knowledgeBaseUsed: knowledgeBase.length,
@@ -1516,7 +1425,7 @@ labInterpreterRouter.post('/extract-text', requireAuth, upload.single('file'), a
   }
 
   // Get OpenAI client for current user
-  const openai = await getOpenAIClient(req.user!.id);
+  const openai = await getOpenAIClient(req.user.id);
   if (!openai) {
     // Clean up the uploaded file
     if (fs.existsSync(req.file.path)) {
@@ -1524,7 +1433,7 @@ labInterpreterRouter.post('/extract-text', requireAuth, upload.single('file'), a
     }
 
     const user = await handleDatabaseOperation(
-      () => storage.getUser(req.user!.id),
+      () => storage.getUser(req.user.id),
       'Failed to fetch user data'
     );
 
@@ -1535,23 +1444,17 @@ labInterpreterRouter.post('/extract-text', requireAuth, upload.single('file'), a
     throw new AppError(errorMessage, 503, 'NO_API_KEY');
   }
 
-  log(`Extracting text from: ${req.file.originalname} (${Math.round(req.file.size / 1024)}KB)`);
-
   let extractedText = '';
 
   try {
     // Process file based on type
     if (req.file.mimetype === 'application/pdf') {
-      log('Extracting text from PDF...');
       extractedText = await processPdfSequentially(req.file.path, openai);
     } else if (req.file.mimetype.startsWith('image/')) {
-      log('Extracting text from image...');
       extractedText = await processImageFileFast(req.file.path, openai, 1, 1);
     } else {
       throw new AppError('Unsupported file type. Please upload a PDF or image file.', 400, 'UNSUPPORTED_FILE_TYPE');
     }
-
-    log(`Text extraction completed. Length: ${extractedText.length} characters`);
 
     if (!extractedText.trim()) {
       throw new AppError('No text could be extracted from the uploaded file. Please ensure the file contains readable content.', 400, 'NO_TEXT_EXTRACTED');
@@ -1570,7 +1473,7 @@ labInterpreterRouter.post('/extract-text', requireAuth, upload.single('file'), a
       try {
         fs.unlinkSync(req.file.path);
       } catch (cleanupError) {
-        logError('Failed to clean up uploaded file:', cleanupError as Error);
+        logError('Failed to clean up uploaded file:', cleanupError);
       }
     }
   }
@@ -1613,27 +1516,19 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
     throw new AppError(errorMessage, 503, 'NO_API_KEY');
   }
 
-  log('OpenAI client created successfully for user:', { userId: doctorId });
-
   let extractedText = '';
   let analysis = '';
   let convertedImages: string[] = [];
 
   try {
-    log(`Processing uploaded file: ${req.file.originalname} (${Math.round(req.file.size / 1024)}KB)`);
-
     // ULTRA-FAST PROCESSING: Process PDF and images with speed optimization
     if (req.file.mimetype === 'application/pdf') {
-      log('Starting ULTRA-FAST PDF processing...');
       extractedText = await processPdfSequentially(req.file.path, openai);
     } else if (req.file.mimetype.startsWith('image/')) {
-      log('Processing single image with fast mode...');
       extractedText = await processImageFileFast(req.file.path, openai, 1, 1);
     } else {
       throw new AppError('Unsupported file type. Please upload a PDF or image file.', 400, 'UNSUPPORTED_FILE_TYPE');
     }
-
-    log(`Text extraction completed. Total length: ${extractedText.length} characters`);
 
     if (!extractedText.trim()) {
       throw new AppError('No text could be extracted from the uploaded file. Please ensure the file contains readable lab report data.', 400, 'NO_TEXT_EXTRACTED');
@@ -1653,9 +1548,6 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
     const systemPrompt = settings?.system_prompt || 'You are a medical lab report interpreter. Your task is to analyze lab test results and provide insights based on medical knowledge and the provided reference ranges. Be factual and evidence-based in your analysis.';
     let userPrompt = settings?.without_patient_prompt || 'Analyze this lab report. Provide a detailed interpretation of abnormal values, possible implications, and recommendations.';
 
-    log('Using prompts for upload analysis: ' + systemPrompt.substring(0, 100) + '...');
-    log('User Prompt: ' + userPrompt.substring(0, 100) + '...');
-
     let patient = null;
     if (withPatient === 'true' && patientId) {
       // Get patient info if needed
@@ -1669,7 +1561,6 @@ labInterpreterRouter.post('/analyze/upload', requireAuth, upload.single('labRepo
         userPrompt = userPrompt
           .replace('${patientName}', `${patient.firstName} ${patient.lastName}`)
           .replace('${patientId}', patient.id.toString());
-        log('Using patient-specific prompt for upload analysis: ' + `${patient.firstName} ${patient.lastName}`);
       }
     }
 
@@ -1707,11 +1598,6 @@ Complete Recommendations:
 ${recommendations}
 ---`;
     }).join('\n\n');
-
-    log(`Using ${knowledgeBase.length} knowledge base entries for upload analysis`);
-    if (knowledgeBase.length > 0) {
-      log('Sample KB entry: ' + knowledgeBase[0].test_name + ' - ' + knowledgeBase[0].marker);
-    }
 
     // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
     try {
@@ -1761,6 +1647,9 @@ JSON SCHEMA:
 { 
   "summary": "brief overview of findings from the lab data", 
   "abnormalValues": ["list specific abnormal values found"], 
+{
+  "summary": "brief overview of findings from the lab data",
+  "abnormalValues": ["list specific abnormal values found"],
   "interpretation": "detailed functional medicine analysis of the lab results",
   "recommendations": [{"product": "exact name from inventory", "dosage": "from knowledge base", "reason": "why recommended based on lab findings"}],
   "knowledgeBaseUsed": ${knowledgeBase.length},
@@ -1803,21 +1692,12 @@ JSON SCHEMA:
 
     // Note: Temporary images are cleaned up automatically in processPdfSequentially
 
-    // LOG DETAILED ANALYSIS INFO FOR DEBUGGING
-    log('=== ANALYSIS COMPLETED ===');
-    log('Extracted Text Length: ' + extractedText.length);
-    log('Knowledge Base Items Used: ' + knowledgeBase.length);
-    log('Analysis Response Length: ' + analysis.length);
-    log('Analysis Preview: ' + analysis.substring(0, 200) + '...');
-
     // Try to parse the analysis to ensure it's valid JSON
     let parsedAnalysis = null;
     try {
       parsedAnalysis = JSON.parse(analysis);
-      log('Analysis successfully parsed as JSON');
-      log('Analysis structure: ' + JSON.stringify(Object.keys(parsedAnalysis)));
     } catch (parseError) {
-      logError('Analysis is not valid JSON:', parseError as Error);
+      logError('Analysis is not valid JSON:', parseError);
     }
 
     sendSuccessResponse(res, {
@@ -1848,11 +1728,11 @@ JSON SCHEMA:
 // Get lab reports
 labInterpreterRouter.get('/reports', async (req, res) => {
   try {
-    const doctorId = (req.session as any).userId;
+    const doctorId = req.session.userId;
     const reports = await storage.getLabReports(doctorId);
     return res.json(reports);
   } catch (error) {
-    logError('Error fetching lab reports:', error as Error);
+    logError('Error fetching lab reports:', error);
     return res.status(500).json({ error: 'Failed to fetch lab reports' });
   }
 });
@@ -1868,7 +1748,7 @@ labInterpreterRouter.get('/reports/patient/:patientId', async (req, res) => {
     const reports = await storage.getLabReportsByPatient(patientId);
     return res.json(reports);
   } catch (error) {
-    logError('Error fetching lab reports for patient:', error as Error);
+    logError('Error fetching lab reports for patient:', error);
     return res.status(500).json({ error: 'Failed to fetch lab reports for patient' });
   }
 });
@@ -1888,7 +1768,7 @@ labInterpreterRouter.get('/reports/:id', async (req, res) => {
 
     return res.json(report);
   } catch (error) {
-    logError('Error fetching lab report:', error as Error);
+    logError('Error fetching lab report:', error);
     return res.status(500).json({ error: 'Failed to fetch lab report' });
   }
 });
@@ -1920,7 +1800,7 @@ labInterpreterRouter.delete('/reports/:id', async (req, res) => {
 
     return res.status(204).end();
   } catch (error) {
-    logError('Error deleting lab report:', error as Error);
+    logError('Error deleting lab report:', error);
     return res.status(500).json({ error: 'Failed to delete lab report' });
   }
 });
@@ -1947,7 +1827,7 @@ labInterpreterRouter.post('/save-report', requireAuth, asyncHandler(async (req, 
   const report = await handleDatabaseOperation(
     () => storage.createLabReport({
       patientId,
-      doctorId: req.user!.id,
+      doctorId: req.user.id,
       reportData,
       reportType: "text",
       analysis: analysis,
@@ -2024,14 +1904,14 @@ labInterpreterRouter.post('/follow-up', async (req, res) => {
           });
         }
       } catch (saveError) {
-        logError('Error saving follow-up to patient record:', saveError as Error);
+        logError('Error saving follow-up to patient record:', saveError);
         // Continue even if saving fails
       }
     }
 
     return res.json({ answer });
   } catch (error) {
-    logError('Error processing follow-up question:', error as Error);
+    logError('Error processing follow-up question:', error);
     return res.status(500).json({ error: 'Failed to process follow-up question' });
   }
 });
@@ -2067,7 +1947,7 @@ labInterpreterRouter.post('/save-transcript', async (req, res) => {
 
     return res.json({ success: true, noteId: note.id });
   } catch (error) {
-    logError('Error saving transcript:', error as Error);
+    logError('Error saving transcript:', error);
     return res.status(500).json({ error: 'Failed to save transcript' });
   }
 });
@@ -2460,19 +2340,19 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
 
     const styledHtml = createLabReportHTML();
 
-    // Format natural language content for display
-    const formatContent = (rawContent: string) => {
-      // Content is now in natural language format, not JSON
-      return rawContent
-        .replace(/\n\n/g, '</p><p>')
-        .replace(/\n/g, '<br>')
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Bold text
-        .replace(/\*(.*?)\*/g, '<em>$1</em>') // Italic text
-        .replace(/^/, '<p>')
-        .replace(/$/, '</p>');
-    };
-
     if (format === 'pdf') {
+      // Format natural language content for display
+      const formatContent = (rawContent: string) => {
+        // Content is now in natural language format, not JSON
+        return rawContent
+          .replace(/\n\n/g, '</p><p>')
+          .replace(/\n/g, '<br>')
+          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Bold text
+          .replace(/\*(.*?)\*/g, '<em>$1</em>') // Italic text
+          .replace(/^/, '<p>')
+          .replace(/$/, '</p>');
+      };
+
       const formattedContent = formatContent(content);
 
       // Create enhanced HTML with formatted content
@@ -2525,11 +2405,11 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
       // Add header text
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(24);
-      doc.setFont("helvetica", 'bold');
+      doc.setFont(undefined, 'bold');
       doc.text('🔬 Lab Report Analysis', pageWidth / 2, 25, { align: 'center' });
 
       doc.setFontSize(12);
-      doc.setFont("helvetica", 'normal');
+      doc.setFont(undefined, 'normal');
       doc.text(`${template.charAt(0).toUpperCase() + template.slice(1)} Template`, pageWidth / 2, 35, { align: 'center' });
 
       yPos = 70;
@@ -2541,13 +2421,13 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
       if (patient) {
         setTemplateColor('primary');
         doc.setFontSize(16);
-        doc.setFont("helvetica", 'bold');
+        doc.setFont(undefined, 'bold');
         doc.text('👤 Patient Information', margin, yPos);
         yPos += 10;
 
         doc.setTextColor(0, 0, 0);
         doc.setFontSize(12);
-        doc.setFont("helvetica", 'normal');
+        doc.setFont(undefined, 'normal');
         doc.text(`Name: ${patient.firstName} ${patient.lastName}`, margin, yPos);
         yPos += 8;
         doc.text(`Patient ID: ${patient.id}`, margin, yPos);
@@ -2560,20 +2440,20 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
       if (originalText) {
         setTemplateColor('primary');
         doc.setFontSize(16);
-        doc.setFont("helvetica", 'bold');
+        doc.setFont(undefined, 'bold');
         doc.text('📋 Original Lab Data', margin, yPos);
         yPos += 10;
 
         doc.setTextColor(100, 100, 100);
         doc.setFontSize(10);
-        doc.setFont("helvetica", 'normal');
+        doc.setFont(undefined, 'normal');
         const originalLines = doc.splitTextToSize(originalText, maxWidth);
         originalLines.forEach((line: string) => {
           if (yPos > 270) {
             doc.addPage();
             yPos = 30;
           }
-          doc.text(line || "", margin, yPos);
+          doc.text(line, margin, yPos);
           yPos += 6;
         });
         yPos += 10;
@@ -2582,13 +2462,13 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
       // Format and add analysis content
       setTemplateColor('primary');
       doc.setFontSize(16);
-      doc.setFont("helvetica", 'bold');
+      doc.setFont(undefined, 'bold');
       doc.text('🧬 Analysis Results', margin, yPos);
       yPos += 15;
 
       doc.setTextColor(0, 0, 0);
       doc.setFontSize(12);
-      doc.setFont("helvetica", 'normal');
+      doc.setFont(undefined, 'normal');
 
       // Parse and format the content for PDF display
       try {
@@ -2608,7 +2488,7 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
                 doc.addPage();
                 yPos = 30;
               }
-              doc.text(line || "", margin, yPos);
+              doc.text(line, margin, yPos);
               yPos += 6;
             });
             return;
@@ -2618,19 +2498,19 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
         // Handle summary
         if (parsed.summary) {
           setTemplateColor('secondary');
-          doc.setFont("helvetica", 'bold');
+          doc.setFont(undefined, 'bold');
           doc.text('📋 Summary:', margin, yPos);
           yPos += 8;
 
           doc.setTextColor(0, 0, 0);
-          doc.setFont("helvetica", 'normal');
-          const summaryLines = doc.splitTextToSize(parsed.summary || "", maxWidth);
+          doc.setFont(undefined, 'normal');
+          const summaryLines = doc.splitTextToSize(parsed.summary, maxWidth);
           summaryLines.forEach((line: string) => {
             if (yPos > 270) {
               doc.addPage();
               yPos = 30;
             }
-            doc.text(line || "", margin, yPos);
+            doc.text(line, margin, yPos);
             yPos += 6;
           });
           yPos += 10;
@@ -2639,19 +2519,19 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
         // Handle abnormal values
         if (parsed.abnormalValues && Array.isArray(parsed.abnormalValues)) {
           setTemplateColor('secondary');
-          doc.setFont("helvetica", 'bold');
+          doc.setFont(undefined, 'bold');
           doc.text('⚠️ Abnormal Values:', margin, yPos);
           yPos += 8;
 
           parsed.abnormalValues.forEach((item: any) => {
             if (typeof item === 'object') {
               setTemplateColor('accent');
-              doc.setFont("helvetica", 'bold');
+              doc.setFont(undefined, 'bold');
               doc.text(`• ${item.biomarker || item.marker || 'Biomarker'}`, margin + 5, yPos);
               yPos += 6;
 
               doc.setTextColor(0, 0, 0);
-              doc.setFont("helvetica", 'normal');
+              doc.setFont(undefined, 'normal');
               doc.text(`  Value: ${item.value || 'N/A'}`, margin + 5, yPos);
               yPos += 6;
 
@@ -2661,7 +2541,7 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
                   doc.addPage();
                   yPos = 30;
                 }
-                doc.text(line || "", margin + 5, yPos);
+                doc.text(line, margin + 5, yPos);
                 yPos += 6;
               });
               yPos += 5;
@@ -2672,7 +2552,7 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
         // Handle recommendations
         if (parsed.recommendations) {
           setTemplateColor('secondary');
-          doc.setFont("helvetica", 'bold');
+          doc.setFont(undefined, 'bold');
           doc.text('💊 Recommendations:', margin, yPos);
           yPos += 8;
 
@@ -2680,12 +2560,12 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
             parsed.recommendations.forEach((rec: any) => {
               if (typeof rec === 'object') {
                 setTemplateColor('accent');
-                doc.setFont("helvetica", 'bold');
+                doc.setFont(undefined, 'bold');
                 doc.text(`• ${rec.product || rec.name || 'Product'}`, margin + 5, yPos);
                 yPos += 6;
 
                 doc.setTextColor(0, 0, 0);
-                doc.setFont("helvetica", 'normal');
+                doc.setFont(undefined, 'normal');
                 doc.text(`  Dosage: ${rec.dosage || rec.dose || 'As directed'}`, margin + 5, yPos);
                 yPos += 6;
 
@@ -2695,27 +2575,27 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
                     doc.addPage();
                     yPos = 30;
                   }
-                  doc.text(line || "", margin + 5, yPos);
+                  doc.text(line, margin + 5, yPos);
                   yPos += 6;
                 });
                 yPos += 5;
               } else {
                 doc.setTextColor(0, 0, 0);
-                doc.setFont("helvetica", 'normal');
+                doc.setFont(undefined, 'normal');
                 doc.text(`• ${rec}`, margin + 5, yPos);
                 yPos += 6;
               }
             });
           } else if (typeof parsed.recommendations === 'string') {
             doc.setTextColor(0, 0, 0);
-            doc.setFont("helvetica", 'normal');
+            doc.setFont(undefined, 'normal');
             const recLines = doc.splitTextToSize(parsed.recommendations, maxWidth);
             recLines.forEach((line: string) => {
               if (yPos > 270) {
                 doc.addPage();
                 yPos = 30;
               }
-              doc.text(line || "", margin, yPos);
+              doc.text(line, margin, yPos);
               yPos += 6;
             });
           }
@@ -2729,12 +2609,12 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
           }
 
           setTemplateColor('secondary');
-          doc.setFont("helvetica", 'bold');
+          doc.setFont(undefined, 'bold');
           doc.text('🔬 Clinical Interpretation:', margin, yPos);
           yPos += 8;
 
           doc.setTextColor(0, 0, 0);
-          doc.setFont("helvetica", 'normal');
+          doc.setFont(undefined, 'normal');
 
           if (typeof parsed.interpretation === 'string') {
             const interpretationLines = doc.splitTextToSize(parsed.interpretation, maxWidth);
@@ -2743,7 +2623,7 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
                 doc.addPage();
                 yPos = 30;
               }
-              doc.text(line || "", margin, yPos);
+              doc.text(line, margin, yPos);
               yPos += 6;
             });
           } else if (typeof parsed.interpretation === 'object') {
@@ -2754,7 +2634,7 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
                   doc.addPage();
                   yPos = 30;
                 }
-                doc.text(line || "", margin, yPos);
+                doc.text(line, margin, yPos);
                 yPos += 6;
               });
             });
@@ -2762,7 +2642,7 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
         }
 
       } catch (e) {
-        logError('Error parsing content for PDF:', e as Error);
+        logError('Error parsing content for PDF:', e);
         // Fallback: display as formatted text
         const contentLines = doc.splitTextToSize(content.replace(/[{}",]/g, ' ').replace(/\s+/g, ' '), maxWidth);
         contentLines.forEach((line: string) => {
@@ -2770,7 +2650,7 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
             doc.addPage();
             yPos = 30;
           }
-          doc.text(line || "", margin, yPos);
+          doc.text(line, margin, yPos);
           yPos += 6;
         });
       }
@@ -2783,19 +2663,21 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
         }
 
         setTemplateColor('primary');
-        doc.setFont("helvetica", 'bold');
+        doc.setFontSize(16);
+        doc.setFont(undefined, 'bold');
         doc.text('🎤 Voice Notes', margin, yPos);
         yPos += 10;
 
         doc.setTextColor(0, 0, 0);
-        doc.setFont("helvetica", 'normal');
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'normal');
         const voiceLines = doc.splitTextToSize(voiceNotes, maxWidth);
         voiceLines.forEach((line: string) => {
           if (yPos > 270) {
             doc.addPage();
             yPos = 30;
           }
-          doc.text(line || "", margin, yPos);
+          doc.text(line, margin, yPos);
           yPos += 6;
         });
       }
@@ -3109,7 +2991,7 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
         }
 
       } catch (e) {
-        logError('Error parsing content for DOCX:', e as Error);
+        logError('Error parsing content for DOCX:', e);
         // Fallback: add content as plain text
         docSections.push(
           new Paragraph({
@@ -3159,7 +3041,7 @@ labInterpreterRouter.post('/download-styled', requireAuth, asyncHandler(async (r
     }
 
   } catch (error) {
-    logError('Error generating styled document:', error as Error);
+    logError('Error generating styled document:', error);
     throw new AppError('Failed to generate styled document', 500, 'DOCUMENT_GENERATION_ERROR');
   }
 }));
