@@ -1510,7 +1510,7 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async deletePatientDocument(id: number): Promise<boolean> {
+async deletePatientDocument(id: number): Promise<boolean> {
     try {
       const result = await db
         .delete(patientDocuments)
@@ -1519,6 +1519,205 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       logError("Error deleting patient document:", error);
       return false;
+    }
+  }
+
+  // Kiosk-specific methods
+  async checkExistingPatient(email: string, phone: string): Promise<Patient[]> {
+    try {
+      const existingPatients = await db
+        .select()
+        .from(patients)
+        .where(
+          or(
+            eq(patients.email, email),
+            eq(patients.phone, phone)
+          )
+        );
+      
+      return existingPatients || [];
+    } catch (error) {
+      logError("Error checking existing patient:", error);
+      return [];
+    }
+  }
+
+  async createPatientFromKiosk(patientData: any): Promise<Patient> {
+    try {
+      const [newPatient] = await db
+        .insert(patients)
+        .values({
+          firstName: patientData.firstName,
+          lastName: patientData.lastName || '',
+          email: patientData.email,
+          phone: patientData.phone,
+          dateOfBirth: patientData.dateOfBirth,
+          address: patientData.address || '',
+          medicalHistory: '',
+          createdBy: 1 // System user ID for kiosk registrations
+        })
+        .returning();
+      
+      return newPatient;
+    } catch (error) {
+      logError("Error creating kiosk patient:", error);
+      throw error;
+    }
+  }
+
+  async updatePatientCheckIn(patientId: number, checkInData: any): Promise<Patient> {
+    try {
+      // First, create activity record
+      await this.createPatientActivity({
+        patientId,
+        activityType: 'appointment',
+        title: 'Patient Checked In',
+        description: `Checked in via kiosk: ${checkInData.kioskId}`,
+        metadata: {
+          checkInTime: checkInData.checkInTime,
+          appointmentType: checkInData.appointmentType,
+          reasonForVisit: checkInData.reasonForVisit,
+          signatureData: checkInData.signatureData
+        }
+      });
+
+      // Then update patient with check-in info
+      const [updatedPatient] = await db
+        .update(patients)
+        .set({
+          updatedAt: new Date()
+        })
+        .where(eq(patients.id, patientId))
+        .returning();
+
+      return updatedPatient;
+    } catch (error) {
+      logError("Error updating patient check-in:", error);
+      throw error;
+    }
+  }
+
+  async updatePatientStatus(patientId: number, statusData: any): Promise<Patient> {
+    try {
+      const [updatedPatient] = await db
+        .update(patients)
+        .set({
+          updatedAt: new Date()
+        })
+        .where(eq(patients.id, patientId))
+        .returning();
+
+      return updatedPatient;
+    } catch (error) {
+      logError("Error updating patient status:", error);
+      throw error;
+    }
+  }
+
+  async getWaitingRoomData(): Promise<any[]> {
+    try {
+      const waitingPatients = await db
+        .select({
+          id: patients.id,
+          firstName: patients.firstName,
+          lastName: patients.lastName,
+          checkInTime: sql<string>`patients.updated_at`.as('checkInTime'),
+          appointmentType: sql<string>`(SELECT metadata->>'appointmentType' FROM patient_activity WHERE patient_id = ${patientId} ORDER BY created_at DESC LIMIT 1)`.as('appointmentType'),
+          estimatedWaitTime: sql<number>`15 + (EXTRACT(EPOCH FROM (NOW() - patients.updated_at)) / 60)`.as('estimatedWaitTime'),
+          status: sql<string>`'waiting'`.as('status')
+        })
+        .from(patients)
+        .where(
+          and(
+            sql`patients.updated_at >= CURRENT_DATE - INTERVAL '1 hour'`, // Patients who checked in within last hour
+            sql`patients.metadata->>'status' = 'waiting'`
+          )
+        )
+        .orderBy(asc(patients.updatedAt));
+
+      return waitingPatients || [];
+    } catch (error) {
+      logError("Error getting waiting room data:", error);
+      return [];
+    }
+  }
+
+  async getWaitingRoomCount(): Promise<number> {
+    try {
+      const [count] = await db
+        .select({ count: sql<number>`count(*)`.as('count') })
+        .from(patients)
+        .where(sql`patients.metadata->>'status' = 'waiting'`);
+      
+      return count?.count || 0;
+    } catch (error) {
+      logError("Error getting waiting room count:", error);
+      return 0;
+    }
+  }
+
+  async getTodayAppointments(): Promise<any[]> {
+    try {
+      const today = new Date().toISOString().split('T')[0]; // Today's date in YYYY-MM-DD format
+      
+      const appointments = await db
+        .select({
+          id: appointments.id,
+          patientId: appointments.patientId,
+          date: appointments.date,
+          reason: appointments.reason
+        })
+        .from(appointments)
+        .where(sql`DATE(${appointments.date}) = DATE('${today}')`)
+        .orderBy(asc(appointments.date));
+
+      return appointments || [];
+    } catch (error) {
+      logError("Error getting today's appointments:", error);
+      return [];
+    }
+  }
+
+  async removeCompletedPatients(): Promise<Patient[]> {
+    try {
+      const completedPatients = await db
+        .select()
+        .from(patients)
+        .where(sql`patients.metadata->>'status' = 'completed'`)
+        .orderBy(desc(patients.updatedAt));
+
+      // Update these patients to remove them from waiting room
+      for (const patient of completedPatients) {
+        await this.createPatientActivity({
+          patientId: patient.id,
+          activityType: 'appointment',
+          title: 'Consultation Completed',
+          description: 'Patient consultation completed',
+          metadata: {
+            completionTime: new Date().toISOString(),
+            status: 'completed'
+          }
+        });
+      }
+
+      return completedPatients || [];
+    } catch (error) {
+      logError("Error removing completed patients:", error);
+      return [];
+    }
+  }
+
+  async getPatient(patientId: number): Promise<Patient | null> {
+    try {
+      const [patient] = await db
+        .select()
+        .from(patients)
+        .where(eq(patients.id, patientId));
+      
+      return patient || null;
+    } catch (error) {
+      logError("Error getting patient:", error);
+      return null;
     }
   }
 
@@ -1732,7 +1931,5 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-// Export instance of storage - use MockStorage if DATABASE_URL is missing
-export const storage = process.env.DATABASE_URL
-  ? new DatabaseStorage()
-  : new MockStorage();
+
+

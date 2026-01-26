@@ -15,6 +15,7 @@ import { patientDocumentsRouter } from "./routes/patient-documents-updated";
 import { adminRouter } from "./routes/admin";
 import { createPublicRouter } from "./routes/public";
 import { notificationSettingsRouter } from "./routes/notification-settings";
+import { createKioskRouter } from "./routes/kiosk";
 import {
   globalErrorHandler,
   requireAuth,
@@ -2751,5 +2752,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     sendSuccessResponse(res, { success: true });
   }));
 
-  return httpServer;
+return httpServer;
 }
+
+// Mount kiosk router
+app.use("/api/kiosk", createKioskRouter());

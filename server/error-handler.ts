@@ -9,6 +9,10 @@ export interface ErrorResponse {
   error: string;
   details?: string;
   code?: string;
+}
+
+// Export all handler functions
+export * from './error-handlers';
   statusCode: number;
   timestamp: string;
 }

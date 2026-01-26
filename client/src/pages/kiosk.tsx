@@ -1,33 +1,86 @@
-import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { Appointment, Patient } from "@shared/schema";
-import { format } from "date-fns";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent } from "@/components/ui/card";
+import React, { useState, useEffect, useRef } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Loader2, CheckCircle2, User as UserIcon, Calendar as CalendarIcon, Clock } from "lucide-react";
-import { useAuth } from "@/hooks/use-auth";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { 
+  UserPlus, 
+  Clock, 
+  Calendar, 
+  Phone, 
+  Mail, 
+  MapPin, 
+  CheckCircle, 
+  AlertCircle, 
+  ArrowRight, 
+  User,
+  Camera,
+  FileText,
+  Touchscreen,
+  Users,
+  Wifi,
+  Battery,
+  Shield
+} from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+
+interface PatientData {
+  id?: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  dateOfBirth: string;
+  address: string;
+  emergencyContact: string;
+  emergencyPhone: string;
+  insuranceProvider: string;
+  insuranceMemberId: string;
+  reasonForVisit: string;
+  hasArrived: boolean;
+  checkInTime: string;
+  estimatedWaitTime: number;
+}
+
+interface KioskStatus {
+  isOnline: boolean;
+  currentTime: Date;
+  clinicStatus: 'open' | 'closed' | 'lunch';
+  nextAvailableTime: Date | null;
+  totalPatientsWaiting: number;
+  averageWaitTime: number;
+}
 
 export default function KioskPage() {
-  const { user, logoutMutation } = useAuth();
   const { toast } = useToast();
-  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
-
-  const { data: appointments, isLoading: isLoadingAppointments } = useQuery<Appointment[]>({
-    queryKey: ["/api/appointments"],
-    refetchInterval: 30000, // Refresh every 30 seconds
+  const [currentScreen, setCurrentScreen] = useState<'welcome' | 'register' | 'confirm' | 'waiting' | 'appointment-select'>('welcome');
+  const [patientData, setPatientData] = useState<Partial<PatientData>>({});
+  const [kioskStatus, setKioskStatus] = useState<KioskStatus>({
+    isOnline: true,
+    currentTime: new Date(),
+    clinicStatus: 'open',
+    nextAvailableTime: null,
+    totalPatientsWaiting: 0,
+    averageWaitTime: 15
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [registrationComplete, setRegistrationComplete] = useState(false);
+  const [sessionTimeout, setSessionTimeout] = useState(300); // 5 minutes
+  const [touchActive, setTouchActive] = useState(false);
+  const [signatureData, setSignatureData] = useState<string>('');
+  const [appointmentTypes, setAppointmentTypes] = useState([
+    { id: 'checkup', name: 'General Checkup', duration: 30, icon: 'User' },
+    { id: 'followup', name: 'Follow-up Visit', duration: 20, icon: 'Calendar' },
+    { id: 'urgent', name: 'Urgent Care', duration: 15, icon: 'AlertCircle' },
+    { id: 'specialist', name: 'Specialist Consultation', duration: 45, icon: 'UserPlus' }
+  ]);
 
-  const { data: patients } = useQuery<Patient[]>({
-    queryKey: ["/api/patients"],
-  });
-
-  // Filter for today
-  const today = new Date();
-  const todayAppointments = appointments?.filter(app => {
-    const appDate = new Date(app.date);
+  const sessionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     return appDate.toDateString() === today.toDateString();
   }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) || [];
 

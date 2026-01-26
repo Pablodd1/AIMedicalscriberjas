@@ -28,6 +28,10 @@ interface LogContext {
 
 export const log = (message: string, context?: LogContext) => {
   logger.info(message, context);
+}
+
+// Export logger for kiosk and other components
+export { logger };
 };
 
 export const logError = (message: string, error?: any, context?: LogContext) => {

@@ -11,6 +11,7 @@ import MainLayout from "@/components/layout/main-layout";
 import Assistant from "@/pages/assistant";
 import { AuthProvider } from "@/hooks/use-auth";
 import { UploadManagerProvider } from "@/contexts/upload-manager";
+import { VoiceCommandProvider } from "@/contexts/voice-command-context";
 import JoinConsultation from "@/pages/join-consultation";
 import ConsultationComplete from "@/pages/consultation-complete";
 import AuthPage from "@/pages/auth-page";
@@ -34,6 +35,7 @@ import MonitoringSystem from "@/pages/monitoring";
 import LabInterpreter from "@/pages/lab-interpreter";
 import AdminPanel from "@/pages/admin-panel";
 import AdminPrompts from "@/pages/admin-prompts";
+import KioskEnhanced from "@/pages/kiosk-enhanced";
 import KioskPage from "@/pages/kiosk";
 import ErrorBoundary from "@/components/error-boundary";
 
@@ -123,10 +125,16 @@ const AdminPromptsPage = () => (
 );
 
 const AdminPanelPage = () => (
-  <MainLayout>
-    <AdminPanel />
-  </MainLayout>
-);
+    <MainLayout>
+      <AdminPanel />
+    </MainLayout>
+  );
+
+const KioskPage = () => (
+    <MainLayout>
+      <KioskEnhanced />
+    </MainLayout>
+  );
 
 function Router() {
   return (
@@ -148,8 +156,9 @@ function Router() {
       <ProtectedRoute path="/patient-intake" component={PatientIntakePage} />
       <ProtectedRoute path="/monitoring" component={MonitoringPage} />
       <ProtectedRoute path="/lab-interpreter" component={LabInterpreterPage} />
-      <ProtectedRoute path="/admin" component={AdminPanelPage} />
+<ProtectedRoute path="/admin" component={AdminPanelPage} />
       <ProtectedRoute path="/admin/prompts" component={AdminPromptsPage} />
+      <ProtectedRoute path="/kiosk" component={KioskPage} />
       <ProtectedRoute path="/kiosk" component={KioskPage} />
 
       {/* Public Routes - accessible without authentication */}
@@ -181,11 +190,13 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <UploadManagerProvider>
-            <RecordingProvider>
-              <Router />
-              <DisclaimerModal />
-              <Toaster />
-            </RecordingProvider>
+            <VoiceCommandProvider>
+              <RecordingProvider>
+                <Router />
+                <DisclaimerModal />
+                <Toaster />
+              </RecordingProvider>
+            </VoiceCommandProvider>
           </UploadManagerProvider>
         </AuthProvider>
       </QueryClientProvider>
