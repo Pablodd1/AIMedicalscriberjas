@@ -324,6 +324,9 @@ export class MockStorage implements IStorage {
     async getPatient(id: number): Promise<Patient | undefined> {
         return this.patients.get(id);
     }
+    async getPatientsByIds(ids: number[]): Promise<Patient[]> {
+        return ids.map(id => this.patients.get(id)).filter((p): p is Patient => p !== undefined);
+    }
     async createPatient(patient: InsertPatient & { createdBy: number }): Promise<Patient> {
         const id = this.currentId++;
         const newPatient: Patient = {
