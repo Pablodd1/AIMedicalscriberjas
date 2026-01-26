@@ -313,63 +313,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return '';
       };
 
+      const patientsToCreate: any[] = [];
       // Process each row
       for (let i = 0; i < rawData.length; i++) {
         const row = rawData[i];
+        const rowNum = i + 2;
 
-        try {
-          // Map Excel columns to patient schema
-          // Expected columns: First Name, Last Name, Email, Phone, Date of Birth, Address, Medical History
-          const patientData = {
-            firstName: getColumnValue(row, 'First Name', 'firstName', 'first_name'),
-            lastName: getColumnValue(row, 'Last Name', 'lastName', 'last_name'),
-            email: getColumnValue(row, 'Email', 'email'),
-            phone: getColumnValue(row, 'Phone', 'phone', 'phoneNumber', 'phone_number'),
-            dateOfBirth: getColumnValue(row, 'Date of Birth', 'dateOfBirth', 'date_of_birth', 'DOB', 'dob'),
-            address: getColumnValue(row, 'Address', 'address'),
-            medicalHistory: getColumnValue(row, 'Medical History', 'medicalHistory', 'medical_history'),
-          };
+        // Map Excel columns to patient schema
+        const patientData = {
+          firstName: getColumnValue(row, 'First Name', 'firstName', 'first_name'),
+          lastName: getColumnValue(row, 'Last Name', 'lastName', 'last_name'),
+          email: getColumnValue(row, 'Email', 'email'),
+          phone: getColumnValue(row, 'Phone', 'phone', 'phoneNumber', 'phone_number'),
+          dateOfBirth: getColumnValue(row, 'Date of Birth', 'dateOfBirth', 'date_of_birth', 'DOB', 'dob'),
+          address: getColumnValue(row, 'Address', 'address'),
+          medicalHistory: getColumnValue(row, 'Medical History', 'medicalHistory', 'medical_history'),
+        };
 
-          // Validate required fields
-          if (!patientData.firstName || !patientData.email) {
-            failedImports.push({
-              row: i + 2, // Excel row number (header is row 1)
-              data: row,
-              error: 'Missing required fields: First Name and Email are required',
-            });
-            continue;
-          }
-
-          // Validate with schema
-          const validation = validateRequestBody(insertPatientSchema, patientData);
-          if (!validation.success) {
-            failedImports.push({
-              row: i + 2,
-              data: row,
-              error: validation.error,
-            });
-            continue;
-          }
-
-          // Create patient
-          const patient = await storage.createPatient({
-            ...validation.data,
-            createdBy: req.user!.id,
+        // Validate required fields
+        if (!patientData.firstName || !patientData.email) {
+          failedImports.push({
+            row: rowNum,
+            data: row,
+            error: 'Missing required fields: First Name and Email are required',
           });
-          successfulImports.push({
-            row: i + 2,
-            patient: {
-              id: patient.id,
-              firstName: patient.firstName,
-              lastName: patient.lastName,
-              email: patient.email,
-            },
+          continue;
+        }
+
+        // Validate with schema
+        const validation = validateRequestBody(insertPatientSchema, patientData);
+        if (!validation.success) {
+          failedImports.push({
+            row: rowNum,
+            data: row,
+            error: validation.error,
+          });
+          continue;
+        }
+
+        patientsToCreate.push({
+          ...validation.data,
+          createdBy: req.user!.id,
+          rowNum,
+        });
+      }
+
+      if (patientsToCreate.length > 0) {
+        try {
+          const patientInsertData = patientsToCreate.map(({ rowNum, ...patient }) => patient);
+          const newPatients = await storage.createPatients(patientInsertData);
+
+          newPatients.forEach((patient, i) => {
+            const originalRow = patientsToCreate[i];
+            successfulImports.push({
+              row: originalRow.rowNum,
+              patient: {
+                id: patient.id,
+                firstName: patient.firstName,
+                lastName: patient.lastName,
+                email: patient.email,
+              },
+            });
           });
         } catch (error) {
-          failedImports.push({
-            row: i + 2,
-            data: row,
-            error: error instanceof Error ? error.message : 'Unknown error',
+          patientsToCreate.forEach(patient => {
+            failedImports.push({
+              row: patient.rowNum,
+              data: patient,
+              error: error instanceof Error ? error.message : 'Bulk insert failed',
+            });
           });
         }
       }
