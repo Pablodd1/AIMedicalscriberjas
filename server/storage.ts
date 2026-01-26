@@ -154,6 +154,7 @@ export interface IStorage {
   createIntakeFormResponse(response: InsertIntakeFormResponse): Promise<IntakeFormResponse>;
   // Recording session methods
   getRecordingSessions(doctorId: number): Promise<RecordingSession[]>;
+  getRecordingSessionsWithPatients(doctorId: number): Promise<(RecordingSession & { patient: Patient | null })[]>;
   getRecordingSessionsByPatient(patientId: number): Promise<RecordingSession[]>;
   getRecordingSession(id: number): Promise<RecordingSession | undefined>;
   getRecordingSessionByRoomId(roomId: string): Promise<RecordingSession | undefined>;
@@ -907,6 +908,22 @@ export class DatabaseStorage implements IStorage {
       .from(recordingSessions)
       .where(eq(recordingSessions.doctorId, doctorId))
       .orderBy(desc(recordingSessions.startTime));
+  }
+
+  async getRecordingSessionsWithPatients(doctorId: number): Promise<(RecordingSession & { patient: Patient | null })[]> {
+    const results = await db.select({
+      recording: recordingSessions,
+      patient: patients
+    })
+      .from(recordingSessions)
+      .leftJoin(patients, eq(recordingSessions.patientId, patients.id))
+      .where(eq(recordingSessions.doctorId, doctorId))
+      .orderBy(desc(recordingSessions.startTime));
+
+    return results.map(({ recording, patient }) => ({
+      ...recording,
+      patient
+    }));
   }
 
   async getRecordingSessionsByPatient(patientId: number): Promise<RecordingSession[]> {
