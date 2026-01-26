@@ -188,10 +188,9 @@ aiRouter.post('/generate-soap', async (req, res) => {
     let patientHistory = "";
     if (patientInfo?.id && !isNaN(parseInt(patientInfo.id))) {
       try {
-        const notes = await dbStorage.getMedicalNotesByPatient(parseInt(patientInfo.id));
+        const notes = await dbStorage.getMedicalNotesByPatient(parseInt(patientInfo.id), 3);
         if (notes && notes.length > 0) {
-          // Get last 3 notes for context
-          const recent = notes.slice(0, 3).map(n => 
+          const recent = notes.map(n => 
             `Date: ${new Date(n.createdAt).toLocaleDateString()}\nTitle: ${n.title}\nSummary: ${n.content.substring(0, 300)}...`
           ).join('\n---\n');
           patientHistory = `\n\nPATIENT MEDICAL HISTORY (Recent Visits):\n${recent}`;
@@ -567,8 +566,7 @@ aiRouter.get('/patient-context/:patientId', requireAuth, asyncHandler(async (req
     }
 
     // Fetch patient's medical notes (last 5)
-    const medicalNotes = await dbStorage.getMedicalNotesByPatient(patientId);
-    const recentNotes = medicalNotes.slice(0, 5);
+    const recentNotes = await dbStorage.getMedicalNotesByPatient(patientId, 5);
 
     // Fetch prescriptions
     const prescriptions = await dbStorage.getPrescriptionsByPatient(patientId);

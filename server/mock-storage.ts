@@ -420,8 +420,14 @@ export class MockStorage implements IStorage {
     async getMedicalNotes(doctorId: number): Promise<MedicalNote[]> {
         return Array.from(this.medicalNotes.values()).filter(n => n.doctorId === doctorId);
     }
-    async getMedicalNotesByPatient(patientId: number): Promise<MedicalNote[]> {
-        return Array.from(this.medicalNotes.values()).filter(n => n.patientId === patientId);
+    async getMedicalNotesByPatient(patientId: number, limit?: number): Promise<MedicalNote[]> {
+        const notes = Array.from(this.medicalNotes.values()).filter(n => n.patientId === patientId);
+        // Sort by createdAt desc
+        notes.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        return limit ? notes.slice(0, limit) : notes;
+    }
+    async getMedicalNotesCountByPatient(patientId: number): Promise<number> {
+        return Array.from(this.medicalNotes.values()).filter(n => n.patientId === patientId).length;
     }
     async getMedicalNote(id: number): Promise<MedicalNote | undefined> {
         return this.medicalNotes.get(id);

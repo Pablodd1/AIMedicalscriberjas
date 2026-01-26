@@ -82,7 +82,7 @@ import {
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { db, pool } from "./db";
-import { eq, and, desc, asc, gte, lte, inArray } from "drizzle-orm";
+import { eq, and, desc, asc, gte, lte, inArray, count } from "drizzle-orm";
 import { MockStorage } from "./mock-storage";
 
 import { log, logError } from './logger';
@@ -118,7 +118,8 @@ export interface IStorage {
   updateAppointment(id: number, updates: Partial<Appointment>): Promise<Appointment | undefined>;
   deleteAppointment(id: number): Promise<boolean>;
   getMedicalNotes(doctorId: number): Promise<MedicalNote[]>;
-  getMedicalNotesByPatient(patientId: number): Promise<MedicalNote[]>;
+  getMedicalNotesByPatient(patientId: number, limit?: number): Promise<MedicalNote[]>;
+  getMedicalNotesCountByPatient(patientId: number): Promise<number>;
   getMedicalNote(id: number): Promise<MedicalNote | undefined>;
   createMedicalNote(note: InsertMedicalNote): Promise<MedicalNote>;
   getQuickNotes(doctorId: number): Promise<MedicalNote[]>;
@@ -581,8 +582,16 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(medicalNotes).where(eq(medicalNotes.doctorId, doctorId));
   }
 
-  async getMedicalNotesByPatient(patientId: number): Promise<MedicalNote[]> {
-    return db.select().from(medicalNotes).where(eq(medicalNotes.patientId, patientId));
+  async getMedicalNotesByPatient(patientId: number, limit?: number): Promise<MedicalNote[]> {
+    if (limit) {
+      return db.select().from(medicalNotes).where(eq(medicalNotes.patientId, patientId)).orderBy(desc(medicalNotes.createdAt)).limit(limit);
+    }
+    return db.select().from(medicalNotes).where(eq(medicalNotes.patientId, patientId)).orderBy(desc(medicalNotes.createdAt));
+  }
+
+  async getMedicalNotesCountByPatient(patientId: number): Promise<number> {
+    const [result] = await db.select({ value: count() }).from(medicalNotes).where(eq(medicalNotes.patientId, patientId));
+    return result.value;
   }
 
   async getMedicalNote(id: number): Promise<MedicalNote | undefined> {
