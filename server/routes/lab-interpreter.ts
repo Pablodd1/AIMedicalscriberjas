@@ -14,6 +14,7 @@ import htmlDocx from 'html-docx-js';
 // PDF parsing removed - using OpenAI Vision API for better accuracy
 import {
   requireAuth,
+  requireAdmin,
   sendErrorResponse,
   sendSuccessResponse,
   asyncHandler,
@@ -1342,6 +1343,29 @@ JSON SCHEMA:
   }, 'Lab report analyzed successfully');
 }));
 
+<<<<<<< HEAD
+=======
+// DEBUG ENDPOINT: Check analysis pipeline
+labInterpreterRouter.get('/debug/analysis', requireAuth, requireAdmin, asyncHandler(async (req, res) => {
+  const doctorId = (req.user as any).id;
+  const settings = await handleDatabaseOperation(
+    () => storage.getLabInterpreterSettings(),
+    'Failed to get lab interpreter settings'
+  );
+  const knowledgeBase = await handleDatabaseOperation(
+    () => storage.getLabKnowledgeBase(doctorId),
+    'Failed to get knowledge base'
+  );
+
+  sendSuccessResponse(res, {
+    settingsAvailable: !!settings,
+    systemPrompt: settings?.system_prompt?.substring(0, 100) + '...',
+    knowledgeBaseItems: knowledgeBase.length,
+    sampleKnowledgeBase: knowledgeBase.slice(0, 2)
+  }, 'Debug info retrieved');
+}));
+
+>>>>>>> origin/fix-secure-debug-endpoint-6166924453676946977
 // TEST ENDPOINT: Test analysis with simple sample data
 labInterpreterRouter.post('/test/simple-analysis', requireAuth, asyncHandler(async (req, res) => {
   const { testData } = req.body;
