@@ -8,6 +8,9 @@ import { pool } from "./db";
 import { FileStorage } from "./file-storage";
 import { CloudinaryStorage } from "./cloudinary-storage";
 import { aiRouter } from "./routes/ai";
+import { aiIntakeRouter } from "./routes/ai-intake";
+import { clinicalSummaryRouter } from "./routes/clinical-summary";
+import { patientImportRouter } from "./routes/patient-import";
 import { emailRouter, sendPatientEmail } from "./routes/email";
 import { monitoringRouter } from "./routes/monitoring";
 import { labInterpreterRouter } from "./routes/lab-interpreter";
@@ -168,6 +171,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Register AI routes
   app.use('/api/ai', aiRouter);
+  app.use('/api/ai-intake', aiIntakeRouter);
+  app.use('/api/clinical-summary', clinicalSummaryRouter);
+  app.use('/api/patient-import', patientImportRouter);
 
   // Register Email settings routes
   app.use('/api/settings', emailRouter);
@@ -186,6 +192,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Register Notification Settings routes
   app.use('/api/notifications', notificationSettingsRouter);
+
+  // Register Enhanced Intake routes
+  const { intakeRouter } = await import('./routes/intake');
+  app.use('/api/intake', intakeRouter);
+
+  // Register Patient Import routes
+  const { importRouter } = await import('./routes/import');
+  app.use('/api/import', importRouter);
 
   // 🚀 PERFORMANCE OPTIMIZATION: Lazy-load notification scheduler only if enabled
   // This reduces startup time and memory usage when notifications are not configured

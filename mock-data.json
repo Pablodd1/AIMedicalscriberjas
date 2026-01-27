@@ -736,6 +736,69 @@
         "openaiApiKey": null,
         "useOwnApiKey": false
       }
+    ],
+    [
+      75,
+      {
+        "username": "testuser",
+        "password": "hashedpassword",
+        "name": "Test User",
+        "email": "test@example.com",
+        "role": "doctor",
+        "isActive": true,
+        "id": 75,
+        "createdAt": "2026-01-27T01:36:19.830Z",
+        "lastLogin": null,
+        "phone": null,
+        "specialty": null,
+        "licenseNumber": null,
+        "avatar": null,
+        "bio": null,
+        "openaiApiKey": null,
+        "useOwnApiKey": false
+      }
+    ],
+    [
+      76,
+      {
+        "username": "doc",
+        "password": "pw",
+        "name": "Dr. Test",
+        "email": "doc@test.com",
+        "role": "doctor",
+        "id": 76,
+        "createdAt": "2026-01-27T01:36:19.838Z",
+        "lastLogin": null,
+        "phone": null,
+        "specialty": null,
+        "licenseNumber": null,
+        "avatar": null,
+        "bio": null,
+        "isActive": true,
+        "openaiApiKey": null,
+        "useOwnApiKey": false
+      }
+    ],
+    [
+      78,
+      {
+        "username": "doc",
+        "password": "pw",
+        "name": "Dr. Test",
+        "email": "doc@test.com",
+        "role": "doctor",
+        "id": 78,
+        "createdAt": "2026-01-27T01:36:19.841Z",
+        "lastLogin": null,
+        "phone": null,
+        "specialty": null,
+        "licenseNumber": null,
+        "avatar": null,
+        "bio": null,
+        "isActive": true,
+        "openaiApiKey": null,
+        "useOwnApiKey": false
+      }
     ]
   ],
   "patients": [
@@ -1186,6 +1249,48 @@
         "address": null,
         "medicalHistory": null
       }
+    ],
+    [
+      77,
+      {
+        "firstName": "Jane",
+        "lastName": "Doe",
+        "email": "jane@example.com",
+        "createdBy": 76,
+        "id": 77,
+        "phone": null,
+        "dateOfBirth": null,
+        "address": null,
+        "medicalHistory": null
+      }
+    ],
+    [
+      79,
+      {
+        "firstName": "John",
+        "lastName": "Smith",
+        "email": "john@example.com",
+        "createdBy": 78,
+        "id": 79,
+        "phone": null,
+        "dateOfBirth": null,
+        "address": null,
+        "medicalHistory": null
+      }
+    ],
+    [
+      80,
+      {
+        "firstName": "Mary",
+        "lastName": "Jones",
+        "email": "mary@example.com",
+        "createdBy": 78,
+        "id": 80,
+        "phone": null,
+        "dateOfBirth": null,
+        "address": null,
+        "medicalHistory": null
+      }
     ]
   ],
   "appointments": [
@@ -1324,5 +1429,5 @@
   "patientActivity": [],
   "prescriptions": [],
   "medicalHistoryEntries": [],
-  "currentId": 75
+  "currentId": 81
 }

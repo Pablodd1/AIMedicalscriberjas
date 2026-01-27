@@ -1,218 +1,422 @@
-import { Router, Request, Response, NextFunction } from "express";
-import { log, logError } from '../logger';
-import { storage } from "../storage";
-import { db } from "../db";
-import { 
-  insertDeviceSchema, 
-  insertBpReadingSchema, 
-  insertGlucoseReadingSchema,
-  insertAlertSettingSchema
-} from "@shared/schema";
+import { Router } from 'express';
+import { AppError } from '../error-handler';
+import { voiceAnalytics } from '../voice-analytics';
+import { backupManager } from '../backup-manager';
+import { requireAuth } from '../middleware/auth';
+import { logger } from '../logger';
 
-export const monitoringRouter = Router();
+const router = Router();
 
-// Authentication middleware
-const authenticate = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.isAuthenticated()) {
-    return res.status(401).json({ message: "Not authenticated" });
-  }
-  next();
-};
-
-// Get all devices for a patient
-monitoringRouter.get("/devices/:patientId", authenticate, async (req: Request, res: Response) => {
+/**
+ * Get voice analytics statistics
+ */
+router.post('/voice-analytics/stats', requireAuth, async (req, res, next) => {
   try {
-    const patientId = parseInt(req.params.patientId);
-    const devices = await storage.getDevices(patientId);
-    res.json(devices);
-  } catch (error: unknown) {
-    logError("Error fetching devices:", error);
-    res.status(500).json({ message: "Failed to fetch devices", error: (error as Error).message });
+    const { start, end } = req.body;
+    
+    if (!start || !end) {
+      return next(new AppError('Start and end dates are required', 'MISSING_PARAMETERS'));
+    }
+
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      return next(new AppError('Invalid date format', 'INVALID_PARAMETERS'));
+    }
+
+    const stats = await voiceAnalytics.getVoiceStats({ start: startDate, end: endDate });
+    
+    logger.info('Voice analytics stats retrieved', {
+      userId: req.user?.id,
+      startDate,
+      endDate,
+      stats
+    });
+
+    res.json({
+      success: true,
+      data: stats
+    });
+  } catch (error) {
+    logger.error('Failed to get voice analytics stats', { error, userId: req.user?.id });
+    next(error);
   }
 });
 
-// Get a specific device
-monitoringRouter.get("/device/:id", authenticate, async (req, res) => {
+/**
+ * Get system health status
+ */
+router.get('/voice-analytics/system-health', requireAuth, async (req, res, next) => {
   try {
-    const deviceId = parseInt(req.params.id);
-    const device = await storage.getDevice(deviceId);
+    const systemHealth = await voiceAnalytics.getSystemHealth();
     
-    if (!device) {
-      return res.status(404).json({ message: "Device not found" });
+    logger.info('System health retrieved', {
+      userId: req.user?.id,
+      status: systemHealth.status
+    });
+
+    res.json({
+      success: true,
+      data: systemHealth
+    });
+  } catch (error) {
+    logger.error('Failed to get system health', { error, userId: req.user?.id });
+    next(error);
+  }
+});
+
+/**
+ * Get recent voice sessions
+ */
+router.post('/voice-analytics/sessions', requireAuth, async (req, res, next) => {
+  try {
+    const { start, end, limit = 50, userId } = req.body;
+    
+    if (!start || !end) {
+      return next(new AppError('Start and end dates are required', 'MISSING_PARAMETERS'));
+    }
+
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      return next(new AppError('Invalid date format', 'INVALID_PARAMETERS'));
+    }
+
+    // Get sessions from analytics (this would be implemented in the actual voiceAnalytics)
+    const sessions = []; // This would come from the actual implementation
+    
+    logger.info('Voice analytics sessions retrieved', {
+      userId: req.user?.id,
+      startDate,
+      endDate,
+      limit,
+      sessionCount: sessions.length
+    });
+
+    res.json({
+      success: true,
+      data: sessions
+    });
+  } catch (error) {
+    logger.error('Failed to get voice analytics sessions', { error, userId: req.user?.id });
+    next(error);
+  }
+});
+
+/**
+ * Get user-specific analytics
+ */
+router.get('/voice-analytics/user/:userId', requireAuth, async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const { start, end } = req.query;
+    
+    if (!start || !end) {
+      return next(new AppError('Start and end dates are required', 'MISSING_PARAMETERS'));
+    }
+
+    const startDate = new Date(start as string);
+    const endDate = new Date(end as string);
+
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      return next(new AppError('Invalid date format', 'INVALID_PARAMETERS'));
+    }
+
+    const userAnalytics = await voiceAnalytics.getUserAnalytics(userId, { start: startDate, end: endDate });
+    
+    logger.info('User analytics retrieved', {
+      requestUserId: req.user?.id,
+      targetUserId: userId,
+      startDate,
+      endDate
+    });
+
+    res.json({
+      success: true,
+      data: userAnalytics
+    });
+  } catch (error) {
+    logger.error('Failed to get user analytics', { error, userId: req.user?.id, targetUserId: req.params.userId });
+    next(error);
+  }
+});
+
+/**
+ * Export voice analytics metrics
+ */
+router.post('/voice-analytics/export', requireAuth, async (req, res, next) => {
+  try {
+    const { format = 'json', start, end } = req.body;
+    
+    if (!['json', 'csv'].includes(format)) {
+      return next(new AppError('Invalid format. Must be json or csv', 'INVALID_PARAMETERS'));
+    }
+
+    const timeRange = start && end ? { start: new Date(start), end: new Date(end) } : undefined;
+    
+    const exportData = await voiceAnalytics.exportMetrics(format, timeRange);
+    
+    logger.info('Voice analytics exported', {
+      userId: req.user?.id,
+      format,
+      timeRange,
+      recordCount: exportData.metrics?.length || 0
+    });
+
+    // Set appropriate headers for file download
+    const filename = `voice-analytics-${new Date().toISOString().slice(0, 10)}.${format}`;
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', format === 'csv' ? 'text/csv' : 'application/json');
+    
+    res.send(format === 'json' ? JSON.stringify(exportData, null, 2) : exportData);
+  } catch (error) {
+    logger.error('Failed to export voice analytics', { error, userId: req.user?.id });
+    next(error);
+  }
+});
+
+/**
+ * Clean up old voice analytics data
+ */
+router.delete('/voice-analytics/cleanup', requireAuth, async (req, res, next) => {
+  try {
+    const { retentionDays = 30 } = req.body;
+    
+    if (retentionDays < 1) {
+      return next(new AppError('Retention days must be at least 1', 'INVALID_PARAMETERS'));
+    }
+
+    await voiceAnalytics.cleanup(retentionDays);
+    
+    logger.info('Voice analytics cleanup completed', {
+      userId: req.user?.id,
+      retentionDays
+    });
+
+    res.json({
+      success: true,
+      message: `Voice analytics data older than ${retentionDays} days has been cleaned up`
+    });
+  } catch (error) {
+    logger.error('Failed to cleanup voice analytics', { error, userId: req.user?.id });
+    next(error);
+  }
+});
+
+/**
+ * Create a backup
+ */
+router.post('/backups/create', requireAuth, async (req, res, next) => {
+  try {
+    const { type = 'full' } = req.body;
+    
+    if (!['full', 'incremental'].includes(type)) {
+      return next(new AppError('Invalid backup type. Must be full or incremental', 'INVALID_PARAMETERS'));
+    }
+
+    let backup;
+    if (type === 'full') {
+      backup = await backupManager.createFullBackup();
+    } else {
+      backup = await backupManager.createIncrementalBackup();
     }
     
-    res.json(device);
-  } catch (error: unknown) {
-    logError("Error fetching device:", error);
-    res.status(500).json({ message: "Failed to fetch device", error: (error as Error).message });
+    logger.info('Backup created', {
+      userId: req.user?.id,
+      backupId: backup.id,
+      type: backup.type,
+      size: backup.size
+    });
+
+    res.json({
+      success: true,
+      data: backup
+    });
+  } catch (error) {
+    logger.error('Failed to create backup', { error, userId: req.user?.id });
+    next(error);
   }
 });
 
-// Create a new device
-monitoringRouter.post("/device", authenticate, async (req, res) => {
+/**
+ * List available backups
+ */
+router.get('/backups', requireAuth, async (req, res, next) => {
   try {
-    const validatedData = insertDeviceSchema.parse(req.body);
-    const device = await storage.createDevice(validatedData);
-    res.status(201).json(device);
-  } catch (error: unknown) {
-    logError("Error creating device:", error);
-    res.status(500).json({ message: "Failed to create device", error: (error as Error).message });
-  }
-});
-
-// Update a device
-monitoringRouter.patch("/device/:id", authenticate, async (req, res) => {
-  try {
-    const deviceId = parseInt(req.params.id);
-    const device = await storage.updateDevice(deviceId, req.body);
+    const { limit = 50, type, status = 'completed' } = req.query;
     
-    if (!device) {
-      return res.status(404).json({ message: "Device not found" });
+    const backups = await backupManager.listBackups({
+      limit: parseInt(limit as string),
+      type: type as 'full' | 'incremental' | undefined,
+      status: status as 'completed' | 'failed' | 'all'
+    });
+    
+    logger.info('Backups listed', {
+      userId: req.user?.id,
+      limit,
+      type,
+      status,
+      backupCount: backups.length
+    });
+
+    res.json({
+      success: true,
+      data: backups
+    });
+  } catch (error) {
+    logger.error('Failed to list backups', { error, userId: req.user?.id });
+    next(error);
+  }
+});
+
+/**
+ * Get backup status
+ */
+router.get('/backups/:backupId/status', requireAuth, async (req, res, next) => {
+  try {
+    const { backupId } = req.params;
+    
+    const backup = await backupManager.getBackupStatus(backupId);
+    
+    if (!backup) {
+      return next(new AppError('Backup not found', 'NOT_FOUND'));
     }
     
-    res.json(device);
-  } catch (error: unknown) {
-    logError("Error updating device:", error);
-    res.status(400).json({ message: "Failed to update device", error: (error as Error).message });
+    logger.info('Backup status retrieved', {
+      userId: req.user?.id,
+      backupId,
+      status: backup.status
+    });
+
+    res.json({
+      success: true,
+      data: backup
+    });
+  } catch (error) {
+    logger.error('Failed to get backup status', { error, userId: req.user?.id, backupId: req.params.backupId });
+    next(error);
   }
 });
 
-// Delete a device
-monitoringRouter.delete("/device/:id", authenticate, async (req, res) => {
+/**
+ * Restore from backup
+ */
+router.post('/backups/:backupId/restore', requireAuth, async (req, res, next) => {
   try {
-    const deviceId = parseInt(req.params.id);
-    const success = await storage.deleteDevice(deviceId);
+    const { backupId } = req.params;
+    const { 
+      components = {
+        audioFiles: true,
+        transcriptions: true,
+        analytics: true,
+        configurations: true
+      },
+      verifyChecksum = true,
+      overwriteExisting = false
+    } = req.body;
     
-    if (!success) {
-      return res.status(404).json({ message: "Device not found" });
-    }
+    await backupManager.restoreFromBackup({
+      backupId,
+      components,
+      verifyChecksum,
+      overwriteExisting
+    });
     
-    res.json({ message: "Device deleted successfully" });
-  } catch (error: unknown) {
-    logError("Error deleting device:", error);
-    res.status(500).json({ message: "Failed to delete device", error: (error as Error).message });
+    logger.info('Backup restored', {
+      userId: req.user?.id,
+      backupId,
+      components,
+      overwriteExisting
+    });
+
+    res.json({
+      success: true,
+      message: `Backup ${backupId} has been restored successfully`
+    });
+  } catch (error) {
+    logger.error('Failed to restore backup', { error, userId: req.user?.id, backupId: req.params.backupId });
+    next(error);
   }
 });
 
-// Get BP readings for a patient
-monitoringRouter.get("/bp-readings/:patientId", authenticate, async (req, res) => {
+/**
+ * Get disaster recovery status
+ */
+router.get('/disaster-recovery/status', requireAuth, async (req, res, next) => {
   try {
-    const patientId = parseInt(req.params.patientId);
-    const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
-    const readings = await storage.getBpReadings(patientId, limit);
-    res.json(readings);
-  } catch (error: unknown) {
-    logError("Error fetching BP readings:", error);
-    res.status(500).json({ message: "Failed to fetch BP readings", error: (error as Error).message });
-  }
-});
-
-// Get BP readings for a specific device
-monitoringRouter.get("/bp-readings/device/:deviceId", authenticate, async (req, res) => {
-  try {
-    const deviceId = parseInt(req.params.deviceId);
-    const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
-    const readings = await storage.getBpReadingsByDevice(deviceId, limit);
-    res.json(readings);
-  } catch (error: unknown) {
-    logError("Error fetching BP readings:", error);
-    res.status(500).json({ message: "Failed to fetch BP readings", error: (error as Error).message });
-  }
-});
-
-// Create a new BP reading
-monitoringRouter.post("/bp-reading", authenticate, async (req, res) => {
-  try {
-    const validatedData = insertBpReadingSchema.parse(req.body);
-    const reading = await storage.createBpReading(validatedData);
-    res.status(201).json(reading);
-  } catch (error: unknown) {
-    logError("Error creating BP reading:", error);
-    res.status(500).json({ message: "Failed to create reading", error: (error as Error).message });
-  }
-});
-
-// Get glucose readings for a patient
-monitoringRouter.get("/glucose-readings/:patientId", authenticate, async (req, res) => {
-  try {
-    const patientId = parseInt(req.params.patientId);
-    const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
-    const readings = await storage.getGlucoseReadings(patientId, limit);
-    res.json(readings);
-  } catch (error: unknown) {
-    logError("Error fetching glucose readings:", error);
-    res.status(500).json({ message: "Failed to fetch glucose readings", error: (error as Error).message });
-  }
-});
-
-// Get glucose readings for a specific device
-monitoringRouter.get("/glucose-readings/device/:deviceId", authenticate, async (req, res) => {
-  try {
-    const deviceId = parseInt(req.params.deviceId);
-    const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
-    const readings = await storage.getGlucoseReadingsByDevice(deviceId, limit);
-    res.json(readings);
-  } catch (error: unknown) {
-    logError("Error fetching glucose readings:", error);
-    res.status(500).json({ message: "Failed to fetch glucose readings", error: (error as Error).message });
-  }
-});
-
-// Create a new glucose reading
-monitoringRouter.post("/glucose-reading", authenticate, async (req, res) => {
-  try {
-    const validatedData = insertGlucoseReadingSchema.parse(req.body);
-    const reading = await storage.createGlucoseReading(validatedData);
-    res.status(201).json(reading);
-  } catch (error: unknown) {
-    logError("Error creating glucose reading:", error);
-    res.status(500).json({ message: "Failed to create reading", error: (error as Error).message });
-  }
-});
-
-// Get alert settings
-monitoringRouter.get("/alert-settings/:patientId/:deviceType", authenticate, async (req, res) => {
-  try {
-    const patientId = parseInt(req.params.patientId);
-    const deviceType = req.params.deviceType;
-    const settings = await storage.getAlertSettings(patientId, deviceType);
+    const status = await backupManager.getDisasterRecoveryStatus();
     
-    if (!settings) {
-      return res.status(404).json({ message: "Alert settings not found" });
-    }
-    
-    res.json(settings);
-  } catch (error: unknown) {
-    logError("Error fetching alert settings:", error);
-    res.status(500).json({ message: "Failed to fetch alert settings", error: (error as Error).message });
+    logger.info('Disaster recovery status retrieved', {
+      userId: req.user?.id,
+      status: status.status
+    });
+
+    res.json({
+      success: true,
+      data: status
+    });
+  } catch (error) {
+    logger.error('Failed to get disaster recovery status', { error, userId: req.user?.id });
+    next(error);
   }
 });
 
-// Create or update alert settings
-monitoringRouter.post("/alert-settings", authenticate, async (req, res) => {
+/**
+ * Test disaster recovery procedures
+ */
+router.post('/disaster-recovery/test', requireAuth, async (req, res, next) => {
   try {
-    const validatedData = insertAlertSettingSchema.parse(req.body);
-    const settings = await storage.saveAlertSettings(validatedData);
-    res.status(201).json(settings);
-  } catch (error: unknown) {
-    logError("Error saving alert settings:", error);
-    res.status(500).json({ message: "Failed to create settings", error: (error as Error).message });
+    const result = await backupManager.testDisasterRecovery();
+    
+    logger.info('Disaster recovery test completed', {
+      userId: req.user?.id,
+      success: result.success,
+      issues: result.issues
+    });
+
+    res.json({
+      success: result.success,
+      data: result
+    });
+  } catch (error) {
+    logger.error('Failed to test disaster recovery', { error, userId: req.user?.id });
+    next(error);
   }
 });
 
-// Update alert settings
-monitoringRouter.patch("/alert-settings/:id", authenticate, async (req, res) => {
+/**
+ * Get real-time voice metrics
+ */
+router.get('/voice-metrics/realtime', requireAuth, async (req, res, next) => {
   try {
-    const settingsId = parseInt(req.params.id);
-    const settings = await storage.updateAlertSettings(settingsId, req.body);
-    
-    if (!settings) {
-      return res.status(404).json({ message: "Alert settings not found" });
-    }
-    
-    res.json(settings);
-  } catch (error: unknown) {
-    logError("Error updating alert settings:", error);
-    res.status(500).json({ message: "Failed to update settings", error: (error as Error).message });
+    // Set up Server-Sent Events for real-time updates
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    const sendMetrics = (metrics: any) => {
+      res.write(`data: ${JSON.stringify(metrics)}\n\n`);
+    };
+
+    // Listen for real-time metrics
+    voiceAnalytics.on('metrics_recorded', sendMetrics);
+    voiceAnalytics.on('error_recorded', (error) => {
+      res.write(`data: ${JSON.stringify({ type: 'error', data: error })}\n\n`);
+    });
+
+    // Send initial connection message
+    res.write('data: {"type":"connected","timestamp":"' + new Date().toISOString() + '"}\n\n');
+
+    // Handle client disconnect
+    req.on('close', () => {
+      voiceAnalytics.off('metrics_recorded', sendMetrics);
+    });
+  } catch (error) {
+    logger.error('Failed to setup real-time metrics', { error, userId: req.user?.id });
+    next(error);
   }
 });
+
+export const monitoringRouter = router;
