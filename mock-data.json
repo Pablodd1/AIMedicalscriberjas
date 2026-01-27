@@ -232,6 +232,510 @@
         "openaiApiKey": null,
         "useOwnApiKey": false
       }
+    ],
+    [
+      27,
+      {
+        "username": "testuser",
+        "password": "hashedpassword",
+        "name": "Test User",
+        "email": "test@example.com",
+        "role": "doctor",
+        "isActive": true,
+        "id": 27,
+        "createdAt": "2026-01-26T22:39:23.954Z",
+        "lastLogin": null,
+        "phone": null,
+        "specialty": null,
+        "licenseNumber": null,
+        "avatar": null,
+        "bio": null,
+        "openaiApiKey": null,
+        "useOwnApiKey": false
+      }
+    ],
+    [
+      28,
+      {
+        "username": "doc",
+        "password": "pw",
+        "name": "Dr. Test",
+        "email": "doc@test.com",
+        "role": "doctor",
+        "id": 28,
+        "createdAt": "2026-01-26T22:39:23.956Z",
+        "lastLogin": null,
+        "phone": null,
+        "specialty": null,
+        "licenseNumber": null,
+        "avatar": null,
+        "bio": null,
+        "isActive": true,
+        "openaiApiKey": null,
+        "useOwnApiKey": false
+      }
+    ],
+    [
+      30,
+      {
+        "username": "doc",
+        "password": "pw",
+        "name": "Dr. Test",
+        "email": "doc@test.com",
+        "role": "doctor",
+        "id": 30,
+        "createdAt": "2026-01-26T22:39:23.958Z",
+        "lastLogin": null,
+        "phone": null,
+        "specialty": null,
+        "licenseNumber": null,
+        "avatar": null,
+        "bio": null,
+        "isActive": true,
+        "openaiApiKey": null,
+        "useOwnApiKey": false
+      }
+    ],
+    [
+      33,
+      {
+        "username": "testuser",
+        "password": "hashedpassword",
+        "name": "Test User",
+        "email": "test@example.com",
+        "role": "doctor",
+        "isActive": true,
+        "id": 33,
+        "createdAt": "2026-01-26T22:46:46.704Z",
+        "lastLogin": null,
+        "phone": null,
+        "specialty": null,
+        "licenseNumber": null,
+        "avatar": null,
+        "bio": null,
+        "openaiApiKey": null,
+        "useOwnApiKey": false
+      }
+    ],
+    [
+      34,
+      {
+        "username": "doc",
+        "password": "pw",
+        "name": "Dr. Test",
+        "email": "doc@test.com",
+        "role": "doctor",
+        "id": 34,
+        "createdAt": "2026-01-26T22:46:46.707Z",
+        "lastLogin": null,
+        "phone": null,
+        "specialty": null,
+        "licenseNumber": null,
+        "avatar": null,
+        "bio": null,
+        "isActive": true,
+        "openaiApiKey": null,
+        "useOwnApiKey": false
+      }
+    ],
+    [
+      36,
+      {
+        "username": "doc",
+        "password": "pw",
+        "name": "Dr. Test",
+        "email": "doc@test.com",
+        "role": "doctor",
+        "id": 36,
+        "createdAt": "2026-01-26T22:46:46.709Z",
+        "lastLogin": null,
+        "phone": null,
+        "specialty": null,
+        "licenseNumber": null,
+        "avatar": null,
+        "bio": null,
+        "isActive": true,
+        "openaiApiKey": null,
+        "useOwnApiKey": false
+      }
+    ],
+    [
+      39,
+      {
+        "username": "testuser",
+        "password": "hashedpassword",
+        "name": "Test User",
+        "email": "test@example.com",
+        "role": "doctor",
+        "isActive": true,
+        "id": 39,
+        "createdAt": "2026-01-26T22:47:30.818Z",
+        "lastLogin": null,
+        "phone": null,
+        "specialty": null,
+        "licenseNumber": null,
+        "avatar": null,
+        "bio": null,
+        "openaiApiKey": null,
+        "useOwnApiKey": false
+      }
+    ],
+    [
+      40,
+      {
+        "username": "doc",
+        "password": "pw",
+        "name": "Dr. Test",
+        "email": "doc@test.com",
+        "role": "doctor",
+        "id": 40,
+        "createdAt": "2026-01-26T22:47:30.822Z",
+        "lastLogin": null,
+        "phone": null,
+        "specialty": null,
+        "licenseNumber": null,
+        "avatar": null,
+        "bio": null,
+        "isActive": true,
+        "openaiApiKey": null,
+        "useOwnApiKey": false
+      }
+    ],
+    [
+      42,
+      {
+        "username": "doc",
+        "password": "pw",
+        "name": "Dr. Test",
+        "email": "doc@test.com",
+        "role": "doctor",
+        "id": 42,
+        "createdAt": "2026-01-26T22:47:30.825Z",
+        "lastLogin": null,
+        "phone": null,
+        "specialty": null,
+        "licenseNumber": null,
+        "avatar": null,
+        "bio": null,
+        "isActive": true,
+        "openaiApiKey": null,
+        "useOwnApiKey": false
+      }
+    ],
+    [
+      45,
+      {
+        "username": "testuser",
+        "password": "hashedpassword",
+        "name": "Test User",
+        "email": "test@example.com",
+        "role": "doctor",
+        "isActive": true,
+        "id": 45,
+        "createdAt": "2026-01-26T23:59:51.190Z",
+        "lastLogin": null,
+        "phone": null,
+        "specialty": null,
+        "licenseNumber": null,
+        "avatar": null,
+        "bio": null,
+        "openaiApiKey": null,
+        "useOwnApiKey": false
+      }
+    ],
+    [
+      46,
+      {
+        "username": "doc",
+        "password": "pw",
+        "name": "Dr. Test",
+        "email": "doc@test.com",
+        "role": "doctor",
+        "id": 46,
+        "createdAt": "2026-01-26T23:59:51.195Z",
+        "lastLogin": null,
+        "phone": null,
+        "specialty": null,
+        "licenseNumber": null,
+        "avatar": null,
+        "bio": null,
+        "isActive": true,
+        "openaiApiKey": null,
+        "useOwnApiKey": false
+      }
+    ],
+    [
+      48,
+      {
+        "username": "doc",
+        "password": "pw",
+        "name": "Dr. Test",
+        "email": "doc@test.com",
+        "role": "doctor",
+        "id": 48,
+        "createdAt": "2026-01-26T23:59:51.199Z",
+        "lastLogin": null,
+        "phone": null,
+        "specialty": null,
+        "licenseNumber": null,
+        "avatar": null,
+        "bio": null,
+        "isActive": true,
+        "openaiApiKey": null,
+        "useOwnApiKey": false
+      }
+    ],
+    [
+      51,
+      {
+        "username": "testuser",
+        "password": "hashedpassword",
+        "name": "Test User",
+        "email": "test@example.com",
+        "role": "doctor",
+        "isActive": true,
+        "id": 51,
+        "createdAt": "2026-01-27T00:00:45.606Z",
+        "lastLogin": null,
+        "phone": null,
+        "specialty": null,
+        "licenseNumber": null,
+        "avatar": null,
+        "bio": null,
+        "openaiApiKey": null,
+        "useOwnApiKey": false
+      }
+    ],
+    [
+      52,
+      {
+        "username": "doc",
+        "password": "pw",
+        "name": "Dr. Test",
+        "email": "doc@test.com",
+        "role": "doctor",
+        "id": 52,
+        "createdAt": "2026-01-27T00:00:45.613Z",
+        "lastLogin": null,
+        "phone": null,
+        "specialty": null,
+        "licenseNumber": null,
+        "avatar": null,
+        "bio": null,
+        "isActive": true,
+        "openaiApiKey": null,
+        "useOwnApiKey": false
+      }
+    ],
+    [
+      54,
+      {
+        "username": "doc",
+        "password": "pw",
+        "name": "Dr. Test",
+        "email": "doc@test.com",
+        "role": "doctor",
+        "id": 54,
+        "createdAt": "2026-01-27T00:00:45.617Z",
+        "lastLogin": null,
+        "phone": null,
+        "specialty": null,
+        "licenseNumber": null,
+        "avatar": null,
+        "bio": null,
+        "isActive": true,
+        "openaiApiKey": null,
+        "useOwnApiKey": false
+      }
+    ],
+    [
+      57,
+      {
+        "username": "testuser",
+        "password": "hashedpassword",
+        "name": "Test User",
+        "email": "test@example.com",
+        "role": "doctor",
+        "isActive": true,
+        "id": 57,
+        "createdAt": "2026-01-27T00:01:02.193Z",
+        "lastLogin": null,
+        "phone": null,
+        "specialty": null,
+        "licenseNumber": null,
+        "avatar": null,
+        "bio": null,
+        "openaiApiKey": null,
+        "useOwnApiKey": false
+      }
+    ],
+    [
+      58,
+      {
+        "username": "doc",
+        "password": "pw",
+        "name": "Dr. Test",
+        "email": "doc@test.com",
+        "role": "doctor",
+        "id": 58,
+        "createdAt": "2026-01-27T00:01:02.196Z",
+        "lastLogin": null,
+        "phone": null,
+        "specialty": null,
+        "licenseNumber": null,
+        "avatar": null,
+        "bio": null,
+        "isActive": true,
+        "openaiApiKey": null,
+        "useOwnApiKey": false
+      }
+    ],
+    [
+      60,
+      {
+        "username": "doc",
+        "password": "pw",
+        "name": "Dr. Test",
+        "email": "doc@test.com",
+        "role": "doctor",
+        "id": 60,
+        "createdAt": "2026-01-27T00:01:02.198Z",
+        "lastLogin": null,
+        "phone": null,
+        "specialty": null,
+        "licenseNumber": null,
+        "avatar": null,
+        "bio": null,
+        "isActive": true,
+        "openaiApiKey": null,
+        "useOwnApiKey": false
+      }
+    ],
+    [
+      63,
+      {
+        "username": "testuser",
+        "password": "hashedpassword",
+        "name": "Test User",
+        "email": "test@example.com",
+        "role": "doctor",
+        "isActive": true,
+        "id": 63,
+        "createdAt": "2026-01-27T00:01:15.473Z",
+        "lastLogin": null,
+        "phone": null,
+        "specialty": null,
+        "licenseNumber": null,
+        "avatar": null,
+        "bio": null,
+        "openaiApiKey": null,
+        "useOwnApiKey": false
+      }
+    ],
+    [
+      64,
+      {
+        "username": "doc",
+        "password": "pw",
+        "name": "Dr. Test",
+        "email": "doc@test.com",
+        "role": "doctor",
+        "id": 64,
+        "createdAt": "2026-01-27T00:01:15.479Z",
+        "lastLogin": null,
+        "phone": null,
+        "specialty": null,
+        "licenseNumber": null,
+        "avatar": null,
+        "bio": null,
+        "isActive": true,
+        "openaiApiKey": null,
+        "useOwnApiKey": false
+      }
+    ],
+    [
+      66,
+      {
+        "username": "doc",
+        "password": "pw",
+        "name": "Dr. Test",
+        "email": "doc@test.com",
+        "role": "doctor",
+        "id": 66,
+        "createdAt": "2026-01-27T00:01:15.483Z",
+        "lastLogin": null,
+        "phone": null,
+        "specialty": null,
+        "licenseNumber": null,
+        "avatar": null,
+        "bio": null,
+        "isActive": true,
+        "openaiApiKey": null,
+        "useOwnApiKey": false
+      }
+    ],
+    [
+      69,
+      {
+        "username": "testuser",
+        "password": "hashedpassword",
+        "name": "Test User",
+        "email": "test@example.com",
+        "role": "doctor",
+        "isActive": true,
+        "id": 69,
+        "createdAt": "2026-01-27T00:02:22.656Z",
+        "lastLogin": null,
+        "phone": null,
+        "specialty": null,
+        "licenseNumber": null,
+        "avatar": null,
+        "bio": null,
+        "openaiApiKey": null,
+        "useOwnApiKey": false
+      }
+    ],
+    [
+      70,
+      {
+        "username": "doc",
+        "password": "pw",
+        "name": "Dr. Test",
+        "email": "doc@test.com",
+        "role": "doctor",
+        "id": 70,
+        "createdAt": "2026-01-27T00:02:22.659Z",
+        "lastLogin": null,
+        "phone": null,
+        "specialty": null,
+        "licenseNumber": null,
+        "avatar": null,
+        "bio": null,
+        "isActive": true,
+        "openaiApiKey": null,
+        "useOwnApiKey": false
+      }
+    ],
+    [
+      72,
+      {
+        "username": "doc",
+        "password": "pw",
+        "name": "Dr. Test",
+        "email": "doc@test.com",
+        "role": "doctor",
+        "id": 72,
+        "createdAt": "2026-01-27T00:02:22.662Z",
+        "lastLogin": null,
+        "phone": null,
+        "specialty": null,
+        "licenseNumber": null,
+        "avatar": null,
+        "bio": null,
+        "isActive": true,
+        "openaiApiKey": null,
+        "useOwnApiKey": false
+      }
     ]
   ],
   "patients": [
@@ -341,6 +845,342 @@
         "createdBy": 22,
         "id": 24,
         "lastName": null,
+        "phone": null,
+        "dateOfBirth": null,
+        "address": null,
+        "medicalHistory": null
+      }
+    ],
+    [
+      29,
+      {
+        "firstName": "Jane",
+        "lastName": "Doe",
+        "email": "jane@example.com",
+        "createdBy": 28,
+        "id": 29,
+        "phone": null,
+        "dateOfBirth": null,
+        "address": null,
+        "medicalHistory": null
+      }
+    ],
+    [
+      31,
+      {
+        "firstName": "John",
+        "lastName": "Smith",
+        "email": "john@example.com",
+        "createdBy": 30,
+        "id": 31,
+        "phone": null,
+        "dateOfBirth": null,
+        "address": null,
+        "medicalHistory": null
+      }
+    ],
+    [
+      32,
+      {
+        "firstName": "Mary",
+        "lastName": "Jones",
+        "email": "mary@example.com",
+        "createdBy": 30,
+        "id": 32,
+        "phone": null,
+        "dateOfBirth": null,
+        "address": null,
+        "medicalHistory": null
+      }
+    ],
+    [
+      35,
+      {
+        "firstName": "Jane",
+        "lastName": "Doe",
+        "email": "jane@example.com",
+        "createdBy": 34,
+        "id": 35,
+        "phone": null,
+        "dateOfBirth": null,
+        "address": null,
+        "medicalHistory": null
+      }
+    ],
+    [
+      37,
+      {
+        "firstName": "John",
+        "lastName": "Smith",
+        "email": "john@example.com",
+        "createdBy": 36,
+        "id": 37,
+        "phone": null,
+        "dateOfBirth": null,
+        "address": null,
+        "medicalHistory": null
+      }
+    ],
+    [
+      38,
+      {
+        "firstName": "Mary",
+        "lastName": "Jones",
+        "email": "mary@example.com",
+        "createdBy": 36,
+        "id": 38,
+        "phone": null,
+        "dateOfBirth": null,
+        "address": null,
+        "medicalHistory": null
+      }
+    ],
+    [
+      41,
+      {
+        "firstName": "Jane",
+        "lastName": "Doe",
+        "email": "jane@example.com",
+        "createdBy": 40,
+        "id": 41,
+        "phone": null,
+        "dateOfBirth": null,
+        "address": null,
+        "medicalHistory": null
+      }
+    ],
+    [
+      43,
+      {
+        "firstName": "John",
+        "lastName": "Smith",
+        "email": "john@example.com",
+        "createdBy": 42,
+        "id": 43,
+        "phone": null,
+        "dateOfBirth": null,
+        "address": null,
+        "medicalHistory": null
+      }
+    ],
+    [
+      44,
+      {
+        "firstName": "Mary",
+        "lastName": "Jones",
+        "email": "mary@example.com",
+        "createdBy": 42,
+        "id": 44,
+        "phone": null,
+        "dateOfBirth": null,
+        "address": null,
+        "medicalHistory": null
+      }
+    ],
+    [
+      47,
+      {
+        "firstName": "Jane",
+        "lastName": "Doe",
+        "email": "jane@example.com",
+        "createdBy": 46,
+        "id": 47,
+        "phone": null,
+        "dateOfBirth": null,
+        "address": null,
+        "medicalHistory": null
+      }
+    ],
+    [
+      49,
+      {
+        "firstName": "John",
+        "lastName": "Smith",
+        "email": "john@example.com",
+        "createdBy": 48,
+        "id": 49,
+        "phone": null,
+        "dateOfBirth": null,
+        "address": null,
+        "medicalHistory": null
+      }
+    ],
+    [
+      50,
+      {
+        "firstName": "Mary",
+        "lastName": "Jones",
+        "email": "mary@example.com",
+        "createdBy": 48,
+        "id": 50,
+        "phone": null,
+        "dateOfBirth": null,
+        "address": null,
+        "medicalHistory": null
+      }
+    ],
+    [
+      53,
+      {
+        "firstName": "Jane",
+        "lastName": "Doe",
+        "email": "jane@example.com",
+        "createdBy": 52,
+        "id": 53,
+        "phone": null,
+        "dateOfBirth": null,
+        "address": null,
+        "medicalHistory": null
+      }
+    ],
+    [
+      55,
+      {
+        "firstName": "John",
+        "lastName": "Smith",
+        "email": "john@example.com",
+        "createdBy": 54,
+        "id": 55,
+        "phone": null,
+        "dateOfBirth": null,
+        "address": null,
+        "medicalHistory": null
+      }
+    ],
+    [
+      56,
+      {
+        "firstName": "Mary",
+        "lastName": "Jones",
+        "email": "mary@example.com",
+        "createdBy": 54,
+        "id": 56,
+        "phone": null,
+        "dateOfBirth": null,
+        "address": null,
+        "medicalHistory": null
+      }
+    ],
+    [
+      59,
+      {
+        "firstName": "Jane",
+        "lastName": "Doe",
+        "email": "jane@example.com",
+        "createdBy": 58,
+        "id": 59,
+        "phone": null,
+        "dateOfBirth": null,
+        "address": null,
+        "medicalHistory": null
+      }
+    ],
+    [
+      61,
+      {
+        "firstName": "John",
+        "lastName": "Smith",
+        "email": "john@example.com",
+        "createdBy": 60,
+        "id": 61,
+        "phone": null,
+        "dateOfBirth": null,
+        "address": null,
+        "medicalHistory": null
+      }
+    ],
+    [
+      62,
+      {
+        "firstName": "Mary",
+        "lastName": "Jones",
+        "email": "mary@example.com",
+        "createdBy": 60,
+        "id": 62,
+        "phone": null,
+        "dateOfBirth": null,
+        "address": null,
+        "medicalHistory": null
+      }
+    ],
+    [
+      65,
+      {
+        "firstName": "Jane",
+        "lastName": "Doe",
+        "email": "jane@example.com",
+        "createdBy": 64,
+        "id": 65,
+        "phone": null,
+        "dateOfBirth": null,
+        "address": null,
+        "medicalHistory": null
+      }
+    ],
+    [
+      67,
+      {
+        "firstName": "John",
+        "lastName": "Smith",
+        "email": "john@example.com",
+        "createdBy": 66,
+        "id": 67,
+        "phone": null,
+        "dateOfBirth": null,
+        "address": null,
+        "medicalHistory": null
+      }
+    ],
+    [
+      68,
+      {
+        "firstName": "Mary",
+        "lastName": "Jones",
+        "email": "mary@example.com",
+        "createdBy": 66,
+        "id": 68,
+        "phone": null,
+        "dateOfBirth": null,
+        "address": null,
+        "medicalHistory": null
+      }
+    ],
+    [
+      71,
+      {
+        "firstName": "Jane",
+        "lastName": "Doe",
+        "email": "jane@example.com",
+        "createdBy": 70,
+        "id": 71,
+        "phone": null,
+        "dateOfBirth": null,
+        "address": null,
+        "medicalHistory": null
+      }
+    ],
+    [
+      73,
+      {
+        "firstName": "John",
+        "lastName": "Smith",
+        "email": "john@example.com",
+        "createdBy": 72,
+        "id": 73,
+        "phone": null,
+        "dateOfBirth": null,
+        "address": null,
+        "medicalHistory": null
+      }
+    ],
+    [
+      74,
+      {
+        "firstName": "Mary",
+        "lastName": "Jones",
+        "email": "mary@example.com",
+        "createdBy": 72,
+        "id": 74,
         "phone": null,
         "dateOfBirth": null,
         "address": null,
@@ -484,5 +1324,5 @@
   "patientActivity": [],
   "prescriptions": [],
   "medicalHistoryEntries": [],
-  "currentId": 27
+  "currentId": 75
 }

@@ -1752,20 +1752,6 @@ async deletePatientDocument(id: number): Promise<boolean> {
     }
   }
 
-  async getPatient(patientId: number): Promise<Patient | null> {
-    try {
-      const [patient] = await db
-        .select()
-        .from(patients)
-        .where(eq(patients.id, patientId));
-      
-      return patient || null;
-    } catch (error) {
-      logError("Error getting patient:", error);
-      return null;
-    }
-  }
-
   // Medical Alerts methods
   async getMedicalAlertsByPatient(patientId: number): Promise<MedicalAlert[]> {
     return db.select().from(medicalAlerts)

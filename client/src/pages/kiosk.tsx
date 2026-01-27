@@ -24,10 +24,17 @@ import {
   Users,
   Wifi,
   Battery,
-  Shield
+  Shield,
+  Loader2,
+  Calendar as CalendarIcon
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/use-auth";
+import { format } from "date-fns";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { apiRequest } from "@/lib/api";
 
 interface PatientData {
   id?: string;
@@ -58,6 +65,8 @@ interface KioskStatus {
 
 export default function KioskPage() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { user, logoutMutation } = useAuth();
   const [currentScreen, setCurrentScreen] = useState<'welcome' | 'register' | 'confirm' | 'waiting' | 'appointment-select'>('welcome');
   const [patientData, setPatientData] = useState<Partial<PatientData>>({});
   const [kioskStatus, setKioskStatus] = useState<KioskStatus>({
@@ -79,29 +88,86 @@ export default function KioskPage() {
     { id: 'urgent', name: 'Urgent Care', duration: 15, icon: 'AlertCircle' },
     { id: 'specialist', name: 'Specialist Consultation', duration: 45, icon: 'UserPlus' }
   ]);
+  const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
 
   const sessionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Update current time every minute
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setKioskStatus(prev => ({
+        ...prev,
+        currentTime: new Date()
+      }));
+    }, 60000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  // Session timeout logic
+  useEffect(() => {
+    if (sessionTimeout <= 0) {
+      setCurrentScreen('welcome');
+      setPatientData({});
+      setRegistrationComplete(false);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setSessionTimeout(prev => prev - 1);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [sessionTimeout]);
+
+  // Reset timeout on user activity
+  const resetTimeout = () => {
+    setSessionTimeout(300);
+  };
+
+  // Fetch appointments data
+  const { data: appointments = [], isLoading: isLoadingAppointments } = useQuery<any[]>({
+    queryKey: ['/api/appointments'],
+    queryFn: async () => {
+      const res = await apiRequest('GET', '/api/appointments');
+      return res.json();
+    }
+  });
+
+  // Fetch patients data
+  const { data: patients = [] } = useQuery<any[]>({
+    queryKey: ['/api/patients'],
+    queryFn: async () => {
+      const res = await apiRequest('GET', '/api/patients');
+      return res.json();
+    }
+  });
+
+  // Check if appointment is today and sort by date
+  const todayAppointments = appointments.filter(appointment => {
+    const appDate = new Date(appointment.date);
+    const today = new Date();
     return appDate.toDateString() === today.toDateString();
   }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) || [];
 
   const checkInMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await apiRequest("PATCH", `/api/appointments/${id}`, { status: "checked_in" });
+      const res = await apiRequest('PATCH', `/api/appointments/${id}`, { status: 'checked_in' });
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
+      queryClient.invalidateQueries({ queryKey: ['/api/appointments'] });
       toast({
-        title: "Checked In",
-        description: "You have successfully checked in.",
+        title: 'Checked In',
+        description: 'You have successfully checked in.',
       });
       setSelectedAppointment(null);
     },
     onError: (error: Error) => {
       toast({
-        title: "Check-in failed",
+        title: 'Check-in failed',
         description: error.message,
-        variant: "destructive",
+        variant: 'destructive',
       });
     },
   });
@@ -196,7 +262,7 @@ export default function KioskPage() {
           </DialogHeader>
           <div className="flex items-center justify-center py-6">
              <div className="bg-primary/5 p-6 rounded-full">
-                <UserIcon className="h-12 w-12 text-primary" />
+                <User className="h-12 w-12 text-primary" />
              </div>
           </div>
           <DialogFooter className="sm:justify-center gap-4">

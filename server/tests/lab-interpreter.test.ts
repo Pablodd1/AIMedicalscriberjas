@@ -6,17 +6,17 @@ import { processImageFileFast } from '../routes/lab-interpreter';
 import OpenAI from 'openai';
 
 vi.mock('openai', () => {
-  const Chat = {
-    Completions: {
-      create: vi.fn(),
-    },
-  };
-  const mockOpenAI = {
-    chat: Chat,
-  };
+  const mockCompletionsCreate = vi.fn();
+  
   return {
     __esModule: true,
-    default: vi.fn(() => mockOpenAI),
+    default: class {
+      chat = {
+        completions: {
+          create: mockCompletionsCreate,
+        },
+      };
+    },
   };
 });
 
@@ -32,11 +32,12 @@ describe('processImageFileFast', () => {
     await fs.promises.writeFile(imagePath, imageBuffer);
 
     // 2. Mock OpenAI response
-    const mockOpenai = new OpenAI();
+    const MockOpenAI = vi.mocked(OpenAI);
+    const mockOpenai = new MockOpenAI();
     const mockResponse = {
       choices: [{ message: { content: 'Extracted text' } }],
     };
-    (mockOpenai.chat.completions.create as vi.Mock).mockResolvedValue(mockResponse);
+    mockOpenai.chat.completions.create.mockResolvedValue(mockResponse);
 
     // 3. Call the function
     await processImageFileFast(imagePath, mockOpenai, 1, 1);

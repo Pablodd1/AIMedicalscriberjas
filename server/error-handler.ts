@@ -11,8 +11,8 @@ export interface ErrorResponse {
   code?: string;
 }
 
-// Export all handler functions
-export * from './error-handlers';
+// Error response with status code
+export interface ErrorResponseWithStatus extends ErrorResponse {
   statusCode: number;
   timestamp: string;
 }

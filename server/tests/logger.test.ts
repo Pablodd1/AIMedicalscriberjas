@@ -2,7 +2,9 @@ import { describe, it, expect, vi } from 'vitest';
 import { log, logError } from '../logger';
 import winston from 'winston';
 
-vi.mock('winston', () => {
+vi.mock('winston', async () => {
+  const actual = await vi.importActual('winston');
+  
   const mFormat = {
     combine: vi.fn(),
     timestamp: vi.fn(),
@@ -20,18 +22,18 @@ vi.mock('winston', () => {
     error: vi.fn(),
   };
 
-  const mockWinston = {
-    createLogger: vi.fn(() => ({
-      info: mLogger.info,
-      error: mLogger.error,
-      format: mFormat,
-      transports: mTransports,
-    })),
+  return {
+    ...actual,
+    createLogger: vi.fn(() => mLogger),
     format: mFormat,
     transports: mTransports,
+    default: {
+      ...actual.default,
+      createLogger: vi.fn(() => mLogger),
+      format: mFormat,
+      transports: mTransports,
+    }
   };
-
-  return mockWinston;
 });
 
 describe('Logger', () => {
@@ -39,8 +41,7 @@ describe('Logger', () => {
     const message = 'Test message';
     const context = { requestId: '123' };
     log(message, context);
-    const mockWinston = await import('winston');
-expect(mockWinston.createLogger().info).toHaveBeenCalledWith(message, context);
+    expect(winston.createLogger().info).toHaveBeenCalledWith(message, context);
   });
 
   it('should call logger.error with the correct arguments', () => {

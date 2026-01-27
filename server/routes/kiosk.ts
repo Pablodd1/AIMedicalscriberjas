@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { storage } from './storage';
-import { sendSuccessResponse, sendErrorResponse, asyncHandler } from './error-handler';
-import { log, logError } from './logger';
+import { storage } from '../storage';
+import { sendSuccessResponse, sendErrorResponse, asyncHandler } from '../error-handler';
+import { log, logError } from '../logger';
 import crypto from 'crypto';
 
 // Schema for kiosk patient registration

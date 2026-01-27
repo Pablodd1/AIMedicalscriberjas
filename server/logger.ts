@@ -32,7 +32,6 @@ export const log = (message: string, context?: LogContext) => {
 
 // Export logger for kiosk and other components
 export { logger };
-};
 
 export const logError = (message: string, error?: any, context?: LogContext) => {
   logger.error(message, { error: error?.stack || error, ...context });

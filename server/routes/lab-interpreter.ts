@@ -1343,8 +1343,6 @@ JSON SCHEMA:
   }, 'Lab report analyzed successfully');
 }));
 
-<<<<<<< HEAD
-=======
 // DEBUG ENDPOINT: Check analysis pipeline
 labInterpreterRouter.get('/debug/analysis', requireAuth, requireAdmin, asyncHandler(async (req, res) => {
   const doctorId = (req.user as any).id;
@@ -1365,7 +1363,6 @@ labInterpreterRouter.get('/debug/analysis', requireAuth, requireAdmin, asyncHand
   }, 'Debug info retrieved');
 }));
 
->>>>>>> origin/fix-secure-debug-endpoint-6166924453676946977
 // TEST ENDPOINT: Test analysis with simple sample data
 labInterpreterRouter.post('/test/simple-analysis', requireAuth, asyncHandler(async (req, res) => {
   const { testData } = req.body;
