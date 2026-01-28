@@ -2,10 +2,6 @@
   "version": 2,
   "builds": [
     {
-      "src": "server/index.ts",
-      "use": "@vercel/node"
-    },
-    {
       "src": "package.json",
       "use": "@vercel/static-build",
       "config": {
@@ -13,21 +9,19 @@
       }
     }
   ],
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "/api"
+    }
+  ],
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "server/index.ts"
-    },
-    {
-      "src": "/ws/(.*)",
-      "dest": "server/index.ts"
+      "handle": "filesystem"
     },
     {
       "src": "/(.*)",
-      "dest": "dist/client/$1"
+      "dest": "/index.html"
     }
-  ],
-  "env": {
-    "NODE_ENV": "production"
-  }
+  ]
 }
